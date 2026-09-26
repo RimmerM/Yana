@@ -268,9 +268,9 @@ bb0(%0: words.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %17: %String address = field.addr . inspect %0
   %77: %I32 address = field.addr .$index inspect %0
   %78: I32 trivial = load inspect %77
-  %79: I32 trivial = const 0
+  %79: I32 trivial = const 1
   %80: Bool trivial = eq inspect %78 inspect %79
-  branch inspect %80 -> bb1 -> bb17
+  branch inspect %80 -> bb15 -> bb17
 
 bb1:
   branch inspect %2 -> bb16 -> bb3
@@ -399,9 +399,9 @@ bb16:
   return consume %75
 
 bb17:
-  %81: I32 trivial = const 1
+  %81: I32 trivial = const 0
   %82: Bool trivial = eq inspect %78 inspect %81
-  branch inspect %82 -> bb15 -> bb2
+  branch inspect %82 -> bb1 -> bb2
 }
 
 fn words$drop($self: words.Iter) -> {} {

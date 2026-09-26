@@ -1,56 +1,56 @@
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    setpattern %v_1, 8, 0
+    %v_1 = imm 0: I64
     %v_2 = alloca 40, 4: Ptr
-    copy %v_2, %v_1, 8
+    store %v_2, %v_1, 8
     %v_3 = add %v_2, 8: Ptr
-    copy %v_3, %v_1, 8
+    store %v_3, %v_1, 8
     %v_4 = add %v_2, 16: Ptr
-    copy %v_4, %v_1, 8
+    store %v_4, %v_1, 8
     %v_5 = add %v_2, 24: Ptr
-    copy %v_5, %v_1, 8
+    store %v_5, %v_1, 8
     %v_6 = add %v_2, 32: Ptr
-    copy %v_6, %v_1, 8
-    store %v_3, 13, 4
-    %v_7 = add %v_2, 12: Ptr
-    %v_8 = loads %v_7, 4: I32
-    %v_9 = add 13, %v_8: I32
-    %v_10 = cmp_neq %v_9, 13: I32
-    je %v_10, b_11, b_12
+    store %v_6, %v_1, 8
+    %v_7 = imm 13: I32
+    store %v_3, %v_7, 4
+    %v_8 = add %v_2, 12: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_7, %v_9: I32
+    %v_11 = cmp_neq %v_10, 13: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = imm 0: I64
+    %v_15 = alloca 40, 4: Ptr
+    store %v_15, %v_14, 8
+    %v_16 = add %v_15, 8: Ptr
+    store %v_16, %v_14, 8
+    %v_17 = add %v_15, 16: Ptr
+    store %v_17, %v_14, 8
+    %v_18 = add %v_15, 24: Ptr
+    store %v_18, %v_14, 8
+    %v_19 = add %v_15, 32: Ptr
+    store %v_19, %v_14, 8
+    %v_20 = imm 24: I32
+    store %v_18, %v_20, 4
+    %v_21 = add %v_15, 28: Ptr
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = add %v_20, %v_22: I32
+    %v_24 = cmp_neq %v_23, 24: I32
+    je %v_24, b_25, b_26
   }
 
   b_12 {
-    %v_13 = alloca 8, 4: Ptr
-    setpattern %v_13, 8, 0
-    %v_14 = alloca 40, 4: Ptr
-    copy %v_14, %v_13, 8
-    %v_15 = add %v_14, 8: Ptr
-    copy %v_15, %v_13, 8
-    %v_16 = add %v_14, 16: Ptr
-    copy %v_16, %v_13, 8
-    %v_17 = add %v_14, 24: Ptr
-    copy %v_17, %v_13, 8
-    %v_18 = add %v_14, 32: Ptr
-    copy %v_18, %v_13, 8
-    store %v_17, 24, 4
-    %v_19 = add %v_14, 28: Ptr
-    %v_20 = loads %v_19, 4: I32
-    %v_21 = add 24, %v_20: I32
-    %v_22 = cmp_neq %v_21, 24: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_11 {
     ret 18446744073709551613
   }
 
-  b_24 {
+  b_26 {
     ret 4242
   }
 
-  b_23 {
+  b_25 {
     ret 18446744073709551612
   }
 }

@@ -17,11 +17,11 @@ function main() {
   L0: for (;;) {
     var v27 = v12.$index;
     B1: {
-      if (v27 === 0) {
-        v12.i = 0;
+      if (v27 === 1) {
+        v12.i = v12.i + 1 | 0;
       } else {
-        if (v27 === 1) {
-          v12.i = v12.i + 1 | 0;
+        if (v27 === 0) {
+          v12.i = 0;
           break B1;
         }
         break L0;
@@ -58,11 +58,11 @@ function main() {
   L3: for (;;) {
     var v132 = v112.$index;
     B4: {
-      if (v132 === 0) {
-        v112.i = 0;
+      if (v132 === 1) {
+        v112.i = v112.i + 1 | 0;
       } else {
-        if (v132 === 1) {
-          v112.i = v112.i + 1 | 0;
+        if (v132 === 0) {
+          v112.i = 0;
           break B4;
         }
         break L3;
@@ -81,11 +81,11 @@ function main() {
   L5: for (;;) {
     var v157 = v119.$index;
     B6: {
-      if (v157 === 0) {
-        v119.i = 0;
+      if (v157 === 1) {
+        v119.i = v119.i + 1 | 0;
       } else {
-        if (v157 === 1) {
-          v119.i = v119.i + 1 | 0;
+        if (v157 === 0) {
+          v119.i = 0;
           break B6;
         }
         break L5;
@@ -106,13 +106,11 @@ function main() {
 
 function noisy$drop($self) {
   var v7 = $self.$index;
-  if (v7 === 0) {
+  if (v7 === 1) {
+    trace = Math.imul(trace, 10) + 9 | 0;
     $self.$index = 2147483647;
   } else {
-    if (v7 === 1) {
-      trace = Math.imul(trace, 10) + 9 | 0;
-      $self.$index = 2147483647;
-    }
+    if (v7 === 0) $self.$index = 2147483647;
   }
 }
 main();

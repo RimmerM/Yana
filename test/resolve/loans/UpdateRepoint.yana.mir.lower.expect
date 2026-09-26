@@ -7,22 +7,16 @@ main<complex>(): I32 {
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 2, 4
     %v_3 = bitcast %v_1: I64
-    %v_4 = add %v_1, 4: Ptr
-    %v_5 = loads %v_4, 4: I32
-    call_complex Array(a).reclaim(I32), %v_3, 2
-    %v_6 = add 70, %v_5: I32
-    %v_7 = add 146, %v_6: I32
-    %v_8 = add %v_7, 43146: I32
-    %v_9 = alloca 4, 4: Ptr
-    store %v_9, 1, 4
-    %v_10 = bitcast %v_9: I64
-    call_complex Array(a).reclaim(I32), %v_10, 1
-    %v_11 = add %v_8, 77: I32
-    ret %v_11
+    call_simple Array(a).reclaim(I32), %v_3, 2
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, 1, 4
+    %v_5 = bitcast %v_4: I64
+    call_simple Array(a).reclaim(I32), %v_5, 1
+    ret 43441
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32

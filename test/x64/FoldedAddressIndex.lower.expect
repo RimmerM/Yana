@@ -126,13 +126,13 @@ block b_0:
   add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:8]  => 4c8bdf4983c3054c895c2450
   fun uses=[] creates=[-]  => 
   imm uses=[] creates=[remat:3]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[remat:3->rdi] post=[rax->rcx]  => bf08000000e86fffffff488bc8
-  store uses=[r15, rcx] creates=[]  => 49890f
+  call_complex uses=[-, rdi] creates=[rax] pre=[remat:3->rdi]  => bf08000000e86fffffff
+  store uses=[r15, rax] creates=[]  => 498907
+  imm uses=[] creates=[-]  => 
   imm uses=[] creates=[remat:4]  => 
-  imm uses=[] creates=[remat:5]  => 
-  mul uses=[rax, r11] creates=[rax] pre=[remat:5->rax, remat:4->r11]  => b80800000041bb0000000049f7e3
-  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-] post=[remat:0->rdx]  => ba00000000
-  store uses=[-, rdx] creates=[]  => 48891401
+  mul uses=[r11, -] creates=[rcx] pre=[remat:4->r11]  => 41bb08000000496bcb00
+  x86_addr scale=1 disp=0 uses=[rax, rcx] creates=[-] post=[remat:0->rdx]  => ba00000000
+  store uses=[-, rdx] creates=[]  => 48891408
   imm uses=[] creates=[-]  => 
   load uses=[r15] creates=[xmm0]  => f3410f6f07
   store uses=[rbx, xmm0] creates=[]  => f30f7f03
@@ -146,7 +146,7 @@ block b_32:
   store uses=[r13, rax] creates=[]  => 49894500
   loads uses=[r13] creates=[rsi]  => 498b7500
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[] pre=[rbx->rdi]  => 488bfbe834ffffff
+  call_complex uses=[-, rdi, rsi] creates=[] pre=[rbx->rdi]  => 488bfbe83bffffff
   jmp uses=[] creates=[]  => 
 block b_34:
   loads uses=[r12] creates=[rax]  => 498b0424

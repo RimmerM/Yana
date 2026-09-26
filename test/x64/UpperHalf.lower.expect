@@ -311,16 +311,16 @@ block #1:
 
 --- codegen: skipPhi ---
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rax, rdx->rcx]  => 8bc68bca
+  jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
   cmp_igt uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 7f04
+  je uses=[-] creates=[]  => 7f07
 block right:
-  mul uses=[rax, rcx] creates=[rax]  => f7e1
-  jmp uses=[] creates=[]  => eb02
+  mul uses=[rax, rdx] creates=[rax] pre=[rsi->rax]  => 8bc60fafc2
+  jmp uses=[] creates=[]  => eb03
 block left:
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  add uses=[rax, rdx] creates=[rax] pre=[rsi->rax]  => 8d0416
   jmp uses=[] creates=[]  => 
 block end:
   cast uses=[rax] creates=[rax]  => 

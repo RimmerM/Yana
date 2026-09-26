@@ -174,11 +174,11 @@ function findEntry_String_I32(self, key, h) {
   var p3, p5, p6;
   var v9 = self.mask;
   if (v9 === 0) {
-    var v55 = self.keys.length;
+    var v63 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v55) {
-        if (keyEquals_String_I32(self, p3, key)) break B1;
+      while (p3 < v63) {
+        if (self.keys[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
       p3 = -1;
@@ -196,7 +196,7 @@ function findEntry_String_I32(self, key, h) {
           p3 = -1;
           break B3;
         }
-        if (v40 >= 0 && keyEquals_String_I32(self, v40, key)) {
+        if (v40 >= 0 && self.keys[v40] === key) {
           p3 = v40;
           break B3;
         }
@@ -243,10 +243,6 @@ function push_I32(self, item) {
   if (v6 > self.items.length) growJsArray_I32(self, v6);
   self.items[v3] = item;
   self.length = v6 & 1073741823;
-}
-
-function keyEquals_String_I32(self, at, key) {
-  return self.keys[at] === key ? 1 : 0;
 }
 
 function growJsArray_I32(self, wanted) {

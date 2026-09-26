@@ -3,10 +3,6 @@
 var effects = 0;
 
 // 
-function fallbackSkipped(m) {
-  return !(m === null) ? m : fallbackSkipped_thunk(null);
-}
-
 function bothSet(lhs, rhs) {
   return lhs === 0 ? lhs : lhs & rhs.$c(rhs.$e);
 }
@@ -18,14 +14,14 @@ function onceKept(flag, value) {
 
 function main() {
   effects = effects + 2 | 0;
-  var v27 = fallbackSkipped(5) === 5 ? 255 : 127;
-  var v35 = fallbackSkipped(null) === 7 ? v27 + 256 : v27;
-  var v56 = (main_thunk_2(null) + 1 | 0) === 8 ? v35 + 1536 : v35 + 512;
-  var v73 = bothSet(0, { $c: maskSkips_thunk, $e: null }) === 0 ? v56 + 2048 : v56;
-  var v90 = bothSet(7, { $c: maskRuns_thunk, $e: null }) === 3 ? v73 + 4096 : v73;
-  var v114 = (main_thunk_3(null) + 1 | 0) === 8 ? v90 + 57344 : v90 + 24576;
-  var v131 = onceKept(0, { $c: main_thunk_5, $e: null }) === 0 ? v114 + 196608 : v114 + 65536;
-  return Math.imul(onceKept(1, { $c: main_thunk_6, $e: null }) === 8 ? v131 + 262144 : v131, 100) + effects | 0;
+  var s5 = null;
+  var v75 = (!(s5 === null) ? s5 : fallbackSkipped_thunk(null)) === 7 ? 511 : 255;
+  var v96 = (main_thunk_2(null) + 1 | 0) === 8 ? v75 + 1536 : v75 + 512;
+  var v113 = bothSet(0, { $c: maskSkips_thunk, $e: null }) === 0 ? v96 + 2048 : v96;
+  var v130 = bothSet(7, { $c: maskRuns_thunk, $e: null }) === 3 ? v113 + 4096 : v113;
+  var v154 = (main_thunk_3(null) + 1 | 0) === 8 ? v130 + 57344 : v130 + 24576;
+  var v171 = onceKept(0, { $c: main_thunk_5, $e: null }) === 0 ? v154 + 196608 : v154 + 65536;
+  return Math.imul(onceKept(1, { $c: main_thunk_6, $e: null }) === 8 ? v171 + 262144 : v171, 100) + effects | 0;
 }
 
 function fallbackSkipped_thunk(fallbackSkipped_thunk_env) {

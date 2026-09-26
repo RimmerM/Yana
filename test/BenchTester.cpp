@@ -402,6 +402,10 @@ static void benchNative(const Fixture& fixture) {
     applyFixtureDirectives(context.settings, provider.source);
     if(isJsMode(context.settings)) return;
 
+    // Lowered for the local backend, since `benchX64` is what is measured: the field's default is
+    // LLVM, and until J182 this measured a lower pipeline `-backend local` does not run.
+    context.settings.backend = NativeBackend::Local;
+
     if(stringView(fixture.path).startsWith("lib/"_v)) context.settings.test = true;
     provider.context = &context;
 

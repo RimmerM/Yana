@@ -1151,6 +1151,20 @@ struct LowerModule {
      */
     LowerConsumer consumer = LowerConsumer::Llvm;
 
+    /*
+     * The widest vector register the target holds, in bytes - `targetVectorBytes`, set where
+     * `consumer` is (J183).
+     *
+     * The lower tier otherwise learns a vector width only from a value that already has one, which is
+     * enough for everything that promotes an access; it is not enough for a slot no access types,
+     * where the width is the whole of the question. `promoteStackSlots` reads it for such a slot, and
+     * `splitAggregateSlots` for the 32-byte cell it halves on a 16-byte machine.
+     *
+     * Sixteen by default, which every x86-64 has: a module parsed from text states nothing, as for
+     * `consumer`.
+     */
+    U32 vectorBytes = 16;
+
     U16 errorCount = 0;
     U16 warningCount = 0;
 };

@@ -10,39 +10,19 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %constant$0 = global @constant$0: Ptr
-    %v_1 = load %constant$0, 8: I64
-    %v_2 = add %constant$0, 8: Ptr
-    %v_3 = load %v_2, 4: I32
-    call_complex String.reclaim, %v_1, %v_3
-    %constant$1 = global @constant$1: Ptr
-    %v_4 = load %constant$1, 8: I64
-    %v_5 = add %constant$1, 8: Ptr
-    %v_6 = load %v_5, 4: I32
-    %v_7 = add %constant$1, 12: Ptr
-    %v_8 = load %v_7, 4: I32
-    %v_9 = sext %v_8: I64
-    call_complex String.reclaim, %v_4, %v_6
-    %constant$2 = global @constant$2: Ptr
-    %v_10 = load %constant$2, 8: I64
-    %v_11 = add %constant$2, 8: Ptr
-    %v_12 = load %v_11, 4: I32
-    call_complex String.reclaim, %v_10, %v_12
-    %constant$3 = global @constant$3: Ptr
-    %v_13 = load %constant$3, 8: I64
-    %v_14 = add %constant$3, 8: Ptr
-    %v_15 = load %v_14, 4: I32
-    %v_16 = add %constant$3, 12: Ptr
-    %v_17 = load %v_16, 4: I32
-    %v_18 = sext %v_17: I64
-    call_complex String.reclaim, %v_13, %v_15
-    %v_19 = add %v_9, %v_18: I64
-    %v_20 = sext %v_19: I32
-    ret %v_20
+    %v_1 = load @constant$0, 8: I64
+    call_simple String.reclaim, %v_1, 1
+    %v_2 = load @constant$1, 8: I64
+    call_simple String.reclaim, %v_2, 3
+    %v_3 = load @constant$2, 8: I64
+    call_simple String.reclaim, %v_3, 1
+    %v_4 = load @constant$3, 8: I64
+    call_simple String.reclaim, %v_4, 4
+    ret 7
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+String.reclaim<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32

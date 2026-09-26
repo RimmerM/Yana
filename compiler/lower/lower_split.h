@@ -80,7 +80,9 @@
  * access of the slot, or of a slot a copy relates it to, starts inside (`namesCell`) is cut where a
  * word-at-a-time zeroing would cut it, and the cuts are mirrored across the copies - not where the
  * words would take the slot past `kMaxFields`. Every cell above 8 bytes cost 37 KB of `test/base`;
- * above 32 is neutral there, and the lexer's 60-byte token is what needed it.
+ * above 32 is neutral there, and the lexer's 60-byte token is what needed it. For the local backend
+ * a 32-byte such cell on a machine with no 32-byte register is instead cut in two halves (J183),
+ * which promotion then holds in two `xmm`s.
  *
  * ## A move is a load and a store, not a copy
  *
@@ -90,7 +92,10 @@
  * a width a register holds is moved as a `load` and a `store` rather than as a `copy`, and the type
  * they carry is the one the cell's accesses agree on anywhere in the graph, propagated across the
  * copies beside the cut points. A cell nothing types and no register holds is moved as a copy, which
- * is the case this pass has nothing to say about and leaves as it found it.
+ * is the case this pass has nothing to say about and leaves as it found it - except that for the
+ * local backend a cell of sixteen or thirty-two bytes that only copies name is one promotion now
+ * holds in a vector register anyway (J183, lower_promote.h's "A slot only copies name"), so the copy
+ * it is moved as becomes a load and a store there instead.
  *
  * ## Order
  *

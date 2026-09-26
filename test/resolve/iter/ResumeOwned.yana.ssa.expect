@@ -382,9 +382,9 @@ bb0(%0: levels.Iter [unique call] guaranteed, %1: Outcome(Cmd, I32) trivial, %2:
   store inspect %14 consume %16
   %117: %I32 address = field.addr .$index inspect %0
   %118: I32 trivial = load inspect %117
-  %119: I32 trivial = const 0
+  %119: I32 trivial = const 1
   %120: Bool trivial = eq inspect %118 inspect %119
-  branch inspect %120 -> bb1 -> bb31
+  branch inspect %120 -> bb29 -> bb31
 
 bb1:
   branch inspect %2 -> bb30 -> bb3
@@ -602,9 +602,9 @@ bb30:
   return consume %115
 
 bb31:
-  %121: I32 trivial = const 1
+  %121: I32 trivial = const 0
   %122: Bool trivial = eq inspect %118 inspect %121
-  branch inspect %122 -> bb29 -> bb2
+  branch inspect %122 -> bb1 -> bb2
 }
 
 fn levels$drop($self: levels.Iter) -> {} {
@@ -669,9 +669,9 @@ bb0(%0: placed.Iter [unique call] guaranteed, %1: Outcome(Cmd, I32) trivial, %2:
   store inspect %12 consume %13
   %95: %I32 address = field.addr .$index inspect %0
   %96: I32 trivial = load inspect %95
-  %97: I32 trivial = const 0
+  %97: I32 trivial = const 1
   %98: Bool trivial = eq inspect %96 inspect %97
-  branch inspect %98 -> bb1 -> bb27
+  branch inspect %98 -> bb25 -> bb27
 
 bb1:
   branch inspect %2 -> bb26 -> bb3
@@ -853,9 +853,9 @@ bb26:
   return consume %93
 
 bb27:
-  %99: I32 trivial = const 1
+  %99: I32 trivial = const 0
   %100: Bool trivial = eq inspect %96 inspect %99
-  branch inspect %100 -> bb25 -> bb2
+  branch inspect %100 -> bb1 -> bb2
 }
 
 fn placed$drop($self: placed.Iter) -> {} {

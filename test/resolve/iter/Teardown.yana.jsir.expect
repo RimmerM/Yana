@@ -135,8 +135,8 @@ fn main() -> one %r0
     %66: %r3 = alias %64
     store property %66.$index: %r0, %65
     %67: %r5 = const 1
-    %68: %r0 = const 0
-    %69: %r0 = const 1
+    %68: %r0 = const 1
+    %69: %r0 = const 0
     %70: %r0 = const 1
     %71: %r0 = const 0
     %72: %r0 = const 3
@@ -161,26 +161,26 @@ fn main() -> one %r0
   block14:
     jump -> block21(%67)
   block15:
-    %85: %r3 = alias %64
-    %86: %r0 = load property %85.f5: %r0
+    %85: %r0 = alias %70
+    %86: %r3 = alias %64
+    store property %86.a: %r0, %85
     %87: %r3 = alias %64
-    %88: %r0 = load property %87.f6: %r0
+    %88: %r0 = load property %87.a: %r0
+    call Note.drop %88
     %89: %r3 = alias %64
-    %90: %r0 = load property %89.f3: %r0
-    %91: %r0 = binary.add %90, %88
-    %92: %r0 = coerce %91
-    store property %89.f3: %r0, %92
-    jump -> block17(%86, %88)
-  block16:
-    %93: %r0 = alias %70
-    %94: %r3 = alias %64
-    store property %94.a: %r0, %93
-    %95: %r3 = alias %64
-    %96: %r0 = load property %95.a: %r0
-    call Note.drop %96
-    %97: %r3 = alias %64
-    store property %97.f3: %r0, %71
+    store property %89.f3: %r0, %71
     jump -> block17(%72, %73)
+  block16:
+    %90: %r3 = alias %64
+    %91: %r0 = load property %90.f5: %r0
+    %92: %r3 = alias %64
+    %93: %r0 = load property %92.f6: %r0
+    %94: %r3 = alias %64
+    %95: %r0 = load property %94.f3: %r0
+    %96: %r0 = binary.add %95, %93
+    %97: %r0 = coerce %96
+    store property %94.f3: %r0, %97
+    jump -> block17(%91, %93)
   block17(%1: %r0, %2: %r0):
     %98: %r3 = alias %64
     %99: %r0 = load property %98.f3: %r0
@@ -251,8 +251,8 @@ fn main() -> one %r0
     %136: %r0 = const 0
     %137: %r3 = alias %135
     store property %137.$index: %r0, %136
-    %138: %r0 = const 0
-    %139: %r0 = const 1
+    %138: %r0 = const 1
+    %139: %r0 = const 0
     %140: %r0 = const 1
     %141: %r0 = const 0
     %142: %r0 = const 3
@@ -279,26 +279,26 @@ fn main() -> one %r0
     %153: %r5 = binary.eq %151, %139
     branch %153 -> block29 -> block33
   block29:
-    %154: %r3 = alias %135
-    %155: %r0 = load property %154.f5: %r0
+    %154: %r0 = alias %140
+    %155: %r3 = alias %135
+    store property %155.a: %r0, %154
     %156: %r3 = alias %135
-    %157: %r0 = load property %156.f6: %r0
+    %157: %r0 = load property %156.a: %r0
+    call Note.drop %157
     %158: %r3 = alias %135
-    %159: %r0 = load property %158.f3: %r0
-    %160: %r0 = binary.add %159, %157
-    %161: %r0 = coerce %160
-    store property %158.f3: %r0, %161
-    jump -> block31(%155, %157)
-  block30:
-    %162: %r0 = alias %140
-    %163: %r3 = alias %135
-    store property %163.a: %r0, %162
-    %164: %r3 = alias %135
-    %165: %r0 = load property %164.a: %r0
-    call Note.drop %165
-    %166: %r3 = alias %135
-    store property %166.f3: %r0, %141
+    store property %158.f3: %r0, %141
     jump -> block31(%142, %143)
+  block30:
+    %159: %r3 = alias %135
+    %160: %r0 = load property %159.f5: %r0
+    %161: %r3 = alias %135
+    %162: %r0 = load property %161.f6: %r0
+    %163: %r3 = alias %135
+    %164: %r0 = load property %163.f3: %r0
+    %165: %r0 = binary.add %164, %162
+    %166: %r0 = coerce %165
+    store property %163.f3: %r0, %166
+    jump -> block31(%160, %162)
   block31(%5: %r0, %6: %r0):
     %167: %r3 = alias %135
     %168: %r0 = load property %167.f3: %r0
@@ -434,13 +434,13 @@ fn looped$drop(one %r3) -> omitted
   block0(%0: %r3):
     %9: %r3 = alias %0
     %10: %r0 = load property %9.$index: %r0
-    %11: %r0 = const 0
+    %11: %r0 = const 1
     %12: %r5 = binary.eq %10, %11
     branch %12 -> block4 -> block2
   block1:
     return
   block2:
-    %13: %r0 = const 1
+    %13: %r0 = const 0
     %14: %r5 = binary.eq %10, %13
     branch %14 -> block3 -> block1
   block3:

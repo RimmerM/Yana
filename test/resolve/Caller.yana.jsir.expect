@@ -1,5 +1,6 @@
 fn main() -> one %r0
   var $0: %r1
+  var $1: %r1
   block0:
     %0: %r0 = const 0
     %17: %r1 = const "main"
@@ -10,8 +11,8 @@ fn main() -> one %r0
     %25: %r1 = alias %23
     %26: %r1 = alias %24
     %27: %r1 = alias %25
-    %28: %r8 = host host.binary "===" %26, %27
-    %29: %r8 = unary.not %28
+    %28: %r4 = host host.binary "===" %26, %27
+    %29: %r4 = unary.not %28
     branch %29 -> block2 -> block1
   block1:
     %36: %r1 = const "1 == 2"
@@ -21,11 +22,11 @@ fn main() -> one %r0
     %40: %r0 = host host.field "length" host-range %39
     %41: %r0 = convert %40
     %42: %r0 = const 6
-    %43: %r8 = binary.ne %41, %42
+    %43: %r4 = binary.ne %41, %42
     branch %43 -> block4 -> block3
   block2:
-    %124: %r0 = const 3
-    return %124
+    %134: %r0 = const 3
+    return %134
   block3:
     %44: %r1 = const ""
     %45: %r1 = alias %44
@@ -34,16 +35,16 @@ fn main() -> one %r0
     %48: %r0 = host host.field "length" host-range %47
     %49: %r0 = convert %48
     %50: %r0 = const 0
-    %51: %r8 = binary.ne %49, %50
+    %51: %r4 = binary.ne %49, %50
     branch %51 -> block6 -> block5
   block4:
-    %123: %r0 = const 5
-    return %123
+    %133: %r0 = const 5
+    return %133
   block5:
     jump -> block7
   block6:
-    %122: %r0 = const 6
-    return %122
+    %132: %r0 = const 6
+    return %132
   block7:
     %61: %r1 = const "n > 0"
     %62: %r1 = alias %61
@@ -52,101 +53,92 @@ fn main() -> one %r0
     %65: %r0 = host host.field "length" host-range %64
     %66: %r0 = convert %65
     %67: %r0 = const 5
-    %68: %r8 = binary.ne %66, %67
+    %68: %r4 = binary.ne %66, %67
     branch %68 -> block10 -> block9
   block8:
-    %121: %r0 = const 7
-    return %121
+    %131: %r0 = const 7
+    return %131
   block9:
     %69: %r0 = const 42
     %71: %r0 = const 98
-    %74: %r1 = const ""
-    %75: %r9 = object %s2 %74
-    %80: %r1 = const ""
-    store property %75.$v: %r1, %80
-    %81: %r2 = const "$v"
-    call I32.show %69, %75, %81
-    %82: %r1 = const "@"
-    %83: %r1 = load property %75.$v: %r1
-    %84: %r1 = alias %83
-    %85: %r1 = alias %82
-    %86: %r1 = alias %84
-    %87: %r1 = alias %85
-    %88: %r1 = host host.binary "+" %86, %87
-    store property %75.$v: %r1, %88
-    %89: %r2 = const "$v"
-    call I32.show %71, %75, %89
-    %90: %r1 = load property %75.$v: %r1
-    %91: %r1 = alias %90
-    %92: %r1 = alias %91
-    %93: %r1 = alias %92
-    %94: %r1 = alias %93
+    %78: %r1 = const ""
+    store var $1: %r1, %78
+    %79: %r1 = host host.global "String" %69
+    %80: %r1 = load var $1: %r1
+    %81: %r1 = alias %80
+    %82: %r1 = alias %79
+    %83: %r1 = alias %81
+    %84: %r1 = alias %82
+    %85: %r1 = host host.binary "+" %83, %84
+    store var $1: %r1, %85
+    %86: %r1 = const "@"
+    %87: %r1 = load var $1: %r1
+    %88: %r1 = alias %87
+    %89: %r1 = alias %86
+    %90: %r1 = alias %88
+    %91: %r1 = alias %89
+    %92: %r1 = host host.binary "+" %90, %91
+    store var $1: %r1, %92
+    %93: %r1 = host host.global "String" %71
+    %94: %r1 = load var $1: %r1
     %95: %r1 = alias %94
-    %96: %r0 = host host.field "length" host-range %95
-    %97: %r0 = convert %96
-    %98: %r0 = const 3
-    %99: %r8 = binary.le %97, %98
-    branch %99 -> block12 -> block11
-  block10:
-    %120: %r0 = const 8
-    return %120
-  block11:
-    %100: %r1 = alias %91
+    %96: %r1 = alias %93
+    %97: %r1 = alias %95
+    %98: %r1 = alias %96
+    %99: %r1 = host host.binary "+" %97, %98
+    store var $1: %r1, %99
+    %100: %r1 = load var $1: %r1
     %101: %r1 = alias %100
-    %102: %r0 = const 0
-    %103: %r1 = alias %101
+    %102: %r1 = alias %101
+    %103: %r1 = alias %102
     %104: %r1 = alias %103
-    %105: %r12 = host host.call "charCodeAt" %104, %102
-    %106: %r12 = const 52
-    %107: %r8 = binary.ne %105, %106
-    branch %107 -> block14 -> block13
+    %105: %r1 = alias %104
+    %106: %r0 = host host.field "length" host-range %105
+    %107: %r0 = convert %106
+    %108: %r0 = const 3
+    %109: %r4 = binary.le %107, %108
+    branch %109 -> block12 -> block11
+  block10:
+    %130: %r0 = const 8
+    return %130
+  block11:
+    %110: %r1 = alias %101
+    %111: %r1 = alias %110
+    %112: %r0 = const 0
+    %113: %r1 = alias %111
+    %114: %r1 = alias %113
+    %115: %r7 = host host.call "charCodeAt" %114, %112
+    %116: %r7 = const 52
+    %117: %r4 = binary.ne %115, %116
+    branch %117 -> block14 -> block13
   block12:
-    %119: %r0 = const 9
-    return %119
+    %129: %r0 = const 9
+    return %129
   block13:
-    %108: %r1 = alias %91
-    %109: %r1 = alias %108
-    %110: %r0 = const 2
-    %111: %r1 = alias %109
-    %112: %r1 = alias %111
-    %113: %r12 = host host.call "charCodeAt" %112, %110
-    %114: %r12 = const 64
-    %115: %r8 = binary.ne %113, %114
-    %116: %r0 = const 11
-    %117: %r0 = select %115, %116, %0
-    return %117
+    %118: %r1 = alias %101
+    %119: %r1 = alias %118
+    %120: %r0 = const 2
+    %121: %r1 = alias %119
+    %122: %r1 = alias %121
+    %123: %r7 = host host.call "charCodeAt" %122, %120
+    %124: %r7 = const 64
+    %125: %r4 = binary.ne %123, %124
+    %126: %r0 = const 11
+    %127: %r0 = select %125, %126, %0
+    return %127
   block14:
-    %118: %r0 = const 10
-    return %118
-
-fn I32.show(one %r0, parts %r4) -> omitted
-  block0(%0: %r0, %1: %r2, %2: %r2):
-    %3: %r1 = host host.global "String" %0
-    %4: %r1 = load element %1[%2]: %r1
-    %5: %r1 = alias %4
-    %6: %r1 = alias %3
-    %7: %r1 = alias %5
-    %8: %r1 = alias %6
-    %9: %r1 = host host.binary "+" %7, %8
-    store element %1[%2]: %r1, %9
-    return
+    %128: %r0 = const 10
+    return %128
 
 optimizer clones 0 aliased 0 forwarded 0 removed 42 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 3 folded 1
 
-shape %s0 ref {$o: %r2 owner, $k: %r2 key}
-shape %s1 object Site {file: %r1, line: %r0, column: %r0, function: %r1}
-shape %s2 cell {$v: %r1 box}
+shape %s0 object Site {file: %r1, line: %r0, column: %r0, function: %r1}
 
 rep %r0 = number signed 32
 rep %r1 = string
-rep %r2 = erased
-rep %r3 = cell of %r1
-rep %r4 = parts (%r2, %r2) as %r3
-rep %r5 = void
-rep %r6 = object %s1
-rep %r7 = parts (%r1, %r0, %r0, %r1) as %r6
-rep %r8 = number bool
-rep %r9 = object %s2
-rep %r10 = number unsigned 8
-rep %r11 = nullable of %r0
-rep %r12 = number unsigned 16
+rep %r2 = object %s0
+rep %r3 = parts (%r1, %r0, %r0, %r1) as %r2
+rep %r4 = number bool
+rep %r5 = number unsigned 8
+rep %r6 = nullable of %r0
+rep %r7 = number unsigned 16

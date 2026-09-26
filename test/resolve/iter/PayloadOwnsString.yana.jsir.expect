@@ -43,7 +43,7 @@ fn main() -> one %r0
     %45: %r0 = const 0
     %49: %r2 = alias %44
     %50: %r0 = load property %49.$index: %r0
-    %51: %r0 = const 0
+    %51: %r0 = const 1
     %52: %r6 = binary.eq %50, %51
     branch %52 -> block33 -> block31
   block1:
@@ -68,7 +68,7 @@ fn main() -> one %r0
   block5(%1: %r0):
     %115: %r2 = alias %44
     %116: %r0 = load property %115.$index: %r0
-    %117: %r0 = const 0
+    %117: %r0 = const 1
     %118: %r6 = binary.eq %116, %117
     branch %118 -> block39 -> block37
   block6:
@@ -98,7 +98,7 @@ fn main() -> one %r0
   block10(%3: %r0):
     %186: %r2 = alias %44
     %187: %r0 = load property %186.$index: %r0
-    %188: %r0 = const 0
+    %188: %r0 = const 1
     %189: %r6 = binary.eq %187, %188
     branch %189 -> block45 -> block43
   block11:
@@ -164,7 +164,7 @@ fn main() -> one %r0
     store var $23: %r0, %489
     store var $24: %r0, %490
     %299: %r0 = load var $17: %r0
-    %300: %r0 = const 0
+    %300: %r0 = const 1
     %301: %r6 = binary.eq %299, %300
     branch %301 -> block51 -> block49
   block16:
@@ -188,7 +188,7 @@ fn main() -> one %r0
     jump -> block20(%352)
   block20(%7: %r0):
     %358: %r0 = load var $17: %r0
-    %359: %r0 = const 0
+    %359: %r0 = const 1
     %360: %r6 = binary.eq %358, %359
     branch %360 -> block57 -> block55
   block21:
@@ -218,7 +218,7 @@ fn main() -> one %r0
   block25(%9: %r0):
     %421: %r5 = alias %290
     %422: %r0 = load property %421.$index: %r0
-    %423: %r0 = const 0
+    %423: %r0 = const 1
     %424: %r6 = binary.eq %422, %423
     branch %424 -> block63 -> block61
   block26:
@@ -250,31 +250,31 @@ fn main() -> one %r0
     %482: %r0 = coerce %481
     return %482
   block31:
-    %53: %r0 = const 1
+    %53: %r0 = const 0
     %54: %r6 = binary.eq %50, %53
     branch %54 -> block32 -> block1
   block32:
-    %55: %r2 = alias %44
-    %56: %r0 = load property %55.f5: %r0
+    %55: %r1 = const "x"
+    %56: %r2 = alias %44
+    store property %56.s: %r1, %55
     %57: %r2 = alias %44
-    %58: %r0 = load property %57.f6: %r0
-    %59: %r2 = alias %44
-    %60: %r0 = load property %59.f4: %r0
-    %61: %r0 = binary.add %60, %58
-    %62: %r0 = coerce %61
-    store property %59.f4: %r0, %62
-    jump -> block34(%56, %58)
+    %58: %r0 = load property %57.n: %r0
+    %59: %r0 = const 0
+    %60: %r0 = const 1
+    %61: %r2 = alias %44
+    store property %61.f4: %r0, %59
+    jump -> block34(%58, %60)
   block33:
-    %63: %r1 = const "x"
+    %62: %r2 = alias %44
+    %63: %r0 = load property %62.f5: %r0
     %64: %r2 = alias %44
-    store property %64.s: %r1, %63
-    %65: %r2 = alias %44
-    %66: %r0 = load property %65.n: %r0
-    %67: %r0 = const 0
-    %68: %r0 = const 1
-    %69: %r2 = alias %44
-    store property %69.f4: %r0, %67
-    jump -> block34(%66, %68)
+    %65: %r0 = load property %64.f6: %r0
+    %66: %r2 = alias %44
+    %67: %r0 = load property %66.f4: %r0
+    %68: %r0 = binary.add %67, %65
+    %69: %r0 = coerce %68
+    store property %66.f4: %r0, %69
+    jump -> block34(%63, %65)
   block34(%12: %r0, %13: %r0):
     %70: %r2 = alias %44
     %71: %r0 = load property %70.f4: %r0
@@ -319,31 +319,31 @@ fn main() -> one %r0
     %101: %r4 = alias %100
     jump -> block2(%101)
   block37:
-    %119: %r0 = const 1
+    %119: %r0 = const 0
     %120: %r6 = binary.eq %116, %119
     branch %120 -> block38 -> block6
   block38:
-    %121: %r2 = alias %44
-    %122: %r0 = load property %121.f5: %r0
+    %121: %r1 = const "x"
+    %122: %r2 = alias %44
+    store property %122.s: %r1, %121
     %123: %r2 = alias %44
-    %124: %r0 = load property %123.f6: %r0
-    %125: %r2 = alias %44
-    %126: %r0 = load property %125.f4: %r0
-    %127: %r0 = binary.add %126, %124
-    %128: %r0 = coerce %127
-    store property %125.f4: %r0, %128
-    jump -> block40(%122, %124)
+    %124: %r0 = load property %123.n: %r0
+    %125: %r0 = const 0
+    %126: %r0 = const 1
+    %127: %r2 = alias %44
+    store property %127.f4: %r0, %125
+    jump -> block40(%124, %126)
   block39:
-    %129: %r1 = const "x"
+    %128: %r2 = alias %44
+    %129: %r0 = load property %128.f5: %r0
     %130: %r2 = alias %44
-    store property %130.s: %r1, %129
-    %131: %r2 = alias %44
-    %132: %r0 = load property %131.n: %r0
-    %133: %r0 = const 0
-    %134: %r0 = const 1
-    %135: %r2 = alias %44
-    store property %135.f4: %r0, %133
-    jump -> block40(%132, %134)
+    %131: %r0 = load property %130.f6: %r0
+    %132: %r2 = alias %44
+    %133: %r0 = load property %132.f4: %r0
+    %134: %r0 = binary.add %133, %131
+    %135: %r0 = coerce %134
+    store property %132.f4: %r0, %135
+    jump -> block40(%129, %131)
   block40(%14: %r0, %15: %r0):
     %136: %r2 = alias %44
     %137: %r0 = load property %136.f4: %r0
@@ -388,31 +388,31 @@ fn main() -> one %r0
     %167: %r4 = alias %166
     jump -> block7(%167)
   block43:
-    %190: %r0 = const 1
+    %190: %r0 = const 0
     %191: %r6 = binary.eq %187, %190
     branch %191 -> block44 -> block11
   block44:
-    %192: %r2 = alias %44
-    %193: %r0 = load property %192.f5: %r0
+    %192: %r1 = const "x"
+    %193: %r2 = alias %44
+    store property %193.s: %r1, %192
     %194: %r2 = alias %44
-    %195: %r0 = load property %194.f6: %r0
-    %196: %r2 = alias %44
-    %197: %r0 = load property %196.f4: %r0
-    %198: %r0 = binary.add %197, %195
-    %199: %r0 = coerce %198
-    store property %196.f4: %r0, %199
-    jump -> block46(%193, %195)
+    %195: %r0 = load property %194.n: %r0
+    %196: %r0 = const 0
+    %197: %r0 = const 1
+    %198: %r2 = alias %44
+    store property %198.f4: %r0, %196
+    jump -> block46(%195, %197)
   block45:
-    %200: %r1 = const "x"
+    %199: %r2 = alias %44
+    %200: %r0 = load property %199.f5: %r0
     %201: %r2 = alias %44
-    store property %201.s: %r1, %200
-    %202: %r2 = alias %44
-    %203: %r0 = load property %202.n: %r0
-    %204: %r0 = const 0
-    %205: %r0 = const 1
-    %206: %r2 = alias %44
-    store property %206.f4: %r0, %204
-    jump -> block46(%203, %205)
+    %202: %r0 = load property %201.f6: %r0
+    %203: %r2 = alias %44
+    %204: %r0 = load property %203.f4: %r0
+    %205: %r0 = binary.add %204, %202
+    %206: %r0 = coerce %205
+    store property %203.f4: %r0, %206
+    jump -> block46(%200, %202)
   block46(%16: %r0, %17: %r0):
     %207: %r2 = alias %44
     %208: %r0 = load property %207.f4: %r0
@@ -457,26 +457,26 @@ fn main() -> one %r0
     %238: %r4 = alias %237
     jump -> block12(%238)
   block49:
-    %302: %r0 = const 1
+    %302: %r0 = const 0
     %303: %r6 = binary.eq %299, %302
     branch %303 -> block50 -> block16
   block50:
-    %305: %r0 = load var $23: %r0
-    %307: %r0 = load var $24: %r0
-    %309: %r0 = load var $22: %r0
-    %310: %r0 = binary.add %309, %307
-    %311: %r0 = coerce %310
-    store var $22: %r0, %311
-    jump -> block52(%305, %307)
+    %305: %r1 = alias %486
+    %306: %r1 = alias %305
+    store var $21: %r1, %306
+    %309: %r0 = alias %485
+    %310: %r0 = const 0
+    %311: %r0 = const 1
+    store var $22: %r0, %310
+    jump -> block52(%309, %311)
   block51:
-    %313: %r1 = alias %486
-    %314: %r1 = alias %313
-    store var $21: %r1, %314
-    %317: %r0 = alias %485
-    %318: %r0 = const 0
-    %319: %r0 = const 1
-    store var $22: %r0, %318
-    jump -> block52(%317, %319)
+    %314: %r0 = load var $23: %r0
+    %316: %r0 = load var $24: %r0
+    %318: %r0 = load var $22: %r0
+    %319: %r0 = binary.add %318, %316
+    %320: %r0 = coerce %319
+    store var $22: %r0, %320
+    jump -> block52(%314, %316)
   block52(%18: %r0, %19: %r0):
     %322: %r0 = load var $22: %r0
     %323: %r6 = binary.lt %322, %18
@@ -503,26 +503,26 @@ fn main() -> one %r0
     %342: %r4 = alias %341
     jump -> block17(%342)
   block55:
-    %361: %r0 = const 1
+    %361: %r0 = const 0
     %362: %r6 = binary.eq %358, %361
     branch %362 -> block56 -> block21
   block56:
-    %364: %r0 = load var $23: %r0
-    %366: %r0 = load var $24: %r0
-    %368: %r0 = load var $22: %r0
-    %369: %r0 = binary.add %368, %366
-    %370: %r0 = coerce %369
-    store var $22: %r0, %370
-    jump -> block58(%364, %366)
+    %364: %r1 = alias %486
+    %365: %r1 = alias %364
+    store var $21: %r1, %365
+    %368: %r0 = alias %485
+    %369: %r0 = const 0
+    %370: %r0 = const 1
+    store var $22: %r0, %369
+    jump -> block58(%368, %370)
   block57:
-    %372: %r1 = alias %486
-    %373: %r1 = alias %372
-    store var $21: %r1, %373
-    %376: %r0 = alias %485
-    %377: %r0 = const 0
-    %378: %r0 = const 1
-    store var $22: %r0, %377
-    jump -> block58(%376, %378)
+    %373: %r0 = load var $23: %r0
+    %375: %r0 = load var $24: %r0
+    %377: %r0 = load var $22: %r0
+    %378: %r0 = binary.add %377, %375
+    %379: %r0 = coerce %378
+    store var $22: %r0, %379
+    jump -> block58(%373, %375)
   block58(%20: %r0, %21: %r0):
     %381: %r0 = load var $22: %r0
     %382: %r6 = binary.lt %381, %20
@@ -543,33 +543,33 @@ fn main() -> one %r0
     %401: %r4 = alias %400
     jump -> block22(%401)
   block61:
-    %425: %r0 = const 1
+    %425: %r0 = const 0
     %426: %r6 = binary.eq %422, %425
     branch %426 -> block62 -> block26
   block62:
     %427: %r5 = alias %290
-    %428: %r0 = load property %427.f6: %r0
-    %429: %r5 = alias %290
-    %430: %r0 = load property %429.f7: %r0
+    %428: %r1 = load property %427.text: %r1
+    %429: %r1 = alias %428
+    %430: %r5 = alias %290
+    store property %430.t: %r1, %429
     %431: %r5 = alias %290
-    %432: %r0 = load property %431.f5: %r0
-    %433: %r0 = binary.add %432, %430
-    %434: %r0 = coerce %433
-    store property %431.f5: %r0, %434
-    jump -> block64(%428, %430)
-  block63:
+    %432: %r0 = load property %431.n: %r0
+    %433: %r0 = const 0
+    %434: %r0 = const 1
     %435: %r5 = alias %290
-    %436: %r1 = load property %435.text: %r1
-    %437: %r1 = alias %436
+    store property %435.f5: %r0, %433
+    jump -> block64(%432, %434)
+  block63:
+    %436: %r5 = alias %290
+    %437: %r0 = load property %436.f6: %r0
     %438: %r5 = alias %290
-    store property %438.t: %r1, %437
-    %439: %r5 = alias %290
-    %440: %r0 = load property %439.n: %r0
-    %441: %r0 = const 0
-    %442: %r0 = const 1
-    %443: %r5 = alias %290
-    store property %443.f5: %r0, %441
-    jump -> block64(%440, %442)
+    %439: %r0 = load property %438.f7: %r0
+    %440: %r5 = alias %290
+    %441: %r0 = load property %440.f5: %r0
+    %442: %r0 = binary.add %441, %439
+    %443: %r0 = coerce %442
+    store property %440.f5: %r0, %443
+    jump -> block64(%437, %439)
   block64(%22: %r0, %23: %r0):
     %444: %r5 = alias %290
     %445: %r0 = load property %444.f5: %r0

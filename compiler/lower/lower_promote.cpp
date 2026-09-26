@@ -43,6 +43,9 @@ struct Slot {
     // Whether a load or a store narrower than the slot names it - `isNarrowAccess`.
     bool narrow = false;
 
+    // Whether no access named the register, so `type` was chosen rather than read - `untypedSlot`.
+    bool untyped = false;
+
     // Which candidate this was while the survey ran, and therefore which column of its
     // availability answers for this slot - see `surveySlots`, which keeps that table per block
     // rather than per slot and so is not renumbered when a slot is dropped.
@@ -174,6 +177,34 @@ static bool isNarrowAccess(U32 accessWidth, U32 slotWidth, LowerType type) {
 }
 
 /*
+ * The register for a slot whose whole traffic is copies and zero fills of all of it - J183, and
+ * the header's "A slot only copies name", where the soundness argument is.
+ *
+ * An integer to eight bytes, and an integer vector at a width the target's vector registers hold:
+ * sixteen everywhere, thirty-two where `LowerModule::vectorBytes` says so and the function is not
+ * encoded without a vector prefix - the same cap `expandBlockOperations` applies to a transfer, for
+ * the reason `x64BlockExpansionFor` gives. Sixty-four is not offered: this backend holds a vector in
+ * at most a `ymm` (`targetVectorBytes`' own note). The lane is `Int64`, which only has to be *a*
+ * lane: nothing reads the value but the store it reaches, and `carriesInto` moves it into any other
+ * vector of the width for free.
+ *
+ * `Nothing` on the LLVM consumer, which reads a `copy` better than it reads the load and store this
+ * would make of it - see the header.
+ */
+static Maybe<LowerType> untypedSlot(LowerFunction& fun, U32 width) {
+    if(fun.module->consumer != LowerConsumer::Local) return Nothing();
+
+    if(width <= 4) return justType(LowerType::Int32);
+    if(width == 8) return justType(LowerType::Int64);
+
+    auto widest = min(fun.module->vectorBytes, U32(fun.legacyVectors ? 16 : 32));
+    if(width == 16 && widest >= 16) return justType(LowerType(LowerLane::Int64, 1, false));
+    if(width == 32 && widest >= 32) return justType(LowerType(LowerLane::Int64, 2, false));
+
+    return Nothing();
+}
+
+/*
  * The slots worth trying, which are the ones the whole of whose use is a load or a store of the whole
  * thing.
  *
@@ -258,8 +289,9 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                      * constructed record in memory.
                      *
                      * It says nothing about the register type, so a slot whose only traffic is copies
-                     * is still declined; what it needs is for the count to be this slot's width, so
-                     * that what moves is the whole of it and nothing more.
+                     * has its register chosen for it (`untypedSlot`, J183); what the copy needs is
+                     * for the count to be this slot's width, so that what moves is the whole of it
+                     * and nothing more.
                      */
                     auto copyInst = (LowerInstCopy*)user;
                     auto count = base[copyInst->count]->inst();
@@ -276,9 +308,10 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                      * A zero fill of exactly this slot, which is a store of zero that names no
                      * register - the zeroing `hasPaddedWord` asks for, written as a fill rather than
                      * as a store so that every tier below reads it as one (`zeroStorage`). Like a
-                     * copy it says nothing about the type, so a slot whose only traffic is fills is
-                     * still declined; what it needs is to cover the whole slot, and to be a zero,
-                     * which is the one byte that is the same value in every register.
+                     * copy it says nothing about the type, and a slot whose only traffic is fills
+                     * and copies has its register chosen the same way; what the fill needs is to
+                     * cover the whole slot, and to be a zero, which is the one byte that is the same
+                     * value in every register.
                      */
                     auto fill = (LowerInstSetPattern*)user;
                     auto count = base[fill->count]->inst();
@@ -356,7 +389,16 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
 
             // A slot nothing reads or writes is not worth a phi; leaving it also leaves whatever
             // reserved it, which is a decision for a dead-code pass rather than for this one.
-            if(!usable || !typed) continue;
+            if(!usable) continue;
+
+            // A slot only copies and fills name - see `untypedSlot`, which is the whole rule.
+            if(!typed) {
+                auto chosen = untypedSlot(fun, width);
+                if(chosen.isNothing()) continue;
+
+                slot.type = chosen.unwrap();
+                slot.untyped = true;
+            }
 
             // A narrow access is a mask of the slot's register, so that register is an integer.
             if(slot.narrow && !isInt(slot.type)) continue;
@@ -369,6 +411,32 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
 
             index.add(U32(slot.address), U32(into.size()));
             into.push(::move(slot));
+        }
+    }
+
+    /*
+     * And a register chosen for a slot no access named is a *promoted partner's*, where it has one
+     * that holds the width: a copy between the two is then a move between registers of one type
+     * rather than the `bitcast` `carriedInto` would write - an `F64` local copied through a temporary
+     * stays in the bank it is used in. Asked once and not to a fixpoint, since a chain of untyped
+     * slots all chose the same default and already agree.
+     */
+    for(auto& slot: into) {
+        if(!slot.untyped) continue;
+
+        for(auto userPtr: base[slot.address]->uses.contents(base)) {
+            auto user = base[userPtr];
+            if(user->kind != LowerInst::Copy) continue;
+
+            auto copyInst = (LowerInstCopy*)user;
+            auto other = copyInst->to == slot.address ? copyInst->from : copyInst->to;
+            auto partner = slotOf(index, other);
+            if(partner == maxLimit<Size> || into[partner].untyped || into[partner].narrow) continue;
+
+            if(promotableSlot(slot.width, into[partner].type)) {
+                slot.type = into[partner].type;
+                break;
+            }
         }
     }
 

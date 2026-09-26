@@ -101,7 +101,7 @@ makeSummer.lambda<complex>(%makeSummer.lambda.env: Ptr): I32 {
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32
@@ -338,7 +338,7 @@ teardown(makeSummer.lambda.env)<complex>(%v_0: Ptr) {
     %v_2 = load %v_0, 8: I64
     %v_3 = add %v_0, 8: Ptr
     %v_4 = load %v_3, 4: I32
-    call_complex Array(a).reclaim(I32), %v_2, %v_4
+    call_simple Array(a).reclaim(I32), %v_2, %v_4
     ret 
   }
 }

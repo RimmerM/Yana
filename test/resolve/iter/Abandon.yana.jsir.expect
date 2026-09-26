@@ -58,10 +58,10 @@ fn main() -> one %r0
     store property %14.$index: %r0, %13
     %15: %r1 = alias %12
     store property %15.n: %r0, %7
-    %16: %r0 = const 0
-    %17: %r0 = const 1
-    %18: %r0 = const 1
-    %19: %r0 = const 0
+    %16: %r0 = const 1
+    %17: %r0 = const 0
+    %18: %r0 = const 0
+    %19: %r0 = const 1
     %20: %r0 = const 1
     %21: %r0 = const 10
     %22: %r0 = const 9
@@ -154,10 +154,10 @@ fn main() -> one %r0
     %118: %r3 = clone %117
     %119: %r3 = clone %118
     %120: %r0 = const 0
-    %121: %r0 = const 0
-    %122: %r0 = const 1
-    %123: %r0 = const 1
-    %124: %r0 = const 0
+    %121: %r0 = const 1
+    %122: %r0 = const 0
+    %123: %r0 = const 0
+    %124: %r0 = const 1
     %125: %r0 = const 1
     %126: %r0 = const 2.147483647E9
     %127: %r0 = const 10
@@ -176,14 +176,14 @@ fn main() -> one %r0
     branch %29 -> block13 -> block17
   block13:
     %30: %r1 = alias %12
-    %31: %r0 = load property %30.i: %r0
-    %32: %r0 = binary.add %31, %18
-    %33: %r0 = coerce %32
-    store property %30.i: %r0, %33
+    store property %30.i: %r0, %18
     jump -> block15
   block14:
-    %34: %r1 = alias %12
-    store property %34.i: %r0, %19
+    %31: %r1 = alias %12
+    %32: %r0 = load property %31.i: %r0
+    %33: %r0 = binary.add %32, %19
+    %34: %r0 = coerce %33
+    store property %31.i: %r0, %34
     jump -> block15
   block15:
     %35: %r1 = alias %12
@@ -237,14 +237,14 @@ fn main() -> one %r0
     branch %134 -> block24 -> block28
   block24:
     %135: %r3 = alias %116
-    %136: %r0 = load property %135.i: %r0
-    %137: %r0 = binary.add %136, %123
-    %138: %r0 = coerce %137
-    store property %135.i: %r0, %138
+    store property %135.i: %r0, %123
     jump -> block26
   block25:
-    %139: %r3 = alias %116
-    store property %139.i: %r0, %124
+    %136: %r3 = alias %116
+    %137: %r0 = load property %136.i: %r0
+    %138: %r0 = binary.add %137, %124
+    %139: %r0 = coerce %138
+    store property %136.i: %r0, %139
     jump -> block26
   block26:
     %140: %r3 = alias %116
@@ -258,10 +258,10 @@ fn main() -> one %r0
     store property %145.$index: %r0, %126
     jump -> block28
   block28:
-    %146: %r0 = const 0
-    %147: %r0 = const 1
-    %148: %r0 = const 1
-    %149: %r0 = const 0
+    %146: %r0 = const 1
+    %147: %r0 = const 0
+    %148: %r0 = const 0
+    %149: %r0 = const 1
     %150: %r0 = const 1
     %151: %r0 = const 2.147483647E9
     %152: %r0 = const 10
@@ -277,14 +277,14 @@ fn main() -> one %r0
     branch %159 -> block31 -> block35
   block31:
     %160: %r3 = alias %119
-    %161: %r0 = load property %160.i: %r0
-    %162: %r0 = binary.add %161, %148
-    %163: %r0 = coerce %162
-    store property %160.i: %r0, %163
+    store property %160.i: %r0, %148
     jump -> block33
   block32:
-    %164: %r3 = alias %119
-    store property %164.i: %r0, %149
+    %161: %r3 = alias %119
+    %162: %r0 = load property %161.i: %r0
+    %163: %r0 = binary.add %162, %149
+    %164: %r0 = coerce %163
+    store property %161.i: %r0, %164
     jump -> block33
   block33:
     %165: %r3 = alias %119
@@ -334,29 +334,29 @@ fn noisy$drop(one %r1) -> omitted
   block0(%0: %r1):
     %6: %r1 = alias %0
     %7: %r0 = load property %6.$index: %r0
-    %8: %r0 = const 0
+    %8: %r0 = const 1
     %9: %r5 = binary.eq %7, %8
     branch %9 -> block4 -> block2
   block1:
     return
   block2:
-    %10: %r0 = const 1
+    %10: %r0 = const 0
     %11: %r5 = binary.eq %7, %10
     branch %11 -> block3 -> block1
   block3:
-    %12: %r0 = load global trace: %r0
-    %13: %r0 = const 10
-    %14: %r0 = binary.mul %12, %13
-    %15: %r0 = coerce %14
-    %16: %r0 = const 9
-    %17: %r0 = binary.add %15, %16
-    %18: %r0 = coerce %17
-    store global trace: %r0, %18
-    %19: %r0 = const 2.147483647E9
-    %20: %r1 = alias %0
-    store property %20.$index: %r0, %19
+    %12: %r0 = const 2.147483647E9
+    %13: %r1 = alias %0
+    store property %13.$index: %r0, %12
     jump -> block1
   block4:
+    %14: %r0 = load global trace: %r0
+    %15: %r0 = const 10
+    %16: %r0 = binary.mul %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = const 9
+    %19: %r0 = binary.add %17, %18
+    %20: %r0 = coerce %19
+    store global trace: %r0, %20
     %21: %r0 = const 2.147483647E9
     %22: %r1 = alias %0
     store property %22.$index: %r0, %21

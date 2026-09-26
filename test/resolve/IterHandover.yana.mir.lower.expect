@@ -6,104 +6,84 @@ main<complex>(): I32 {
   }
 
   b_2 {
-    %v_3 = cmp_igt %v_4, 0: I32
-    je %v_3, b_1, b_5
-  }
-
-  b_5 {
-    jmp b_6
+    jmp b_3
   }
 
   b_1 {
-    %v_7 = phi [b_2, %v_4], [b_0, 2]: I64
-    %v_8 = phi [b_2, %v_9], [b_0, 0]: I64
-    %v_10 = alloca 4, 1: Ptr
-    store %v_10, 1, 1
-    %v_11 = add %v_10, 1: Ptr
-    store %v_11, 2, 1
-    %v_12 = add %v_10, 2: Ptr
-    store %v_12, 3, 1
-    %v_13 = add %v_10, 3: Ptr
-    store %v_13, 4, 1
-    %v_14 = bitcast %v_10: I64
-    %v_9 = add %v_8, 4: I64
-    call_complex Array(a).reclaim(U8), %v_14, 4
-    %v_4 = sub %v_7, 1: I64
-    jmp b_2
+    %v_4 = phi [b_5, %v_6], [b_0, 2]: I64
+    %v_7 = phi [b_5, %v_8], [b_0, 0]: I64
+    %v_8 = add %v_7, 4: I64
+    jmp b_5
   }
 
-  b_15 {
-    %v_16 = cmp_igt %v_17, 0: I32
-    je %v_16, b_6, b_18
+  b_9 {
+    %v_10 = add %v_8, %v_11: I64
+    jmp b_12
   }
 
-  b_18 {
-    %v_19 = add %v_9, %v_20: I64
-    jmp b_21
+  b_3 {
+    %v_13 = phi [b_14, %v_15], [b_2, 3]: I64
+    %v_16 = phi [b_14, %v_11], [b_2, 0]: I64
+    jmp b_14
   }
 
-  b_6 {
-    %v_22 = phi [b_15, %v_17], [b_5, 3]: I64
-    %v_23 = phi [b_15, %v_20], [b_5, 0]: I64
-    %v_24 = alloca 4, 1: Ptr
-    %v_25 = bitcast %v_24: I64
-    store %v_24, 1, 1
-    %v_26 = add %v_24, 1: Ptr
-    store %v_26, 2, 1
-    %v_27 = add %v_24, 2: Ptr
-    store %v_27, 3, 1
-    %v_28 = add %v_24, 3: Ptr
-    store %v_28, 4, 1
-    call_complex Array(a).reclaim(U8), %v_25, 4
-    %v_20 = add %v_23, 4: I64
-    %v_17 = sub %v_22, 1: I64
-    jmp b_15
+  b_17 {
+    %v_18 = cmp_igt %v_19, 0: I32
+    je %v_18, b_12, b_20
   }
 
-  b_29 {
-    %v_30 = cmp_igt %v_31, 0: I32
-    je %v_30, b_21, b_32
+  b_20 {
+    %v_21 = alloca 24, 8: Ptr
+    store %v_21, 0, 1
+    %v_22 = add %v_21, 8: Ptr
+    store %v_22, 7, 8
+    call_complex teardown(Result(I64, Held)), %v_21
+    %v_23 = add %v_24, 1: I64
+    %v_25 = add %v_10, %v_23: I64
+    %v_26 = sext %v_25: I32
+    ret %v_26
   }
 
-  b_32 {
+  b_12 {
+    %v_27 = phi [b_17, %v_19], [b_9, 2]: I64
+    %v_28 = phi [b_17, %v_24], [b_9, 0]: I64
+    %v_29 = alloca 4, 1: Ptr
+    store %v_29, 1, 1
+    %v_30 = add %v_29, 1: Ptr
+    store %v_30, 2, 1
+    %v_31 = add %v_29, 2: Ptr
+    store %v_31, 3, 1
+    %v_32 = add %v_29, 3: Ptr
+    store %v_32, 4, 1
     %v_33 = alloca 24, 8: Ptr
-    store %v_33, 0, 1
     %v_34 = add %v_33, 8: Ptr
-    store %v_34, 7, 8
+    store %v_34, %v_29, 8
+    %v_35 = add %v_33, 16: Ptr
+    store %v_35, 4, 4
+    %v_36 = add %v_33, 20: Ptr
+    store %v_36, 4, 4
+    store %v_33, 1, 1
     call_complex teardown(Result(I64, Held)), %v_33
-    %v_35 = add %v_36, 1: I64
-    %v_37 = add %v_19, %v_35: I64
-    %v_38 = sext %v_37: I32
-    ret %v_38
+    %v_24 = add %v_28, 1: I64
+    %v_19 = sub %v_27, 1: I64
+    jmp b_17
   }
 
-  b_21 {
-    %v_39 = phi [b_29, %v_31], [b_18, 2]: I64
-    %v_40 = phi [b_29, %v_36], [b_18, 0]: I64
-    %v_41 = alloca 4, 1: Ptr
-    store %v_41, 1, 1
-    %v_42 = add %v_41, 1: Ptr
-    store %v_42, 2, 1
-    %v_43 = add %v_41, 2: Ptr
-    store %v_43, 3, 1
-    %v_44 = add %v_41, 3: Ptr
-    store %v_44, 4, 1
-    %v_45 = alloca 24, 8: Ptr
-    %v_46 = add %v_45, 8: Ptr
-    store %v_46, %v_41, 8
-    %v_47 = add %v_45, 16: Ptr
-    store %v_47, 4, 4
-    %v_48 = add %v_45, 20: Ptr
-    store %v_48, 4, 4
-    store %v_45, 1, 1
-    call_complex teardown(Result(I64, Held)), %v_45
-    %v_36 = add %v_40, 1: I64
-    %v_31 = sub %v_39, 1: I64
-    jmp b_29
+  b_5 {
+    %v_6 = sub %v_4, 1: I64
+    %v_37 = cmp_igt %v_6, 0: I32
+    je %v_37, b_1, b_2
+  }
+
+  b_14 {
+    %v_11 = add %v_16, 4: I64
+    %v_15 = sub %v_13, 1: I64
+    %v_38 = cmp_igt %v_15, 0: I32
+    je %v_38, b_3, b_9
   }
 }
 
-Array(a).reclaim(U8)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(U8)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32
@@ -149,7 +129,7 @@ teardown(Result(I64, Held))<complex>(%v_0: Ptr) {
     %v_8 = load %v_7, 8: I64
     %v_9 = add %v_0, 16: Ptr
     %v_10 = load %v_9, 4: I32
-    call_complex Array(a).reclaim(U8), %v_8, %v_10
+    call_simple Array(a).reclaim(U8), %v_8, %v_10
     jmp b_6
   }
 

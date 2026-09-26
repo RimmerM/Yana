@@ -154,9 +154,9 @@ function main() {
   var p0 = 0;
   var p2 = 0;
   while (p0 < 12) {
-    var v1383 = findEntry_I32_I32(v589, p0, hashKey_I32(p0));
-    if (v1383 < 0) throw $t;
-    if (v589.values.items[v1383] === Math.imul(p0, 10)) p2 = p2 + 1 | 0;
+    var v1421 = findEntry_I32_I32(v589, p0, hashKey_I32(p0));
+    if (v1421 < 0) throw $t;
+    if (v589.values.items[v1421] === Math.imul(p0, 10)) p2 = p2 + 1 | 0;
     p0 = p0 + 1 | 0;
   }
   if (p2 !== 12) return -17;
@@ -233,173 +233,191 @@ function main() {
   var v860 = { keys: [], values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
   var v867 = v860.values;
   if (1 > v867.items.length) growJsArray_I32(v867, 1);
-  Map_k_v_insertAt_String_I32(v860, "x", 1);
-  Map_k_v_insertAt_String_I32(v860, "y", 2);
-  var v888 = new Int32Array([]);
-  var v891 = new Int32Array([]);
-  var v894 = new Int32Array([]);
-  var v905 = 0 <= v888.length ? 1 : 0;
-  var v890 = { items: v888, length: 0 };
-  if (!v905) growJsArray_I32(v890, 0);
-  var v893 = { items: v891, length: 0 };
-  if (0 > v893.items.length) growJsArray_I32(v893, 0);
-  var v918 = findEntry_I32_I32(v759, 1, hashKey_I32(1));
-  if (v918 < 0) throw $t;
-  if ((((v759.values.items[v918] + Map_k_v_get_String_I32(v860, "x") | 0) + Map_k_v_get_String_I32(v860, "y") | 0) + v890.length | 0) !== 13) return -20;
-  var v958 = new Int32Array([10, 11]);
-  var v963 = new Int32Array([20]);
-  var v977 = new Int32Array([]);
-  var v980 = [];
-  var v983 = new Int32Array([]);
-  var v993 = 2 <= v977.length ? 1 : 0;
-  var v988 = { keys: { items: v977, length: 0 }, values: v980, index: { items: v983, length: 0 }, live: 0, mask: 0 };
-  if (!v993) growJsArray_I32(v988.keys, 2);
-  insert_I32_Array_I32(v988, 1, { items: v958, length: 2 });
-  insert_I32_Array_I32(v988, 2, { items: v963, length: 1 });
-  var v1014 = v988.keys.length;
+  var v876 = hashKey_String("x");
+  var v878 = findEntry_String_I32(v860, "x", v876);
+  if (v878 >= 0) {
+    v860.values.items[v878] = 1;
+  } else {
+    appendEntry_String_I32(v860, "x", 1, v876);
+  }
+  var v888 = hashKey_String("y");
+  var v890 = findEntry_String_I32(v860, "y", v888);
+  if (v890 >= 0) {
+    v860.values.items[v890] = 2;
+  } else {
+    appendEntry_String_I32(v860, "y", 2, v888);
+  }
+  var v912 = new Int32Array([]);
+  var v915 = new Int32Array([]);
+  var v918 = new Int32Array([]);
+  var v929 = 0 <= v912.length ? 1 : 0;
+  var v914 = { items: v912, length: 0 };
+  if (!v929) growJsArray_I32(v914, 0);
+  var v917 = { items: v915, length: 0 };
+  if (0 > v917.items.length) growJsArray_I32(v917, 0);
+  var v942 = findEntry_I32_I32(v759, 1, hashKey_I32(1));
+  if (v942 < 0) throw $t;
+  var v948 = v759.values.items[v942];
+  var v954 = findEntry_String_I32(v860, "x", hashKey_String("x"));
+  if (v954 < 0) throw $t;
+  var v962 = v948 + v860.values.items[v954] | 0;
+  var v965 = findEntry_String_I32(v860, "y", hashKey_String("y"));
+  if (v965 < 0) throw $t;
+  if (((v962 + v860.values.items[v965] | 0) + v914.length | 0) !== 13) return -20;
+  var v996 = new Int32Array([10, 11]);
+  var v1001 = new Int32Array([20]);
+  var v1015 = new Int32Array([]);
+  var v1018 = [];
+  var v1021 = new Int32Array([]);
+  var v1031 = 2 <= v1015.length ? 1 : 0;
+  var v1026 = { keys: { items: v1015, length: 0 }, values: v1018, index: { items: v1021, length: 0 }, live: 0, mask: 0 };
+  if (!v1031) growJsArray_I32(v1026.keys, 2);
+  insert_I32_Array_I32(v1026, 1, { items: v996, length: 2 });
+  insert_I32_Array_I32(v1026, 2, { items: v1001, length: 1 });
+  var v1052 = v1026.keys.length;
   var p3 = 0;
   var p4 = 0;
-  while (p3 < v1014) {
-    p4 = p4 + v988.values[p3].length | 0;
+  while (p3 < v1052) {
+    p4 = p4 + v1026.values[p3].length | 0;
     p3 = p3 + 1 | 0;
   }
-  Array_a_reclaim_Array_I32(v988.values);
+  Array_a_reclaim_Array_I32(v1026.values);
   if (p4 !== 3) return -21;
-  var v1042 = new Int32Array([]);
-  var v1045 = new Int32Array([]);
-  var v1048 = new Int32Array([]);
-  var v1058 = 1 <= v1042.length ? 1 : 0;
-  var v1053 = { keys: { items: v1042, length: 0 }, values: { items: v1045, length: 0 }, index: { items: v1048, length: 0 }, live: 0, mask: 0 };
-  if (!v1058) growJsArray_I32(v1053.keys, 1);
-  var v1060 = v1053.values;
-  if (1 > v1060.items.length) growJsArray_I32(v1060, 1);
-  var v1068 = insert_I32_I32(v1053, 2, 3);
   var v1080 = new Int32Array([]);
-  var v1083 = [];
+  var v1083 = new Int32Array([]);
   var v1086 = new Int32Array([]);
   var v1096 = 1 <= v1080.length ? 1 : 0;
-  var v1091 = { keys: { items: v1080, length: 0 }, values: v1083, index: { items: v1086, length: 0 }, live: 0, mask: 0 };
+  var v1091 = { keys: { items: v1080, length: 0 }, values: { items: v1083, length: 0 }, index: { items: v1086, length: 0 }, live: 0, mask: 0 };
   if (!v1096) growJsArray_I32(v1091.keys, 1);
-  var v1106 = hashKey_I32(1);
-  var v1107 = v1091.mask;
-  if (v1107 === 0) {
-    var v1151 = v1091.keys;
-    var v1152 = v1151.items;
-    var v1155 = v1151.length;
+  var v1098 = v1091.values;
+  if (1 > v1098.items.length) growJsArray_I32(v1098, 1);
+  var v1106 = insert_I32_I32(v1091, 2, 3);
+  var v1118 = new Int32Array([]);
+  var v1121 = [];
+  var v1124 = new Int32Array([]);
+  var v1134 = 1 <= v1118.length ? 1 : 0;
+  var v1129 = { keys: { items: v1118, length: 0 }, values: v1121, index: { items: v1124, length: 0 }, live: 0, mask: 0 };
+  if (!v1134) growJsArray_I32(v1129.keys, 1);
+  var v1144 = hashKey_I32(1);
+  var v1145 = v1129.mask;
+  if (v1145 === 0) {
+    var v1189 = v1129.keys;
+    var v1190 = v1189.items;
+    var v1193 = v1189.length;
     p8 = 0;
-    B35: {
-      while (p8 < v1155) {
-        if (v1152[p8] === 1) break B35;
+    B37: {
+      while (p8 < v1193) {
+        if (v1190[p8] === 1) break B37;
         p8 = p8 + 1 | 0;
       }
       p8 = -1;
     }
   } else {
-    p19 = v1106 & v1107;
+    p19 = v1144 & v1145;
     p20 = 0;
-    B37: {
-      while (p20 <= v1107) {
-        var v1124 = v1091.index;
-        var v1125 = v1124.items;
-        if (p19 >>> 0 >= v1124.length) throw $t;
-        var v1136 = v1125[p19 | 0];
-        if (v1136 === -1) {
+    B39: {
+      while (p20 <= v1145) {
+        var v1162 = v1129.index;
+        var v1163 = v1162.items;
+        if (p19 >>> 0 >= v1162.length) throw $t;
+        var v1174 = v1163[p19 | 0];
+        if (v1174 === -1) {
           p8 = -1;
-          break B37;
+          break B39;
         }
-        if (v1136 >= 0 && v1091.keys.items[v1136] === 1) {
-          p8 = v1136;
-          break B37;
+        if (v1174 >= 0 && v1129.keys.items[v1174] === 1) {
+          p8 = v1174;
+          break B39;
         }
-        p19 = p19 + 1 & v1107;
+        p19 = p19 + 1 & v1145;
         p20 = p20 + 1 | 0;
       }
       p8 = -1;
     }
   }
   if (p8 >= 0) {
-    var v1244 = v1091.values;
-    var v1252 = { keys: v1053.keys, values: v1053.values, index: v1053.index, live: v1053.live, mask: v1053.mask };
-    var v1253 = v1244[p8];
-    v1244[p8] = v1252;
-    p7 = v1253;
+    var v1282 = v1129.values;
+    var v1290 = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
+    var v1291 = v1282[p8];
+    v1282[p8] = v1290;
+    p7 = v1291;
   } else {
-    var v1168 = v1091.keys;
-    var v1172 = v1168.length;
-    push_I32(v1168, 1);
-    var v1175 = v1091.values;
-    var v1177 = v1175.length;
-    var v1180 = v1177 + 1;
-    v1175[v1177] = { keys: v1053.keys, values: v1053.values, index: v1053.index, live: v1053.live, mask: v1053.mask };
-    v1091.values.length = v1180 & 1073741823;
-    var v1200 = v1091.mask;
-    B41: {
-      if (v1200 === 0) {
-        var v1231 = v1172 + 1;
-        if (v1231 > 64) {
+    var v1206 = v1129.keys;
+    var v1210 = v1206.length;
+    push_I32(v1206, 1);
+    var v1213 = v1129.values;
+    var v1215 = v1213.length;
+    var v1218 = v1215 + 1;
+    v1213[v1215] = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
+    v1129.values.length = v1218 & 1073741823;
+    var v1238 = v1129.mask;
+    B43: {
+      if (v1238 === 0) {
+        var v1269 = v1210 + 1;
+        if (v1269 > 64) {
           p23 = 16;
-          while ((p23 - (p23 >>> 3) | 0) < v1231) {
+          while ((p23 - (p23 >>> 3) | 0) < v1269) {
             p23 = p23 + p23 | 0;
           }
-          indexRebuild_I32_Map_I32_I32(v1091, p23);
+          indexRebuild_I32_Map_I32_I32(v1129, p23);
         }
       } else {
-        var v1207 = v1200 + 1;
-        if (v1091.live + 1 > v1207 - (v1207 >>> 3)) {
-          p9 = Math.imul(v1172 + 1, 2) > v1207 ? v1207 + v1207 | 0 : v1207;
-          indexRebuild_I32_Map_I32_I32(v1091, p9);
-          break B41;
+        var v1245 = v1238 + 1;
+        if (v1129.live + 1 > v1245 - (v1245 >>> 3)) {
+          p9 = Math.imul(v1210 + 1, 2) > v1245 ? v1245 + v1245 | 0 : v1245;
+          indexRebuild_I32_Map_I32_I32(v1129, p9);
+          break B43;
         }
-        indexPlace($ge$indexPlace$1, v1091, v1172, v1106);
+        indexPlace($ge$indexPlace$1, v1129, v1210, v1144);
       }
     }
     p7 = null;
   }
-  var v1258 = hashKey_I32(1);
-  var v1259 = v1091.mask;
-  if (v1259 === 0) {
-    var v1303 = v1091.keys;
-    var v1304 = v1303.items;
-    var v1307 = v1303.length;
+  var v1296 = hashKey_I32(1);
+  var v1297 = v1129.mask;
+  if (v1297 === 0) {
+    var v1341 = v1129.keys;
+    var v1342 = v1341.items;
+    var v1345 = v1341.length;
     p15 = 0;
-    B45: {
-      while (p15 < v1307) {
-        if (v1304[p15] === 1) break B45;
+    B47: {
+      while (p15 < v1345) {
+        if (v1342[p15] === 1) break B47;
         p15 = p15 + 1 | 0;
       }
       p15 = -1;
     }
   } else {
-    p10 = v1258 & v1259;
+    p10 = v1296 & v1297;
     p11 = 0;
-    B47: {
-      while (p11 <= v1259) {
-        var v1276 = v1091.index;
-        var v1277 = v1276.items;
-        if (p10 >>> 0 >= v1276.length) throw $t;
-        var v1288 = v1277[p10 | 0];
-        if (v1288 === -1) {
+    B49: {
+      while (p11 <= v1297) {
+        var v1314 = v1129.index;
+        var v1315 = v1314.items;
+        if (p10 >>> 0 >= v1314.length) throw $t;
+        var v1326 = v1315[p10 | 0];
+        if (v1326 === -1) {
           p15 = -1;
-          break B47;
+          break B49;
         }
-        if (v1288 >= 0 && v1091.keys.items[v1288] === 1) {
-          p15 = v1288;
-          break B47;
+        if (v1326 >= 0 && v1129.keys.items[v1326] === 1) {
+          p15 = v1326;
+          break B49;
         }
-        p10 = p10 + 1 & v1259;
+        p10 = p10 + 1 & v1297;
         p11 = p11 + 1 | 0;
       }
       p15 = -1;
     }
   }
   if (p15 < 0) throw $t;
-  var v1320 = v1091.values;
-  var v1324 = hashKey_I32(2);
-  var v1326 = findEntry_I32_I32(v1320[p15], 2, v1324);
-  if (v1326 < 0) throw $t;
-  var v1333 = v1320[p15].values.items[v1326];
-  Array_a_reclaim_Map_I32_I32(v1091.values);
-  return v1333 !== 3 ? -22 : 1;
+  var v1358 = v1129.values;
+  var v1362 = hashKey_I32(2);
+  var v1364 = findEntry_I32_I32(v1358[p15], 2, v1362);
+  if (v1364 < 0) throw $t;
+  var v1371 = v1358[p15].values.items[v1364];
+  Array_a_reclaim_Map_I32_I32(v1129.values);
+  return v1371 !== 3 ? -22 : 1;
 }
 
 function main$() {
@@ -524,21 +542,6 @@ function insert_I32_I32(self, key, value) {
   return null;
 }
 
-function Map_k_v_get_String_I32(self, key) {
-  var v8 = key.length;
-  var p2 = Math.imul((2166136261 ^ v8) >>> 0, 16777619) >>> 0;
-  var p3 = 0;
-  while (p3 < v8) {
-    p2 = Math.imul((p2 ^ key.charCodeAt(p3)) >>> 0, 16777619) >>> 0;
-    p3 = p3 + 1 | 0;
-  }
-  var v26 = Math.imul((p2 ^ p2 >>> 16) >>> 0, 2246822507) >>> 0;
-  var v34 = Math.imul((v26 ^ v26 >>> 13) >>> 0, 3266489909) >>> 0;
-  var v40 = findEntry_String_I32(self, key, (v34 ^ v34 >>> 16) >>> 0);
-  if (v40 < 0) throw $t;
-  return self.values.items[v40];
-}
-
 function Array_a_reclaim_Array_I32(value) {
   var v4 = value.length;
   var p1 = 0;
@@ -615,44 +618,6 @@ function findEntry_I32_I32(self, key, h) {
   return p3;
 }
 
-function Map_k_v_insertAt_String_I32(self, index, value) {
-  var p3, p4;
-  var v6 = hashKey_String(index);
-  var v8 = findEntry_String_I32(self, index, v6);
-  B0: {
-    if (v8 >= 0) {
-      self.values.items[v8] = value;
-    } else {
-      var v12 = self.keys;
-      var v16 = v12.length;
-      var v23 = v16 + 1;
-      v12[v16] = index;
-      self.keys.length = v23 & 1073741823;
-      push_I32(self.values, value);
-      var v40 = self.mask;
-      if (v40 === 0) {
-        var v72 = v16 + 1;
-        if (v72 > 64) {
-          p4 = 16;
-          while ((p4 - (p4 >>> 3) | 0) < v72) {
-            p4 = p4 + p4 | 0;
-          }
-          indexRebuild_String_I32(self, p4);
-          break B0;
-        }
-        break B0;
-      }
-      var v48 = v40 + 1;
-      if (self.live + 1 > v48 - (v48 >>> 3)) {
-        p3 = Math.imul(v16 + 1, 2) > v48 ? v48 + v48 | 0 : v48;
-        indexRebuild_String_I32(self, p3);
-        break B0;
-      }
-      indexPlace($ge$indexPlace$2, self, v16, v6);
-    }
-  }
-}
-
 function hashKey_String(key) {
   var v7 = key.length;
   var p1 = Math.imul((2166136261 ^ v7) >>> 0, 16777619) >>> 0;
@@ -670,11 +635,11 @@ function findEntry_String_I32(self, key, h) {
   var p3, p5, p6;
   var v9 = self.mask;
   if (v9 === 0) {
-    var v55 = self.keys.length;
+    var v63 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v55) {
-        if (keyEquals_String_I32(self, p3, key)) break B1;
+      while (p3 < v63) {
+        if (self.keys[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
       p3 = -1;
@@ -692,7 +657,7 @@ function findEntry_String_I32(self, key, h) {
           p3 = -1;
           break B3;
         }
-        if (v40 >= 0 && keyEquals_String_I32(self, v40, key)) {
+        if (v40 >= 0 && self.keys[v40] === key) {
           p3 = v40;
           break B3;
         }
@@ -774,7 +739,7 @@ function insert_I32_Array_I32(self, key, value) {
         indexRebuild_I32_Array_I32(self, p4);
         break B6;
       }
-      indexPlace($ge$indexPlace$3, self, v81, v11);
+      indexPlace($ge$indexPlace$2, self, v81, v11);
     }
   }
   return null;
@@ -789,7 +754,7 @@ function indexRebuild_I32_Array_I32(self, slots) {
   var v26 = self.keys.length;
   var p2 = 0;
   while (p2 < v26) {
-    indexPlace($ge$indexPlace$3, self, p2, hashKey_I32(self.keys.items[p2]));
+    indexPlace($ge$indexPlace$2, self, p2, hashKey_I32(self.keys.items[p2]));
     p2 = p2 + 1 | 0;
   }
 }
@@ -834,31 +799,56 @@ function indexRebuild_String_I32(self, slots) {
   var v26 = self.keys.length;
   var p2 = 0;
   while (p2 < v26) {
-    indexPlace($ge$indexPlace$2, self, p2, hashKey_String(self.keys[p2]));
+    indexPlace($ge$indexPlace$3, self, p2, hashKey_String(self.keys[p2]));
     p2 = p2 + 1 | 0;
   }
 }
 
-function keyEquals_String_I32(self, at, key) {
-  return self.keys[at] === key ? 1 : 0;
+function appendEntry_String_I32(self, key, value, h) {
+  var p4, p5;
+  var v6 = self.keys;
+  var v10 = v6.length;
+  var v17 = v10 + 1;
+  v6[v10] = key;
+  self.keys.length = v17 & 1073741823;
+  push_I32(self.values, value);
+  var v34 = self.mask;
+  if (v34 === 0) {
+    var v66 = v10 + 1;
+    if (v66 > 64) {
+      p5 = 16;
+      while ((p5 - (p5 >>> 3) | 0) < v66) {
+        p5 = p5 + p5 | 0;
+      }
+      indexRebuild_String_I32(self, p5);
+    }
+    return;
+  }
+  var v42 = v34 + 1;
+  if (self.live + 1 > v42 - (v42 >>> 3)) {
+    p4 = Math.imul(v10 + 1, 2) > v42 ? v42 + v42 | 0 : v42;
+    indexRebuild_String_I32(self, p4);
+    return;
+  }
+  indexPlace($ge$indexPlace$3, self, v10, h);
 }
 
 // the erased ABI - one table per type, per instance and per call to a body compiled once
 var $d$I32 = [1, 0, $nd, 0];
 var $d$Map_I32_I32 = [0, 1, $td$Map_I32_I32, { keys: { items: new Int32Array([]), length: 0 }, values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 }];
-var $d$String = [1, 0, $nd, ""];
 var $d$Array_I32 = [0, 1, $td$Array_I32, { items: new Int32Array([]), length: 0 }];
+var $d$String = [1, 0, $nd, ""];
 
 function $nd(x) {
 }
 var $ge$indexPlace = [$d$I32, $d$I32];
 var $ge$indexPlace$1 = [$d$I32, $d$Map_I32_I32];
 var $ge$indexReset = [$d$I32, $d$I32];
-var $ge$indexPlace$2 = [$d$String, $d$I32];
-var $ge$indexPlace$3 = [$d$I32, $d$Array_I32];
+var $ge$indexPlace$2 = [$d$I32, $d$Array_I32];
 var $ge$indexReset$1 = [$d$I32, $d$Array_I32];
 var $ge$indexReset$2 = [$d$I32, $d$Map_I32_I32];
 var $ge$indexReset$3 = [$d$String, $d$I32];
+var $ge$indexPlace$3 = [$d$String, $d$I32];
 
 // 
 function $td$Map_I32_I32(a0) {

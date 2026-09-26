@@ -1,75 +1,23 @@
-fn chained(one %r1, one %r2) -> one %r0
-  block0(%0: %r1, %1: %r2):
-    %2: %r0 = load property %0.value: %r0
-    %3: %r0 = const 1023
-    %4: %r0 = binary.and %2, %3
-    %5: %r0 = coerce %4
-    %6: %r0 = const 3
-    %7: %r0 = binary.mul %5, %6
-    %8: %r0 = coerce %7
-    %9: %r0 = const 100
-    %10: %r2 = binary.gt %8, %9
-    branch %10 -> block2 -> block1
-  block1:
-    %12: %r0 = load property %0.value: %r0
-    %13: %r0 = const 1023
-    %14: %r0 = binary.and %12, %13
-    %15: %r0 = coerce %14
-    %16: %r0 = const 3
-    %17: %r0 = binary.mul %15, %16
-    %18: %r0 = coerce %17
-    return %18
-  block2:
-    branch %1 -> block3 -> block1
-  block3:
-    %11: %r0 = const 7
-    store property %0.value: %r0, %11
-    jump -> block1
-
 fn main() -> one %r0
   var $0: %r1
   var $1: %r1
   var $2: %r1
-  var $3: %r0
+  var $3: %r1
   var $4: %r0
   var $5: %r0
   var $6: %r0
   var $7: %r0
   var $8: %r0
+  var $9: %r0
+  var $10: %r0
+  var $11: %r0
   block0:
-    %42: %r0 = const 50
-    %43: %r0 = const 0
-    %44: %r1 = object %s0 %42, %43
-    %11: %r1 = alias %44
-    %45: %r2 = const 1
-    %46: %r0 = call chained %11, %45
-    %47: %r0 = const 21
-    %48: %r2 = binary.ne %46, %47
-    branch %48 -> block2 -> block1
-  block1:
-    %49: %r0 = const 5
     %50: %r0 = const 0
-    %51: %r1 = object %s0 %49, %50
-    %14: %r1 = alias %51
-    %52: %r2 = const 1
-    %53: %r0 = call chained %14, %52
-    %54: %r0 = const 15
-    %55: %r2 = binary.ne %53, %54
-    branch %55 -> block4 -> block3
-  block2:
-    %61: %r0 = const -8
-    return %61
-  block3:
-    %59: %r0 = const 0
-    return %59
-  block4:
-    %60: %r0 = const -9
-    return %60
+    return %50
 
-optimizer clones 0 aliased 0 forwarded 0 removed 58 adopted 2 sunk 1 numbered 0 decided 0 unboxed 0 updated 0 split 3 promoted 0 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 70 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 0 folded 0
 
 shape %s0 object Box {value: %r0, other: %r0}
 
 rep %r0 = number signed 32
 rep %r1 = object %s0
-rep %r2 = number bool

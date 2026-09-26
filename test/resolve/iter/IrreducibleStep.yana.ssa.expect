@@ -365,9 +365,9 @@ bb0(%0: multiplesOf.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool tri
   %9: %I32 address = alloc frame I32
   %72: %I32 address = field.addr .$index inspect %0
   %73: I32 trivial = load inspect %72
-  %74: I32 trivial = const 0
+  %74: I32 trivial = const 1
   %75: Bool trivial = eq inspect %73 inspect %74
-  branch inspect %75 -> bb1 -> bb23
+  branch inspect %75 -> bb21 -> bb23
 
 bb1:
   branch inspect %2 -> bb22 -> bb3
@@ -507,9 +507,9 @@ bb22:
   return consume %70
 
 bb23:
-  %76: I32 trivial = const 1
+  %76: I32 trivial = const 0
   %77: Bool trivial = eq inspect %73 inspect %76
-  branch inspect %77 -> bb21 -> bb2
+  branch inspect %77 -> bb1 -> bb2
 }
 
 fn multiplesOf$next($self: multiplesOf.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {

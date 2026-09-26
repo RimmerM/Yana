@@ -251,9 +251,9 @@ bb0(%0: growing.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial
   %14: %I32 address = alloc frame I32
   %45: %I32 address = field.addr .$index inspect %0
   %46: I32 trivial = load inspect %45
-  %47: I32 trivial = const 0
+  %47: I32 trivial = const 1
   %48: Bool trivial = eq inspect %46 inspect %47
-  branch inspect %48 -> bb1 -> bb12
+  branch inspect %48 -> bb10 -> bb12
 
 bb1:
   branch inspect %2 -> bb11 -> bb3
@@ -331,9 +331,9 @@ bb11:
   return consume %43
 
 bb12:
-  %49: I32 trivial = const 1
+  %49: I32 trivial = const 0
   %50: Bool trivial = eq inspect %46 inspect %49
-  branch inspect %50 -> bb10 -> bb2
+  branch inspect %50 -> bb1 -> bb2
 }
 
 fn growing$next($self: growing.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>

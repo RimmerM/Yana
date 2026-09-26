@@ -1,21 +1,7 @@
-fn firstOf(parts %r3) -> one %r0
-  block0(%0: %r1, %1: %r0, %2: %r0):
-    %4: %r7 = const 0
-    %5: %r7 = convert %1
-    %6: %r8 = binary.ge %4, %5
-    branch %6 -> block2 -> block1
-  block1:
-    %7: %r1 = alias %0
-    %8: %r0 = load element %7[%2]: %r0
-    return %8
-  block2:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-
 fn main() -> one %r0
-  var $0: %r10
-  var $1: %r10
-  var $2: %r5
+  var $0: %r6
+  var $1: %r6
+  var $2: %r3
   var $3: %r0
   var $4: %r0
   var $5: %r0
@@ -28,53 +14,64 @@ fn main() -> one %r0
     %14: %r0 = const 7
     %15: %r0 = const 8
     %16: %r1 = host host.array %14, %15
-    %17: %r4 = const 2
-    %18: %r5 = object %s1 %16, %17
-    %19: %r0 = const 2
+    %17: %r2 = const 2
     %20: %r0 = const 0
-    %21: %r0 = call firstOf %16, %19, %20
-    %22: %r0 = const 1
-    %24: %r0 = const 0
-    %25: %r0 = call firstOf %16, %19, %24
+    jump -> block1
+  block1:
+    %25: %r1 = alias %16
     %26: %r0 = const 1
-    %27: %r0 = binary.add %25, %26
-    %28: %r0 = coerce %27
-    %29: %r5 = alias %18
-    call Array(a).reclaim(I32) %29
-    %30: %r0 = alias %28
-    %31: %r0 = alias %30
-    %49: %r0 = const 63
-    %50: %r0 = binary.add %49, %21
-    %51: %r0 = coerce %50
-    %52: %r0 = binary.add %51, %22
-    %53: %r0 = coerce %52
-    %55: %r0 = alias %31
-    %56: %r0 = binary.add %53, %55
-    %57: %r0 = coerce %56
-    return %57
+    %27: %r0 = load element %25[%20]: %r0
+    %29: %r0 = const 0
+    jump -> block3
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3:
+    %34: %r1 = alias %16
+    %35: %r0 = const 1
+    %36: %r0 = load element %34[%29]: %r0
+    %37: %r0 = binary.add %36, %35
+    %38: %r0 = coerce %37
+    %18: %r3 = object %s0 %16, %17
+    %39: %r3 = alias %18
+    call Array(a).reclaim(I32) %39
+    %40: %r0 = alias %38
+    %41: %r0 = alias %40
+    %59: %r0 = const 63
+    %60: %r0 = binary.add %59, %27
+    %61: %r0 = coerce %60
+    %62: %r0 = binary.add %61, %26
+    %63: %r0 = coerce %62
+    %65: %r0 = alias %41
+    %66: %r0 = binary.add %63, %65
+    %67: %r0 = coerce %66
+    return %67
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
 
-fn Array(a).reclaim(I32)(one %r5) -> omitted
-  var $0: %r5
-  block0(%0: %r5):
+fn Array(a).reclaim(I32)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
     return
 
-optimizer clones 3 aliased 3 forwarded 0 removed 44 adopted 0 sunk 0 numbered 0 decided 0 unboxed 3 updated 0 split 2 promoted 9 folded 9
+optimizer clones 3 aliased 3 forwarded 0 removed 52 adopted 0 sunk 2 numbered 0 decided 2 unboxed 3 updated 0 split 2 promoted 9 folded 14
 
-shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
-shape %s1 object Array {items: %r1, length: %r4}
-shape %s2 cell {$v: %r0 box}
-shape %s3 object Held {value: %r0, extra: %r0}
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 cell {$v: %r0 box}
+shape %s2 object Held {value: %r0, extra: %r0}
+shape %s3 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s4 object Pair {x: %r0, y: %r0}
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0
-rep %r2 = object %s0
-rep %r3 = parts (%r1, %r0, %r0) as %r2
-rep %r4 = number unsigned 30
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = void
 rep %r5 = object %s1
-rep %r6 = void
-rep %r7 = number unsigned 32
-rep %r8 = number bool
-rep %r9 = object %s2
-rep %r10 = object %s3
+rep %r6 = object %s2
+rep %r7 = object %s3
+rep %r8 = parts (%r1, %r0, %r0) as %r7
+rep %r9 = number unsigned 32
+rep %r10 = number bool
 rep %r11 = object %s4

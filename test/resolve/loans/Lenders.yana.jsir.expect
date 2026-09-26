@@ -1,4 +1,4 @@
-fn main() -> one %r0
+fn main$() -> one %r0
   var $0: %r3
   var $1: %r8
   var $2: %r3
@@ -7,121 +7,6 @@ fn main() -> one %r0
   var $5: %r6
   var $6: %r4
   var $7: %r4
-  block0:
-    %5: %r0 = const 5
-    %6: %r0 = const 6
-    %7: %r1 = host host.array %5, %6
-    %8: %r2 = const 2
-    %22: %r3 = load global gOther: %r3
-    %23: %r1 = load property %22.items: %r1
-    %24: %r3 = load global gOther: %r3
-    %25: %r2 = load property %24.length: %r2
-    %26: %r0 = convert %25
-    %27: %r0 = const 0
-    %32: %r0 = const 7
-    %33: %r0 = const 8
-    %34: %r1 = host host.array %32, %33
-    %35: %r2 = const 2
-    %48: %r6 = load global gLoose: %r6
-    %50: %r3 = load global gOther: %r3
-    %51: %r1 = load property %50.items: %r1
-    %52: %r3 = load global gOther: %r3
-    %53: %r2 = load property %52.length: %r2
-    %54: %r0 = convert %53
-    %55: %r0 = const 0
-    %57: %r4 = materialize %r5 %51, %54, %55
-    %58: %r6 = object %s1 %57
-    %59: %r6 = clone %58
-    store global gLoose: %r6, %59
-    %61: %r3 = load global gArr: %r3
-    %62: %r1 = load property %61.items: %r1
-    %63: %r3 = load global gArr: %r3
-    %64: %r2 = load property %63.length: %r2
-    %65: %r0 = convert %64
-    %66: %r0 = const 0
-    %68: %r10 = const 0
-    %69: %r10 = convert %65
-    %70: %r11 = binary.ge %68, %69
-    branch %70 -> block2 -> block1
-  block1:
-    %71: %r1 = alias %62
-    %72: %r0 = load element %71[%66]: %r0
-    %76: %r10 = const 1
-    %77: %r10 = alias %69
-    %78: %r11 = binary.ge %76, %77
-    branch %78 -> block4 -> block3
-  block2:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block3:
-    %79: %r1 = alias %62
-    %81: %r0 = const 1
-    %82: %r0 = load element %79[%81]: %r0
-    %83: %r0 = binary.add %72, %82
-    %84: %r0 = coerce %83
-    %85: %r0 = const 2
-    %29: %r4 = materialize %r5 %23, %26, %27
-    %87: %r4 = alias %29
-    %88: %r10 = const 2
-    %89: %r0 = load property %87.length: %r0
-    %90: %r10 = convert %89
-    %91: %r11 = binary.ge %88, %90
-    branch %91 -> block6 -> block5
-  block4:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block5:
-    %92: %r1 = load property %87.items: %r1
-    %93: %r1 = alias %92
-    %94: %r0 = load property %87.offset: %r0
-    %95: %r0 = binary.add %94, %85
-    %96: %r0 = coerce %95
-    %97: %r0 = load element %93[%96]: %r0
-    %98: %r0 = binary.add %84, %97
-    %99: %r0 = coerce %98
-    %100: %r0 = const 1
-    %101: %r6 = load global gLoose: %r6
-    %102: %r4 = load property %101.held: %r4
-    %103: %r10 = const 1
-    %104: %r0 = load property %102.length: %r0
-    %105: %r10 = convert %104
-    %106: %r11 = binary.ge %103, %105
-    branch %106 -> block8 -> block7
-  block6:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block7:
-    %107: %r1 = load property %102.items: %r1
-    %108: %r1 = alias %107
-    %109: %r0 = load property %102.offset: %r0
-    %110: %r0 = binary.add %109, %100
-    %111: %r0 = coerce %110
-    %112: %r0 = load element %108[%111]: %r0
-    %113: %r0 = binary.add %99, %112
-    %114: %r0 = coerce %113
-    %9: %r3 = object %s0 %7, %8
-    %118: %r3 = alias %9
-    call Array(a).reclaim(I32) %118
-    jump -> block9
-  block8:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block9:
-    %124: %r1 = alias %34
-    %125: %r1 = alias %124
-    %128: %r0 = const 1
-    %129: %r0 = load element %125[%128]: %r0
-    %36: %r3 = object %s0 %34, %35
-    %130: %r3 = alias %36
-    call Array(a).reclaim(I32) %130
-    %131: %r0 = binary.add %114, %129
-    %132: %r0 = coerce %131
-    return %132
-  block10:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-
-fn main$() -> one %r0
   block0:
     %0: %r0 = const 1
     %1: %r0 = const 2
@@ -146,8 +31,118 @@ fn main$() -> one %r0
     %18: %r4 = materialize %r5 %13, %16, %17
     %19: %r6 = object %s1 %18
     store global gLoose: %r6, %19
-    %20: %r0 = call main
-    return %20
+    %25: %r0 = const 5
+    %26: %r0 = const 6
+    %27: %r1 = host host.array %25, %26
+    %28: %r2 = const 2
+    %42: %r3 = load global gOther: %r3
+    %43: %r1 = load property %42.items: %r1
+    %44: %r3 = load global gOther: %r3
+    %45: %r2 = load property %44.length: %r2
+    %46: %r0 = convert %45
+    %47: %r0 = const 0
+    %52: %r0 = const 7
+    %53: %r0 = const 8
+    %54: %r1 = host host.array %52, %53
+    %55: %r2 = const 2
+    %68: %r6 = load global gLoose: %r6
+    %70: %r3 = load global gOther: %r3
+    %71: %r1 = load property %70.items: %r1
+    %72: %r3 = load global gOther: %r3
+    %73: %r2 = load property %72.length: %r2
+    %74: %r0 = convert %73
+    %75: %r0 = const 0
+    %77: %r4 = materialize %r5 %71, %74, %75
+    %78: %r6 = object %s1 %77
+    %79: %r6 = clone %78
+    store global gLoose: %r6, %79
+    %81: %r3 = load global gArr: %r3
+    %82: %r1 = load property %81.items: %r1
+    %83: %r3 = load global gArr: %r3
+    %84: %r2 = load property %83.length: %r2
+    %85: %r0 = convert %84
+    %86: %r0 = const 0
+    %88: %r10 = const 0
+    %89: %r10 = convert %85
+    %90: %r11 = binary.ge %88, %89
+    branch %90 -> block10 -> block1
+  block1:
+    %91: %r1 = alias %82
+    %92: %r0 = load element %91[%86]: %r0
+    %96: %r10 = const 1
+    %97: %r10 = alias %89
+    %98: %r11 = binary.ge %96, %97
+    branch %98 -> block9 -> block2
+  block2:
+    %99: %r1 = alias %82
+    %101: %r0 = const 1
+    %102: %r0 = load element %99[%101]: %r0
+    %103: %r0 = binary.add %92, %102
+    %104: %r0 = coerce %103
+    %105: %r0 = const 2
+    %49: %r4 = materialize %r5 %43, %46, %47
+    %107: %r4 = alias %49
+    %108: %r10 = const 2
+    %109: %r0 = load property %107.length: %r0
+    %110: %r10 = convert %109
+    %111: %r11 = binary.ge %108, %110
+    branch %111 -> block8 -> block3
+  block3:
+    %112: %r1 = load property %107.items: %r1
+    %113: %r1 = alias %112
+    %114: %r0 = load property %107.offset: %r0
+    %115: %r0 = binary.add %114, %105
+    %116: %r0 = coerce %115
+    %117: %r0 = load element %113[%116]: %r0
+    %118: %r0 = binary.add %104, %117
+    %119: %r0 = coerce %118
+    %120: %r0 = const 1
+    %121: %r6 = load global gLoose: %r6
+    %122: %r4 = load property %121.held: %r4
+    %123: %r10 = const 1
+    %124: %r0 = load property %122.length: %r0
+    %125: %r10 = convert %124
+    %126: %r11 = binary.ge %123, %125
+    branch %126 -> block7 -> block4
+  block4:
+    %127: %r1 = load property %122.items: %r1
+    %128: %r1 = alias %127
+    %129: %r0 = load property %122.offset: %r0
+    %130: %r0 = binary.add %129, %120
+    %131: %r0 = coerce %130
+    %132: %r0 = load element %128[%131]: %r0
+    %133: %r0 = binary.add %119, %132
+    %134: %r0 = coerce %133
+    %29: %r3 = object %s0 %27, %28
+    %138: %r3 = alias %29
+    call Array(a).reclaim(I32) %138
+    jump -> block5
+  block5:
+    %144: %r1 = alias %54
+    %145: %r1 = alias %144
+    %148: %r0 = const 1
+    %149: %r0 = load element %145[%148]: %r0
+    %56: %r3 = object %s0 %54, %55
+    %150: %r3 = alias %56
+    call Array(a).reclaim(I32) %150
+    %151: %r0 = binary.add %134, %149
+    %152: %r0 = coerce %151
+    return %152
+  block6:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block7:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block8:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block9:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block10:
+    host host.throw "yana: a runtime check failed"
+    unreachable
 
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3

@@ -43,6 +43,31 @@
  * slot with a padded word (`zeroStorage`), and it names no register, so like a copy it types
  * nothing.
  *
+ * ## A slot only copies name - J183
+ *
+ * Neither a copy nor a fill says what register a slot is, so a slot whose whole traffic is those
+ * two has no type to promote with - and that is a common slot: the temporary a swap goes through
+ * (`t = a; a = b; b = t`), a constant copied into place through one, and a value read out of memory
+ * that may overlap where it is going, which is exactly the temporary `forwardCopyDestinations` must
+ * not remove. Declined, each was a round trip through the frame: a vector load and store into the
+ * slot and a second pair out of it, where one load and one store is the whole of the work.
+ *
+ * So such a slot takes a register after all, and the one it takes is chosen rather than read: a
+ * promoted slot it is copied to or from, where that register holds its width, and otherwise an
+ * integer at one to eight bytes and an integer vector at sixteen, or thirty-two where
+ * `LowerModule::vectorBytes` says the target has such a register. **Holding it in a register is
+ * sound even where the two ends of the round trip overlap**, which is the one argument this needs:
+ * the copy in becomes a load of the whole value and the copy out a store of it, so every byte is
+ * read before any is written - the order the temporary was there to keep.
+ *
+ * The local backend only, as `splitBranchConditions` is (`LowerModule::consumer`). LLVM's own
+ * `memcpy` handling reads a copy better than the load and store this hands it: over the corpus the
+ * rule was +0.31% of `.text` under `-backend llvm -opt 3` and -0.15% locally, where it also took
+ * 2,182 of `test/base`'s 8,438 copies out of the lowered IR. `doc/progress` J183 has the numbers.
+ *
+ * What is still declined is a width no register holds: 7, 15 and 20 bytes are values whose size
+ * is not their stride, and a wider transfer would reach bytes that belong to their container.
+ *
  * It leaves its own litter behind - the byte count of an allocation that is gone, the mask a load
  * turned out not to need - and does not clean it up. `removeDeadValues` in lower_fold.h does, for
  * this pass and for folding alike, and the caller runs it afterwards: this one returns early where
@@ -63,7 +88,8 @@ inline U32 registerBits(LowerType type) {
  * without asking the target**, which is what makes this a portable question after all: a 32-byte
  * vector *type* exists only in a program compiled for a machine with a 32-byte register, because
  * `targetVectorBytes` is what decided the lane count when the type was made. A target that has no
- * such register has no value of the type either.
+ * such register has no value of the type either. The one type this tier makes up rather than reads -
+ * a slot only copies name, above - asks `LowerModule::vectorBytes` instead, for exactly that reason.
  *
  * Until this said so, every `let &acc = zero() :: Vec(a)` in the language was a stack slot loaded
  * and stored once per chunk - which is not only the traffic but a loop-carried *memory* dependency,

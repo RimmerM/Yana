@@ -3,44 +3,41 @@
 var gArr = { items: new Int32Array([]), length: 0 };
 
 // 
-function main() {
+function main$() {
   var s1, p1, p2, p3, p4, p5;
-  var v20 = { $index: 0, $slot: 0, x: 5, f3: 0, f4: 0, f5: 0 };
-  var v27 = gArr.items;
-  var v30 = gArr.length;
-  var v34 = 0 > v30 ? v30 : 0;
-  var v36 = 3 < v34 ? v34 : 3;
-  var v40 = (v36 > v30 ? v30 : v36) - v34;
+  var v9 = new Int32Array([1, 2, 3]);
+  gArr = { items: v9, length: 3 };
+  var v26 = { $index: 0, $slot: 0, x: 5, f3: 0, f4: 0, f5: 0 };
   var p0 = 0;
   L0: for (;;) {
-    var v54 = v20.$index;
+    var v48 = v26.$index;
     B1: {
       B2: {
         B3: {
-          if (v54 === 0) {
-            v20.f3 = 0;
-            p4 = 3;
-            p5 = 1;
+          if (v48 === 1) {
+            p4 = v26.f4;
+            var v55 = v26.f5;
+            v26.f3 = v26.f3 + v55 | 0;
+            p5 = v55;
           } else {
-            if (v54 === 1) {
-              p4 = v20.f4;
-              var v60 = v20.f5;
-              v20.f3 = v20.f3 + v60 | 0;
-              p5 = v60;
+            if (v48 === 0) {
+              v26.f3 = 0;
+              p4 = 3;
+              p5 = 1;
               break B3;
             }
             break B2;
           }
         }
-        if (v20.f3 < p4) {
-          v20.$slot = v20.x + 1 | 0;
-          v20.f4 = p4;
-          v20.f5 = p5;
-          v20.$index = 1;
-          p1 = v20.$slot;
+        if (v26.f3 < p4) {
+          v26.$slot = v26.x + 1 | 0;
+          v26.f4 = p4;
+          v26.f5 = p5;
+          v26.$index = 1;
+          p1 = v26.$slot;
           break B1;
         }
-        v20.$index = 2147483647;
+        v26.$index = 2147483647;
       }
       p1 = null;
     }
@@ -49,28 +46,21 @@ function main() {
       p0 = p0 + s1 | 0;
       continue L0;
     }
-    if (0 >= v40 >>> 0) throw $t;
-    var v95 = v27[v34] + p0 | 0;
-    var v98 = gArr.items;
-    var v101 = gArr.length;
-    var v105 = 0 > v101 ? v101 : 0;
-    var v107 = 3 < v105 ? v105 : 3;
-    var v111 = (v107 > v101 ? v101 : v107) - v105;
+    var v89 = v9[0] + p0 | 0;
+    var v92 = gArr.items;
+    var v95 = gArr.length;
+    var v99 = 0 > v95 ? v95 : 0;
+    var v101 = 3 < v99 ? v99 : 3;
+    var v105 = (v101 > v95 ? v95 : v101) - v99;
     p2 = 0;
     p3 = 0;
     while (p2 < 3) {
       p3 = p3 + 6 | 0;
       p2 = p2 + 1 | 0;
     }
-    if (0 >= v111 >>> 0) throw $t;
-    return v95 + (v98[v105] + p3 | 0) | 0;
+    if (0 >= v105 >>> 0) throw $t;
+    return v89 + (v92[v99] + p3 | 0) | 0;
   }
-}
-
-function main$() {
-  var v5 = { items: new Int32Array([1, 2, 3]), length: 3 };
-  gArr = v5;
-  return main();
 }
 var $t = "yana: a runtime check failed";
 main$();

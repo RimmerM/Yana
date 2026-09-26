@@ -1,0 +1,68 @@
+{-
+   J180's two lower-tier rewrites, whose failure would be a wrong count rather than a crash.
+
+   **`splitBranchConditions`** takes a branch on `a || b` apart into two branches, and a branch on
+   `a && b` only where both are truth values. `isWordUnit` is the lexer's shape - an `if:` chain that
+   answers a literal on two arms, `||` a comparison - so the phi with a `1` in it is threaded past the
+   second test. `mixed` is an `&&` of an `||`, `three` an `||` of three, and `bits` branches on an
+   `or` of two integers that are not truth values, which is nonzero exactly when either is.
+
+   **The load records in `forwardStoredValues`** answer a second read of a word with the first.
+   `reread` reads `box.count`, writes through the other parameter and reads it again; the two may be
+   one object in a caller the forwarding cannot see, so the second read has to be a read.
+-}
+
+data Box {count: Int, other: Int}
+
+fn isLetterUnit(c: I32) -> Bool = if:
+    c >= 65 && c <= 90 -> True
+    c >= 97 && c <= 122 -> True
+    else -> False
+
+fn isWordUnit(c: I32) -> Bool = isLetterUnit(c) || c == 95
+
+fn mixed(c: I32, d: I32) -> Bool = (c == 32 || c == 9) && d != 0
+
+fn three(c: I32) -> Bool = c == 40 || c == 41 || c == 44
+
+fn bits(a: Int, b: Int) -> Int:
+    if (a `and` 6) `or` (b `and` 12) != 0 then return 1
+    return 0
+
+fn reread(&box: Box, &into: [Int], at: Size) -> Int:
+    let first = box.count
+    into[at] = first + 1
+    box.other = box.count + 1
+    return first + box.count
+
+fn main() -> Int:
+    let text = "a_b (c, d)\tE_f9 _ z"
+    let &words = 0 :: Int
+    let &spaces = 0 :: Int
+    let &punct = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < length(text):
+        let c = String.unit(text, i) :: I32
+        let next = if i + 1 < length(text) then String.unit(text, i + 1) :: I32 else 0
+        if isWordUnit(c): words += 1
+        if mixed(c, next): spaces += 1
+        if three(c): punct += 1
+        i += 1
+
+    let &mask = 0 :: Int
+    for k in 0..16:
+        mask = mask * 2 + bits(k, 15 - k)
+
+    let &box = Box {count: 5, other: 0}
+    let &cells = [0, 0, 0] :: [Int]
+    let sum = reread(box, cells, 1 :: Size)
+
+    -- 10 word units, 5 spaces and tabs with something after them, 3 punctuation marks, and `bits`
+    -- nonzero for every k: where `k and 6` is zero, `(15 - k) and 12` is not.
+    if words != 10 then return 1
+    if spaces != 5 then return 2
+    if punct != 3 then return 3
+    if mask != 65535 then return 4
+    if sum != 10 || cells[1] != 6 || box.other != 6 then return 5
+    return 42

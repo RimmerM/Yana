@@ -2,7 +2,7 @@
 # and BlockExpansion in target.h for the ceiling.
 #
 # No directive, so this is the **v2** machine and the **balanced** level: a 16-byte step and a
-# ceiling of 64 bytes. `BlockCopyWide.lower` is the same functions at v3 and `BlockCopySize.lower`
+# ceiling of 128 bytes (64 until J181). `BlockCopyWide.lower` is the same functions at v3 and `BlockCopySize.lower`
 # is them at `-inline size`, which is how the two knobs are compared - two files with the same
 # bodies and different directives, and every golden an ordinary one.
 #
@@ -19,8 +19,8 @@
 #           which rewrites four bytes the first pair already wrote.
 #   16      exactly one `movdqu` pair, and the smallest copy that reaches the vector bank at all.
 #   20      the ragged end at the vector width: two pairs, the second at offset 4.
-#   64      the ceiling, and four whole pairs with no ragged end.
-#   65      one byte past it, which is where `rep movsb` starts.
+#   128     the ceiling, and eight whole pairs with no ragged end.
+#   129     one byte past it, which is where `rep movsb` starts.
 
 copySmall(%dst: Ptr, %src: Ptr) {
     {
@@ -43,14 +43,14 @@ copyVector(%dst: Ptr, %src: Ptr) {
 # the `rep` form demands cannot be confused with the ones the expansion happened to be given.
 copyCeiling(%dst: Ptr, %src: Ptr) {
     {
-        copy %dst, %src, 64
+        copy %dst, %src, 128
         ret
     }
 }
 
 copyAboveCeiling(%dst: Ptr, %src: Ptr) {
     {
-        copy %dst, %src, 65
+        copy %dst, %src, 129
         ret
     }
 }

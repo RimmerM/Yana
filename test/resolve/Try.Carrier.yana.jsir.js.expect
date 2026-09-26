@@ -42,17 +42,17 @@ function operands(a, b) {
 }
 
 function main() {
-  var s6, s10, p10, p12;
+  var s6, s10, s14, s18, p10, p12, p14, p16;
   log = 0;
   dropped = 0;
-  var v19 = oneStep(3);
-  var p0 = !(v19 === null) ? v19 : 0;
-  var v30 = oneStep(-1);
-  var p1 = !(v30 === null) ? v30 : 0;
-  var v41 = twoSteps(11);
-  var p2 = !(v41 === null) ? v41 : 0;
-  var v52 = twoSteps(3);
-  var p3 = !(v52 === null) ? v52 : 0;
+  var v23 = oneStep(3);
+  var p0 = !(v23 === null) ? v23 : 0;
+  var v34 = oneStep(-1);
+  var p1 = !(v34 === null) ? v34 : 0;
+  var v45 = twoSteps(11);
+  var p2 = !(v45 === null) ? v45 : 0;
+  var v56 = twoSteps(3);
+  var p3 = !(v56 === null) ? v56 : 0;
   log = log + 10 | 0;
   var p5 = { $tag: 0, Proceed: 4, Exit: 0 };
   var p4 = p5.$tag === 1 ? { $tag: 0, Err: p5.Exit, Ok: 0 } : { $tag: 1, Err: 0, Ok: p5.Proceed + 100 | 0 };
@@ -61,64 +61,67 @@ function main() {
   var p8 = { $tag: 1, Proceed: 0, Exit: 1 };
   var p7 = p8.$tag === 1 ? { $tag: 0, Err: p8.Exit, Ok: 0 } : { $tag: 1, Err: 0, Ok: p8.Proceed + 100 | 0 };
   var p9 = p7.$tag === 1 ? p7.Ok : 0 - p7.Err | 0;
-  var s4 = Maybe_a_toOutcome_Token(1);
-  B8: {
+  var s4 = 1;
+  B9: {
     if (s4 === null) {
       $td$Outcome_Token(s4);
       p10 = null;
     } else {
       Token_drop(s4);
-      s6 = Maybe_a_toOutcome_Token(2);
+      s10 = 2;
+      if (!(s10 === null)) {
+        p12 = s10;
+      } else {
+        $td$Maybe_Token(s10);
+        p12 = null;
+      }
+      s6 = p12;
       if (s6 === null) {
         $td$Outcome_Token(s6);
         p10 = null;
-        break B8;
+        break B9;
       }
       Token_drop(s6);
       p10 = s4 + s6 | 0;
     }
   }
-  var p11 = !(p10 === null) ? p10 : 0;
-  var s8 = Maybe_a_toOutcome_Token(1);
-  B10: {
-    if (s8 === null) {
-      $td$Outcome_Token(s8);
-      p12 = null;
+  var p13 = !(p10 === null) ? p10 : 0;
+  var s12 = 1;
+  B13: {
+    if (s12 === null) {
+      $td$Outcome_Token(s12);
+      p14 = null;
     } else {
-      Token_drop(s8);
-      s10 = Maybe_a_toOutcome_Token(null);
-      if (s10 === null) {
-        $td$Outcome_Token(s10);
-        p12 = null;
-        break B10;
+      Token_drop(s12);
+      s18 = null;
+      if (!(s18 === null)) {
+        p16 = s18;
+      } else {
+        $td$Maybe_Token(s18);
+        p16 = null;
       }
-      Token_drop(s10);
-      p12 = s8 + s10 | 0;
+      s14 = p16;
+      if (s14 === null) {
+        $td$Outcome_Token(s14);
+        p14 = null;
+        break B13;
+      }
+      Token_drop(s14);
+      p14 = s12 + s14 | 0;
     }
   }
-  var p13 = !(p12 === null) ? p12 : 0;
-  var v272 = operands(1, 2);
-  var p14 = !(v272 === null) ? v272 : 0;
-  var v284 = operands(1, -2);
-  return ((((((((((p0 + p1 | 0) + p2 | 0) + p3 | 0) + p6 | 0) + p9 | 0) + p11 | 0) + p13 | 0) + p14 | 0) + (!(v284 === null) ? v284 : 0) | 0) + Math.imul(dropped, 1000) | 0) + Math.imul(log, 100000) | 0;
-}
-
-function Maybe_a_toOutcome_Token(value) {
-  var p1;
-  if (!(value === null)) {
-    p1 = value;
-  } else {
-    $td$Maybe_Token(value);
-    p1 = null;
-  }
-  return p1;
-}
-
-function $td$Outcome_Token(a0) {
-  if (a0 !== null) Token_drop(a0);
+  var p17 = !(p14 === null) ? p14 : 0;
+  var v328 = operands(1, 2);
+  var p18 = !(v328 === null) ? v328 : 0;
+  var v340 = operands(1, -2);
+  return ((((((((((p0 + p1 | 0) + p2 | 0) + p3 | 0) + p6 | 0) + p9 | 0) + p13 | 0) + p17 | 0) + p18 | 0) + (!(v340 === null) ? v340 : 0) | 0) + Math.imul(dropped, 1000) | 0) + Math.imul(log, 100000) | 0;
 }
 
 function $td$Maybe_Token(a0) {
+  if (a0 !== null) Token_drop(a0);
+}
+
+function $td$Outcome_Token(a0) {
   if (a0 !== null) Token_drop(a0);
 }
 main();

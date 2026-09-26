@@ -5,36 +5,3 @@ main<complex>(): I32 {
   }
 }
 
-@header(main.lambda) = [0, 0, 0, 0]
-main.lambda<complex>(%main.lambda.env: Ptr) {
-  b_0 {
-    %v_1 = load %main.lambda.env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-
-@header(main.lambda'2) = [0, 0, 0, 0]
-main.lambda'2<complex>(%main.lambda'2.env: Ptr) {
-  b_0 {
-    %v_1 = load %main.lambda'2.env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 10: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-
-@header(main.lambda'3) = [0, 0, 0, 0]
-main.lambda'3<complex>(%main.lambda'3.env: Ptr) {
-  b_0 {
-    %v_1 = load %main.lambda'3.env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, 5: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-

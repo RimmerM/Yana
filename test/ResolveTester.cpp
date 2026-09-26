@@ -105,6 +105,16 @@ private:
     ast::Module open(StringView source, Settings&& settings) {
         provider.source = source;
         provider.moduleRoot = String(kModuleDirectory);
+
+        /*
+         * The local backend, because it is what every native pass here runs: `executeModule` is the
+         * x64 JIT, and `.mir.lower.expect` is documented as what `-backend local` is handed. The
+         * field's default is LLVM (see CompileSettings::backend), and until J182 this driver lowered
+         * for LLVM and then ran x64, so a transform gated to the local backend
+         * (`LowerModule::consumer`) was in no golden and ran in no fixture. `runLlvmPass` lowers a
+         * second time for LLVM. Ignored by the JavaScript passes, which never lower.
+         */
+        context.settings.backend = NativeBackend::Local;
         applyFixtureDirectives(context.settings, source);
         settings(context.settings);
         provider.context = &context;
@@ -240,7 +250,15 @@ static Maybe<I64> executeModule(Context& context, LowerModule& module, bool unit
     // pointer needs the address the module was actually mapped at. Patched before the copy rather
     // than after, since it is the assembler's buffer that is patched and the mapping is a copy of
     // it. A linker would emit these as dynamic relocations and let the loader do the same thing.
-    assembly.applyDataRelocations((Byte*)memory);
+    //
+    // Checked, though a JIT's module has no absolute sites (`LowerModule::fixedLoadAddress` is zero
+    // here): a refusal is a module that would read the wrong addresses, and running it would report
+    // that as whatever the fixture then happened to answer.
+    if(!assembly.applyDataRelocations((Byte*)memory)) {
+        println("Fail: an absolute address does not fit the JIT mapping at %@.", (U64)memory);
+        munmap(memory, allocationSize);
+        return Nothing();
+    }
     copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
 
     // Writable as well as executable, because the code and the globals share one mapping here.
@@ -580,17 +598,40 @@ static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
 /*
  * The same fixture, handed to LLVM.
  *
- * The lowered module rather than a second resolution, unlike the JS pass: this backend and the x64
- * one consume the same IR, so what it asserts is the translation into LLVM's form and nothing about
- * the stages in front of it. Opted into by the `.mir.llvm.expect` file, on the same terms as the
- * rest - a fixture that says nothing new about the translation would only be a second copy of what
- * `.mir.lower.expect` already asserts.
+ * The same optimized SSA rather than a second resolution, unlike the JS pass: this backend and the
+ * x64 one consume the same IR, so what it asserts is the translation into LLVM's form and nothing
+ * about the stages in front of it. Opted into by the `.mir.llvm.expect` file, on the same terms as
+ * the rest - a fixture that says nothing new about the translation would only be a second copy of
+ * what `.mir.lower.expect` already asserts.
+ *
+ * **Lowered a second time, for LLVM** (J182): the module the x64 run used was lowered for the local
+ * backend, and what LLVM is handed differs from it - the calling convention's budget and the
+ * transforms `LowerModule::consumer` gates. The lowering reads the SSA and the declarations and
+ * writes only its own module, so a second one from the same pipeline is what `-backend llvm` would
+ * have lowered; it costs one lowering for each of the few fixtures that opt in. Sharing the local
+ * module instead would have asserted a module no build hands LLVM.
  *
  * The verifier runs whether or not the text matches, because a module LLVM rejects is a failure of
  * this backend even when the expect file was generated from it.
  */
 static bool runLlvmPass(const String& path, const String& llvmPath, Context& context,
-                        Diagnostics& diagnostics, LowerModule& lowered, bool generate) {
+                        Diagnostics& diagnostics, ssa::Pipeline& pipeline, bool generate) {
+    auto backend = context.settings.backend;
+    context.settings.backend = NativeBackend::Llvm;
+    auto relowered = pipeline.lower();
+    context.settings.backend = backend;
+
+    if(!relowered || diagnostics.errorCount()) {
+        println("Fail (%@): the pipeline did not lower for LLVM.", path);
+        return false;
+    }
+
+    if(!validateLowerModule(&diagnostics, relowered.get())) {
+        println("Fail (%@): the pipeline produced invalid lower IR for LLVM.", path);
+        return false;
+    }
+
+    auto& lowered = *relowered;
     llvm::LLVMContext llvm;
     auto errors = diagnostics.errorCount();
     auto module = llvmgen::genModule(llvm, context, lowered);
@@ -868,7 +909,7 @@ static bool runNativePass(const String& path, StringView source, bool generate,
     // created by `generate`, since most fixtures say nothing new about the translation.
     auto llvmPath = path + String(".mir.llvm.expect");
     if(fileExists(llvmPath)) {
-        pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
+        pass = runLlvmPass(path, llvmPath, context, diagnostics, pipeline, generate) && pass;
     }
 
     if(auto expected = expectedRun) {

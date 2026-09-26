@@ -311,9 +311,9 @@ bb0(%0: acting(I32).Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool tri
   %14: %I32 address = alloc frame I32
   %46: %I32 address = field.addr .$index inspect %0
   %47: I32 trivial = load inspect %46
-  %48: I32 trivial = const 0
+  %48: I32 trivial = const 1
   %49: Bool trivial = eq inspect %47 inspect %48
-  branch inspect %49 -> bb1 -> bb12
+  branch inspect %49 -> bb10 -> bb12
 
 bb1:
   branch inspect %2 -> bb11 -> bb3
@@ -391,9 +391,9 @@ bb11:
   return consume %44
 
 bb12:
-  %50: I32 trivial = const 1
+  %50: I32 trivial = const 0
   %51: Bool trivial = eq inspect %47 inspect %50
-  branch inspect %51 -> bb10 -> bb2
+  branch inspect %51 -> bb1 -> bb2
 }
 
 fn acting(I32)$next($self: acting(I32).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {

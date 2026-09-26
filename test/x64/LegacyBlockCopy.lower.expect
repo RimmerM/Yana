@@ -3,8 +3,8 @@ legacyCopy<complex, x86_legacy_sse>(%dst: Ptr, %src: Ptr) {
   b_0 {
     copy %dst, %src, 16
     copy %dst, %src, 32
-    copy %dst, %src, 64
-    copy %dst, %src, 65
+    copy %dst, %src, 128
+    copy %dst, %src, 129
     ret 
   }
 }
@@ -61,8 +61,32 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=1 disp=48 uses=[rdi] creates=[-]  => 
   store uses=[-, xmm0] creates=[]  => f30f7f4730
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4640
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4740
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=80 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4650
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=80 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4750
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4660
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4760
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=112 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4670
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=112 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4770
   imm uses=[] creates=[remat:0]  => 
-  copy uses=[rdi, rsi, rcx] creates=[] pre=[remat:0->rcx]  => b941000000f3a4
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[remat:0->rcx]  => b981000000f3a4
   ret uses=[] creates=[]  => c3
 
 --- codegen: legacySet ---

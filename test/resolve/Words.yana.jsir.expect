@@ -10,124 +10,10 @@ fn opaqueU64(one %r3) -> one %r3
   block0(%0: %r3):
     return %0
 
-fn layout() -> one %r4
-  var $0: %r7
-  block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 0
-    %2: %r0 = const 0
-    %3: %r0 = const 0
-    %4: %r0 = const 0
-    %5: %r0 = const 0
-    %6: %r0 = const 0
-    %7: %r0 = const 0
-    %8: %r5 = host host.array %0, %1, %2, %3, %4, %5, %6, %7
-    %9: %r6 = const 8
-    %12: %r4 = const 0
-    %14: %r1 = const 3.05419896E8
-    jump -> block9
-  block1:
-    %41: %r5 = alias %8
-    %42: %r0 = load element %41[%37]: %r0
-    %43: %r0 = const 18
-    %44: %r11 = binary.eq %42, %43
-    %45: %r4 = const 2048
-    %46: %r4 = const 0
-    %47: %r4 = select %44, %45, %46
-    jump -> block3
-  block2:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block3:
-    %53: %r5 = alias %8
-    %55: %r4 = const 3
-    %56: %r0 = load element %53[%55]: %r0
-    %57: %r0 = const 120
-    %58: %r11 = binary.eq %56, %57
-    %59: %r4 = const 4096
-    %60: %r4 = const 0
-    %61: %r4 = select %58, %59, %60
-    %62: %r4 = binary.add %47, %61
-    %63: %r4 = coerce %62
-    jump -> block5
-  block4:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block5:
-    %69: %r5 = alias %8
-    %71: %r4 = const 4
-    %72: %r0 = load element %69[%71]: %r0
-    %73: %r0 = const 120
-    %74: %r11 = binary.eq %72, %73
-    %75: %r4 = const 8192
-    %76: %r4 = const 0
-    %77: %r4 = select %74, %75, %76
-    %78: %r4 = binary.add %63, %77
-    %79: %r4 = coerce %78
-    jump -> block7
-  block6:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block7:
-    %85: %r5 = alias %8
-    %87: %r4 = const 7
-    %88: %r0 = load element %85[%87]: %r0
-    %89: %r0 = const 18
-    %90: %r11 = binary.eq %88, %89
-    %91: %r4 = const 16384
-    %92: %r4 = const 0
-    %93: %r4 = select %90, %91, %92
-    %94: %r4 = binary.add %79, %93
-    %95: %r4 = coerce %94
-    %96: %r4 = const 0
-    jump -> block15
-  block8:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block9:
-    jump -> block10
-  block10:
-    %22: %r11 = const 0
-    host host.view.write "setUint32" %8, %12, %14, %22
-    %25: %r1 = const 3.05419896E8
-    jump -> block12
-  block11:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block12:
-    jump -> block13
-  block13:
-    %34: %r4 = const 4
-    %35: %r11 = const 1
-    host host.view.write "setUint32" %8, %34, %25, %35
-    %37: %r4 = const 0
-    jump -> block1
-  block14:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block15:
-    jump -> block16
-  block16:
-    %105: %r11 = const 1
-    %106: %r1 = host host.view.read "getUint32" %8, %96, %105
-    %10: %r7 = object %s0 %8, %9
-    %107: %r7 = alias %10
-    call Array(a).reclaim(U8) %107
-    %108: %r1 = const 2.018915346E9
-    %109: %r11 = binary.eq %106, %108
-    %110: %r4 = const 32768
-    %111: %r4 = const 0
-    %112: %r4 = select %109, %110, %111
-    %113: %r4 = binary.add %95, %112
-    %114: %r4 = coerce %113
-    return %114
-  block17:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-
 fn main() -> one %r4
   var $0: %r7
   var $1: %r7
+  var $2: %r7
   block0:
     %0: %r4 = const 3
     %1: %r1 = const 3.05419896E8
@@ -135,12 +21,12 @@ fn main() -> one %r4
     %3: %r0 = load global Target.byteOrder: %r0
     %4: %r0 = load global Target.byteOrder: %r0
     %5: %r0 = const 1
-    %6: %r11 = binary.eq %4, %5
+    %6: %r9 = binary.eq %4, %5
     %7: %r1 = helper.byteswap %2
     %8: %r1 = coerce %7
     %9: %r1 = select %6, %2, %8
     %10: %r1 = const 2.018915346E9
-    %11: %r11 = binary.eq %9, %10
+    %11: %r9 = binary.eq %9, %10
     %12: %r4 = const 4
     %13: %r4 = const 0
     %14: %r4 = select %11, %12, %13
@@ -149,12 +35,12 @@ fn main() -> one %r4
     %17: %r0 = load global Target.byteOrder: %r0
     %18: %r0 = load global Target.byteOrder: %r0
     %19: %r0 = const 0
-    %20: %r11 = binary.eq %18, %19
+    %20: %r9 = binary.eq %18, %19
     %21: %r1 = helper.byteswap %16
     %22: %r1 = coerce %21
     %23: %r1 = select %20, %16, %22
     %24: %r1 = const 3.05419896E8
-    %25: %r11 = binary.eq %23, %24
+    %25: %r9 = binary.eq %23, %24
     %26: %r4 = const 8
     %27: %r4 = const 0
     %28: %r4 = select %25, %26, %27
@@ -165,7 +51,7 @@ fn main() -> one %r4
     %33: %r0 = load global Target.byteOrder: %r0
     %34: %r0 = load global Target.byteOrder: %r0
     %35: %r0 = const 1
-    %36: %r11 = binary.eq %34, %35
+    %36: %r9 = binary.eq %34, %35
     %37: %r1 = helper.byteswap %32
     %38: %r1 = coerce %37
     %39: %r1 = select %36, %32, %38
@@ -173,7 +59,7 @@ fn main() -> one %r4
     %41: %r1 = coerce %40
     %42: %r1 = select %36, %39, %41
     %43: %r1 = const 3.05419896E8
-    %44: %r11 = binary.eq %42, %43
+    %44: %r9 = binary.eq %42, %43
     %45: %r4 = const 16
     %46: %r4 = const 0
     %47: %r4 = select %44, %45, %46
@@ -184,12 +70,12 @@ fn main() -> one %r4
     %52: %r0 = load global Target.byteOrder: %r0
     %53: %r0 = load global Target.byteOrder: %r0
     %54: %r0 = const 1
-    %55: %r11 = binary.eq %53, %54
+    %55: %r9 = binary.eq %53, %54
     %56: %r2 = helper.byteswap %51
     %57: %r2 = coerce %56
     %58: %r2 = select %55, %51, %57
     %59: %r2 = const 13330
-    %60: %r11 = binary.eq %58, %59
+    %60: %r9 = binary.eq %58, %59
     %61: %r4 = const 32
     %62: %r4 = const 0
     %63: %r4 = select %60, %61, %62
@@ -200,12 +86,12 @@ fn main() -> one %r4
     %68: %r0 = load global Target.byteOrder: %r0
     %69: %r0 = load global Target.byteOrder: %r0
     %70: %r0 = const 1
-    %71: %r11 = binary.eq %69, %70
+    %71: %r9 = binary.eq %69, %70
     %72: %r3 = helper.byteswap %67
     %73: %r3 = coerce %72
     %74: %r3 = select %71, %67, %73
     %75: %r3 = const 72057594037927936n
-    %76: %r11 = binary.eq %74, %75
+    %76: %r9 = binary.eq %74, %75
     %77: %r4 = const 64
     %78: %r4 = const 0
     %79: %r4 = select %76, %77, %78
@@ -225,86 +111,144 @@ fn main() -> one %r4
     %93: %r6 = const 8
     %96: %r4 = const 0
     %98: %r2 = const 4660
-    jump -> block3
+    jump -> block11
   block1:
-    %285: %r5 = alias %217
-    %286: %r0 = load element %285[%281]: %r0
-    %219: %r7 = object %s0 %217, %218
-    %287: %r7 = alias %219
-    call Array(a).reclaim(U8) %287
-    %288: %r0 = const 0
-    %289: %r11 = binary.eq %286, %288
-    %290: %r4 = const 131072
-    %291: %r4 = const 0
-    %292: %r4 = select %289, %290, %291
-    %293: %r4 = binary.add %279, %292
-    %294: %r4 = coerce %293
-    %295: %r4 = binary.add %208, %294
-    %296: %r4 = coerce %295
-    return %296
+    %247: %r5 = alias %214
+    %248: %r0 = load element %247[%243]: %r0
+    %249: %r0 = const 18
+    %250: %r9 = binary.eq %248, %249
+    %251: %r4 = const 2048
+    %252: %r4 = const 0
+    %253: %r4 = select %250, %251, %252
+    jump -> block2
   block2:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %259: %r5 = alias %214
+    %261: %r4 = const 3
+    %262: %r0 = load element %259[%261]: %r0
+    %263: %r0 = const 120
+    %264: %r9 = binary.eq %262, %263
+    %265: %r4 = const 4096
+    %266: %r4 = const 0
+    %267: %r4 = select %264, %265, %266
+    %268: %r4 = binary.add %253, %267
+    %269: %r4 = coerce %268
+    jump -> block3
   block3:
+    %275: %r5 = alias %214
+    %277: %r4 = const 4
+    %278: %r0 = load element %275[%277]: %r0
+    %279: %r0 = const 120
+    %280: %r9 = binary.eq %278, %279
+    %281: %r4 = const 8192
+    %282: %r4 = const 0
+    %283: %r4 = select %280, %281, %282
+    %284: %r4 = binary.add %269, %283
+    %285: %r4 = coerce %284
     jump -> block4
   block4:
-    %106: %r11 = const 0
-    host host.view.write "setUint16" %92, %96, %98, %106
-    %109: %r2 = const 4660
-    jump -> block6
+    %291: %r5 = alias %214
+    %293: %r4 = const 7
+    %294: %r0 = load element %291[%293]: %r0
+    %295: %r0 = const 18
+    %296: %r9 = binary.eq %294, %295
+    %297: %r4 = const 16384
+    %298: %r4 = const 0
+    %299: %r4 = select %296, %297, %298
+    %300: %r4 = binary.add %285, %299
+    %301: %r4 = coerce %300
+    %302: %r4 = const 0
+    jump -> block38
   block5:
     host host.throw "yana: a runtime check failed"
     unreachable
   block6:
-    jump -> block7
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block7:
-    %118: %r4 = const 2
-    %119: %r11 = const 1
-    host host.view.write "setUint16" %92, %118, %109, %119
-    %120: %r4 = const 0
-    jump -> block9
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block8:
     host host.throw "yana: a runtime check failed"
     unreachable
   block9:
-    jump -> block10
+    %399: %r5 = alias %331
+    %400: %r0 = load element %399[%395]: %r0
+    %333: %r7 = object %s0 %331, %332
+    %401: %r7 = alias %333
+    call Array(a).reclaim(U8) %401
+    %402: %r0 = const 0
+    %403: %r9 = binary.eq %400, %402
+    %404: %r4 = const 131072
+    %405: %r4 = const 0
+    %406: %r4 = select %403, %404, %405
+    %407: %r4 = binary.add %393, %406
+    %408: %r4 = coerce %407
+    %409: %r4 = binary.add %322, %408
+    %410: %r4 = coerce %409
+    return %410
   block10:
-    %129: %r11 = const 0
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block11:
+    jump -> block12
+  block12:
+    %106: %r9 = const 0
+    host host.view.write "setUint16" %92, %96, %98, %106
+    %109: %r2 = const 4660
+    jump -> block14
+  block13:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block14:
+    jump -> block15
+  block15:
+    %118: %r4 = const 2
+    %119: %r9 = const 1
+    host host.view.write "setUint16" %92, %118, %109, %119
+    %120: %r4 = const 0
+    jump -> block17
+  block16:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block17:
+    jump -> block18
+  block18:
+    %129: %r9 = const 0
     %130: %r2 = host host.view.read "getUint16" %92, %120, %129
     %131: %r2 = const 4660
-    %132: %r11 = binary.eq %130, %131
+    %132: %r9 = binary.eq %130, %131
     %133: %r4 = const 128
     %134: %r4 = const 0
     %135: %r4 = select %132, %133, %134
-    jump -> block12
-  block11:
+    jump -> block20
+  block19:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block12:
-    jump -> block13
-  block13:
+  block20:
+    jump -> block21
+  block21:
     %146: %r4 = const 2
-    %147: %r11 = const 1
+    %147: %r9 = const 1
     %148: %r2 = host host.view.read "getUint16" %92, %146, %147
     %149: %r2 = const 4660
-    %150: %r11 = binary.eq %148, %149
+    %150: %r9 = binary.eq %148, %149
     %151: %r4 = const 256
     %152: %r4 = const 0
     %153: %r4 = select %150, %151, %152
     %154: %r4 = binary.add %135, %153
     %155: %r4 = coerce %154
     %156: %r4 = const 0
-    jump -> block15
-  block14:
+    jump -> block23
+  block22:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block15:
-    jump -> block16
-  block16:
-    %165: %r11 = const 1
+  block23:
+    jump -> block24
+  block24:
+    %165: %r9 = const 1
     %166: %r2 = host host.view.read "getUint16" %92, %156, %165
     %167: %r2 = const 13330
-    %168: %r11 = binary.eq %166, %167
+    %168: %r9 = binary.eq %166, %167
     %169: %r4 = const 512
     %170: %r4 = const 0
     %171: %r4 = select %168, %169, %170
@@ -312,30 +256,30 @@ fn main() -> one %r4
     %173: %r4 = coerce %172
     %174: %r4 = const 0
     %176: %r3 = const 1311768467463790320n
-    jump -> block18
-  block17:
+    jump -> block26
+  block25:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block18:
-    jump -> block19
-  block19:
-    %184: %r11 = const 0
+  block26:
+    jump -> block27
+  block27:
+    %184: %r9 = const 0
     host host.view.write "setBigUint64" %92, %174, %176, %184
     %185: %r4 = const 0
-    jump -> block21
-  block20:
+    jump -> block29
+  block28:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block21:
-    jump -> block22
-  block22:
-    %194: %r11 = const 0
+  block29:
+    jump -> block30
+  block30:
+    %194: %r9 = const 0
     %195: %r3 = host host.view.read "getBigUint64" %92, %185, %194
     %94: %r7 = object %s0 %92, %93
     %196: %r7 = alias %94
     call Array(a).reclaim(U8) %196
     %197: %r3 = const 1311768467463790320n
-    %198: %r11 = binary.eq %195, %197
+    %198: %r9 = binary.eq %195, %197
     %199: %r4 = const 1024
     %200: %r4 = const 0
     %201: %r4 = select %198, %199, %200
@@ -343,71 +287,122 @@ fn main() -> one %r4
     %203: %r4 = coerce %202
     %204: %r4 = binary.add %83, %203
     %205: %r4 = coerce %204
-    %206: %r4 = call layout
-    %207: %r4 = binary.add %205, %206
-    %208: %r4 = coerce %207
+    %206: %r0 = const 0
+    %207: %r0 = const 0
+    %208: %r0 = const 0
     %209: %r0 = const 0
     %210: %r0 = const 0
     %211: %r0 = const 0
     %212: %r0 = const 0
     %213: %r0 = const 0
-    %214: %r0 = const 0
-    %215: %r0 = const 0
-    %216: %r0 = const 0
-    %217: %r5 = host host.array %209, %210, %211, %212, %213, %214, %215, %216
-    %218: %r6 = const 8
-    %223: %r1 = const 3.05419896E8
-    jump -> block24
-  block23:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block24:
-    jump -> block25
-  block25:
-    %232: %r4 = const 1
-    %233: %r11 = const 0
-    host host.view.write "setUint32" %217, %232, %223, %233
-    jump -> block27
-  block26:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block27:
-    jump -> block28
-  block28:
-    %246: %r4 = const 1
-    %247: %r11 = const 0
-    %248: %r1 = host host.view.read "getUint32" %217, %246, %247
-    %249: %r1 = const 1
-    %250: %r1 = binary.add %248, %249
-    %251: %r1 = coerce %250
-    jump -> block30
-  block29:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block30:
-    jump -> block31
+    %214: %r5 = host host.array %206, %207, %208, %209, %210, %211, %212, %213
+    %215: %r6 = const 8
+    %218: %r4 = const 0
+    %220: %r1 = const 3.05419896E8
+    jump -> block32
   block31:
-    %260: %r4 = const 1
-    %261: %r11 = const 0
-    host host.view.write "setUint32" %217, %260, %251, %261
-    jump -> block33
-  block32:
     host host.throw "yana: a runtime check failed"
     unreachable
+  block32:
+    jump -> block33
   block33:
-    jump -> block34
+    %228: %r9 = const 0
+    host host.view.write "setUint32" %214, %218, %220, %228
+    %231: %r1 = const 3.05419896E8
+    jump -> block35
   block34:
-    %272: %r4 = const 1
-    %273: %r11 = const 0
-    %274: %r1 = host host.view.read "getUint32" %217, %272, %273
-    %275: %r1 = const 3.05419897E8
-    %276: %r11 = binary.eq %274, %275
-    %277: %r4 = const 65536
-    %278: %r4 = const 0
-    %279: %r4 = select %276, %277, %278
-    %281: %r4 = const 0
-    jump -> block1
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block35:
+    jump -> block36
+  block36:
+    %240: %r4 = const 4
+    %241: %r9 = const 1
+    host host.view.write "setUint32" %214, %240, %231, %241
+    %243: %r4 = const 0
+    jump -> block1
+  block37:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block38:
+    jump -> block39
+  block39:
+    %311: %r9 = const 1
+    %312: %r1 = host host.view.read "getUint32" %214, %302, %311
+    %216: %r7 = object %s0 %214, %215
+    %313: %r7 = alias %216
+    call Array(a).reclaim(U8) %313
+    %314: %r1 = const 2.018915346E9
+    %315: %r9 = binary.eq %312, %314
+    %316: %r4 = const 32768
+    %317: %r4 = const 0
+    %318: %r4 = select %315, %316, %317
+    %319: %r4 = binary.add %301, %318
+    %320: %r4 = coerce %319
+    %321: %r4 = binary.add %205, %320
+    %322: %r4 = coerce %321
+    %323: %r0 = const 0
+    %324: %r0 = const 0
+    %325: %r0 = const 0
+    %326: %r0 = const 0
+    %327: %r0 = const 0
+    %328: %r0 = const 0
+    %329: %r0 = const 0
+    %330: %r0 = const 0
+    %331: %r5 = host host.array %323, %324, %325, %326, %327, %328, %329, %330
+    %332: %r6 = const 8
+    %337: %r1 = const 3.05419896E8
+    jump -> block41
+  block40:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block41:
+    jump -> block42
+  block42:
+    %346: %r4 = const 1
+    %347: %r9 = const 0
+    host host.view.write "setUint32" %331, %346, %337, %347
+    jump -> block44
+  block43:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block44:
+    jump -> block45
+  block45:
+    %360: %r4 = const 1
+    %361: %r9 = const 0
+    %362: %r1 = host host.view.read "getUint32" %331, %360, %361
+    %363: %r1 = const 1
+    %364: %r1 = binary.add %362, %363
+    %365: %r1 = coerce %364
+    jump -> block47
+  block46:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block47:
+    jump -> block48
+  block48:
+    %374: %r4 = const 1
+    %375: %r9 = const 0
+    host host.view.write "setUint32" %331, %374, %365, %375
+    jump -> block50
+  block49:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block50:
+    jump -> block51
+  block51:
+    %386: %r4 = const 1
+    %387: %r9 = const 0
+    %388: %r1 = host host.view.read "getUint32" %331, %386, %387
+    %389: %r1 = const 3.05419897E8
+    %390: %r9 = binary.eq %388, %389
+    %391: %r4 = const 65536
+    %392: %r4 = const 0
+    %393: %r4 = select %390, %391, %392
+    %395: %r4 = const 0
+    jump -> block9
+  block52:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -430,6 +425,6 @@ rep %r5 = array Uint8Array of %r0
 rep %r6 = number unsigned 30
 rep %r7 = object %s0
 rep %r8 = void
-rep %r9 = object %s1
-rep %r10 = parts (%r5, %r4, %r4) as %r9
-rep %r11 = number bool
+rep %r9 = number bool
+rep %r10 = object %s1
+rep %r11 = parts (%r5, %r4, %r4) as %r10

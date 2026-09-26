@@ -1,20 +1,4 @@
 
-raise<complex>(%b: Ptr): I32 {
-  b_0 {
-    %v_1 = bitcast %b: I64
-    %v_2 = and %v_1, 281474976710655: I64
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: I64
-    %v_5 = load %v_3, 1: I64
-    %v_6 = shl 1, %v_4: I64
-    %v_7 = not %v_6: I64
-    %v_8 = and %v_5, %v_7: I64
-    %v_9 = or %v_8, %v_6: I64
-    store %v_3, %v_9, 1
-    ret 4
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
@@ -84,13 +68,6 @@ main<complex>(): I32 {
     %v_58 = add %v_57, 704: I32
     %v_59 = add %v_58, 80000: I32
     ret %v_59
-  }
-}
-
-funvalue(raise)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = call_complex raise, %v_0: I32
-    ret %v_2
   }
 }
 

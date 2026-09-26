@@ -32,11 +32,11 @@ fn main() -> one %r0
     %40: %r1 = alias %37
     store property %40.n: %r0, %32
     %41: %r1 = alias %37
-    %42: %r0 = const 0
-    %43: %r0 = const 1
-    %44: %r0 = const 1
+    %42: %r0 = const 1
+    %43: %r0 = const 0
+    %44: %r0 = const 0
     %45: %r0 = const 1
-    %46: %r0 = const 0
+    %46: %r0 = const 1
     %47: %r0 = const 1
     %48: %r0 = const 2.147483647E9
     jump -> block1
@@ -64,12 +64,12 @@ fn main() -> one %r0
     %81: %r4 = alias %76
     %82: %r4 = alias %81
     %83: %r4 = clone %82
-    %84: %r0 = const 0
-    %85: %r0 = const 1
-    %86: %r3 = const "at "
-    %87: %r3 = const " of "
-    %88: %r0 = const 1
-    %89: %r0 = const 0
+    %84: %r0 = const 1
+    %85: %r0 = const 0
+    %86: %r0 = const 0
+    %87: %r3 = const "at "
+    %88: %r3 = const " of "
+    %89: %r0 = const 1
     %90: %r0 = const 1
     %91: %r0 = const 2.147483647E9
     %93: %r3 = const ""
@@ -102,10 +102,10 @@ fn main() -> one %r0
     store value %16: %r5, %176
     %180: %r5 = alias %16
     %181: %r5 = clone %180
-    %182: %r0 = const 0
-    %183: %r0 = const 1
-    %184: %r0 = const 1
-    %185: %r0 = const 0
+    %182: %r0 = const 1
+    %183: %r0 = const 0
+    %184: %r0 = const 0
+    %185: %r0 = const 1
     %186: %r0 = const 1
     %187: %r0 = const 2.147483647E9
     jump -> block5
@@ -121,19 +121,19 @@ fn main() -> one %r0
     %54: %r7 = binary.eq %52, %43
     branch %54 -> block8 -> block2
   block8:
-    %55: %r0 = load global after: %r0
-    %56: %r0 = binary.add %55, %44
-    %57: %r0 = coerce %56
-    store global after: %r0, %57
-    %58: %r1 = alias %41
-    %59: %r0 = load property %58.p: %r0
-    %60: %r0 = binary.add %59, %45
-    %61: %r0 = coerce %60
-    store property %58.p: %r0, %61
+    %55: %r1 = alias %41
+    store property %55.p: %r0, %44
     jump -> block10
   block9:
-    %62: %r1 = alias %41
-    store property %62.p: %r0, %46
+    %56: %r0 = load global after: %r0
+    %57: %r0 = binary.add %56, %45
+    %58: %r0 = coerce %57
+    store global after: %r0, %58
+    %59: %r1 = alias %41
+    %60: %r0 = load property %59.p: %r0
+    %61: %r0 = binary.add %60, %46
+    %62: %r0 = coerce %61
+    store property %59.p: %r0, %62
     jump -> block10
   block10:
     %63: %r1 = alias %41
@@ -157,68 +157,68 @@ fn main() -> one %r0
     branch %100 -> block14 -> block4
   block14:
     %101: %r4 = alias %83
-    %102: %r0 = load property %101.p: %r0
-    %104: %r4 = alias %83
-    %105: %r3 = load property %104.source: %r3
-    %106: %r3 = alias %105
+    store property %101.p: %r0, %86
+    jump -> block16
+  block15:
+    %102: %r4 = alias %83
+    %103: %r0 = load property %102.p: %r0
+    %105: %r4 = alias %83
+    %106: %r3 = load property %105.source: %r3
     %107: %r3 = alias %106
     %108: %r3 = alias %107
     %109: %r3 = alias %108
-    %110: %r0 = host host.field "length" host-range %109
+    %110: %r3 = alias %109
+    %111: %r0 = host host.field "length" host-range %110
     store var $8: %r3, %93
-    %112: %r3 = load var $8: %r3
-    %113: %r3 = alias %112
-    %114: %r3 = alias %86
-    %115: %r3 = alias %113
+    %113: %r3 = load var $8: %r3
+    %114: %r3 = alias %113
+    %115: %r3 = alias %87
     %116: %r3 = alias %114
-    %117: %r3 = host host.binary "+" %115, %116
-    store var $8: %r3, %117
-    %118: %r3 = host host.global "String" %102
-    %119: %r3 = load var $8: %r3
-    %120: %r3 = alias %119
-    %121: %r3 = alias %118
-    %122: %r3 = alias %120
+    %117: %r3 = alias %115
+    %118: %r3 = host host.binary "+" %116, %117
+    store var $8: %r3, %118
+    %119: %r3 = host host.global "String" %103
+    %120: %r3 = load var $8: %r3
+    %121: %r3 = alias %120
+    %122: %r3 = alias %119
     %123: %r3 = alias %121
-    %124: %r3 = host host.binary "+" %122, %123
-    store var $8: %r3, %124
-    %125: %r3 = load var $8: %r3
-    %126: %r3 = alias %125
-    %127: %r3 = alias %87
-    %128: %r3 = alias %126
+    %124: %r3 = alias %122
+    %125: %r3 = host host.binary "+" %123, %124
+    store var $8: %r3, %125
+    %126: %r3 = load var $8: %r3
+    %127: %r3 = alias %126
+    %128: %r3 = alias %88
     %129: %r3 = alias %127
-    %130: %r3 = host host.binary "+" %128, %129
-    store var $8: %r3, %130
-    %131: %r4 = alias %83
-    %132: %r3 = load property %131.source: %r3
-    %133: %r3 = alias %132
+    %130: %r3 = alias %128
+    %131: %r3 = host host.binary "+" %129, %130
+    store var $8: %r3, %131
+    %132: %r4 = alias %83
+    %133: %r3 = load property %132.source: %r3
     %134: %r3 = alias %133
-    %135: %r3 = load var $8: %r3
-    %136: %r3 = alias %135
-    %137: %r3 = alias %134
-    %138: %r3 = alias %136
+    %135: %r3 = alias %134
+    %136: %r3 = load var $8: %r3
+    %137: %r3 = alias %136
+    %138: %r3 = alias %135
     %139: %r3 = alias %137
-    %140: %r3 = host host.binary "+" %138, %139
-    store var $8: %r3, %140
-    %141: %r3 = load var $8: %r3
-    %142: %r3 = alias %141
+    %140: %r3 = alias %138
+    %141: %r3 = host host.binary "+" %139, %140
+    store var $8: %r3, %141
+    %142: %r3 = load var $8: %r3
     %143: %r3 = alias %142
     %144: %r3 = alias %143
     %145: %r3 = alias %144
     %146: %r3 = alias %145
-    %147: %r0 = host host.field "length" host-range %146
-    %148: %r0 = convert %147
-    %149: %r0 = load global after: %r0
-    %150: %r0 = binary.add %149, %148
-    %151: %r0 = coerce %150
-    store global after: %r0, %151
-    %152: %r0 = binary.add %102, %88
-    %153: %r0 = coerce %152
-    %154: %r4 = alias %83
-    store property %154.p: %r0, %153
-    jump -> block16
-  block15:
+    %147: %r3 = alias %146
+    %148: %r0 = host host.field "length" host-range %147
+    %149: %r0 = convert %148
+    %150: %r0 = load global after: %r0
+    %151: %r0 = binary.add %150, %149
+    %152: %r0 = coerce %151
+    store global after: %r0, %152
+    %153: %r0 = binary.add %103, %89
+    %154: %r0 = coerce %153
     %155: %r4 = alias %83
-    store property %155.p: %r0, %89
+    store property %155.p: %r0, %154
     jump -> block16
   block16:
     %156: %r4 = alias %83
@@ -242,14 +242,14 @@ fn main() -> one %r0
     branch %194 -> block20 -> block6
   block20:
     %195: %r5 = alias %181
-    %196: %r0 = load property %195.p: %r0
-    %197: %r0 = binary.add %196, %184
-    %198: %r0 = coerce %197
-    store property %195.p: %r0, %198
+    store property %195.p: %r0, %184
     jump -> block22
   block21:
-    %199: %r5 = alias %181
-    store property %199.p: %r0, %185
+    %196: %r5 = alias %181
+    %197: %r0 = load property %196.p: %r0
+    %198: %r0 = binary.add %197, %185
+    %199: %r0 = coerce %198
+    store property %196.p: %r0, %199
     jump -> block22
   block22:
     %200: %r5 = alias %181

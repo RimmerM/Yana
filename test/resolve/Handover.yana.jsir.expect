@@ -2,68 +2,155 @@ fn main() -> one %r0
   var $0: %r3
   var $1: %r3
   block0:
-    %0: %r0 = const 1
-    %1: %r0 = const 2
-    %2: %r0 = const 3
-    %3: %r0 = const 4
-    %4: %r1 = host host.array %0, %1, %2, %3
-    %5: %r2 = const 4
-    %6: %r3 = object %s0 %4, %5
-    %7: %r0 = const 4
-    %8: %r0 = const 0
-    %11: %r0 = call replaces$sum(Array(I32), I32) %4, %7, %8
-    %12: %r3 = alias %6
-    call Array(a).reclaim(I32) %12
-    %13: %r0 = const 1
-    %14: %r0 = const 2
-    %15: %r0 = const 3
+    %9: %r0 = const 1
+    %10: %r0 = const 2
+    %11: %r0 = const 3
+    %12: %r0 = const 4
+    %13: %r1 = host host.array %9, %10, %11, %12
+    %14: %r2 = const 4
+    %15: %r3 = object %s0 %13, %14
     %16: %r0 = const 4
-    %17: %r1 = host host.array %13, %14, %15, %16
-    %18: %r2 = const 4
-    %20: %r0 = const 4
-    %21: %r0 = const 0
-    %25: %r0 = const 10
+    %17: %r0 = const 0
+    %20: %r0 = call replaces$sum(Array(I32), I32) %13, %16, %17
+    %21: %r3 = alias %15
+    call Array(a).reclaim(I32) %21
+    %22: %r0 = const 1
+    %23: %r0 = const 2
+    %24: %r0 = const 3
+    %25: %r0 = const 4
+    %26: %r1 = host host.array %22, %23, %24, %25
+    %27: %r2 = const 4
+    %29: %r0 = const 4
+    %30: %r0 = const 0
+    %34: %r0 = const 10
     jump -> block1
   block1:
-    %29: %r1 = alias %17
-    store element %29[%21]: %r0, %25
-    %30: %r0 = call replaces$sum(Array(I32), I32) %17, %20, %21
-    %31: %r0 = const 0
-    %32: %r0 = call replaces$sum(Array(I32), I32) %17, %20, %31
-    %19: %r3 = object %s0 %17, %18
-    %33: %r3 = alias %19
-    call Array(a).reclaim(I32) %33
-    %34: %r0 = binary.add %30, %32
-    %35: %r0 = coerce %34
-    %36: %r0 = binary.add %11, %35
-    %37: %r0 = coerce %36
-    %43: %r0 = const 1
-    %44: %r0 = const 2
-    %45: %r0 = const 3
-    %46: %r1 = host host.array %43, %44, %45
-    %47: %r2 = const 3
-    %51: %r0 = const 0
-    jump -> block3
-  block2:
+    %38: %r1 = alias %26
+    store element %38[%30]: %r0, %34
+    %39: %r0 = call replaces$sum(Array(I32), I32) %26, %29, %30
+    %41: %r0 = const 0
+    %42: %r0 = const 0
+    %43: %r0 = const 4
+    %45: %r0 = const 0
+    %46: %r0 = const 0
+    jump -> block2(%46, %41, %41, %41, %41)
+  block2(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0):
+    %47: %r11 = binary.le %0, %45
+    branch %47 -> block5 -> block3
+  block3:
+    %48: %r11 = binary.lt %0, %29
+    branch %48 -> block4 -> block6(%1, %2, %3, %4)
+  block4:
+    %49: %r0 = binary.sub %29, %0
+    %50: %r0 = coerce %49
+    %51: %r0 = convert %50
+    %52: %r0 = const 0
+    %53: %r0 = const 1
+    %54: %r0 = const 2
+    %55: %r0 = const 3
+    %56: %r12 = binary.lt %52, %51
+    %57: %r12 = binary.lt %53, %51
+    %58: %r12 = binary.lt %54, %51
+    %59: %r12 = binary.lt %55, %51
+    %60: %r0 = alias %0
+    %61: %r0 = coerce %60
+    %66: %r0 = const 3
+    %67: %r11 = binary.gt %61, %66
+    %68: %r0 = select %67, %66, %61
+    %69: %r0 = load element %26[%68]: %r0
+    %70: %r0 = const 1
+    %71: %r0 = binary.add %61, %70
+    %72: %r11 = binary.gt %71, %66
+    %73: %r0 = select %72, %66, %71
+    %74: %r0 = load element %26[%73]: %r0
+    %75: %r0 = const 2
+    %76: %r0 = binary.add %61, %75
+    %77: %r11 = binary.gt %76, %66
+    %78: %r0 = select %77, %66, %76
+    %79: %r0 = load element %26[%78]: %r0
+    %80: %r0 = const 3
+    %81: %r0 = binary.add %61, %80
+    %82: %r11 = binary.gt %81, %66
+    %83: %r0 = select %82, %66, %81
+    %84: %r0 = load element %26[%83]: %r0
+    %85: %r0 = select %56, %69, %42
+    %86: %r0 = select %57, %74, %42
+    %87: %r0 = select %58, %79, %42
+    %88: %r0 = select %59, %84, %42
+    %89: %r0 = binary.add %1, %85
+    %90: %r0 = coerce %89
+    %91: %r0 = binary.add %2, %86
+    %92: %r0 = coerce %91
+    %93: %r0 = binary.add %3, %87
+    %94: %r0 = coerce %93
+    %95: %r0 = binary.add %4, %88
+    %96: %r0 = coerce %95
+    jump -> block6(%90, %92, %94, %96)
+  block5:
+    %135: %r0 = alias %0
+    %136: %r0 = coerce %135
+    %137: %r0 = load element %26[%136]: %r0
+    %138: %r0 = const 1
+    %139: %r0 = binary.add %136, %138
+    %140: %r0 = load element %26[%139]: %r0
+    %141: %r0 = const 2
+    %142: %r0 = binary.add %136, %141
+    %143: %r0 = load element %26[%142]: %r0
+    %144: %r0 = const 3
+    %145: %r0 = binary.add %136, %144
+    %146: %r0 = load element %26[%145]: %r0
+    %147: %r0 = binary.add %1, %137
+    %148: %r0 = coerce %147
+    %149: %r0 = binary.add %2, %140
+    %150: %r0 = coerce %149
+    %151: %r0 = binary.add %3, %143
+    %152: %r0 = coerce %151
+    %153: %r0 = binary.add %4, %146
+    %154: %r0 = coerce %153
+    %155: %r0 = binary.add %0, %43
+    %156: %r0 = coerce %155
+    jump -> block2(%156, %148, %150, %152, %154)
+  block6(%5: %r0, %6: %r0, %7: %r0, %8: %r0):
+    %97: %r0 = binary.add %5, %6
+    %98: %r0 = coerce %97
+    %99: %r0 = binary.add %7, %8
+    %100: %r0 = coerce %99
+    %101: %r0 = binary.add %98, %100
+    %102: %r0 = coerce %101
+    %28: %r3 = object %s0 %26, %27
+    %103: %r3 = alias %28
+    call Array(a).reclaim(I32) %103
+    %104: %r0 = binary.add %39, %102
+    %105: %r0 = coerce %104
+    %106: %r0 = binary.add %20, %105
+    %107: %r0 = coerce %106
+    %113: %r0 = const 1
+    %114: %r0 = const 2
+    %115: %r0 = const 3
+    %116: %r1 = host host.array %113, %114, %115
+    %117: %r2 = const 3
+    %121: %r0 = const 0
+    jump -> block8
+  block7:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block3:
-    %55: %r1 = alias %46
-    %56: %r0 = load element %55[%51]: %r0
-    %57: %r0 = const 1
-    %58: %r0 = binary.add %56, %57
-    %59: %r0 = coerce %58
-    store element %55[%51]: %r0, %59
-    %60: %r0 = const 3
-    %61: %r0 = const 0
-    %62: %r0 = call replaces$sum(Array(I32), I32) %46, %60, %61
-    %48: %r3 = object %s0 %46, %47
-    %40: %r3 = alias %48
-    call Array(a).reclaim(I32) %40
-    %63: %r0 = binary.add %37, %62
-    %64: %r0 = coerce %63
-    return %64
-  block4:
+  block8:
+    %125: %r1 = alias %116
+    %126: %r0 = load element %125[%121]: %r0
+    %127: %r0 = const 1
+    %128: %r0 = binary.add %126, %127
+    %129: %r0 = coerce %128
+    store element %125[%121]: %r0, %129
+    %130: %r0 = const 3
+    %131: %r0 = const 0
+    %132: %r0 = call replaces$sum(Array(I32), I32) %116, %130, %131
+    %118: %r3 = object %s0 %116, %117
+    %110: %r3 = alias %118
+    call Array(a).reclaim(I32) %110
+    %133: %r0 = binary.add %107, %132
+    %134: %r0 = coerce %133
+    return %134
+  block9:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -90,10 +177,10 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %73: %r0 = coerce %72
     return %73
   block2(%7: %r0, %8: %r0, %9: %r0, %10: %r0, %11: %r0):
-    %18: %r9 = binary.le %7, %16
+    %18: %r11 = binary.le %7, %16
     branch %18 -> block5 -> block3
   block3:
-    %19: %r9 = binary.lt %7, %1
+    %19: %r11 = binary.lt %7, %1
     branch %19 -> block4 -> block1(%8, %9, %10, %11)
   block4:
     %20: %r0 = binary.sub %1, %7
@@ -103,10 +190,10 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %24: %r0 = const 1
     %25: %r0 = const 2
     %26: %r0 = const 3
-    %27: %r13 = binary.lt %23, %22
-    %28: %r13 = binary.lt %24, %22
-    %29: %r13 = binary.lt %25, %22
-    %30: %r13 = binary.lt %26, %22
+    %27: %r12 = binary.lt %23, %22
+    %28: %r12 = binary.lt %24, %22
+    %29: %r12 = binary.lt %25, %22
+    %30: %r12 = binary.lt %26, %22
     %31: %r0 = binary.add %2, %7
     %32: %r0 = coerce %31
     %33: %r0 = binary.add %2, %1
@@ -114,22 +201,22 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %35: %r0 = const 1
     %36: %r0 = binary.sub %34, %35
     %37: %r0 = coerce %36
-    %38: %r9 = binary.gt %32, %37
+    %38: %r11 = binary.gt %32, %37
     %39: %r0 = select %38, %37, %32
     %40: %r0 = load element %0[%39]: %r0
     %41: %r0 = const 1
     %42: %r0 = binary.add %32, %41
-    %43: %r9 = binary.gt %42, %37
+    %43: %r11 = binary.gt %42, %37
     %44: %r0 = select %43, %37, %42
     %45: %r0 = load element %0[%44]: %r0
     %46: %r0 = const 2
     %47: %r0 = binary.add %32, %46
-    %48: %r9 = binary.gt %47, %37
+    %48: %r11 = binary.gt %47, %37
     %49: %r0 = select %48, %37, %47
     %50: %r0 = load element %0[%49]: %r0
     %51: %r0 = const 3
     %52: %r0 = binary.add %32, %51
-    %53: %r9 = binary.gt %52, %37
+    %53: %r11 = binary.gt %52, %37
     %54: %r0 = select %53, %37, %52
     %55: %r0 = load element %0[%54]: %r0
     %56: %r0 = select %27, %40, %13
@@ -170,7 +257,7 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %95: %r0 = coerce %94
     jump -> block2(%95, %87, %89, %91, %93)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 1 sunk 4 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 2 folded 6
+optimizer clones 0 aliased 0 forwarded 0 removed 29 adopted 1 sunk 4 numbered 2 decided 2 unboxed 0 updated 0 split 0 promoted 2 folded 12
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
@@ -183,12 +270,12 @@ rep %r3 = object %s0
 rep %r4 = void
 rep %r5 = object %s1
 rep %r6 = parts (%r1, %r0, %r0) as %r5
-rep %r7 = object %s2
-rep %r8 = number unsigned 32
-rep %r9 = number bool
-rep %r10 = array Array of %r3
-rep %r11 = array Array of %r0
-rep %r12 = parts (%r0, %r0, %r0, %r0) as %r11
-rep %r13 = boolean
-rep %r14 = array Array of %r13
-rep %r15 = parts (%r13, %r13, %r13, %r13) as %r14
+rep %r7 = array Array of %r0
+rep %r8 = parts (%r0, %r0, %r0, %r0) as %r7
+rep %r9 = object %s2
+rep %r10 = number unsigned 32
+rep %r11 = number bool
+rep %r12 = boolean
+rep %r13 = array Array of %r12
+rep %r14 = parts (%r12, %r12, %r12, %r12) as %r13
+rep %r15 = array Array of %r3

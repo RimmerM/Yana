@@ -14,20 +14,19 @@ put<complex>(%v_0: Ptr, %slot: Ptr, %value: Ptr) {
     %v_9 = load %v_8, 4: I64
     %v_10 = and %v_9, 16777215: I64
     copy %v_7, %value, %v_10
-    %v_11 = loads %v_0, 4: I32
-    %v_12 = sext %v_11: I64
-    %v_13 = add %v_12, @image$base: Ptr
-    %v_14 = add %v_13, 4: Ptr
-    %v_15 = loads %v_14, 4: I32
-    %v_16 = sext %v_15: I64
-    %v_17 = add %v_16, @image$base: Ptr
-    call_complex %v_17, %slot
-    %v_18 = loads %v_0, 4: I32
-    %v_19 = sext %v_18: I64
-    %v_20 = add %v_19, @image$base: Ptr
-    %v_21 = load %v_20, 4: I64
-    %v_22 = and %v_21, 16777215: I64
-    copy %slot, %v_7, %v_22
+    %v_11 = sext %v_2: I64
+    %v_12 = add %v_11, @image$base: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = sext %v_14: I64
+    %v_16 = add %v_15, @image$base: Ptr
+    call_complex %v_16, %slot
+    %v_17 = loads %v_0, 4: I32
+    %v_18 = sext %v_17: I64
+    %v_19 = add %v_18, @image$base: Ptr
+    %v_20 = load %v_19, 4: I64
+    %v_21 = and %v_20, 16777215: I64
+    copy %slot, %v_7, %v_21
     ret 
   }
 }

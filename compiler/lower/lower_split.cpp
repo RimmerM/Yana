@@ -505,7 +505,7 @@ bool namesCell(Array<Slot>& slots, Array<Edge>& edges, Size which, U32 at, U32 e
  * for any more, and leaving them in would split a partner's field for no reason and refuse a slot
  * that had nothing wrong with it.
  */
-void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
+void computePoints(Array<Slot>& slots, Array<Edge>& edges, U32 halfCell) {
     computeWide(slots, edges);
 
     for(auto& slot: slots) {
@@ -595,6 +595,15 @@ void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
      * an access *is* the cell - a vector - here or in a slot a copy relates it to, whose access the
      * words would straddle; and not where the words would take the slot past `kMaxFields`, which
      * would refuse the whole slot rather than keep one wide cell.
+     *
+     * **And a 32-byte cell is halved where the widest register is sixteen bytes** - J183, and
+     * `halfCell` is that sixteen, or zero where nothing is halved. Whole, such a cell is a slot
+     * `promoteStackSlots` cannot hold, so it is a round trip through the frame; halved, each half is
+     * a slot only copies name, which promotion now holds in an `xmm` (lower_promote.h, "A slot only
+     * copies name"), and a copy through it is two loads and two stores. Halves and not words, which
+     * is what J160 measured against: a half is one transfer either way, so nothing that was one
+     * `movdqu` becomes two. Where a 32-byte register exists the cell is left whole and promotion
+     * takes it as one `ymm`. Over the resolve corpus this changed one program, three bytes smaller.
      */
     auto added = false;
     for(Size i = 0; i < slots.size(); i++) {
@@ -604,6 +613,13 @@ void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
         for(Size k = 0; k + 1 < slot.points.size(); k++) {
             auto at = slot.points[k];
             auto end = slot.points[k + 1];
+            if(halfCell && end - at == 2 * halfCell && !namesCell(slots, edges, i, at, end)) {
+                addPoint(slot.points, at + halfCell);
+                added = true;
+                k++;
+                continue;
+            }
+
             if(end - at <= kWordCutAbove || namesCell(slots, edges, i, at, end)) continue;
 
             // Whole words and a narrowing tail - never more than four pieces past the words.
@@ -1267,8 +1283,14 @@ void splitAggregateSlots(LowerBase base, LowerFunction& fun) {
 
     // Until nothing changes its mind. Each round that is not the last refuses at least one slot, so
     // the number of them is bounded by the number of slots and is one for almost every function.
+    // The half a 32-byte cell nothing names is cut into, where no register holds all of it - see the
+    // end of `computePoints`. The local backend's, since what makes a half worth cutting is the
+    // promotion only that consumer is given (`untypedSlot` in lower_promote.cpp).
+    auto widest = min(module.vectorBytes, U32(fun.legacyVectors ? 16 : 32));
+    auto halfCell = module.consumer == LowerConsumer::Local && widest == 16 ? U32(16) : U32(0);
+
     do {
-        computePoints(slots, edges);
+        computePoints(slots, edges, halfCell);
     } while(!validateSlots(slots));
 
     HashMap<U32, U32> allocaOf;

@@ -15,36 +15,48 @@ function node(n) {
 }
 
 function tail(n) {
-  var p1;
-  var s0 = Maybe_a_toOutcome_Node(node(n));
-  if (s0 === null ^ 1) {
-    var v22 = s0.inner;
-    Node_drop(s0);
-    p1 = v22;
+  var p1, p2;
+  var s2 = node(n);
+  if (!(s2 === null)) {
+    p2 = s2;
   } else {
-    $td$Outcome_Node(s0);
+    $td$Maybe_Node(s2);
+    p2 = null;
+  }
+  if (p2 === null ^ 1) {
+    var v36 = p2.inner;
+    Node_drop(p2);
+    p1 = v36;
+  } else {
+    $td$Outcome_Node(p2);
     p1 = null;
   }
   return p1;
 }
 
 function twoChecks(n) {
-  var s2, s4, p1, p2;
-  var s0 = Maybe_a_toOutcome_Node(node(n));
-  B0: {
-    if (s0 === null ^ 1) {
-      var v23 = s0.leaf;
-      Node_drop(s0);
-      s4 = v23;
-      p2 = !(s4 === null) ? s4 : null;
-      s2 = p2;
+  var s2, s6, p1, p2, p3;
+  var s4 = node(n);
+  if (!(s4 === null)) {
+    p2 = s4;
+  } else {
+    $td$Maybe_Node(s4);
+    p2 = null;
+  }
+  B1: {
+    if (p2 === null ^ 1) {
+      var v37 = p2.leaf;
+      Node_drop(p2);
+      s6 = v37;
+      p3 = !(s6 === null) ? s6 : null;
+      s2 = p3;
       if (s2 === null ^ 1) {
         p1 = s2;
-        break B0;
+        break B1;
       }
       p1 = null;
     } else {
-      $td$Outcome_Node(s0);
+      $td$Outcome_Node(p2);
       p1 = null;
     }
   }
@@ -52,26 +64,40 @@ function twoChecks(n) {
 }
 
 function both(n) {
-  var s0 = Maybe_a_toOutcome_Node(node(n));
-  if (s0 === null) {
-    $td$Outcome_Node(s0);
+  var p2;
+  var s4 = node(n);
+  if (!(s4 === null)) {
+    p2 = s4;
+  } else {
+    $td$Maybe_Node(s4);
+    p2 = null;
+  }
+  if (p2 === null) {
+    $td$Outcome_Node(p2);
     return null;
   }
-  var v20 = s0.leaf;
-  Node_drop(s0);
-  var p2 = !(v20 === null) ? v20 : null;
-  return p2 === null ^ 1 ? p2 : null;
+  var v34 = p2.leaf;
+  Node_drop(p2);
+  var p3 = !(v34 === null) ? v34 : null;
+  return p3 === null ^ 1 ? p3 : null;
 }
 
 function parenthesized(n) {
-  var s0 = Maybe_a_toOutcome_Node(node(n));
-  if (s0 === null) {
-    $td$Outcome_Node(s0);
+  var p1;
+  var s2 = node(n);
+  if (!(s2 === null)) {
+    p1 = s2;
+  } else {
+    $td$Maybe_Node(s2);
+    p1 = null;
+  }
+  if (p1 === null) {
+    $td$Outcome_Node(p1);
     return null;
   }
-  var v18 = s0.id;
-  Node_drop(s0);
-  return v18;
+  var v32 = p1.id;
+  Node_drop(p1);
+  return v32;
 }
 
 function twice(x) {
@@ -79,105 +105,110 @@ function twice(x) {
 }
 
 function main() {
-  var p6, p9, p11, p12, p21, p24;
+  var p6, p9, p11, p12, p13, p14, p23, p26;
   log = 0;
   dropped = 0;
-  var v29 = tail(6);
-  var p0 = !(v29 === null) ? v29 : 0;
-  var v40 = tail(-1);
-  var p1 = !(v40 === null) ? v40 : 0;
-  var v51 = twoChecks(6);
-  var p2 = !(v51 === null) ? v51 : 0;
-  var v62 = twoChecks(3);
-  var p3 = !(v62 === null) ? v62 : 0;
-  var v73 = twoChecks(-1);
-  var p4 = !(v73 === null) ? v73 : 0;
+  var v31 = tail(6);
+  var p0 = !(v31 === null) ? v31 : 0;
+  var v42 = tail(-1);
+  var p1 = !(v42 === null) ? v42 : 0;
+  var v53 = twoChecks(6);
+  var p2 = !(v53 === null) ? v53 : 0;
+  var v64 = twoChecks(3);
+  var p3 = !(v64 === null) ? v64 : 0;
+  var v75 = twoChecks(-1);
+  var p4 = !(v75 === null) ? v75 : 0;
   log = log + 10 | 0;
   var p5 = { $tag: 0, Proceed: { inner: 16, leaf: null, id: 4 }, Exit: 0 };
   if (p5.$tag === 1 ^ 1) {
-    var v144 = p5.Proceed;
-    var v146 = v144.id;
-    Node_drop(v144);
-    p6 = { $tag: 1, Err: 0, Ok: v146 };
+    var v146 = p5.Proceed;
+    var v148 = v146.id;
+    Node_drop(v146);
+    p6 = { $tag: 1, Err: 0, Ok: v148 };
   } else {
-    var v138 = p5.Exit;
+    var v140 = p5.Exit;
     $td$Outcome_Node_I32(p5);
-    p6 = { $tag: 0, Err: v138, Ok: 0 };
+    p6 = { $tag: 0, Err: v140, Ok: 0 };
   }
   var p7 = p6.$tag === 1 ? p6.Ok : 0;
   log = log + 10 | 0;
   var p8 = { $tag: 1, Proceed: { inner: 0, leaf: null, id: 0 }, Exit: -2 };
   if (p8.$tag === 1 ^ 1) {
-    var v215 = p8.Proceed;
-    var v217 = v215.id;
-    Node_drop(v215);
-    p9 = { $tag: 1, Err: 0, Ok: v217 };
+    var v217 = p8.Proceed;
+    var v219 = v217.id;
+    Node_drop(v217);
+    p9 = { $tag: 1, Err: 0, Ok: v219 };
   } else {
-    var v209 = p8.Exit;
+    var v211 = p8.Exit;
     $td$Outcome_Node_I32(p8);
-    p9 = { $tag: 0, Err: v209, Ok: 0 };
+    p9 = { $tag: 0, Err: v211, Ok: 0 };
   }
   var p10 = p9.$tag === 1 ? p9.Ok : 0;
   log = log + 1 | 0;
-  var s8 = Maybe_a_toOutcome_Node({ inner: 4, leaf: null, id: 2 });
-  if (s8 === null ^ 1) {
-    var v262 = s8.id;
-    Node_drop(s8);
-    p11 = v262;
+  var s12 = { inner: 4, leaf: null, id: 2 };
+  if (!(s12 === null)) {
+    p11 = s12;
   } else {
-    $td$Outcome_Node(s8);
+    $td$Maybe_Node(s12);
     p11 = null;
   }
-  log = log + 1 | 0;
-  var s10 = Maybe_a_toOutcome_Node({ inner: 14, leaf: 21, id: 7 });
-  if (s10 === null ^ 1) {
-    var v292 = s10.id;
-    Node_drop(s10);
-    p12 = v292;
+  if (p11 === null ^ 1) {
+    var v277 = p11.id;
+    Node_drop(p11);
+    p12 = v277;
   } else {
-    $td$Outcome_Node(s10);
+    $td$Outcome_Node(p11);
     p12 = null;
   }
-  var v319 = (!(p11 === null) ? p11 : 0) + Math.imul(!(p12 === null) ? p12 : 0, 100) | 0;
-  var v321 = both(8);
-  var p15 = !(v321 === null) ? v321 : 0;
-  var v332 = both(2);
-  var p16 = !(v332 === null) ? v332 : 0;
-  var v343 = both(-1);
-  var p17 = !(v343 === null) ? v343 : 0;
-  var v354 = parenthesized(5);
-  var p18 = !(v354 === null) ? v354 : 0;
-  var v365 = parenthesized(-1);
-  var p19 = !(v365 === null) ? v365 : 0;
-  var s13 = { $c: twice$fn, $e: null };
-  var p20 = !(s13 === null) ? s13 : null;
-  if (p20 === null ^ 1) {
-    var v377 = { $c: p20.$c, $e: p20.$e };
-    p21 = v377.$c(v377.$e, 21);
+  log = log + 1 | 0;
+  var s14 = { inner: 14, leaf: 21, id: 7 };
+  if (!(s14 === null)) {
+    p13 = s14;
   } else {
-    p21 = null;
+    $td$Maybe_Node(s14);
+    p13 = null;
   }
-  var p22 = !(p21 === null) ? p21 : 0;
-  var s16 = null;
-  var p23 = !(s16 === null) ? s16 : null;
-  if (p23 === null ^ 1) {
-    var v423 = { $c: p23.$c, $e: p23.$e };
-    p24 = v423.$c(v423.$e, 21);
+  if (p13 === null ^ 1) {
+    var v320 = p13.id;
+    Node_drop(p13);
+    p14 = v320;
   } else {
-    p24 = null;
+    $td$Outcome_Node(p13);
+    p14 = null;
   }
-  return (((((((((((((((p0 + p1 | 0) + p2 | 0) + p3 | 0) + p4 | 0) + p7 | 0) + p10 | 0) + v319 | 0) + p15 | 0) + p16 | 0) + p17 | 0) + p18 | 0) + p19 | 0) + p22 | 0) + (!(p24 === null) ? p24 : 0) | 0) + Math.imul(dropped, 1000) | 0) + Math.imul(log, 100000) | 0;
+  var v347 = (!(p12 === null) ? p12 : 0) + Math.imul(!(p14 === null) ? p14 : 0, 100) | 0;
+  var v349 = both(8);
+  var p17 = !(v349 === null) ? v349 : 0;
+  var v360 = both(2);
+  var p18 = !(v360 === null) ? v360 : 0;
+  var v371 = both(-1);
+  var p19 = !(v371 === null) ? v371 : 0;
+  var v382 = parenthesized(5);
+  var p20 = !(v382 === null) ? v382 : 0;
+  var v393 = parenthesized(-1);
+  var p21 = !(v393 === null) ? v393 : 0;
+  var s17 = { $c: twice$fn, $e: null };
+  var p22 = !(s17 === null) ? s17 : null;
+  if (p22 === null ^ 1) {
+    var v405 = { $c: p22.$c, $e: p22.$e };
+    p23 = v405.$c(v405.$e, 21);
+  } else {
+    p23 = null;
+  }
+  var p24 = !(p23 === null) ? p23 : 0;
+  var s20 = null;
+  var p25 = !(s20 === null) ? s20 : null;
+  if (p25 === null ^ 1) {
+    var v451 = { $c: p25.$c, $e: p25.$e };
+    p26 = v451.$c(v451.$e, 21);
+  } else {
+    p26 = null;
+  }
+  return (((((((((((((((p0 + p1 | 0) + p2 | 0) + p3 | 0) + p4 | 0) + p7 | 0) + p10 | 0) + v347 | 0) + p17 | 0) + p18 | 0) + p19 | 0) + p20 | 0) + p21 | 0) + p24 | 0) + (!(p26 === null) ? p26 : 0) | 0) + Math.imul(dropped, 1000) | 0) + Math.imul(log, 100000) | 0;
 }
 
-function Maybe_a_toOutcome_Node(value) {
-  var p1;
-  if (!(value === null)) {
-    p1 = value;
-  } else {
-    $td$Maybe_Node(value);
-    p1 = null;
-  }
-  return p1;
+function $td$Maybe_Node(a0) {
+  if (a0 !== null) Node_drop(a0);
 }
 
 function $td$Outcome_Node(a0) {
@@ -186,10 +217,6 @@ function $td$Outcome_Node(a0) {
 
 function $td$Outcome_Node_I32(a0) {
   if (a0.$tag === 0) Node_drop(a0.Proceed);
-}
-
-function $td$Maybe_Node(a0) {
-  if (a0 !== null) Node_drop(a0);
 }
 
 function twice$fn($e, a0) {

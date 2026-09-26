@@ -180,9 +180,9 @@ bb0(%0: shared.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   %6: %I32 address = field.addr .p inspect %0
   %34: %I32 address = field.addr .$index inspect %0
   %35: I32 trivial = load inspect %34
-  %36: I32 trivial = const 0
+  %36: I32 trivial = const 1
   %37: Bool trivial = eq inspect %35 inspect %36
-  branch inspect %37 -> bb1 -> bb11
+  branch inspect %37 -> bb9 -> bb11
 
 bb1:
   branch inspect %2 -> bb10 -> bb3
@@ -250,9 +250,9 @@ bb10:
   return consume %32
 
 bb11:
-  %38: I32 trivial = const 1
+  %38: I32 trivial = const 0
   %39: Bool trivial = eq inspect %35 inspect %38
-  branch inspect %39 -> bb9 -> bb2
+  branch inspect %39 -> bb1 -> bb2
 }
 
 fn shared$next($self: shared.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
@@ -278,9 +278,9 @@ bb0(%0: counted.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial
   %5: %I32 address = field.addr .p inspect %0
   %32: %I32 address = field.addr .$index inspect %0
   %33: I32 trivial = load inspect %32
-  %34: I32 trivial = const 0
+  %34: I32 trivial = const 1
   %35: Bool trivial = eq inspect %33 inspect %34
-  branch inspect %35 -> bb1 -> bb11
+  branch inspect %35 -> bb9 -> bb11
 
 bb1:
   branch inspect %2 -> bb10 -> bb3
@@ -348,9 +348,9 @@ bb10:
   return consume %30
 
 bb11:
-  %36: I32 trivial = const 1
+  %36: I32 trivial = const 0
   %37: Bool trivial = eq inspect %33 inspect %36
-  branch inspect %37 -> bb9 -> bb2
+  branch inspect %37 -> bb1 -> bb2
 }
 
 fn counted$next($self: counted.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
@@ -388,9 +388,9 @@ bb0(%0: owning.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   store inspect %11 consume %12
   %126: %I32 address = field.addr .$index inspect %0
   %127: I32 trivial = load inspect %126
-  %128: I32 trivial = const 0
+  %128: I32 trivial = const 1
   %129: Bool trivial = eq inspect %127 inspect %128
-  branch inspect %129 -> bb1 -> bb23
+  branch inspect %129 -> bb11 -> bb23
 
 bb1:
   branch inspect %2 -> bb22 -> bb3
@@ -592,9 +592,9 @@ bb22:
   return consume %124
 
 bb23:
-  %130: I32 trivial = const 1
+  %130: I32 trivial = const 0
   %131: Bool trivial = eq inspect %127 inspect %130
-  branch inspect %131 -> bb11 -> bb2
+  branch inspect %131 -> bb1 -> bb2
 }
 
 fn owning$drop($self: owning.Iter) -> {} {

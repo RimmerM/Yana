@@ -65,64 +65,70 @@ function main() {
       Array_a_reclaim_Held(v47.values);
       return -8;
     }
-    if (Map_k_v_get_String_Held(v47, key(4)) !== 40) {
+    var v158 = key(4);
+    var v160 = findEntry_String_Held(v47, v158, hashKey_String(v158));
+    if (v160 < 0) throw $t;
+    if (v47.values.items[v160] !== 40) {
       Array_a_reclaim_Held(v47.values);
       return -9;
     }
-    var v163 = key(9);
+    var v171 = key(9);
     live = live + 1 | 0;
-    var v171 = key(8);
+    var v179 = key(8);
     live = live + 1 | 0;
-    var v179 = key(9);
+    var v187 = key(9);
     live = live + 1 | 0;
-    var v208 = { keys: [], values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
-    var v215 = v208.values;
-    if (3 > v215.items.length) growJsArray_Held(v215, 3);
-    $td$Maybe_Held(insert_String_Held(v208, v163, 9));
-    $td$Maybe_Held(insert_String_Held(v208, v171, 8));
-    $td$Maybe_Held(insert_String_Held(v208, v179, 90));
-    if (v208.keys.length !== 2) {
+    var v216 = { keys: [], values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
+    var v223 = v216.values;
+    if (3 > v223.items.length) growJsArray_Held(v223, 3);
+    $td$Maybe_Held(insert_String_Held(v216, v171, 9));
+    $td$Maybe_Held(insert_String_Held(v216, v179, 8));
+    $td$Maybe_Held(insert_String_Held(v216, v187, 90));
+    if (v216.keys.length !== 2) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
+      Array_a_reclaim_Held(v216.values);
       return -10;
     }
     if (live !== 6) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
+      Array_a_reclaim_Held(v216.values);
       return -11;
     }
-    if (Map_k_v_get_String_Held(v208, key(9)) !== 90) {
+    var v253 = key(9);
+    var v255 = findEntry_String_Held(v216, v253, hashKey_String(v253));
+    if (v255 < 0) throw $t;
+    if (v216.values.items[v255] !== 90) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
+      Array_a_reclaim_Held(v216.values);
       return -12;
     }
-    var v271 = { keys: [], values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
-    var v278 = v271.values;
-    if (0 > v278.items.length) growJsArray_Held(v278, 0);
-    if (v271.keys.length) {
+    var v287 = { keys: [], values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
+    var v294 = v287.values;
+    if (0 > v294.items.length) growJsArray_Held(v294, 0);
+    if (v287.keys.length) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
-      Array_a_reclaim_Held(v271.values);
+      Array_a_reclaim_Held(v216.values);
+      Array_a_reclaim_Held(v287.values);
       return -13;
     }
     if (live !== 6) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
-      Array_a_reclaim_Held(v271.values);
+      Array_a_reclaim_Held(v216.values);
+      Array_a_reclaim_Held(v287.values);
       return -14;
     }
-    var v299 = key(0);
+    var v315 = key(0);
     live = live + 1 | 0;
-    $td$Maybe_Held(insert_String_Held(v271, v299, 0));
+    $td$Maybe_Held(insert_String_Held(v287, v315, 0));
     if (live !== 7) {
       Array_a_reclaim_Held(v47.values);
-      Array_a_reclaim_Held(v208.values);
-      Array_a_reclaim_Held(v271.values);
+      Array_a_reclaim_Held(v216.values);
+      Array_a_reclaim_Held(v287.values);
       return -15;
     }
     Array_a_reclaim_Held(v47.values);
-    Array_a_reclaim_Held(v208.values);
-    Array_a_reclaim_Held(v271.values);
+    Array_a_reclaim_Held(v216.values);
+    Array_a_reclaim_Held(v287.values);
     return live + 71 | 0;
   }
   Array_a_reclaim_Held(v47.values);
@@ -163,26 +169,6 @@ function indexReset($g, self) {
   self.live = 0;
 }
 
-function String_hash(value, state) {
-  var v7 = value.length;
-  var p2 = Math.imul((state ^ v7) >>> 0, 16777619) >>> 0;
-  var p3 = 0;
-  while (p3 < v7) {
-    p2 = Math.imul((p2 ^ value.charCodeAt(p3)) >>> 0, 16777619) >>> 0;
-    p3 = p3 + 1 | 0;
-  }
-  return p2;
-}
-
-function Map_k_v_get_String_Held(self, key$1) {
-  var v3 = String_hash(key$1, 2166136261);
-  var v11 = Math.imul((v3 ^ v3 >>> 16) >>> 0, 2246822507) >>> 0;
-  var v19 = Math.imul((v11 ^ v11 >>> 13) >>> 0, 3266489909) >>> 0;
-  var v25 = findEntry_String_Held(self, key$1, (v19 ^ v19 >>> 16) >>> 0);
-  if (v25 < 0) throw $t;
-  return self.values.items[v25];
-}
-
 function Array_a_reclaim_Held(value) {
   var v7 = value.length;
   var v11 = value.items;
@@ -194,48 +180,87 @@ function Array_a_reclaim_Held(value) {
 }
 
 function insert_String_Held(self, key$1, value) {
-  var p3, p4;
-  var v7 = String_hash(key$1, 2166136261);
-  var v15 = Math.imul((v7 ^ v7 >>> 16) >>> 0, 2246822507) >>> 0;
-  var v23 = Math.imul((v15 ^ v15 >>> 13) >>> 0, 3266489909) >>> 0;
-  var v28 = (v23 ^ v23 >>> 16) >>> 0;
-  var v30 = findEntry_String_Held(self, key$1, v28);
-  if (v30 >= 0) {
-    var v129 = self.values.items;
-    var v132 = v129[v30];
-    v129[v30] = value;
-    return v132;
+  var p3, p4, p8, p9, p12;
+  var v18 = key$1.length;
+  var p5 = Math.imul((2166136261 ^ v18) >>> 0, 16777619) >>> 0;
+  var p6 = 0;
+  while (p6 < v18) {
+    p5 = Math.imul((p5 ^ key$1.charCodeAt(p6)) >>> 0, 16777619) >>> 0;
+    p6 = p6 + 1 | 0;
   }
-  var v34 = self.keys;
-  var v38 = v34.length;
-  var v45 = v38 + 1;
-  v34[v38] = key$1;
-  self.keys.length = v45 & 1073741823;
-  var v61 = self.values;
-  var v63 = v61.length;
-  var v66 = v63 + 1;
-  if (v66 > v61.items.length) growJsArray_Held(v61, v66);
-  self.values.items[v63] = value;
-  self.values.length = v66 & 1073741823;
-  var v83 = self.mask;
-  B1: {
-    if (v83 === 0) {
-      var v115 = v38 + 1;
-      if (v115 > 64) {
-        p4 = 16;
-        while ((p4 - (p4 >>> 3) | 0) < v115) {
-          p4 = p4 + p4 | 0;
+  var v36 = Math.imul((p5 ^ p5 >>> 16) >>> 0, 2246822507) >>> 0;
+  var v44 = Math.imul((v36 ^ v36 >>> 13) >>> 0, 3266489909) >>> 0;
+  var v49 = (v44 ^ v44 >>> 16) >>> 0;
+  var v51 = self.mask;
+  if (v51 === 0) {
+    var v105 = self.keys.length;
+    p3 = 0;
+    B2: {
+      while (p3 < v105) {
+        if (self.keys[p3] === key$1) break B2;
+        p3 = p3 + 1 | 0;
+      }
+      p3 = -1;
+    }
+  } else {
+    p8 = v49 & v51;
+    p9 = 0;
+    B4: {
+      while (p9 <= v51) {
+        var v70 = self.index;
+        var v71 = v70.items;
+        if (p8 >>> 0 >= v70.length) throw $t;
+        var v82 = v71[p8 | 0];
+        if (v82 === -1) {
+          p3 = -1;
+          break B4;
         }
-        indexRebuild_String_Held(self, p4);
+        if (v82 >= 0 && self.keys[v82] === key$1) {
+          p3 = v82;
+          break B4;
+        }
+        p8 = p8 + 1 & v51;
+        p9 = p9 + 1 | 0;
+      }
+      p3 = -1;
+    }
+  }
+  if (p3 >= 0) {
+    var v220 = self.values.items;
+    var v223 = v220[p3];
+    v220[p3] = value;
+    return v223;
+  }
+  var v125 = self.keys;
+  var v129 = v125.length;
+  var v136 = v129 + 1;
+  v125[v129] = key$1;
+  self.keys.length = v136 & 1073741823;
+  var v152 = self.values;
+  var v154 = v152.length;
+  var v157 = v154 + 1;
+  if (v157 > v152.items.length) growJsArray_Held(v152, v157);
+  self.values.items[v154] = value;
+  self.values.length = v157 & 1073741823;
+  var v174 = self.mask;
+  B8: {
+    if (v174 === 0) {
+      var v206 = v129 + 1;
+      if (v206 > 64) {
+        p12 = 16;
+        while ((p12 - (p12 >>> 3) | 0) < v206) {
+          p12 = p12 + p12 | 0;
+        }
+        indexRebuild_String_Held(self, p12);
       }
     } else {
-      var v91 = v83 + 1;
-      if (self.live + 1 > v91 - (v91 >>> 3)) {
-        p3 = Math.imul(v38 + 1, 2) > v91 ? v91 + v91 | 0 : v91;
-        indexRebuild_String_Held(self, p3);
-        break B1;
+      var v182 = v174 + 1;
+      if (self.live + 1 > v182 - (v182 >>> 3)) {
+        p4 = Math.imul(v129 + 1, 2) > v182 ? v182 + v182 | 0 : v182;
+        indexRebuild_String_Held(self, p4);
+        break B8;
       }
-      indexPlace($ge$indexPlace, self, v38, v28);
+      indexPlace($ge$indexPlace, self, v129, v49);
     }
   }
   return null;
@@ -258,11 +283,11 @@ function findEntry_String_Held(self, key$1, h) {
   var p3, p5, p6;
   var v9 = self.mask;
   if (v9 === 0) {
-    var v55 = self.keys.length;
+    var v63 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v55) {
-        if (keyEquals_String_Held(self, p3, key$1)) break B1;
+      while (p3 < v63) {
+        if (self.keys[p3] === key$1) break B1;
         p3 = p3 + 1 | 0;
       }
       p3 = -1;
@@ -280,7 +305,7 @@ function findEntry_String_Held(self, key$1, h) {
           p3 = -1;
           break B3;
         }
-        if (v40 >= 0 && keyEquals_String_Held(self, v40, key$1)) {
+        if (v40 >= 0 && self.keys[v40] === key$1) {
           p3 = v40;
           break B3;
         }
@@ -305,10 +330,6 @@ function indexRebuild_String_Held(self, slots) {
     indexPlace($ge$indexPlace, self, p2, hashKey_String(self.keys[p2]));
     p2 = p2 + 1 | 0;
   }
-}
-
-function keyEquals_String_Held(self, at, key$1) {
-  return self.keys[at] === key$1 ? 1 : 0;
 }
 
 function growJsArray_Held(self, wanted) {

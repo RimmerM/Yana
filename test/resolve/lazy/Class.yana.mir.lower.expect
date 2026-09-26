@@ -20,76 +20,10 @@ main<complex>(): I32 {
   }
 }
 
-@header(taken.thunk) = [0, 0, 0, 0]
-taken.thunk<complex>(%taken.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %taken.thunk.env, 4: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(skipped.thunk) = [0, 0, 0, 0]
-skipped.thunk<complex>(%skipped.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %skipped.thunk.env, 4: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(shut.thunk) = [0, 0, 0, 0]
-shut.thunk<complex>(%shut.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %shut.thunk.env, 4: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(inherited.thunk) = [0, 0, 0, 0]
-inherited.thunk<complex>(%inherited.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %inherited.thunk.env, 4: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(replaced.thunk) = [0, 0, 0, 0]
-replaced.thunk<complex>(%replaced.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %replaced.thunk.env, 4: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
 @header(main.thunk) = [0, 0, 0, 0]
 main.thunk<complex>(): I32 {
   b_0 {
     %v_1 = imm 32: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(main.thunk'2) = [0, 0, 0, 0]
-main.thunk'2<complex>(): I32 {
-  b_0 {
-    %v_1 = imm 64: I32
     %v_2 = loads @effects, 4: I32
     %v_3 = add %v_2, %v_1: I32
     store @effects, %v_3, 4

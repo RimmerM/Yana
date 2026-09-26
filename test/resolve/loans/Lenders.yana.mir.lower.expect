@@ -6,71 +6,6 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-main<complex>(): I32 {
-  b_0 {
-    %gOther = global @gOther: Ptr
-    %v_1 = load %gOther, 8: Ptr
-    %v_2 = add %gOther, 12: Ptr
-    %v_3 = load %v_2, 4: I32
-    %v_4 = cast %v_3: I64
-    %gOther = global @gOther: Ptr
-    %v_5 = load %gOther, 8: Ptr
-    %v_6 = add %gOther, 12: Ptr
-    %v_7 = load %v_6, 4: I32
-    %v_8 = cast %v_7: I64
-    %gLoose = global @gLoose: Ptr
-    store %gLoose, %v_5, 8
-    %v_9 = add %gLoose, 8: Ptr
-    store %v_9, %v_8, 8
-    %gArr = global @gArr: Ptr
-    %v_10 = load %gArr, 8: Ptr
-    %v_11 = add %gArr, 12: Ptr
-    %v_12 = load %v_11, 4: I32
-    %v_13 = cast %v_12: I64
-    %v_14 = cmp_eq %v_13, 0: I32
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    %v_17 = loads %v_10, 4: I32
-    %v_18 = cmp_ge 1, %v_13: I32
-    je %v_18, b_15, b_19
-  }
-
-  b_15 {
-    %v_20 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_19 {
-    %v_21 = add %v_10, 4: Ptr
-    %v_22 = loads %v_21, 4: I32
-    %v_23 = add %v_17, %v_22: I32
-    %v_24 = cmp_ge 2, %v_4: I32
-    je %v_24, b_15, b_25
-  }
-
-  b_25 {
-    %v_26 = add %v_1, 8: Ptr
-    %v_27 = loads %v_26, 4: I32
-    %v_28 = add %v_23, %v_27: I32
-    %gLoose = global @gLoose: Ptr
-    %v_29 = add %gLoose, 8: Ptr
-    %v_30 = loads %v_29, 8: I64
-    %v_31 = cmp_ge 1, %v_30: I32
-    je %v_31, b_15, b_32
-  }
-
-  b_32 {
-    %v_33 = load %gLoose, 8: Ptr
-    %v_34 = add %v_33, 4: Ptr
-    %v_35 = loads %v_34, 4: I32
-    %v_36 = add %v_28, %v_35: I32
-    %v_37 = add %v_36, 8: I32
-    ret %v_37
-  }
-}
-
 main$<complex>(): I32 {
   b_0 {
     %v_1 = call_complex allocateHeap, 12: Ptr
@@ -123,8 +58,61 @@ main$<complex>(): I32 {
     store %gLoose, %v_19, 8
     %v_23 = add %gLoose, 8: Ptr
     store %v_23, %v_22, 8
-    %v_24 = call_complex main: I32
-    ret %v_24
+    %gOther = global @gOther: Ptr
+    %v_24 = load %gOther, 8: Ptr
+    %v_25 = add %gOther, 12: Ptr
+    %v_26 = load %v_25, 4: I32
+    %v_27 = cast %v_26: I64
+    %gOther = global @gOther: Ptr
+    %v_28 = load %gOther, 8: Ptr
+    %v_29 = add %gOther, 12: Ptr
+    %v_30 = load %v_29, 4: I32
+    %v_31 = cast %v_30: I64
+    %gLoose = global @gLoose: Ptr
+    store %gLoose, %v_28, 8
+    %v_32 = add %gLoose, 8: Ptr
+    store %v_32, %v_31, 8
+    %gArr = global @gArr: Ptr
+    %v_33 = load %gArr, 8: Ptr
+    %v_34 = add %gArr, 12: Ptr
+    %v_35 = load %v_34, 4: I32
+    %v_36 = cast %v_35: I64
+    %v_37 = cmp_eq %v_36, 0: I32
+    je %v_37, b_4, b_38
+  }
+
+  b_38 {
+    %v_39 = loads %v_33, 4: I32
+    %v_40 = cmp_ge 1, %v_36: I32
+    je %v_40, b_4, b_41
+  }
+
+  b_41 {
+    %v_42 = add %v_33, 4: Ptr
+    %v_43 = loads %v_42, 4: I32
+    %v_44 = add %v_39, %v_43: I32
+    %v_45 = cmp_ge 2, %v_27: I32
+    je %v_45, b_4, b_46
+  }
+
+  b_46 {
+    %v_47 = add %v_24, 8: Ptr
+    %v_48 = loads %v_47, 4: I32
+    %v_49 = add %v_44, %v_48: I32
+    %gLoose = global @gLoose: Ptr
+    %v_50 = add %gLoose, 8: Ptr
+    %v_51 = loads %v_50, 8: I64
+    %v_52 = cmp_ge 1, %v_51: I32
+    je %v_52, b_4, b_53
+  }
+
+  b_53 {
+    %v_54 = load %gLoose, 8: Ptr
+    %v_55 = add %v_54, 4: Ptr
+    %v_56 = loads %v_55, 4: I32
+    %v_57 = add %v_49, %v_56: I32
+    %v_58 = add %v_57, 8: I32
+    ret %v_58
   }
 }
 
@@ -295,30 +283,6 @@ allocateHeap<complex>(%size: I64): Ptr {
     %v_37 = add %v_35, %v_35: I64
     %v_38 = add %v_16, 1: I64
     jmp b_7
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: I64
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = sub %allocation, 8: Ptr
-    %v_6 = loads %v_5, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %v_6, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    store %v_9, %allocation, 8
-    ret 
-  }
-
-  b_3 {
-    ret 
   }
 }
 

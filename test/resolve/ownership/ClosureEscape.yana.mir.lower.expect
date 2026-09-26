@@ -161,16 +161,6 @@ handedOff.lambda<complex>(%handedOff.lambda.env: Ptr, %x: I32): I32 {
   }
 }
 
-@header(borrowed.lambda) = [0, 0, 0, 0]
-borrowed.lambda<complex>(%borrowed.lambda.env: Ptr, %x: I32): I32 {
-  b_0 {
-    %v_1 = load %borrowed.lambda.env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %x, %v_2: I32
-    ret %v_3
-  }
-}
-
 initHeap<complex>() {
   b_0 {
     %v_1 = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64

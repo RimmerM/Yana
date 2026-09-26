@@ -61,13 +61,13 @@ main<complex>(): I32 {
     %v_29 = load %v_28, 8: I64
     %v_30 = add %v_28, 8: Ptr
     %v_31 = load %v_30, 4: I32
-    call_complex Array(a).reclaim(I32), %v_29, %v_31
+    call_simple Array(a).reclaim(I32), %v_29, %v_31
     %v_22 = add %v_25, 1: I32
     jmp b_20
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32
@@ -264,30 +264,6 @@ allocateHeap<complex>(%size: I64): Ptr {
     %v_37 = add %v_35, %v_35: I64
     %v_38 = add %v_16, 1: I64
     jmp b_7
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: I64
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = sub %allocation, 8: Ptr
-    %v_6 = loads %v_5, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %v_6, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    store %v_9, %allocation, 8
-    ret 
-  }
-
-  b_3 {
-    ret 
   }
 }
 

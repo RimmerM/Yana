@@ -1,522 +1,407 @@
-fn sumChunked(one %r4) -> one %r0
-  block0(%0: %r4):
-    %9: %r0 = const 0
-    %10: %r3 = load property %0.a: %r3
-    %11: %r1 = load property %10.items: %r1
-    %12: %r3 = alias %10
-    %13: %r2 = load property %12.length: %r2
-    %14: %r0 = convert %13
-    %16: %r0 = const 0
-    %17: %r0 = convert %14
-    %18: %r0 = const 1
-    jump -> block5(%16, %9)
-  block1:
-    %23: %r3 = load property %0.b: %r3
-    %24: %r1 = load property %23.items: %r1
-    %25: %r3 = alias %23
-    %26: %r2 = load property %25.length: %r2
-    %27: %r0 = convert %26
-    %29: %r0 = const 0
-    %30: %r0 = convert %27
-    %31: %r0 = const 1
-    jump -> block10(%29, %4)
-  block2(%1: %r0):
-    %33: %r0 = load property %0.used: %r0
-    %34: %r0 = const 2
-    %35: %r8 = binary.gt %33, %34
-    branch %35 -> block3 -> block4(%1)
-  block3:
-    %36: %r3 = load property %0.c: %r3
-    %37: %r1 = load property %36.items: %r1
-    %38: %r3 = alias %36
-    %39: %r2 = load property %38.length: %r2
-    %40: %r0 = convert %39
-    %42: %r0 = const 0
-    %43: %r0 = convert %40
-    %44: %r0 = const 1
-    jump -> block14(%42, %1)
-  block4(%2: %r0):
-    return %2
-  block5(%3: %r0, %4: %r0):
-    %19: %r8 = binary.lt %3, %17
-    branch %19 -> block6 -> block8
-  block6:
-    %70: %r0 = convert %3
-    %71: %r9 = convert %70
-    %72: %r9 = convert %14
-    %73: %r8 = binary.ge %71, %72
-    branch %73 -> block9 -> block7
-  block7:
-    %74: %r1 = alias %11
-    %75: %r0 = alias %70
-    %76: %r0 = coerce %75
-    %77: %r0 = load element %74[%76]: %r0
-    %78: %r0 = binary.add %4, %77
-    %79: %r0 = coerce %78
-    %80: %r0 = binary.add %3, %18
-    %81: %r0 = coerce %80
-    jump -> block5(%81, %79)
-  block8:
-    %20: %r0 = load property %0.used: %r0
-    %21: %r0 = const 1
-    %22: %r8 = binary.gt %20, %21
-    branch %22 -> block1 -> block2(%4)
-  block9:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block10(%5: %r0, %6: %r0):
-    %32: %r8 = binary.lt %5, %30
-    branch %32 -> block11 -> block2(%6)
-  block11:
-    %58: %r0 = convert %5
-    %59: %r9 = convert %58
-    %60: %r9 = convert %27
-    %61: %r8 = binary.ge %59, %60
-    branch %61 -> block13 -> block12
-  block12:
-    %62: %r1 = alias %24
-    %63: %r0 = alias %58
-    %64: %r0 = coerce %63
-    %65: %r0 = load element %62[%64]: %r0
-    %66: %r0 = binary.add %6, %65
-    %67: %r0 = coerce %66
-    %68: %r0 = binary.add %5, %31
-    %69: %r0 = coerce %68
-    jump -> block10(%69, %67)
-  block13:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block14(%7: %r0, %8: %r0):
-    %45: %r8 = binary.lt %7, %43
-    branch %45 -> block15 -> block4(%8)
-  block15:
-    %46: %r0 = convert %7
-    %47: %r9 = convert %46
-    %48: %r9 = convert %40
-    %49: %r8 = binary.ge %47, %48
-    branch %49 -> block17 -> block16
-  block16:
-    %50: %r1 = alias %37
-    %51: %r0 = alias %46
-    %52: %r0 = coerce %51
-    %53: %r0 = load element %50[%52]: %r0
-    %54: %r0 = binary.add %8, %53
-    %55: %r0 = coerce %54
-    %56: %r0 = binary.add %7, %44
-    %57: %r0 = coerce %56
-    jump -> block14(%57, %55)
-  block17:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-
-fn firstOver(one %r4, one %r0) -> one %r0
-  var $0: %r0
-  block0(%0: %r4, %1: %r0):
-    %12: %r0 = const 0
-    store var $0: %r0, %12
-    %14: %r3 = load property %0.a: %r3
-    %15: %r1 = load property %14.items: %r1
-    %16: %r3 = alias %14
-    %17: %r2 = load property %16.length: %r2
-    %18: %r0 = convert %17
-    %20: %r0 = const 0
-    %21: %r0 = convert %18
-    %22: %r0 = const 1
-    %23: %r0 = const 0
-    jump -> block13(%20)
-  block1:
-    jump -> block6(%41)
-  block2:
-    %45: %r0 = const 0
-    %46: %r8 = binary.eq %41, %45
-    branch %46 -> block4 -> block3
-  block3:
-    jump -> block5(%41)
-  block4:
-    %47: %r3 = load property %0.b: %r3
-    %48: %r1 = load property %47.items: %r1
-    %49: %r3 = alias %47
-    %50: %r2 = load property %49.length: %r2
-    %51: %r0 = convert %50
-    %53: %r0 = const 0
-    %54: %r0 = convert %51
-    %55: %r0 = const 1
-    %56: %r0 = const 0
-    jump -> block18(%53)
-  block5(%2: %r0):
-    jump -> block6(%2)
-  block6(%3: %r0):
-    %75: %r0 = load property %0.used: %r0
-    %76: %r0 = const 2
-    %77: %r8 = binary.gt %75, %76
-    branch %77 -> block8 -> block7
-  block7:
-    jump -> block12(%3)
-  block8:
-    %78: %r0 = const 0
-    %79: %r8 = binary.eq %3, %78
-    branch %79 -> block10 -> block9
-  block9:
-    jump -> block11(%3)
-  block10:
-    %80: %r3 = load property %0.c: %r3
-    %81: %r1 = load property %80.items: %r1
-    %82: %r3 = alias %80
-    %83: %r2 = load property %82.length: %r2
-    %84: %r0 = convert %83
-    %86: %r0 = const 0
-    %87: %r0 = convert %84
-    %88: %r0 = const 1
-    %89: %r0 = const 0
-    jump -> block23(%86)
-  block11(%4: %r0):
-    jump -> block12(%4)
-  block12(%5: %r0):
-    %108: %r0 = const 1
-    %109: %r8 = binary.eq %5, %108
-    %110: %r0 = load var $0: %r0
-    %111: %r0 = const -1
-    %112: %r0 = select %109, %110, %111
-    return %112
-  block13(%6: %r0):
-    %24: %r8 = binary.lt %6, %21
-    branch %24 -> block14 -> block16(%23)
-  block14:
-    %25: %r0 = convert %6
-    %26: %r9 = convert %25
-    %27: %r9 = convert %18
-    %28: %r8 = binary.ge %26, %27
-    branch %28 -> block17 -> block15
-  block15:
-    %29: %r1 = alias %15
-    %30: %r0 = alias %25
-    %31: %r0 = coerce %30
-    %32: %r0 = load element %29[%31]: %r0
-    %33: %r8 = binary.gt %32, %1
-    branch %33 -> block29 -> block28
-  block16(%7: %r0):
-    %37: %r0 = const 1
-    %38: %r8 = binary.eq %7, %37
-    %39: %r0 = const 1
-    %40: %r0 = const 0
-    %41: %r0 = select %38, %39, %40
-    %42: %r0 = load property %0.used: %r0
-    %43: %r0 = const 1
-    %44: %r8 = binary.gt %42, %43
-    branch %44 -> block2 -> block1
-  block17:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block18(%8: %r0):
-    %57: %r8 = binary.lt %8, %54
-    branch %57 -> block19 -> block21(%56)
-  block19:
-    %58: %r0 = convert %8
-    %59: %r9 = convert %58
-    %60: %r9 = convert %51
-    %61: %r8 = binary.ge %59, %60
-    branch %61 -> block22 -> block20
-  block20:
-    %62: %r1 = alias %48
-    %63: %r0 = alias %58
-    %64: %r0 = coerce %63
-    %65: %r0 = load element %62[%64]: %r0
-    %66: %r8 = binary.gt %65, %1
-    branch %66 -> block31 -> block30
-  block21(%9: %r0):
-    %70: %r0 = const 1
-    %71: %r8 = binary.eq %9, %70
-    %72: %r0 = const 1
-    %73: %r0 = const 0
-    %74: %r0 = select %71, %72, %73
-    jump -> block5(%74)
-  block22:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block23(%10: %r0):
-    %90: %r8 = binary.lt %10, %87
-    branch %90 -> block24 -> block26(%89)
-  block24:
-    %91: %r0 = convert %10
-    %92: %r9 = convert %91
-    %93: %r9 = convert %84
-    %94: %r8 = binary.ge %92, %93
-    branch %94 -> block27 -> block25
-  block25:
-    %95: %r1 = alias %81
-    %96: %r0 = alias %91
-    %97: %r0 = coerce %96
-    %98: %r0 = load element %95[%97]: %r0
-    %99: %r8 = binary.gt %98, %1
-    branch %99 -> block33 -> block32
-  block26(%11: %r0):
-    %103: %r0 = const 1
-    %104: %r8 = binary.eq %11, %103
-    %105: %r0 = const 1
-    %106: %r0 = const 0
-    %107: %r0 = select %104, %105, %106
-    jump -> block11(%107)
-  block27:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block28:
-    %34: %r0 = binary.add %6, %22
-    %35: %r0 = coerce %34
-    jump -> block13(%35)
-  block29:
-    store var $0: %r0, %32
-    %36: %r0 = const 1
-    jump -> block16(%36)
-  block30:
-    %67: %r0 = binary.add %8, %55
-    %68: %r0 = coerce %67
-    jump -> block18(%68)
-  block31:
-    store var $0: %r0, %65
-    %69: %r0 = const 1
-    jump -> block21(%69)
-  block32:
-    %100: %r0 = binary.add %10, %88
-    %101: %r0 = coerce %100
-    jump -> block23(%101)
-  block33:
-    store var $0: %r0, %98
-    %102: %r0 = const 1
-    jump -> block26(%102)
-
-fn firstOfEachChunk(one %r4) -> one %r0
-  block0(%0: %r4):
-    %4: %r0 = const 0
-    %5: %r3 = load property %0.a: %r3
-    %6: %r1 = load property %5.items: %r1
-    %7: %r3 = alias %5
-    %8: %r2 = load property %7.length: %r2
-    %9: %r0 = convert %8
-    %10: %r0 = const 0
-    %11: %r0 = const 0
-    %12: %r0 = convert %9
-    %13: %r8 = binary.lt %11, %12
-    branch %13 -> block5 -> block7(%4)
-  block1:
-    %23: %r3 = load property %0.b: %r3
-    %24: %r1 = load property %23.items: %r1
-    %25: %r3 = alias %23
-    %26: %r2 = load property %25.length: %r2
-    %27: %r0 = convert %26
-    %28: %r0 = const 0
-    %29: %r0 = const 0
-    %30: %r0 = convert %27
-    %31: %r8 = binary.lt %29, %30
-    branch %31 -> block9 -> block2(%3)
-  block2(%1: %r0):
-    %40: %r0 = load property %0.used: %r0
-    %41: %r0 = const 2
-    %42: %r8 = binary.gt %40, %41
-    branch %42 -> block3 -> block4(%1)
-  block3:
-    %43: %r3 = load property %0.c: %r3
-    %44: %r1 = load property %43.items: %r1
-    %45: %r3 = alias %43
-    %46: %r2 = load property %45.length: %r2
-    %47: %r0 = convert %46
-    %48: %r0 = const 0
-    %49: %r0 = const 0
-    %50: %r0 = convert %47
-    %51: %r8 = binary.lt %49, %50
-    branch %51 -> block12 -> block4(%1)
-  block4(%2: %r0):
-    return %2
-  block5:
-    %15: %r9 = const 0
-    %16: %r9 = convert %9
-    %17: %r8 = binary.ge %15, %16
-    branch %17 -> block8 -> block6
-  block6:
-    %18: %r1 = alias %6
-    %19: %r0 = load element %18[%10]: %r0
-    jump -> block7(%19)
-  block7(%3: %r0):
-    %20: %r0 = load property %0.used: %r0
-    %21: %r0 = const 1
-    %22: %r8 = binary.gt %20, %21
-    branch %22 -> block1 -> block2(%3)
-  block8:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block9:
-    %33: %r9 = const 0
-    %34: %r9 = convert %27
-    %35: %r8 = binary.ge %33, %34
-    branch %35 -> block11 -> block10
-  block10:
-    %36: %r1 = alias %24
-    %37: %r0 = load element %36[%28]: %r0
-    %38: %r0 = binary.add %3, %37
-    %39: %r0 = coerce %38
-    jump -> block2(%39)
-  block11:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block12:
-    %53: %r9 = const 0
-    %54: %r9 = convert %47
-    %55: %r8 = binary.ge %53, %54
-    branch %55 -> block14 -> block13
-  block13:
-    %56: %r1 = alias %44
-    %57: %r0 = load element %56[%48]: %r0
-    %58: %r0 = binary.add %1, %57
-    %59: %r0 = coerce %58
-    jump -> block4(%59)
-  block14:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-
 fn main() -> one %r0
-  var $0: %r11
-  var $1: %r3
+  var $0: %r5
+  var $1: %r6
   var $2: %r3
+  var $3: %r0
+  var $4: %r3
+  var $5: %r3
+  var $6: %r3
+  var $7: %r0
+  var $8: %r3
   block0:
-    %17: %r0 = const 1
-    %18: %r0 = const 2
-    %19: %r1 = host host.array %17, %18
-    %20: %r2 = const 2
-    %21: %r3 = object %s1 %19, %20
-    %22: %r0 = const 3
-    %23: %r0 = const 4
-    %24: %r1 = host host.array %22, %23
-    %25: %r2 = const 2
-    %26: %r3 = object %s1 %24, %25
-    %27: %r0 = const 5
-    %28: %r0 = const 6
-    %29: %r1 = host host.array %27, %28
-    %30: %r2 = const 2
-    %31: %r3 = object %s1 %29, %30
-    %32: %r0 = const 3
-    %33: %r4 = object %s0 %21, %26, %31, %32
-    %16: %r4 = alias %33
-    %34: %r0 = const 10
-    %35: %r0 = const 20
-    %36: %r0 = const 30
-    %37: %r1 = host host.array %34, %35, %36
-    %38: %r2 = const 3
-    %41: %r0 = const 4
-    %42: %r0 = const 5
-    %43: %r0 = const 6
-    %44: %r1 = host host.array %41, %42, %43
-    %45: %r2 = const 3
-    %47: %r0 = call sumChunked %16
-    %48: %r0 = const 0
-    %51: %r0 = const 0
-    %52: %r0 = const 3
-    %53: %r0 = const 1
-    jump -> block1(%51, %48)
+    %23: %r0 = const 1
+    %24: %r0 = const 2
+    %25: %r1 = host host.array %23, %24
+    %26: %r2 = const 2
+    %28: %r0 = const 3
+    %29: %r0 = const 4
+    %30: %r1 = host host.array %28, %29
+    %31: %r2 = const 2
+    %33: %r0 = const 5
+    %34: %r0 = const 6
+    %35: %r1 = host host.array %33, %34
+    %36: %r2 = const 2
+    %40: %r0 = const 10
+    %41: %r0 = const 20
+    %42: %r0 = const 30
+    %43: %r1 = host host.array %40, %41, %42
+    %44: %r2 = const 3
+    %47: %r0 = const 4
+    %48: %r0 = const 5
+    %49: %r0 = const 6
+    %50: %r1 = host host.array %47, %48, %49
+    %51: %r2 = const 3
+    %53: %r0 = const 0
+    %56: %r0 = const 0
+    %57: %r0 = const 2
+    %58: %r0 = const 1
+    jump -> block1(%56, %53)
   block1(%0: %r0, %1: %r0):
-    %54: %r8 = binary.lt %0, %52
-    branch %54 -> block3 -> block2
+    %59: %r9 = binary.lt %0, %57
+    branch %59 -> block13 -> block2
   block2:
-    %55: %r0 = binary.add %47, %1
-    %56: %r0 = coerce %55
-    %57: %r0 = const 0
-    %60: %r0 = const 0
-    %61: %r0 = const 3
-    %62: %r0 = const 1
-    jump -> block6(%60, %57)
-  block3:
-    %115: %r0 = convert %0
-    %116: %r9 = convert %115
-    %117: %r9 = const 3
-    %118: %r8 = binary.ge %116, %117
-    branch %118 -> block5 -> block4
+    %62: %r0 = const 0
+    %63: %r0 = const 2
+    %64: %r0 = const 1
+    jump -> block3(%62, %1)
+  block3(%2: %r0, %3: %r0):
+    %65: %r9 = binary.lt %2, %63
+    branch %65 -> block10 -> block4
   block4:
-    %119: %r1 = alias %37
-    %120: %r0 = alias %115
-    %121: %r0 = coerce %120
-    %122: %r0 = load element %119[%121]: %r0
-    %123: %r0 = binary.add %1, %122
-    %124: %r0 = coerce %123
-    %125: %r0 = binary.add %0, %53
-    %126: %r0 = coerce %125
-    jump -> block1(%126, %124)
-  block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block6(%2: %r0, %3: %r0):
-    %63: %r8 = binary.lt %2, %61
-    branch %63 -> block8 -> block7
-  block7:
-    %46: %r3 = object %s1 %44, %45
-    %64: %r3 = alias %46
-    call Array(a).reclaim(I32) %64
-    %65: %r0 = binary.add %56, %3
-    %66: %r0 = coerce %65
     %68: %r0 = const 0
-    %69: %r0 = const 0
-    %70: %r0 = const 3
-    %71: %r0 = const 1
-    jump -> block11(%69, %68)
+    %69: %r0 = const 2
+    %70: %r0 = const 1
+    jump -> block5(%68, %3)
+  block5(%4: %r0, %5: %r0):
+    %71: %r9 = binary.lt %4, %69
+    branch %71 -> block7 -> block6
+  block6:
+    %72: %r0 = const 0
+    %75: %r0 = const 0
+    %76: %r0 = const 3
+    %77: %r0 = const 1
+    jump -> block16(%75, %72)
+  block7:
+    %269: %r0 = convert %4
+    %270: %r11 = convert %269
+    %271: %r11 = const 2
+    %272: %r9 = binary.ge %270, %271
+    branch %272 -> block9 -> block8
   block8:
-    %103: %r0 = convert %2
-    %104: %r9 = convert %103
-    %105: %r9 = const 3
-    %106: %r8 = binary.ge %104, %105
-    branch %106 -> block10 -> block9
+    %273: %r1 = alias %35
+    %274: %r0 = alias %269
+    %275: %r0 = coerce %274
+    %276: %r0 = load element %273[%275]: %r0
+    %277: %r0 = binary.add %5, %276
+    %278: %r0 = coerce %277
+    %279: %r0 = binary.add %4, %70
+    %280: %r0 = coerce %279
+    jump -> block5(%280, %278)
   block9:
-    %107: %r1 = alias %44
-    %108: %r0 = alias %103
-    %109: %r0 = coerce %108
-    %110: %r0 = load element %107[%109]: %r0
-    %111: %r0 = binary.add %3, %110
-    %112: %r0 = coerce %111
-    %113: %r0 = binary.add %2, %62
-    %114: %r0 = coerce %113
-    jump -> block6(%114, %112)
-  block10:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block11(%4: %r0, %5: %r0):
-    %72: %r8 = binary.lt %4, %70
-    branch %72 -> block13 -> block12
+  block10:
+    %281: %r0 = convert %2
+    %282: %r11 = convert %281
+    %283: %r11 = const 2
+    %284: %r9 = binary.ge %282, %283
+    branch %284 -> block12 -> block11
+  block11:
+    %285: %r1 = alias %30
+    %286: %r0 = alias %281
+    %287: %r0 = coerce %286
+    %288: %r0 = load element %285[%287]: %r0
+    %289: %r0 = binary.add %3, %288
+    %290: %r0 = coerce %289
+    %291: %r0 = binary.add %2, %64
+    %292: %r0 = coerce %291
+    jump -> block3(%292, %290)
   block12:
-    %73: %r0 = binary.add %66, %5
-    %74: %r0 = coerce %73
-    %76: %r0 = const 3
-    %39: %r3 = object %s1 %37, %38
-    %78: %r3 = alias %39
-    call Array(a).reclaim(I32) %78
-    %79: %r0 = binary.add %74, %76
-    %80: %r0 = coerce %79
-    %81: %r0 = const 3
-    %82: %r0 = call firstOver %16, %81
-    %83: %r0 = binary.add %80, %82
-    %84: %r0 = coerce %83
-    %85: %r0 = call firstOfEachChunk %16
-    %86: %r3 = alias %21
-    call Array(a).reclaim(I32) %86
-    %87: %r3 = alias %26
-    call Array(a).reclaim(I32) %87
-    %88: %r3 = alias %31
-    call Array(a).reclaim(I32) %88
-    %89: %r0 = binary.add %84, %85
-    %90: %r0 = coerce %89
-    return %90
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block13:
-    %91: %r0 = convert %4
-    %92: %r9 = convert %91
-    %93: %r9 = const 3
-    %94: %r8 = binary.ge %92, %93
-    branch %94 -> block15 -> block14
+    %293: %r0 = convert %0
+    %294: %r11 = convert %293
+    %295: %r11 = const 2
+    %296: %r9 = binary.ge %294, %295
+    branch %296 -> block15 -> block14
   block14:
-    %95: %r1 = alias %37
-    %96: %r0 = alias %91
-    %97: %r0 = coerce %96
-    %98: %r0 = load element %95[%97]: %r0
-    %99: %r0 = binary.add %5, %98
-    %100: %r0 = coerce %99
-    %101: %r0 = binary.add %4, %71
-    %102: %r0 = coerce %101
-    jump -> block11(%102, %100)
+    %297: %r1 = alias %25
+    %298: %r0 = alias %293
+    %299: %r0 = coerce %298
+    %300: %r0 = load element %297[%299]: %r0
+    %301: %r0 = binary.add %1, %300
+    %302: %r0 = coerce %301
+    %303: %r0 = binary.add %0, %58
+    %304: %r0 = coerce %303
+    jump -> block1(%304, %302)
   block15:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block16(%6: %r0, %7: %r0):
+    %78: %r9 = binary.lt %6, %76
+    branch %78 -> block18 -> block17
+  block17:
+    %79: %r0 = binary.add %5, %7
+    %80: %r0 = coerce %79
+    %81: %r0 = const 0
+    %84: %r0 = const 0
+    %85: %r0 = const 3
+    %86: %r0 = const 1
+    jump -> block21(%84, %81)
+  block18:
+    %257: %r0 = convert %6
+    %258: %r11 = convert %257
+    %259: %r11 = const 3
+    %260: %r9 = binary.ge %258, %259
+    branch %260 -> block20 -> block19
+  block19:
+    %261: %r1 = alias %43
+    %262: %r0 = alias %257
+    %263: %r0 = coerce %262
+    %264: %r0 = load element %261[%263]: %r0
+    %265: %r0 = binary.add %7, %264
+    %266: %r0 = coerce %265
+    %267: %r0 = binary.add %6, %77
+    %268: %r0 = coerce %267
+    jump -> block16(%268, %266)
+  block20:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block21(%8: %r0, %9: %r0):
+    %87: %r9 = binary.lt %8, %85
+    branch %87 -> block23 -> block22
+  block22:
+    %52: %r3 = object %s0 %50, %51
+    %88: %r3 = alias %52
+    call Array(a).reclaim(I32) %88
+    %89: %r0 = binary.add %80, %9
+    %90: %r0 = coerce %89
+    %92: %r0 = const 0
+    %93: %r0 = const 0
+    %94: %r0 = const 3
+    %95: %r0 = const 1
+    jump -> block26(%93, %92)
+  block23:
+    %245: %r0 = convert %8
+    %246: %r11 = convert %245
+    %247: %r11 = const 3
+    %248: %r9 = binary.ge %246, %247
+    branch %248 -> block25 -> block24
+  block24:
+    %249: %r1 = alias %50
+    %250: %r0 = alias %245
+    %251: %r0 = coerce %250
+    %252: %r0 = load element %249[%251]: %r0
+    %253: %r0 = binary.add %9, %252
+    %254: %r0 = coerce %253
+    %255: %r0 = binary.add %8, %86
+    %256: %r0 = coerce %255
+    jump -> block21(%256, %254)
+  block25:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block26(%10: %r0, %11: %r0):
+    %96: %r9 = binary.lt %10, %94
+    branch %96 -> block28 -> block27
+  block27:
+    %97: %r0 = binary.add %90, %11
+    %98: %r0 = coerce %97
+    %100: %r0 = const 3
+    %45: %r3 = object %s0 %43, %44
+    %102: %r3 = alias %45
+    call Array(a).reclaim(I32) %102
+    %103: %r0 = binary.add %98, %100
+    %104: %r0 = coerce %103
+    %105: %r0 = const 3
+    %106: %r0 = const 0
+    store var $3: %r0, %106
+    %109: %r0 = const 0
+    %110: %r0 = const 2
+    %111: %r0 = const 1
+    %112: %r0 = const 0
+    jump -> block31(%109)
+  block28:
+    %233: %r0 = convert %10
+    %234: %r11 = convert %233
+    %235: %r11 = const 3
+    %236: %r9 = binary.ge %234, %235
+    branch %236 -> block30 -> block29
+  block29:
+    %237: %r1 = alias %43
+    %238: %r0 = alias %233
+    %239: %r0 = coerce %238
+    %240: %r0 = load element %237[%239]: %r0
+    %241: %r0 = binary.add %11, %240
+    %242: %r0 = coerce %241
+    %243: %r0 = binary.add %10, %95
+    %244: %r0 = coerce %243
+    jump -> block26(%244, %242)
+  block30:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block31(%12: %r0):
+    %113: %r9 = binary.lt %12, %110
+    branch %113 -> block32 -> block36(%112)
+  block32:
+    %114: %r0 = convert %12
+    %115: %r11 = convert %114
+    %116: %r11 = const 2
+    %117: %r9 = binary.ge %115, %116
+    branch %117 -> block57 -> block33
+  block33:
+    %118: %r1 = alias %25
+    %119: %r0 = alias %114
+    %120: %r0 = coerce %119
+    %121: %r0 = load element %118[%120]: %r0
+    %122: %r9 = binary.gt %121, %105
+    branch %122 -> block35 -> block34
+  block34:
+    %123: %r0 = binary.add %12, %111
+    %124: %r0 = coerce %123
+    jump -> block31(%124)
+  block35:
+    store var $3: %r0, %121
+    %125: %r0 = const 1
+    jump -> block36(%125)
+  block36(%13: %r0):
+    %126: %r0 = const 1
+    %127: %r9 = binary.eq %13, %126
+    %128: %r0 = const 1
+    %129: %r0 = const 0
+    %130: %r0 = select %127, %128, %129
+    %131: %r0 = const 0
+    %132: %r9 = binary.eq %130, %131
+    branch %132 -> block38 -> block37
+  block37:
+    jump -> block45(%130)
+  block38:
+    %135: %r0 = const 0
+    %136: %r0 = const 2
+    %137: %r0 = const 1
+    %138: %r0 = const 0
+    jump -> block39(%135)
+  block39(%14: %r0):
+    %139: %r9 = binary.lt %14, %136
+    branch %139 -> block40 -> block44(%138)
+  block40:
+    %140: %r0 = convert %14
+    %141: %r11 = convert %140
+    %142: %r11 = const 2
+    %143: %r9 = binary.ge %141, %142
+    branch %143 -> block56 -> block41
+  block41:
+    %144: %r1 = alias %30
+    %145: %r0 = alias %140
+    %146: %r0 = coerce %145
+    %147: %r0 = load element %144[%146]: %r0
+    %148: %r9 = binary.gt %147, %105
+    branch %148 -> block43 -> block42
+  block42:
+    %149: %r0 = binary.add %14, %137
+    %150: %r0 = coerce %149
+    jump -> block39(%150)
+  block43:
+    store var $3: %r0, %147
+    %151: %r0 = const 1
+    jump -> block44(%151)
+  block44(%15: %r0):
+    %152: %r0 = const 1
+    %153: %r9 = binary.eq %15, %152
+    %154: %r0 = const 1
+    %155: %r0 = const 0
+    %156: %r0 = select %153, %154, %155
+    jump -> block45(%156)
+  block45(%16: %r0):
+    %157: %r0 = const 0
+    %158: %r9 = binary.eq %16, %157
+    branch %158 -> block47 -> block46
+  block46:
+    jump -> block54(%16)
+  block47:
+    %161: %r0 = const 0
+    %162: %r0 = const 2
+    %163: %r0 = const 1
+    %164: %r0 = const 0
+    jump -> block48(%161)
+  block48(%17: %r0):
+    %165: %r9 = binary.lt %17, %162
+    branch %165 -> block49 -> block53(%164)
+  block49:
+    %166: %r0 = convert %17
+    %167: %r11 = convert %166
+    %168: %r11 = const 2
+    %169: %r9 = binary.ge %167, %168
+    branch %169 -> block55 -> block50
+  block50:
+    %170: %r1 = alias %35
+    %171: %r0 = alias %166
+    %172: %r0 = coerce %171
+    %173: %r0 = load element %170[%172]: %r0
+    %174: %r9 = binary.gt %173, %105
+    branch %174 -> block52 -> block51
+  block51:
+    %175: %r0 = binary.add %17, %163
+    %176: %r0 = coerce %175
+    jump -> block48(%176)
+  block52:
+    store var $3: %r0, %173
+    %177: %r0 = const 1
+    jump -> block53(%177)
+  block53(%18: %r0):
+    %178: %r0 = const 1
+    %179: %r9 = binary.eq %18, %178
+    %180: %r0 = const 1
+    %181: %r0 = const 0
+    %182: %r0 = select %179, %180, %181
+    jump -> block54(%182)
+  block54(%19: %r0):
+    %183: %r0 = const 1
+    %184: %r9 = binary.eq %19, %183
+    %185: %r0 = load var $3: %r0
+    %186: %r0 = const -1
+    %187: %r0 = select %184, %185, %186
+    %188: %r0 = binary.add %104, %187
+    %189: %r0 = coerce %188
+    %191: %r0 = const 0
+    jump -> block58
+  block55:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block56:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block57:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block58:
+    jump -> block59
+  block59:
+    %199: %r1 = alias %25
+    %200: %r0 = load element %199[%191]: %r0
+    jump -> block60(%200)
+  block60(%20: %r0):
+    %202: %r0 = const 0
+    jump -> block61
+  block61:
+    jump -> block62
+  block62:
+    %210: %r1 = alias %30
+    %211: %r0 = load element %210[%202]: %r0
+    %212: %r0 = binary.add %20, %211
+    %213: %r0 = coerce %212
+    jump -> block63(%213)
+  block63(%21: %r0):
+    %215: %r0 = const 0
+    jump -> block64
+  block64:
+    jump -> block65
+  block65:
+    %223: %r1 = alias %35
+    %224: %r0 = load element %223[%215]: %r0
+    %225: %r0 = binary.add %21, %224
+    %226: %r0 = coerce %225
+    jump -> block66(%226)
+  block66(%22: %r0):
+    %27: %r3 = object %s0 %25, %26
+    %228: %r3 = alias %27
+    call Array(a).reclaim(I32) %228
+    %32: %r3 = object %s0 %30, %31
+    %229: %r3 = alias %32
+    call Array(a).reclaim(I32) %229
+    %37: %r3 = object %s0 %35, %36
+    %230: %r3 = alias %37
+    call Array(a).reclaim(I32) %230
+    %231: %r0 = binary.add %189, %22
+    %232: %r0 = coerce %231
+    return %232
+  block67:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block68:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block69:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -525,23 +410,23 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 3 removed 30 adopted 1 sunk 2 numbered 18 decided 0 unboxed 1 updated 0 split 1 promoted 2 folded 10
+optimizer clones 0 aliased 0 forwarded 0 removed 53 adopted 0 sunk 5 numbered 9 decided 6 unboxed 1 updated 0 split 2 promoted 5 folded 34
 
-shape %s0 object Chunks {a: %r3, b: %r3, c: %r3, used: %r0}
-shape %s1 object Array {items: %r1, length: %r2}
-shape %s2 object ArrayView {items: %r1, length: %r0, offset: %r0}
-shape %s3 cell {$v: %r0 box}
-shape %s4 object Ring {items: %r3}
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object Chunks {a: %r3, b: %r3, c: %r3, used: %r0}
+shape %s2 object Ring {items: %r3}
+shape %s3 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s4 cell {$v: %r0 box}
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0
 rep %r2 = number unsigned 30
-rep %r3 = object %s1
-rep %r4 = object %s0
-rep %r5 = void
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = object %s1
 rep %r6 = object %s2
-rep %r7 = parts (%r1, %r0, %r0) as %r6
-rep %r8 = number bool
-rep %r9 = number unsigned 32
-rep %r10 = object %s3
-rep %r11 = object %s4
+rep %r7 = object %s3
+rep %r8 = parts (%r1, %r0, %r0) as %r7
+rep %r9 = number bool
+rep %r10 = object %s4
+rep %r11 = number unsigned 32

@@ -20,31 +20,38 @@ function colourOfName(s) {
   return p1;
 }
 
-function instantiatedOfName(s) {
-  var p1;
-  B0: {
-    if (s === "Low") {
-      p1 = 0;
-    } else {
-      if (s === "High") {
-        p1 = 1;
-        break B0;
-      }
-      p1 = null;
-    }
-  }
-  return p1;
-}
-
 function main() {
+  var p1, p2;
   if ("Green" === "Green" ^ 1) return 1;
   if ("FromEnd" === "FromEnd" ^ 1) return 2;
   if (colourOfName("Blue") === null) return 3;
   if (!(colourOfName("Purple") === null)) return 4;
   if (!(colourOfName("Bleu") === null)) return 5;
   if ("Low" === "Low" ^ 1) return 6;
-  if (instantiatedOfName("High") === null) return 7;
-  if (!(instantiatedOfName("Red") === null)) return 8;
+  B0: {
+    if ("High" === "Low") {
+      p1 = 0;
+    } else {
+      if ("High" === "High") {
+        p1 = 1;
+        break B0;
+      }
+      p1 = null;
+    }
+  }
+  if (p1 === null) return 7;
+  B1: {
+    if ("Red" === "Low") {
+      p2 = 0;
+    } else {
+      if ("Red" === "High") {
+        p2 = 1;
+        break B1;
+      }
+      p2 = null;
+    }
+  }
+  if (!(p2 === null)) return 8;
   var s5 = colourOfName("Red");
   return !(s5 === null) ? 10 + (s5 | 0) | 0 : 9;
 }

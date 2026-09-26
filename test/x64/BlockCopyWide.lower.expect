@@ -20,14 +20,14 @@ copyVector<complex>(%dst: Ptr, %src: Ptr) {
 
 copyCeiling<complex>(%dst: Ptr, %src: Ptr) {
   b_0 {
-    copy %dst, %src, 128
+    copy %dst, %src, 256
     ret 
   }
 }
 
 copyAboveCeiling<complex>(%dst: Ptr, %src: Ptr) {
   b_0 {
-    copy %dst, %src, 129
+    copy %dst, %src, 257
     ret 
   }
 }
@@ -109,6 +109,30 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
   store uses=[-, xmm0] creates=[]  => c5fe7f4760
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f8680000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f8780000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f86a0000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f87a0000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f86c0000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f87c0000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f86e0000000
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f87e0000000
   ret uses=[] creates=[]  => c3
 
 --- codegen: copyAboveCeiling ---
@@ -116,5 +140,5 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[remat:0]  => 
-  copy uses=[rdi, rsi, rcx] creates=[] pre=[remat:0->rcx]  => b981000000f3a4
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[remat:0->rcx]  => b901010000f3a4
   ret uses=[] creates=[]  => c3

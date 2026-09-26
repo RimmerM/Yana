@@ -1,17 +1,4 @@
 
-positiveX<complex>(%v_0: I32): I32 {
-  b_1 {
-    %v_2 = cmp_igt %v_0, 0: I32
-    ret %v_2
-  }
-}
-
-yOf<complex>(%v_0: I32): I32 {
-  b_1 {
-    ret %v_0
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 24, 4: Ptr
@@ -67,117 +54,94 @@ main<complex>(): I32 {
   b_13 {
     %v_28 = phi [b_29, %v_30], [b_12, 0]: I32
     %v_31 = phi [b_29, %v_32], [b_12, 0]: I32
-    %v_33 = phi [b_29, %v_34], [b_12, 0]: I32
-    %v_35 = sext %v_28: I64
-    %v_36 = cmp_ge %v_35, %v_10: I32
-    je %v_36, b_21, b_37
+    %v_33 = sext %v_28: I64
+    %v_34 = cmp_ge %v_33, %v_10: I32
+    je %v_34, b_21, b_35
   }
 
-  b_37 {
-    %v_38 = shl %v_35, 3: I64
-    %v_39 = add %v_1, %v_38: Ptr
+  b_35 {
+    %v_36 = shl %v_33, 3: I64
+    %v_37 = add %v_1, %v_36: Ptr
+    %v_38 = load %v_37, 4: I32
+    %v_39 = add %v_37, 4: Ptr
     %v_40 = load %v_39, 4: I32
-    %v_41 = add %v_39, 4: Ptr
-    %v_42 = load %v_41, 4: I32
-    %v_43 = cmp_igt %v_40, 0: I32
-    je %v_43, b_44, b_29
+    %v_41 = cmp_igt %v_38, 0: I32
+    je %v_41, b_42, b_29
   }
 
-  b_44 {
-    %v_45 = add %v_31, %v_42: I32
+  b_42 {
+    %v_43 = add %v_31, %v_40: I32
     jmp b_29
   }
 
-  b_46 {
-    %v_47 = add %v_18, %v_32: I32
-    jmp b_48
+  b_44 {
+    %v_45 = add %v_18, %v_32: I32
+    jmp b_46
   }
 
   b_29 {
-    %v_32 = phi [b_37, %v_31], [b_44, %v_45]: I32
-    %v_34 = phi [b_37, %v_33], [b_44, 0]: I32
+    %v_32 = phi [b_35, %v_31], [b_42, %v_43]: I32
     %v_30 = add %v_28, 1: I32
-    %v_49 = cmp_ilt %v_30, 3: I32
-    je %v_49, b_13, b_46
+    %v_47 = cmp_ilt %v_30, 3: I32
+    je %v_47, b_13, b_44
   }
 
-  b_48 {
-    %v_50 = phi [b_51, %v_52], [b_46, 0]: I32
-    %v_53 = phi [b_51, %v_54], [b_46, 0]: I32
-    %v_55 = phi [b_51, %v_56], [b_46, 0]: I32
-    %v_57 = phi [b_51, %v_58], [b_46, 0]: I32
-    %v_59 = sext %v_50: I64
-    %v_60 = cmp_ge %v_59, %v_10: I32
-    je %v_60, b_21, b_61
+  b_46 {
+    %v_48 = phi [b_49, %v_50], [b_44, 0]: I32
+    %v_51 = phi [b_49, %v_52], [b_44, 0]: I32
+    %v_53 = sext %v_48: I64
+    %v_54 = cmp_ge %v_53, %v_10: I32
+    je %v_54, b_21, b_55
   }
 
-  b_61 {
-    %v_62 = shl %v_59, 3: I64
-    %v_63 = add %v_1, %v_62: Ptr
-    %v_64 = load %v_63, 4: I32
-    %v_65 = add %v_63, 4: Ptr
-    %v_66 = load %v_65, 4: I32
-    %v_67 = cmp_igt %v_64, 0: I32
-    je %v_67, b_68, b_51
+  b_55 {
+    %v_56 = shl %v_53, 3: I64
+    %v_57 = add %v_1, %v_56: Ptr
+    %v_58 = load %v_57, 4: I32
+    %v_59 = add %v_57, 4: Ptr
+    %v_60 = load %v_59, 4: I32
+    %v_61 = cmp_igt %v_58, 0: I32
+    je %v_61, b_62, b_49
+  }
+
+  b_62 {
+    %v_63 = add %v_51, %v_60: I32
+    jmp b_49
+  }
+
+  b_64 {
+    %v_65 = add %v_45, %v_52: I32
+    jmp b_66
+  }
+
+  b_49 {
+    %v_52 = phi [b_55, %v_51], [b_62, %v_63]: I32
+    %v_50 = add %v_48, 1: I32
+    %v_67 = cmp_ilt %v_50, 3: I32
+    je %v_67, b_46, b_64
   }
 
   b_68 {
-    %v_69 = add %v_53, %v_66: I32
-    jmp b_51
+    %v_69 = add %v_65, %v_70: I32
+    ret %v_69
   }
 
-  b_70 {
-    %v_71 = add %v_47, %v_54: I32
-    jmp b_72
-  }
-
-  b_51 {
-    %v_54 = phi [b_61, %v_53], [b_68, %v_69]: I32
-    %v_56 = phi [b_61, %v_55], [b_68, 0]: I32
-    %v_58 = phi [b_61, %v_57], [b_68, 0]: I32
-    %v_52 = add %v_50, 1: I32
-    %v_73 = cmp_ilt %v_52, 3: I32
-    je %v_73, b_48, b_70
-  }
-
-  b_74 {
-    %v_75 = add %v_71, %v_76: I32
-    ret %v_75
+  b_66 {
+    %v_71 = phi [b_72, %v_73], [b_64, 0]: I32
+    %v_74 = phi [b_72, %v_70], [b_64, 0]: I32
+    %v_75 = sext %v_71: I64
+    %v_76 = cmp_ge %v_75, 4: I32
+    je %v_76, b_21, b_72
   }
 
   b_72 {
-    %v_77 = phi [b_78, %v_79], [b_70, 0]: I32
-    %v_80 = phi [b_78, %v_76], [b_70, 0]: I32
-    %v_81 = sext %v_77: I64
-    %v_82 = cmp_ge %v_81, 4: I32
-    je %v_82, b_21, b_78
-  }
-
-  b_78 {
-    %v_83 = shl %v_81, 2: I64
-    %v_84 = add %v_6, %v_83: Ptr
-    %v_85 = loads %v_84, 4: I32
-    %v_76 = add %v_80, %v_85: I32
-    %v_79 = add %v_77, 1: I32
-    %v_86 = cmp_ilt %v_79, 4: I32
-    je %v_86, b_72, b_74
-  }
-}
-
-funvalue(positiveX)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = load %v_0, 4: I32
-    %v_3 = call_complex positiveX, %v_2: I32
-    ret %v_3
-  }
-}
-
-funvalue(yOf)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = add %v_0, 4: Ptr
-    %v_3 = load %v_2, 4: I32
-    %v_4 = call_complex yOf, %v_3: I32
-    ret %v_4
+    %v_77 = shl %v_75, 2: I64
+    %v_78 = add %v_6, %v_77: Ptr
+    %v_79 = loads %v_78, 4: I32
+    %v_70 = add %v_74, %v_79: I32
+    %v_73 = add %v_71, 1: I32
+    %v_80 = cmp_ilt %v_73, 4: I32
+    je %v_80, b_66, b_68
   }
 }
 

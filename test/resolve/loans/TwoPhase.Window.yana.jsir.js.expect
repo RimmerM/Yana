@@ -7,11 +7,6 @@ function Guard_drop(value) {
   trace = trace + value | 0;
 }
 
-function setAt(xs$0, xs$1, xs$2, at, v) {
-  if (at >>> 0 >= xs$1 >>> 0) throw $t;
-  xs$0[xs$2 + at | 0] = v;
-}
-
 function total(xs$0, xs$1, xs$2) {
   var p3 = 0;
   var p4 = 0;
@@ -23,47 +18,44 @@ function total(xs$0, xs$1, xs$2) {
   return p4;
 }
 
-function window(xs) {
-  var v1 = xs.items;
-  var v3 = xs.length;
-  setAt(v1, v3, 0, 0, v3);
-  var v11 = xs.items;
-  var v13 = xs.length;
-  var v20 = total(v11, v13, 0);
-  var v22 = xs.items;
-  if (2 >= xs.length) throw $t;
-  setAt(v11, v13, 0, 1, v20 - v22[2] | 0);
-  var v36 = xs.items;
-  var v41 = xs.length;
-  if (0 >= v41) throw $t;
-  var v47 = Math.imul(v36[0], 100);
-  if (1 >= v41) throw $t;
-  return v47 + v36[1] | 0;
-}
-
 function main() {
-  var v10 = { items: new Int32Array([5, 3, 9]), length: 3 };
-  var v11 = window(v10);
-  push_I32(v10, v10.length);
-  var v18 = v10.items;
-  var v23 = v10.length;
-  if (0 >= v23) throw $t;
-  var v26 = v18[0];
-  if (3 >= v23) throw $t;
-  push_I32(v10, v26 + v18[3] | 0);
-  var v42 = total(v10.items, v10.length, 0);
-  var v43 = v10.items;
-  var v45 = v10.length;
-  var v52 = v45 - 1;
-  if (v52 >>> 0 >= v45) throw $t;
-  v43[v52] = v43[v52] + 1000 | 0;
-  var v68 = v10.items;
-  var v70 = v10.length;
-  var v74 = v70 - 1;
-  if (v74 >>> 0 >= v70) throw $t;
-  var v82 = v68[v74];
+  var v8 = new Int32Array([5, 3, 9]);
+  v8[0] = 3;
+  var v10 = { items: v8, length: 3 };
+  var v20 = v10.items;
+  var v22 = v10.length;
+  var v25 = total(v20, v22, 0);
+  var v27 = v10.items;
+  if (2 >= v10.length) throw $t;
+  var v39 = v25 - v27[2] | 0;
+  if (1 >= v22) throw $t;
+  v20[1] = v39;
+  var v48 = v10.items;
+  var v50 = v10.length;
+  if (0 >= v50) throw $t;
+  var v59 = Math.imul(v48[0], 100);
+  if (1 >= v50) throw $t;
+  var v70 = v59 + v48[1] | 0;
+  push_I32(v10, v50);
+  var v74 = v10.items;
+  var v79 = v10.length;
+  if (0 >= v79) throw $t;
+  var v82 = v74[0];
+  if (3 >= v79) throw $t;
+  push_I32(v10, v82 + v74[3] | 0);
+  var v98 = total(v10.items, v10.length, 0);
+  var v99 = v10.items;
+  var v101 = v10.length;
+  var v108 = v101 - 1;
+  if (v108 >>> 0 >= v101) throw $t;
+  v99[v108] = v99[v108] + 1000 | 0;
+  var v124 = v10.items;
+  var v126 = v10.length;
+  var v130 = v126 - 1;
+  if (v130 >>> 0 >= v126) throw $t;
+  var v138 = v124[v130];
   Guard_drop(38);
-  return ((((v11 + v42 | 0) + v82 | 0) + 9 | 0) + 38 | 0) + trace | 0;
+  return ((((v70 + v98 | 0) + v138 | 0) + 9 | 0) + 38 | 0) + trace | 0;
 }
 
 function push_I32(self, item) {

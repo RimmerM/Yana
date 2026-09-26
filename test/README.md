@@ -59,6 +59,12 @@ that moves whenever a pass changes. `.ssa.expect` stays the *conversion's* outpu
 before and after of the whole stage. `.mir.llvm.expect` is the stage's lowering handed to LLVM, and
 `.explain.expect` is the `explain` query's report, both on the same opt-in terms.
 
+`.mir.lower.expect` is the lowering **for the local backend**, which is what the fixture then runs
+on the x64 JIT and what `-backend local` ships; `.mir.llvm.expect` lowers the same SSA a second time
+for LLVM. The two differ where `LowerModule::consumer` does - the calling convention's budget, the
+`simple` reclaims and the transforms gated to one backend. Until J182 the driver lowered once, for
+LLVM, and ran that on x64.
+
 **There is one run expectation.** `.run.expect` is what `main` answers, and the native build, the
 same build with `-no-ir-opt` and every JavaScript build are all held to it, because a program that
 answers differently depending on how it was compiled is exactly what this is here to catch. It is

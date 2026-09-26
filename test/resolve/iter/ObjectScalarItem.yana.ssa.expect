@@ -313,9 +313,9 @@ bb0(%0: both(I32, I32).Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool 
   %16: %Both(I32, I32) address = field.addr . inspect %0
   %91: %I32 address = field.addr .$index inspect %0
   %92: I32 trivial = load inspect %91
-  %93: I32 trivial = const 0
+  %93: I32 trivial = const 1
   %94: Bool trivial = eq inspect %92 inspect %93
-  branch inspect %94 -> bb1 -> bb28
+  branch inspect %94 -> bb26 -> bb28
 
 bb1:
   branch inspect %2 -> bb27 -> bb3
@@ -484,9 +484,9 @@ bb27:
   return consume %89
 
 bb28:
-  %95: I32 trivial = const 1
+  %95: I32 trivial = const 0
   %96: Bool trivial = eq inspect %92 inspect %95
-  branch inspect %96 -> bb26 -> bb2
+  branch inspect %96 -> bb1 -> bb2
 }
 
 fn both(I32, I32)$item($self: both(I32, I32).Iter [shared slot 0]) -> Both(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0] {

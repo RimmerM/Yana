@@ -15,21 +15,6 @@ main<complex>(): I32 {
   }
 }
 
-@header(firstWins.thunk) = [0, 0, 0, 0]
-firstWins.thunk<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex firstWins.thunk.thunk: I32
-    ret %v_1
-  }
-}
-
-@header(firstWins.thunk.thunk) = [0, 0, 0, 0]
-firstWins.thunk.thunk<complex>(): I32 {
-  b_0 {
-    ret 3
-  }
-}
-
 @header(lastWins.thunk) = [0, 0, 0, 0]
 lastWins.thunk<complex>(): I32 {
   b_0 {
@@ -42,29 +27,6 @@ lastWins.thunk<complex>(): I32 {
 lastWins.thunk.thunk<complex>(): I32 {
   b_0 {
     ret 3
-  }
-}
-
-@header(noneEvaluated.thunk) = [0, 0, 0, 0]
-noneEvaluated.thunk<complex>(): I32 {
-  b_0 {
-    %counter = global @counter: Ptr
-    %v_1 = loads %counter, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store %counter, %v_2, 4
-    %v_3 = call_complex noneEvaluated.thunk.thunk: I32
-    ret %v_3
-  }
-}
-
-@header(noneEvaluated.thunk.thunk) = [0, 0, 0, 0]
-noneEvaluated.thunk.thunk<complex>(): I32 {
-  b_0 {
-    %counter = global @counter: Ptr
-    %v_1 = loads %counter, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store %counter, %v_2, 4
-    ret 20
   }
 }
 

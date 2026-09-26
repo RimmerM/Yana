@@ -70,40 +70,6 @@ main<complex>(): I32 {
   }
 }
 
-@header(capturing.thunk) = [0, 0, 0, 0]
-capturing.thunk<complex>(%capturing.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %capturing.thunk.env, 4: I32
-    %v_2 = imm 16: I32
-    %v_3 = loads @effects, 4: I32
-    %v_4 = add %v_3, %v_2: I32
-    store @effects, %v_4, 4
-    %v_5 = add %v_1, %v_2: I32
-    ret %v_5
-  }
-}
-
-@header(mutableCapture.thunk) = [0, 0, 0, 0]
-mutableCapture.thunk<complex>(%mutableCapture.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = load %mutableCapture.thunk.env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = shl %v_2, 1: I32
-    ret %v_3
-  }
-}
-
-@header(main.thunk) = [0, 0, 0, 0]
-main.thunk<complex>(): I32 {
-  b_0 {
-    %v_1 = imm 1: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
 @header(main.thunk'2) = [0, 0, 0, 0]
 main.thunk'2<complex>(): I32 {
   b_0 {
@@ -123,30 +89,6 @@ main.thunk'3<complex>(): I32 {
     %v_3 = add %v_2, %v_1: I32
     store @effects, %v_3, 4
     ret %v_1
-  }
-}
-
-@header(main.thunk'4) = [0, 0, 0, 0]
-main.thunk'4<complex>(): I32 {
-  b_0 {
-    %v_1 = imm 8: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
-@header(main.thunk'5) = [0, 0, 0, 0]
-main.thunk'5<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, 32: I32
-    store @effects, %v_3, 4
-    store %v_0, 2, 4
-    %v_4 = add %v_0, 4: Ptr
-    store %v_4, 3, 4
-    ret 
   }
 }
 
@@ -184,16 +126,6 @@ main.thunk'8<complex>(): I32 {
   }
 }
 
-@header(main.thunk'9) = [0, 0, 0, 0]
-main.thunk'9<complex>(): I32 {
-  b_0 {
-    %v_1 = loads @effects, 4: I32
-    %v_2 = add %v_1, 512: I32
-    store @effects, %v_2, 4
-    ret 1
-  }
-}
-
 @header(main.thunk'10) = [0, 0, 0, 0]
 main.thunk'10<complex>(): I32 {
   b_0 {
@@ -215,31 +147,11 @@ main.thunk'11<complex>(): I32 {
   }
 }
 
-@header(main.thunk'12) = [0, 0, 0, 0]
-main.thunk'12<complex>(): I32 {
-  b_0 {
-    %v_1 = loads @effects, 4: I32
-    %v_2 = add %v_1, 4096: I32
-    store @effects, %v_2, 4
-    ret 1
-  }
-}
-
 @header(main.thunk'13) = [0, 0, 0, 0]
 main.thunk'13<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 8192: I32
-    store @effects, %v_2, 4
-    ret 1
-  }
-}
-
-@header(main.thunk'14) = [0, 0, 0, 0]
-main.thunk'14<complex>(): I32 {
-  b_0 {
-    %v_1 = loads @effects, 4: I32
-    %v_2 = add %v_1, 16384: I32
     store @effects, %v_2, 4
     ret 1
   }

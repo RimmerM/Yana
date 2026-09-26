@@ -665,9 +665,9 @@ bb0(%0: upTo.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %5: %I32 address = field.addr .i inspect %0
   %29: %I32 address = field.addr .$index inspect %0
   %30: I32 trivial = load inspect %29
-  %31: I32 trivial = const 0
+  %31: I32 trivial = const 1
   %32: Bool trivial = eq inspect %30 inspect %31
-  branch inspect %32 -> bb1 -> bb11
+  branch inspect %32 -> bb9 -> bb11
 
 bb1:
   branch inspect %2 -> bb10 -> bb3
@@ -731,9 +731,9 @@ bb10:
   return consume %27
 
 bb11:
-  %33: I32 trivial = const 1
+  %33: I32 trivial = const 0
   %34: Bool trivial = eq inspect %30 inspect %33
-  branch inspect %34 -> bb9 -> bb2
+  branch inspect %34 -> bb1 -> bb2
 }
 
 fn upTo$next($self: upTo.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
@@ -776,9 +776,9 @@ bb0(%0: guards.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   %6: %Guard address = field.addr .g inspect %0
   %32: %I32 address = field.addr .$index inspect %0
   %33: I32 trivial = load inspect %32
-  %34: I32 trivial = const 0
+  %34: I32 trivial = const 1
   %35: Bool trivial = eq inspect %33 inspect %34
-  branch inspect %35 -> bb1 -> bb11
+  branch inspect %35 -> bb9 -> bb11
 
 bb1:
   branch inspect %2 -> bb10 -> bb3
@@ -846,9 +846,9 @@ bb10:
   return consume %30
 
 bb11:
-  %36: I32 trivial = const 1
+  %36: I32 trivial = const 0
   %37: Bool trivial = eq inspect %33 inspect %36
-  branch inspect %37 -> bb9 -> bb2
+  branch inspect %37 -> bb1 -> bb2
 }
 
 fn guards$drop($self: guards.Iter) -> {} {

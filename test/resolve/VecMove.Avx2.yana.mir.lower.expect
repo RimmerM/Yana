@@ -141,70 +141,6 @@ movesU8<complex>(%s: I32): I32 {
   }
 }
 
-movesU32<complex>(%s: I32): I32 {
-  b_0 {
-    %v_1 = vsplat 0: i32x8
-    %v_2 = vwithlane %v_1, 1, 1: i32x8
-    %v_3 = vwithlane %v_2, 2, 2: i32x8
-    %v_4 = vwithlane %v_3, 3, 3: i32x8
-    %v_5 = vwithlane %v_4, 4, 4: i32x8
-    %v_6 = vwithlane %v_5, 5, 5: i32x8
-    %v_7 = vwithlane %v_6, 6, 6: i32x8
-    %v_8 = vwithlane %v_7, 7, 7: i32x8
-    %v_9 = vsplat %s: i32x8
-    %v_10 = add %v_8, %v_9: i32x8
-    %v_11 = vsplat 157: i32x8
-    %v_12 = mul %v_10, %v_11: i32x8
-    %v_13 = vsplat 16: i32x8
-    %v_14 = and %v_12, %v_13: i32x8
-    %v_15 = cmp_neq %v_14, %v_1: m32x8
-    %v_16 = vcompress %v_8, %v_15: i32x8
-    %v_17 = vreduce_add %v_15: I32
-    %v_18 = vsplat %v_17: i32x8
-    %v_19 = cmp_lt %v_8, %v_18: m32x8
-    %v_20 = vsplat 1: i32x8
-    %v_21 = select %v_15, %v_20, %v_1: i32x8
-    %v_22 = vlookup %v_21, %v_16: i32x8
-    %v_23 = cmp_eq %v_22, %v_1: m32x8
-    %v_24 = and %v_23, %v_19: m32x8
-    %v_25 = vreduce_add %v_24: I32
-    %v_26 = add %v_8, %v_20: i32x8
-    %v_27 = vlookup %v_16, %v_26: i32x8
-    %v_28 = cmp_igt %v_17, 1: I32
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    jmp b_31
-  }
-
-  b_31 {
-    %v_32 = phi [b_30, %v_25], [b_29, %v_33]: I32
-    %v_34 = vsplat 5: i32x8
-    %v_35 = mul %v_8, %v_34: i32x8
-    %v_36 = add %v_35, %v_9: i32x8
-    %v_37 = vcompress %v_36, %v_15: i32x8
-    %v_38 = vexpand %v_37, %v_15: i32x8
-    %v_39 = sub %v_36, %v_36: i32x8
-    %v_40 = select %v_15, %v_36, %v_39: i32x8
-    %v_41 = cmp_neq %v_38, %v_40: m32x8
-    %v_42 = vreduce_add %v_41: I32
-    %v_43 = add %v_32, %v_42: I32
-    ret %v_43
-  }
-
-  b_29 {
-    %v_44 = cmp_ge %v_16, %v_27: m32x8
-    %v_45 = sub %v_17, 1: I32
-    %v_46 = vsplat %v_45: i32x8
-    %v_47 = cmp_lt %v_8, %v_46: m32x8
-    %v_48 = and %v_44, %v_47: m32x8
-    %v_49 = vreduce_add %v_48: I32
-    %v_33 = add %v_25, %v_49: I32
-    jmp b_31
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i16x16
@@ -249,62 +185,108 @@ main<complex>(): I32 {
     %v_40 = mul %v_38, %v_39: i64x4
     %v_41 = vsplat 3: i64x4
     %v_42 = mul %v_38, %v_41: i64x4
-    jmp b_43
+    %v_43 = vsplat 157: i32x8
+    %v_44 = vsplat 16: i32x8
+    %v_45 = vsplat 1: i32x8
+    %v_46 = add %v_29, %v_45: i32x8
+    %v_47 = vsplat 5: i32x8
+    %v_48 = mul %v_29, %v_47: i32x8
+    jmp b_49
   }
 
-  b_44 {
-    %v_45 = cmp_lt %v_46, 256: I32
-    je %v_45, b_43, b_47
+  b_50 {
+    ret %v_51
   }
 
-  b_47 {
-    ret %v_48
+  b_49 {
+    %v_52 = phi [b_53, %v_51], [b_0, 0]: I32
+    %v_54 = phi [b_53, %v_55], [b_0, 0]: I32
+    %v_56 = and %v_54, 255: I32
+    %v_57 = call_complex lookupU8, %v_56: I32
+    %v_58 = add %v_52, %v_57: I32
+    %v_59 = and %v_54, 65535: I32
+    %v_60 = vsplat %v_59: i16x16
+    %v_61 = add %v_18, %v_60: i16x16
+    %v_62 = add %v_20, %v_60: i16x16
+    %v_63 = vlookup %v_61, %v_62: i16x16
+    %v_64 = and %v_62, %v_21: i16x16
+    %v_65 = mul %v_64, %v_17: i16x16
+    %v_66 = add %v_65, %v_60: i16x16
+    %v_67 = cmp_neq %v_63, %v_66: m16x16
+    %v_68 = vreduce_add %v_67: I32
+    %v_69 = add %v_58, %v_68: I32
+    %v_70 = vsplat %v_54: i32x8
+    %v_71 = add %v_31, %v_70: i32x8
+    %v_72 = add %v_33, %v_70: i32x8
+    %v_73 = vlookup %v_71, %v_72: i32x8
+    %v_74 = and %v_72, %v_34: i32x8
+    %v_75 = mul %v_74, %v_30: i32x8
+    %v_76 = add %v_75, %v_70: i32x8
+    %v_77 = cmp_neq %v_73, %v_76: m32x8
+    %v_78 = vreduce_add %v_77: I32
+    %v_79 = add %v_69, %v_78: I32
+    %v_80 = cast %v_54: I64
+    %v_81 = vsplat %v_80: i64x4
+    %v_82 = add %v_40, %v_81: i64x4
+    %v_83 = add %v_42, %v_81: i64x4
+    %v_84 = vlookup %v_82, %v_83: i64x4
+    %v_85 = and %v_83, %v_41: i64x4
+    %v_86 = mul %v_85, %v_39: i64x4
+    %v_87 = add %v_86, %v_81: i64x4
+    %v_88 = cmp_neq %v_84, %v_87: m64x4
+    %v_89 = vreduce_add %v_88: I32
+    %v_90 = add %v_79, %v_89: I32
+    %v_91 = call_complex movesU8, %v_56: I32
+    %v_92 = add %v_90, %v_91: I32
+    %v_93 = vsplat %v_54: i32x8
+    %v_94 = add %v_29, %v_93: i32x8
+    %v_95 = mul %v_94, %v_43: i32x8
+    %v_96 = and %v_95, %v_44: i32x8
+    %v_97 = cmp_neq %v_96, %v_22: m32x8
+    %v_98 = vcompress %v_29, %v_97: i32x8
+    %v_99 = vreduce_add %v_97: I32
+    %v_100 = vsplat %v_99: i32x8
+    %v_101 = cmp_lt %v_29, %v_100: m32x8
+    %v_102 = select %v_97, %v_45, %v_22: i32x8
+    %v_103 = vlookup %v_102, %v_98: i32x8
+    %v_104 = cmp_eq %v_103, %v_22: m32x8
+    %v_105 = and %v_104, %v_101: m32x8
+    %v_106 = vreduce_add %v_105: I32
+    %v_107 = vlookup %v_98, %v_46: i32x8
+    %v_108 = cmp_igt %v_99, 1: I32
+    je %v_108, b_109, b_110
   }
 
-  b_43 {
-    %v_49 = phi [b_44, %v_48], [b_0, 0]: I32
-    %v_50 = phi [b_44, %v_46], [b_0, 0]: I32
-    %v_51 = and %v_50, 255: I32
-    %v_52 = call_complex lookupU8, %v_51: I32
-    %v_53 = add %v_49, %v_52: I32
-    %v_54 = and %v_50, 65535: I32
-    %v_55 = vsplat %v_54: i16x16
-    %v_56 = add %v_18, %v_55: i16x16
-    %v_57 = add %v_20, %v_55: i16x16
-    %v_58 = vlookup %v_56, %v_57: i16x16
-    %v_59 = and %v_57, %v_21: i16x16
-    %v_60 = mul %v_59, %v_17: i16x16
-    %v_61 = add %v_60, %v_55: i16x16
-    %v_62 = cmp_neq %v_58, %v_61: m16x16
-    %v_63 = vreduce_add %v_62: I32
-    %v_64 = add %v_53, %v_63: I32
-    %v_65 = vsplat %v_50: i32x8
-    %v_66 = add %v_31, %v_65: i32x8
-    %v_67 = add %v_33, %v_65: i32x8
-    %v_68 = vlookup %v_66, %v_67: i32x8
-    %v_69 = and %v_67, %v_34: i32x8
-    %v_70 = mul %v_69, %v_30: i32x8
-    %v_71 = add %v_70, %v_65: i32x8
-    %v_72 = cmp_neq %v_68, %v_71: m32x8
-    %v_73 = vreduce_add %v_72: I32
-    %v_74 = add %v_64, %v_73: I32
-    %v_75 = cast %v_50: I64
-    %v_76 = vsplat %v_75: i64x4
-    %v_77 = add %v_40, %v_76: i64x4
-    %v_78 = add %v_42, %v_76: i64x4
-    %v_79 = vlookup %v_77, %v_78: i64x4
-    %v_80 = and %v_78, %v_41: i64x4
-    %v_81 = mul %v_80, %v_39: i64x4
-    %v_82 = add %v_81, %v_76: i64x4
-    %v_83 = cmp_neq %v_79, %v_82: m64x4
-    %v_84 = vreduce_add %v_83: I32
-    %v_85 = add %v_74, %v_84: I32
-    %v_86 = call_complex movesU8, %v_51: I32
-    %v_87 = add %v_85, %v_86: I32
-    %v_88 = call_complex movesU32, %v_50: I32
-    %v_48 = add %v_87, %v_88: I32
-    %v_46 = add %v_50, 1: I32
-    jmp b_44
+  b_110 {
+    jmp b_53
+  }
+
+  b_109 {
+    %v_111 = cmp_ge %v_98, %v_107: m32x8
+    %v_112 = sub %v_99, 1: I32
+    %v_113 = vsplat %v_112: i32x8
+    %v_114 = cmp_lt %v_29, %v_113: m32x8
+    %v_115 = and %v_111, %v_114: m32x8
+    %v_116 = vreduce_add %v_115: I32
+    %v_117 = add %v_106, %v_116: I32
+    jmp b_53
+  }
+
+  b_53 {
+    %v_118 = phi [b_110, %v_106], [b_109, %v_117]: I32
+    %v_119 = vsplat %v_54: i32x8
+    %v_120 = add %v_48, %v_119: i32x8
+    %v_121 = vcompress %v_120, %v_97: i32x8
+    %v_122 = vexpand %v_121, %v_97: i32x8
+    %v_123 = sub %v_120, %v_120: i32x8
+    %v_124 = select %v_97, %v_120, %v_123: i32x8
+    %v_125 = cmp_neq %v_122, %v_124: m32x8
+    %v_126 = vreduce_add %v_125: I32
+    %v_127 = add %v_118, %v_126: I32
+    %v_51 = add %v_92, %v_127: I32
+    %v_55 = add %v_54, 1: I32
+    %v_128 = cmp_lt %v_55, 256: I32
+    je %v_128, b_49, b_50
   }
 }
 

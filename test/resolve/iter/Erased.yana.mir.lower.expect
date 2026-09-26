@@ -548,12 +548,12 @@ upTo$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     %v_1 = add %$env, 8: Ptr
     %v_2 = add %$env, 12: Ptr
     %v_3 = loads %$env, 4: I32
-    %v_4 = cmp_eq %v_3, 0: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
   b_7 {
-    %v_8 = phi [b_9, 0], [b_10, 0], [b_11, 1], [b_12, 0]: I32
+    %v_8 = phi [b_9, 0], [b_10, 0], [b_11, 0], [b_12, 1]: I32
     %v_13 = add %$env, 4: Ptr
     %v_14 = bitcast 0: Ptr
     %v_15 = select %v_8, %v_13, %v_14: Ptr
@@ -561,7 +561,7 @@ upTo$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_6 {
-    %v_16 = cmp_eq %v_3, 1: I32
+    %v_16 = cmp_eq %v_3, 0: I32
     je %v_16, b_17, b_9
   }
 
@@ -570,31 +570,12 @@ upTo$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_17 {
-    %v_18 = cmp_eq %$sent, 0: I32
-    je %v_18, b_19, b_10
+    je %$cancel, b_10, b_18
   }
 
-  b_19 {
-    %v_20 = loads %v_2, 4: I32
-    %v_21 = add %v_20, 1: I32
-    store %v_2, %v_21, 4
-    jmp b_22
-  }
-
-  b_5 {
-    je %$cancel, b_12, b_23
-  }
-
-  b_23 {
+  b_18 {
     store %v_2, 0, 4
-    jmp b_22
-  }
-
-  b_22 {
-    %v_24 = loads %v_2, 4: I32
-    %v_25 = loads %v_1, 4: I32
-    %v_26 = cmp_ilt %v_24, %v_25: I32
-    je %v_26, b_11, b_10
+    jmp b_19
   }
 
   b_10 {
@@ -602,22 +583,41 @@ upTo$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     jmp b_7
   }
 
+  b_5 {
+    %v_20 = cmp_eq %$sent, 0: I32
+    je %v_20, b_21, b_11
+  }
+
+  b_21 {
+    %v_22 = loads %v_2, 4: I32
+    %v_23 = add %v_22, 1: I32
+    store %v_2, %v_23, 4
+    jmp b_19
+  }
+
+  b_19 {
+    %v_24 = loads %v_2, 4: I32
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = cmp_ilt %v_24, %v_25: I32
+    je %v_26, b_12, b_11
+  }
+
   b_11 {
-    %v_27 = add %$env, 4: Ptr
-    store %v_27, %v_24, 4
-    store %$env, 1, 4
+    store %$env, 2147483647, 4
     jmp b_7
   }
 
   b_12 {
-    store %$env, 2147483647, 4
+    %v_27 = add %$env, 4: Ptr
+    store %v_27, %v_24, 4
+    store %$env, 1, 4
     jmp b_7
   }
 }
 
 guards$drop<complex>(%v_0: I32, %v_1: I32) {
   b_2 {
-    %v_3 = cmp_eq %v_0, 0: I32
+    %v_3 = cmp_eq %v_0, 1: I32
     je %v_3, b_4, b_5
   }
 
@@ -626,16 +626,16 @@ guards$drop<complex>(%v_0: I32, %v_1: I32) {
   }
 
   b_5 {
-    %v_7 = cmp_eq %v_0, 1: I32
+    %v_7 = cmp_eq %v_0, 0: I32
     je %v_7, b_8, b_6
   }
 
   b_8 {
-    call_complex Guard.drop, %v_1
     jmp b_6
   }
 
   b_4 {
+    call_complex Guard.drop, %v_1
     jmp b_6
   }
 }
@@ -648,7 +648,7 @@ guards$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     %v_3 = add %$env, 20: Ptr
     %v_4 = add %$env, 8: Ptr
     %v_5 = loads %v_4, 4: I32
-    %v_6 = cmp_eq %v_5, 0: I32
+    %v_6 = cmp_eq %v_5, 1: I32
     je %v_6, b_7, b_8
   }
 
@@ -658,41 +658,46 @@ guards$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_8 {
-    %v_11 = cmp_eq %v_5, 1: I32
+    %v_11 = cmp_eq %v_5, 0: I32
     je %v_11, b_12, b_9
   }
 
   b_12 {
-    %v_13 = load %v_3, 4: I32
-    call_complex Guard.drop, %v_13
-    %v_14 = cmp_eq %$sent, 0: I32
-    je %v_14, b_15, b_16
+    je %$cancel, b_13, b_14
   }
 
-  b_15 {
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = add %v_17, 1: I32
-    store %v_2, %v_18, 4
-    jmp b_19
+  b_14 {
+    store %v_2, 1, 4
+    jmp b_15
+  }
+
+  b_13 {
+    store %v_4, 2147483647, 4
+    jmp b_9
   }
 
   b_7 {
-    je %$cancel, b_20, b_21
+    %v_16 = load %v_3, 4: I32
+    call_complex Guard.drop, %v_16
+    %v_17 = cmp_eq %$sent, 0: I32
+    je %v_17, b_18, b_19
   }
 
-  b_21 {
-    store %v_2, 1, 4
-    jmp b_19
+  b_18 {
+    %v_20 = loads %v_2, 4: I32
+    %v_21 = add %v_20, 1: I32
+    store %v_2, %v_21, 4
+    jmp b_15
   }
 
-  b_19 {
+  b_15 {
     %v_22 = loads %v_2, 4: I32
     %v_23 = loads %v_1, 4: I32
     %v_24 = cmp_ile %v_22, %v_23: I32
-    je %v_24, b_25, b_16
+    je %v_24, b_25, b_19
   }
 
-  b_16 {
+  b_19 {
     store %v_4, 2147483647, 4
     jmp b_9
   }
@@ -702,11 +707,6 @@ guards$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     store %$env, %v_3, 8
     store %v_4, 1, 4
     ret %v_3
-  }
-
-  b_20 {
-    store %v_4, 2147483647, 4
-    jmp b_9
   }
 }
 
@@ -718,7 +718,7 @@ guards$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     %v_3 = add %$env, 20: Ptr
     %v_4 = add %$env, 8: Ptr
     %v_5 = loads %v_4, 4: I32
-    %v_6 = cmp_eq %v_5, 0: I32
+    %v_6 = cmp_eq %v_5, 1: I32
     je %v_6, b_7, b_8
   }
 
@@ -728,41 +728,46 @@ guards$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_8 {
-    %v_11 = cmp_eq %v_5, 1: I32
+    %v_11 = cmp_eq %v_5, 0: I32
     je %v_11, b_12, b_9
   }
 
   b_12 {
-    %v_13 = load %v_3, 4: I32
-    call_complex Guard.drop, %v_13
-    %v_14 = cmp_eq %$sent, 0: I32
-    je %v_14, b_15, b_16
+    je %$cancel, b_13, b_14
   }
 
-  b_15 {
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = add %v_17, 1: I32
-    store %v_2, %v_18, 4
-    jmp b_19
+  b_14 {
+    store %v_2, 1, 4
+    jmp b_15
+  }
+
+  b_13 {
+    store %v_4, 2147483647, 4
+    jmp b_9
   }
 
   b_7 {
-    je %$cancel, b_20, b_21
+    %v_16 = load %v_3, 4: I32
+    call_complex Guard.drop, %v_16
+    %v_17 = cmp_eq %$sent, 0: I32
+    je %v_17, b_18, b_19
   }
 
-  b_21 {
-    store %v_2, 1, 4
-    jmp b_19
+  b_18 {
+    %v_20 = loads %v_2, 4: I32
+    %v_21 = add %v_20, 1: I32
+    store %v_2, %v_21, 4
+    jmp b_15
   }
 
-  b_19 {
+  b_15 {
     %v_22 = loads %v_2, 4: I32
     %v_23 = loads %v_1, 4: I32
     %v_24 = cmp_ile %v_22, %v_23: I32
-    je %v_24, b_25, b_16
+    je %v_24, b_25, b_19
   }
 
-  b_16 {
+  b_19 {
     store %v_4, 2147483647, 4
     jmp b_9
   }
@@ -773,11 +778,6 @@ guards$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     store %v_4, 1, 4
     ret %v_3
   }
-
-  b_20 {
-    store %v_4, 2147483647, 4
-    jmp b_9
-  }
 }
 
 @header(upTo$erased) = [0, 0, 0, 0]
@@ -786,12 +786,12 @@ upTo$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     %v_1 = add %$env, 8: Ptr
     %v_2 = add %$env, 12: Ptr
     %v_3 = loads %$env, 4: I32
-    %v_4 = cmp_eq %v_3, 0: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
   b_7 {
-    %v_8 = phi [b_9, 0], [b_10, 0], [b_11, 1], [b_12, 0]: I32
+    %v_8 = phi [b_9, 0], [b_10, 0], [b_11, 0], [b_12, 1]: I32
     %v_13 = add %$env, 4: Ptr
     %v_14 = bitcast 0: Ptr
     %v_15 = select %v_8, %v_13, %v_14: Ptr
@@ -799,7 +799,7 @@ upTo$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_6 {
-    %v_16 = cmp_eq %v_3, 1: I32
+    %v_16 = cmp_eq %v_3, 0: I32
     je %v_16, b_17, b_9
   }
 
@@ -808,31 +808,12 @@ upTo$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   }
 
   b_17 {
-    %v_18 = cmp_eq %$sent, 0: I32
-    je %v_18, b_19, b_10
+    je %$cancel, b_10, b_18
   }
 
-  b_19 {
-    %v_20 = loads %v_2, 4: I32
-    %v_21 = add %v_20, 1: I32
-    store %v_2, %v_21, 4
-    jmp b_22
-  }
-
-  b_5 {
-    je %$cancel, b_12, b_23
-  }
-
-  b_23 {
+  b_18 {
     store %v_2, 0, 4
-    jmp b_22
-  }
-
-  b_22 {
-    %v_24 = loads %v_2, 4: I32
-    %v_25 = loads %v_1, 4: I32
-    %v_26 = cmp_ilt %v_24, %v_25: I32
-    je %v_26, b_11, b_10
+    jmp b_19
   }
 
   b_10 {
@@ -840,15 +821,34 @@ upTo$erased<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
     jmp b_7
   }
 
+  b_5 {
+    %v_20 = cmp_eq %$sent, 0: I32
+    je %v_20, b_21, b_11
+  }
+
+  b_21 {
+    %v_22 = loads %v_2, 4: I32
+    %v_23 = add %v_22, 1: I32
+    store %v_2, %v_23, 4
+    jmp b_19
+  }
+
+  b_19 {
+    %v_24 = loads %v_2, 4: I32
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = cmp_ilt %v_24, %v_25: I32
+    je %v_26, b_12, b_11
+  }
+
   b_11 {
-    %v_27 = add %$env, 4: Ptr
-    store %v_27, %v_24, 4
-    store %$env, 1, 4
+    store %$env, 2147483647, 4
     jmp b_7
   }
 
   b_12 {
-    store %$env, 2147483647, 4
+    %v_27 = add %$env, 4: Ptr
+    store %v_27, %v_24, 4
+    store %$env, 1, 4
     jmp b_7
   }
 }

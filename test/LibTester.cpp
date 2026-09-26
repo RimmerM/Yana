@@ -175,7 +175,14 @@ static RunOutcome executeMainIsolated(Context& context, LowerModule& module, boo
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if(memory == MAP_FAILED) return outcome;
 
-    assembly.applyDataRelocations((Byte*)memory);
+    // Checked, though a JIT's module has no absolute sites (`LowerModule::fixedLoadAddress` is zero
+    // here): a refusal is a module that would read the wrong addresses, and it is reported as the
+    // driver not managing to run the fixture rather than as whatever the fixture then answered.
+    if(!assembly.applyDataRelocations((Byte*)memory)) {
+        println("Fail: an absolute address does not fit the JIT mapping at %@.", (U64)memory);
+        munmap(memory, allocationSize);
+        return outcome;
+    }
     copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
 
     if(mprotect(memory, allocationSize, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
@@ -717,6 +724,10 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
      */
     context.settings.test = true;
     if(options.js) context.settings.platform = TargetPlatform::Js;
+
+    // Lowered for the local backend, because `executeMainIsolated` is the x64 JIT: the field's
+    // default is LLVM, and a module lowered for LLVM and run on x64 is one no build produces (J182).
+    if(!options.js) context.settings.backend = NativeBackend::Local;
     provider.context = &context;
 
     /*

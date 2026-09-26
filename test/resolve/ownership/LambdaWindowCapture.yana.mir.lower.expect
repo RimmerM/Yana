@@ -1,4 +1,3 @@
-@string'142 = [97, 98, 99]
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -57,7 +56,7 @@ main<complex>(): I32 {
     %v_10 = add %v_4, 8: Ptr
     store %v_10, 7, 4
     %v_11 = bitcast %v_4: I64
-    call_complex Array(a).reclaim(I32), %v_11, 1073741827
+    call_simple Array(a).reclaim(I32), %v_11, 1073741827
     %v_12 = alloca 4, 4: Ptr
     store %v_12, 0, 4
     %v_13 = call_complex bump, %v_12, 1: I32
@@ -157,33 +156,13 @@ main<complex>(): I32 {
     %v_78 = add %v_62, 8: Ptr
     store %v_78, 7, 4
     %v_79 = bitcast %v_62: I64
-    call_complex Array(a).reclaim(I32), %v_79, 1073741827
+    call_simple Array(a).reclaim(I32), %v_79, 1073741827
     %v_80 = add %v_61, 2048: I32
     ret %v_80
   }
 }
 
-@header(lazyWindow.thunk) = [0, 0, 0, 0]
-lazyWindow.thunk<complex>(%lazyWindow.thunk.env: Ptr): I32 {
-  b_0 {
-    %v_1 = add %lazyWindow.thunk.env, 8: Ptr
-    %v_2 = loads %v_1, 8: I64
-    %v_3 = sext %v_2: I32
-    ret %v_3
-  }
-}
-
-@header(erased.lambda) = [0, 0, 0, 0]
-erased.lambda<complex>(%erased.lambda.env: Ptr): I32 {
-  b_0 {
-    %v_1 = add %erased.lambda.env, 8: Ptr
-    %v_2 = loads %v_1, 8: I64
-    %v_3 = sext %v_2: I32
-    ret %v_3
-  }
-}
-
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32
@@ -380,30 +359,6 @@ allocateHeap<complex>(%size: I64): Ptr {
     %v_37 = add %v_35, %v_35: I64
     %v_38 = add %v_16, 1: I64
     jmp b_7
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: I64
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = sub %allocation, 8: Ptr
-    %v_6 = loads %v_5, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %v_6, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    store %v_9, %allocation, 8
-    ret 
-  }
-
-  b_3 {
-    ret 
   }
 }
 

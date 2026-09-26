@@ -1,231 +1,214 @@
 
-sizes<complex>(): I32 {
-  b_0 {
-    ret 0
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex sizes: I32
-    %v_2 = cmp_neq %v_1, 0: I32
-    je %v_2, b_3, b_4
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = imm 3: I32
+    %v_3 = imm 0: I32
+    %v_4 = imm 0: I32
+    %v_5 = loads %v_1, 4: I32
+    jmp b_6
   }
 
-  b_4 {
-    %v_5 = alloca 4, 4: Ptr
-    %v_6 = imm 3: I32
-    %v_7 = imm 0: I32
-    %v_8 = imm 0: I32
-    %v_9 = loads %v_5, 4: I32
-    jmp b_10
-  }
-
-  b_3 {
-    %v_11 = call_complex sizes: I32
-    ret %v_11
+  b_7 {
+    %v_8 = alloca 4, 4: Ptr
+    %v_9 = alloca 4, 4: Ptr
+    %v_10 = loads %v_8, 4: I32
+    jmp b_11
   }
 
   b_12 {
-    %v_13 = alloca 4, 4: Ptr
-    %v_14 = alloca 4, 4: Ptr
-    %v_15 = loads %v_13, 4: I32
+    ret 5
+  }
+
+  b_13 {
+    %v_14 = alloca 24, 4: Ptr
+    store %v_14, 0, 4
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 1, 4
     jmp b_16
   }
 
   b_17 {
-    ret 5
-  }
-
-  b_18 {
-    %v_19 = alloca 24, 4: Ptr
-    store %v_19, 0, 4
-    %v_20 = add %v_19, 8: Ptr
-    store %v_20, 1, 4
-    jmp b_21
-  }
-
-  b_22 {
     ret 6
   }
 
-  b_10 {
-    %v_23 = phi [b_4, 0], [b_24, %v_25]: I32
-    %v_26 = phi [b_4, 0], [b_24, %v_27]: I32
-    %v_28 = phi [b_4, %v_9], [b_24, %v_29]: I32
-    switch %v_26, b_30, [b_31, 0], [b_32, 1], [b_33, 2]
+  b_6 {
+    %v_18 = phi [b_0, 0], [b_19, %v_20]: I32
+    %v_21 = phi [b_0, 0], [b_19, %v_22]: I32
+    %v_23 = phi [b_0, %v_5], [b_19, %v_24]: I32
+    switch %v_21, b_25, [b_26, 0], [b_27, 1], [b_28, 2]
   }
 
-  b_33 {
-    %v_34 = add %v_28, 1: I32
-    store %v_5, %v_34, 4
-    jmp b_35
+  b_28 {
+    %v_29 = add %v_23, 1: I32
+    store %v_1, %v_29, 4
+    jmp b_30
+  }
+
+  b_27 {
+    %v_31 = add %v_23, 1: I32
+    store %v_1, %v_31, 4
+    jmp b_32
+  }
+
+  b_26 {
+    store %v_1, %v_3, 4
+    jmp b_32
   }
 
   b_32 {
-    %v_36 = add %v_28, 1: I32
-    store %v_5, %v_36, 4
-    jmp b_37
+    %v_33 = phi [b_27, %v_31], [b_26, %v_3]: I32
+    %v_34 = cmp_ilt %v_33, %v_2: I32
+    je %v_34, b_35, b_36
   }
 
-  b_31 {
-    store %v_5, %v_7, 4
-    jmp b_37
-  }
-
-  b_37 {
-    %v_38 = phi [b_32, %v_36], [b_31, %v_7]: I32
-    %v_39 = cmp_ilt %v_38, %v_6: I32
-    je %v_39, b_40, b_41
-  }
-
-  b_41 {
-    store %v_5, %v_8, 4
-    jmp b_35
-  }
-
-  b_35 {
-    %v_42 = phi [b_33, %v_34], [b_41, %v_8]: I32
-    %v_43 = cmp_ilt %v_42, %v_6: I32
-    je %v_43, b_44, b_45
-  }
-
-  b_45 {
+  b_36 {
+    store %v_1, %v_4, 4
     jmp b_30
   }
 
   b_30 {
-    %v_46 = cmp_neq %v_23, 24147: I32
-    je %v_46, b_17, b_12
-  }
-
-  b_44 {
-    %v_47 = imul %v_42, 3: I32
-    %v_48 = add %v_47, 1: I32
-    jmp b_24
+    %v_37 = phi [b_28, %v_29], [b_36, %v_4]: I32
+    %v_38 = cmp_ilt %v_37, %v_2: I32
+    je %v_38, b_39, b_40
   }
 
   b_40 {
-    %v_49 = shl %v_38, 1: I32
-    jmp b_24
+    jmp b_25
   }
 
-  b_24 {
-    %v_27 = phi [b_44, 2], [b_40, 1]: I32
-    %v_50 = phi [b_44, %v_48], [b_40, %v_49]: I32
-    %v_29 = phi [b_44, %v_42], [b_40, %v_38]: I32
-    %v_51 = imul %v_23, 10: I32
-    %v_25 = add %v_51, %v_50: I32
-    jmp b_10
+  b_25 {
+    %v_41 = cmp_neq %v_18, 24147: I32
+    je %v_41, b_12, b_7
   }
 
-  b_16 {
-    %v_52 = phi [b_12, 0], [b_53, %v_54]: I32
-    %v_55 = phi [b_12, 0], [b_53, %v_56]: I32
-    %v_57 = phi [b_12, %v_15], [b_53, %v_58]: I32
-    switch %v_55, b_59, [b_60, 0], [b_61, 1], [b_62, 2], [b_63, 3], [b_64, 4]
+  b_39 {
+    %v_42 = imul %v_37, 3: I32
+    %v_43 = add %v_42, 1: I32
+    jmp b_19
   }
 
-  b_63 {
-    %v_65 = add %v_57, 2: I32
-    jmp b_53
+  b_35 {
+    %v_44 = shl %v_33, 1: I32
+    jmp b_19
   }
 
-  b_62 {
-    jmp b_59
+  b_19 {
+    %v_22 = phi [b_39, 2], [b_35, 1]: I32
+    %v_45 = phi [b_39, %v_43], [b_35, %v_44]: I32
+    %v_24 = phi [b_39, %v_37], [b_35, %v_33]: I32
+    %v_46 = imul %v_18, 10: I32
+    %v_20 = add %v_46, %v_45: I32
+    jmp b_6
   }
 
-  b_59 {
-    %v_66 = loads %v_14, 4: I32
-    jmp b_67
+  b_11 {
+    %v_47 = phi [b_7, 0], [b_48, %v_49]: I32
+    %v_50 = phi [b_7, 0], [b_48, %v_51]: I32
+    %v_52 = phi [b_7, %v_10], [b_48, %v_53]: I32
+    switch %v_50, b_54, [b_55, 0], [b_56, 1], [b_57, 2], [b_58, 3], [b_59, 4]
   }
 
-  b_67 {
-    %v_68 = phi [b_59, %v_52], [b_69, %v_70]: I32
-    %v_71 = phi [b_59, 0], [b_69, %v_72]: I32
-    %v_73 = phi [b_59, %v_66], [b_69, %v_74]: I32
-    switch %v_71, b_75, [b_76, 0], [b_77, 1], [b_78, 2], [b_79, 3], [b_80, 4]
+  b_58 {
+    %v_60 = add %v_52, 2: I32
+    jmp b_48
   }
 
-  b_79 {
-    %v_81 = add %v_73, 2: I32
-    jmp b_69
+  b_57 {
+    jmp b_54
   }
 
-  b_78 {
-    jmp b_75
-  }
-
-  b_75 {
-    %v_82 = cmp_neq %v_68, 7802: I32
-    je %v_82, b_22, b_18
-  }
-
-  b_77 {
-    %v_83 = add %v_73, 1: I32
-    jmp b_69
-  }
-
-  b_76 {
-    %v_84 = imm 0: I32
-    store %v_14, %v_84, 4
-    jmp b_69
-  }
-
-  b_69 {
-    %v_72 = phi [b_79, 4], [b_77, 2], [b_76, 3]: I32
-    %v_85 = phi [b_79, %v_81], [b_77, %v_83], [b_76, %v_84]: I32
-    %v_74 = phi [b_79, %v_73], [b_77, %v_73], [b_76, %v_84]: I32
-    %v_86 = imul %v_68, 10: I32
-    %v_70 = add %v_86, %v_85: I32
-    jmp b_67
-  }
-
-  b_61 {
-    %v_87 = add %v_57, 1: I32
-    jmp b_53
-  }
-
-  b_60 {
-    %v_88 = imm 7: I32
-    store %v_13, %v_88, 4
-    jmp b_53
-  }
-
-  b_53 {
-    %v_56 = phi [b_63, 4], [b_61, 2], [b_60, 1]: I32
-    %v_89 = phi [b_63, %v_65], [b_61, %v_87], [b_60, %v_88]: I32
-    %v_58 = phi [b_63, %v_57], [b_61, %v_57], [b_60, %v_88]: I32
-    %v_90 = imul %v_52, 10: I32
-    %v_54 = add %v_90, %v_89: I32
-    jmp b_16
-  }
-
-  b_21 {
-    %v_91 = phi [b_18, 0], [b_92, %v_93]: I32
-    %v_94 = call_complex fifty$step, %v_19, 0, 0: I32
-    je %v_94, b_92, b_95
-  }
-
-  b_95 {
-    %v_96 = cmp_neq %v_91, 1525: I32
-    %v_97 = select %v_96, 7, 0: I32
-    ret %v_97
-  }
-
-  b_92 {
-    %v_98 = add %v_19, 4: Ptr
-    %v_99 = loads %v_98, 4: I32
-    %v_93 = add %v_91, %v_99: I32
-    jmp b_21
-  }
-
-  b_64 {
+  b_54 {
+    %v_61 = loads %v_9, 4: I32
     jmp b_62
   }
 
-  b_80 {
-    jmp b_78
+  b_62 {
+    %v_63 = phi [b_54, %v_47], [b_64, %v_65]: I32
+    %v_66 = phi [b_54, 0], [b_64, %v_67]: I32
+    %v_68 = phi [b_54, %v_61], [b_64, %v_69]: I32
+    switch %v_66, b_70, [b_71, 0], [b_72, 1], [b_73, 2], [b_74, 3], [b_75, 4]
+  }
+
+  b_74 {
+    %v_76 = add %v_68, 2: I32
+    jmp b_64
+  }
+
+  b_73 {
+    jmp b_70
+  }
+
+  b_70 {
+    %v_77 = cmp_neq %v_63, 7802: I32
+    je %v_77, b_17, b_13
+  }
+
+  b_72 {
+    %v_78 = add %v_68, 1: I32
+    jmp b_64
+  }
+
+  b_71 {
+    %v_79 = imm 0: I32
+    store %v_9, %v_79, 4
+    jmp b_64
+  }
+
+  b_64 {
+    %v_67 = phi [b_74, 4], [b_72, 2], [b_71, 3]: I32
+    %v_80 = phi [b_74, %v_76], [b_72, %v_78], [b_71, %v_79]: I32
+    %v_69 = phi [b_74, %v_68], [b_72, %v_68], [b_71, %v_79]: I32
+    %v_81 = imul %v_63, 10: I32
+    %v_65 = add %v_81, %v_80: I32
+    jmp b_62
+  }
+
+  b_56 {
+    %v_82 = add %v_52, 1: I32
+    jmp b_48
+  }
+
+  b_55 {
+    %v_83 = imm 7: I32
+    store %v_8, %v_83, 4
+    jmp b_48
+  }
+
+  b_48 {
+    %v_51 = phi [b_58, 4], [b_56, 2], [b_55, 1]: I32
+    %v_84 = phi [b_58, %v_60], [b_56, %v_82], [b_55, %v_83]: I32
+    %v_53 = phi [b_58, %v_52], [b_56, %v_52], [b_55, %v_83]: I32
+    %v_85 = imul %v_47, 10: I32
+    %v_49 = add %v_85, %v_84: I32
+    jmp b_11
+  }
+
+  b_16 {
+    %v_86 = phi [b_13, 0], [b_87, %v_88]: I32
+    %v_89 = call_complex fifty$step, %v_14, 0, 0: I32
+    je %v_89, b_87, b_90
+  }
+
+  b_90 {
+    %v_91 = cmp_neq %v_86, 1525: I32
+    %v_92 = select %v_91, 7, 0: I32
+    ret %v_92
+  }
+
+  b_87 {
+    %v_93 = add %v_14, 4: Ptr
+    %v_94 = loads %v_93, 4: I32
+    %v_88 = add %v_86, %v_94: I32
+    jmp b_16
+  }
+
+  b_59 {
+    jmp b_57
+  }
+
+  b_75 {
+    jmp b_73
   }
 }
 
@@ -250,893 +233,891 @@ fifty$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
   b_58 {
     %v_59 = loads %v_1, 4: I32
     store %v_2, %v_59, 4
-    %v_60 = loads %v_1, 4: I32
-    %v_61 = shl %v_60, 1: I32
-    store %v_3, %v_61, 4
-    %v_62 = loads %v_1, 4: I32
-    %v_63 = imul %v_62, 3: I32
-    store %v_4, %v_63, 4
-    %v_64 = add %v_59, %v_61: I32
-    %v_65 = add %v_64, %v_63: I32
-    %v_66 = add %$self, 4: Ptr
-    store %v_66, %v_65, 4
+    %v_60 = shl %v_59, 1: I32
+    store %v_3, %v_60, 4
+    %v_61 = imul %v_59, 3: I32
+    store %v_4, %v_61, 4
+    %v_62 = add %v_59, %v_60: I32
+    %v_63 = add %v_62, %v_61: I32
+    %v_64 = add %$self, 4: Ptr
+    store %v_64, %v_63, 4
     store %$self, 1, 4
     ret 1
   }
 
-  b_67 {
-    %v_68 = loads %v_2, 4: I32
-    %v_69 = loads %v_3, 4: I32
+  b_65 {
+    %v_66 = loads %v_2, 4: I32
+    %v_67 = loads %v_3, 4: I32
+    %v_68 = add %v_66, %v_67: I32
+    %v_69 = loads %v_4, 4: I32
     %v_70 = add %v_68, %v_69: I32
-    %v_71 = loads %v_4, 4: I32
-    %v_72 = add %v_70, %v_71: I32
-    %v_73 = add %v_72, 1: I32
-    %v_74 = add %$self, 4: Ptr
-    store %v_74, %v_73, 4
+    %v_71 = add %v_70, 1: I32
+    %v_72 = add %$self, 4: Ptr
+    store %v_72, %v_71, 4
     store %$self, 2, 4
     ret 1
   }
 
   b_9 {
-    %v_75 = cmp_eq %$resume, 0: I32
-    je %v_75, b_76, b_38
+    %v_73 = cmp_eq %$resume, 0: I32
+    je %v_73, b_74, b_38
   }
 
-  b_76 {
-    %v_77 = loads %v_2, 4: I32
-    %v_78 = loads %v_3, 4: I32
+  b_74 {
+    %v_75 = loads %v_2, 4: I32
+    %v_76 = loads %v_3, 4: I32
+    %v_77 = add %v_75, %v_76: I32
+    %v_78 = loads %v_4, 4: I32
     %v_79 = add %v_77, %v_78: I32
-    %v_80 = loads %v_4, 4: I32
-    %v_81 = add %v_79, %v_80: I32
-    %v_82 = add %v_81, 2: I32
-    %v_83 = add %$self, 4: Ptr
-    store %v_83, %v_82, 4
+    %v_80 = add %v_79, 2: I32
+    %v_81 = add %$self, 4: Ptr
+    store %v_81, %v_80, 4
     store %$self, 3, 4
     ret 1
   }
 
   b_10 {
-    %v_84 = cmp_eq %$resume, 0: I32
-    je %v_84, b_85, b_38
+    %v_82 = cmp_eq %$resume, 0: I32
+    je %v_82, b_83, b_38
   }
 
-  b_85 {
-    %v_86 = loads %v_2, 4: I32
-    %v_87 = loads %v_3, 4: I32
+  b_83 {
+    %v_84 = loads %v_2, 4: I32
+    %v_85 = loads %v_3, 4: I32
+    %v_86 = add %v_84, %v_85: I32
+    %v_87 = loads %v_4, 4: I32
     %v_88 = add %v_86, %v_87: I32
-    %v_89 = loads %v_4, 4: I32
-    %v_90 = add %v_88, %v_89: I32
-    %v_91 = add %v_90, 3: I32
-    %v_92 = add %$self, 4: Ptr
-    store %v_92, %v_91, 4
+    %v_89 = add %v_88, 3: I32
+    %v_90 = add %$self, 4: Ptr
+    store %v_90, %v_89, 4
     store %$self, 4, 4
     ret 1
   }
 
   b_11 {
-    %v_93 = cmp_eq %$resume, 0: I32
-    je %v_93, b_94, b_38
+    %v_91 = cmp_eq %$resume, 0: I32
+    je %v_91, b_92, b_38
   }
 
-  b_94 {
-    %v_95 = loads %v_2, 4: I32
-    %v_96 = loads %v_3, 4: I32
+  b_92 {
+    %v_93 = loads %v_2, 4: I32
+    %v_94 = loads %v_3, 4: I32
+    %v_95 = add %v_93, %v_94: I32
+    %v_96 = loads %v_4, 4: I32
     %v_97 = add %v_95, %v_96: I32
-    %v_98 = loads %v_4, 4: I32
-    %v_99 = add %v_97, %v_98: I32
-    %v_100 = add %v_99, 4: I32
-    %v_101 = add %$self, 4: Ptr
-    store %v_101, %v_100, 4
+    %v_98 = add %v_97, 4: I32
+    %v_99 = add %$self, 4: Ptr
+    store %v_99, %v_98, 4
     store %$self, 5, 4
     ret 1
   }
 
   b_12 {
-    %v_102 = cmp_eq %$resume, 0: I32
-    je %v_102, b_103, b_38
+    %v_100 = cmp_eq %$resume, 0: I32
+    je %v_100, b_101, b_38
   }
 
-  b_103 {
-    %v_104 = loads %v_2, 4: I32
-    %v_105 = loads %v_3, 4: I32
+  b_101 {
+    %v_102 = loads %v_2, 4: I32
+    %v_103 = loads %v_3, 4: I32
+    %v_104 = add %v_102, %v_103: I32
+    %v_105 = loads %v_4, 4: I32
     %v_106 = add %v_104, %v_105: I32
-    %v_107 = loads %v_4, 4: I32
-    %v_108 = add %v_106, %v_107: I32
-    %v_109 = add %v_108, 5: I32
-    %v_110 = add %$self, 4: Ptr
-    store %v_110, %v_109, 4
+    %v_107 = add %v_106, 5: I32
+    %v_108 = add %$self, 4: Ptr
+    store %v_108, %v_107, 4
     store %$self, 6, 4
     ret 1
   }
 
   b_13 {
-    %v_111 = cmp_eq %$resume, 0: I32
-    je %v_111, b_112, b_38
+    %v_109 = cmp_eq %$resume, 0: I32
+    je %v_109, b_110, b_38
   }
 
-  b_112 {
-    %v_113 = loads %v_2, 4: I32
-    %v_114 = loads %v_3, 4: I32
+  b_110 {
+    %v_111 = loads %v_2, 4: I32
+    %v_112 = loads %v_3, 4: I32
+    %v_113 = add %v_111, %v_112: I32
+    %v_114 = loads %v_4, 4: I32
     %v_115 = add %v_113, %v_114: I32
-    %v_116 = loads %v_4, 4: I32
-    %v_117 = add %v_115, %v_116: I32
-    %v_118 = add %v_117, 6: I32
-    %v_119 = add %$self, 4: Ptr
-    store %v_119, %v_118, 4
+    %v_116 = add %v_115, 6: I32
+    %v_117 = add %$self, 4: Ptr
+    store %v_117, %v_116, 4
     store %$self, 7, 4
     ret 1
   }
 
   b_14 {
-    %v_120 = cmp_eq %$resume, 0: I32
-    je %v_120, b_121, b_38
+    %v_118 = cmp_eq %$resume, 0: I32
+    je %v_118, b_119, b_38
   }
 
-  b_121 {
-    %v_122 = loads %v_2, 4: I32
-    %v_123 = loads %v_3, 4: I32
+  b_119 {
+    %v_120 = loads %v_2, 4: I32
+    %v_121 = loads %v_3, 4: I32
+    %v_122 = add %v_120, %v_121: I32
+    %v_123 = loads %v_4, 4: I32
     %v_124 = add %v_122, %v_123: I32
-    %v_125 = loads %v_4, 4: I32
-    %v_126 = add %v_124, %v_125: I32
-    %v_127 = add %v_126, 7: I32
-    %v_128 = add %$self, 4: Ptr
-    store %v_128, %v_127, 4
+    %v_125 = add %v_124, 7: I32
+    %v_126 = add %$self, 4: Ptr
+    store %v_126, %v_125, 4
     store %$self, 8, 4
     ret 1
   }
 
   b_15 {
-    %v_129 = cmp_eq %$resume, 0: I32
-    je %v_129, b_130, b_38
+    %v_127 = cmp_eq %$resume, 0: I32
+    je %v_127, b_128, b_38
   }
 
-  b_130 {
-    %v_131 = loads %v_2, 4: I32
-    %v_132 = loads %v_3, 4: I32
+  b_128 {
+    %v_129 = loads %v_2, 4: I32
+    %v_130 = loads %v_3, 4: I32
+    %v_131 = add %v_129, %v_130: I32
+    %v_132 = loads %v_4, 4: I32
     %v_133 = add %v_131, %v_132: I32
-    %v_134 = loads %v_4, 4: I32
-    %v_135 = add %v_133, %v_134: I32
-    %v_136 = add %v_135, 8: I32
-    %v_137 = add %$self, 4: Ptr
-    store %v_137, %v_136, 4
+    %v_134 = add %v_133, 8: I32
+    %v_135 = add %$self, 4: Ptr
+    store %v_135, %v_134, 4
     store %$self, 9, 4
     ret 1
   }
 
   b_16 {
-    %v_138 = cmp_eq %$resume, 0: I32
-    je %v_138, b_139, b_38
+    %v_136 = cmp_eq %$resume, 0: I32
+    je %v_136, b_137, b_38
   }
 
-  b_139 {
-    %v_140 = loads %v_2, 4: I32
-    %v_141 = loads %v_3, 4: I32
+  b_137 {
+    %v_138 = loads %v_2, 4: I32
+    %v_139 = loads %v_3, 4: I32
+    %v_140 = add %v_138, %v_139: I32
+    %v_141 = loads %v_4, 4: I32
     %v_142 = add %v_140, %v_141: I32
-    %v_143 = loads %v_4, 4: I32
-    %v_144 = add %v_142, %v_143: I32
-    %v_145 = add %v_144, 9: I32
-    %v_146 = add %$self, 4: Ptr
-    store %v_146, %v_145, 4
+    %v_143 = add %v_142, 9: I32
+    %v_144 = add %$self, 4: Ptr
+    store %v_144, %v_143, 4
     store %$self, 10, 4
     ret 1
   }
 
   b_17 {
-    %v_147 = cmp_eq %$resume, 0: I32
-    je %v_147, b_148, b_38
+    %v_145 = cmp_eq %$resume, 0: I32
+    je %v_145, b_146, b_38
   }
 
-  b_148 {
-    %v_149 = loads %v_2, 4: I32
-    %v_150 = loads %v_3, 4: I32
+  b_146 {
+    %v_147 = loads %v_2, 4: I32
+    %v_148 = loads %v_3, 4: I32
+    %v_149 = add %v_147, %v_148: I32
+    %v_150 = loads %v_4, 4: I32
     %v_151 = add %v_149, %v_150: I32
-    %v_152 = loads %v_4, 4: I32
-    %v_153 = add %v_151, %v_152: I32
-    %v_154 = add %v_153, 10: I32
-    %v_155 = add %$self, 4: Ptr
-    store %v_155, %v_154, 4
+    %v_152 = add %v_151, 10: I32
+    %v_153 = add %$self, 4: Ptr
+    store %v_153, %v_152, 4
     store %$self, 11, 4
     ret 1
   }
 
   b_18 {
-    %v_156 = cmp_eq %$resume, 0: I32
-    je %v_156, b_157, b_38
+    %v_154 = cmp_eq %$resume, 0: I32
+    je %v_154, b_155, b_38
   }
 
-  b_157 {
-    %v_158 = loads %v_2, 4: I32
-    %v_159 = loads %v_3, 4: I32
+  b_155 {
+    %v_156 = loads %v_2, 4: I32
+    %v_157 = loads %v_3, 4: I32
+    %v_158 = add %v_156, %v_157: I32
+    %v_159 = loads %v_4, 4: I32
     %v_160 = add %v_158, %v_159: I32
-    %v_161 = loads %v_4, 4: I32
-    %v_162 = add %v_160, %v_161: I32
-    %v_163 = add %v_162, 11: I32
-    %v_164 = add %$self, 4: Ptr
-    store %v_164, %v_163, 4
+    %v_161 = add %v_160, 11: I32
+    %v_162 = add %$self, 4: Ptr
+    store %v_162, %v_161, 4
     store %$self, 12, 4
     ret 1
   }
 
   b_19 {
-    %v_165 = cmp_eq %$resume, 0: I32
-    je %v_165, b_166, b_38
+    %v_163 = cmp_eq %$resume, 0: I32
+    je %v_163, b_164, b_38
   }
 
-  b_166 {
-    %v_167 = loads %v_2, 4: I32
-    %v_168 = loads %v_3, 4: I32
+  b_164 {
+    %v_165 = loads %v_2, 4: I32
+    %v_166 = loads %v_3, 4: I32
+    %v_167 = add %v_165, %v_166: I32
+    %v_168 = loads %v_4, 4: I32
     %v_169 = add %v_167, %v_168: I32
-    %v_170 = loads %v_4, 4: I32
-    %v_171 = add %v_169, %v_170: I32
-    %v_172 = add %v_171, 12: I32
-    %v_173 = add %$self, 4: Ptr
-    store %v_173, %v_172, 4
+    %v_170 = add %v_169, 12: I32
+    %v_171 = add %$self, 4: Ptr
+    store %v_171, %v_170, 4
     store %$self, 13, 4
     ret 1
   }
 
   b_20 {
-    %v_174 = cmp_eq %$resume, 0: I32
-    je %v_174, b_175, b_38
+    %v_172 = cmp_eq %$resume, 0: I32
+    je %v_172, b_173, b_38
   }
 
-  b_175 {
-    %v_176 = loads %v_2, 4: I32
-    %v_177 = loads %v_3, 4: I32
+  b_173 {
+    %v_174 = loads %v_2, 4: I32
+    %v_175 = loads %v_3, 4: I32
+    %v_176 = add %v_174, %v_175: I32
+    %v_177 = loads %v_4, 4: I32
     %v_178 = add %v_176, %v_177: I32
-    %v_179 = loads %v_4, 4: I32
-    %v_180 = add %v_178, %v_179: I32
-    %v_181 = add %v_180, 13: I32
-    %v_182 = add %$self, 4: Ptr
-    store %v_182, %v_181, 4
+    %v_179 = add %v_178, 13: I32
+    %v_180 = add %$self, 4: Ptr
+    store %v_180, %v_179, 4
     store %$self, 14, 4
     ret 1
   }
 
   b_21 {
-    %v_183 = cmp_eq %$resume, 0: I32
-    je %v_183, b_184, b_38
+    %v_181 = cmp_eq %$resume, 0: I32
+    je %v_181, b_182, b_38
   }
 
-  b_184 {
-    %v_185 = loads %v_2, 4: I32
-    %v_186 = loads %v_3, 4: I32
+  b_182 {
+    %v_183 = loads %v_2, 4: I32
+    %v_184 = loads %v_3, 4: I32
+    %v_185 = add %v_183, %v_184: I32
+    %v_186 = loads %v_4, 4: I32
     %v_187 = add %v_185, %v_186: I32
-    %v_188 = loads %v_4, 4: I32
-    %v_189 = add %v_187, %v_188: I32
-    %v_190 = add %v_189, 14: I32
-    %v_191 = add %$self, 4: Ptr
-    store %v_191, %v_190, 4
+    %v_188 = add %v_187, 14: I32
+    %v_189 = add %$self, 4: Ptr
+    store %v_189, %v_188, 4
     store %$self, 15, 4
     ret 1
   }
 
   b_22 {
-    %v_192 = cmp_eq %$resume, 0: I32
-    je %v_192, b_193, b_38
+    %v_190 = cmp_eq %$resume, 0: I32
+    je %v_190, b_191, b_38
   }
 
-  b_193 {
-    %v_194 = loads %v_2, 4: I32
-    %v_195 = loads %v_3, 4: I32
+  b_191 {
+    %v_192 = loads %v_2, 4: I32
+    %v_193 = loads %v_3, 4: I32
+    %v_194 = add %v_192, %v_193: I32
+    %v_195 = loads %v_4, 4: I32
     %v_196 = add %v_194, %v_195: I32
-    %v_197 = loads %v_4, 4: I32
-    %v_198 = add %v_196, %v_197: I32
-    %v_199 = add %v_198, 15: I32
-    %v_200 = add %$self, 4: Ptr
-    store %v_200, %v_199, 4
+    %v_197 = add %v_196, 15: I32
+    %v_198 = add %$self, 4: Ptr
+    store %v_198, %v_197, 4
     store %$self, 16, 4
     ret 1
   }
 
   b_23 {
-    %v_201 = cmp_eq %$resume, 0: I32
-    je %v_201, b_202, b_38
+    %v_199 = cmp_eq %$resume, 0: I32
+    je %v_199, b_200, b_38
   }
 
-  b_202 {
-    %v_203 = loads %v_2, 4: I32
-    %v_204 = loads %v_3, 4: I32
+  b_200 {
+    %v_201 = loads %v_2, 4: I32
+    %v_202 = loads %v_3, 4: I32
+    %v_203 = add %v_201, %v_202: I32
+    %v_204 = loads %v_4, 4: I32
     %v_205 = add %v_203, %v_204: I32
-    %v_206 = loads %v_4, 4: I32
-    %v_207 = add %v_205, %v_206: I32
-    %v_208 = add %v_207, 16: I32
-    %v_209 = add %$self, 4: Ptr
-    store %v_209, %v_208, 4
+    %v_206 = add %v_205, 16: I32
+    %v_207 = add %$self, 4: Ptr
+    store %v_207, %v_206, 4
     store %$self, 17, 4
     ret 1
   }
 
   b_24 {
-    %v_210 = cmp_eq %$resume, 0: I32
-    je %v_210, b_211, b_38
+    %v_208 = cmp_eq %$resume, 0: I32
+    je %v_208, b_209, b_38
   }
 
-  b_211 {
-    %v_212 = loads %v_2, 4: I32
-    %v_213 = loads %v_3, 4: I32
+  b_209 {
+    %v_210 = loads %v_2, 4: I32
+    %v_211 = loads %v_3, 4: I32
+    %v_212 = add %v_210, %v_211: I32
+    %v_213 = loads %v_4, 4: I32
     %v_214 = add %v_212, %v_213: I32
-    %v_215 = loads %v_4, 4: I32
-    %v_216 = add %v_214, %v_215: I32
-    %v_217 = add %v_216, 17: I32
-    %v_218 = add %$self, 4: Ptr
-    store %v_218, %v_217, 4
+    %v_215 = add %v_214, 17: I32
+    %v_216 = add %$self, 4: Ptr
+    store %v_216, %v_215, 4
     store %$self, 18, 4
     ret 1
   }
 
   b_25 {
-    %v_219 = cmp_eq %$resume, 0: I32
-    je %v_219, b_220, b_38
+    %v_217 = cmp_eq %$resume, 0: I32
+    je %v_217, b_218, b_38
   }
 
-  b_220 {
-    %v_221 = loads %v_2, 4: I32
-    %v_222 = loads %v_3, 4: I32
+  b_218 {
+    %v_219 = loads %v_2, 4: I32
+    %v_220 = loads %v_3, 4: I32
+    %v_221 = add %v_219, %v_220: I32
+    %v_222 = loads %v_4, 4: I32
     %v_223 = add %v_221, %v_222: I32
-    %v_224 = loads %v_4, 4: I32
-    %v_225 = add %v_223, %v_224: I32
-    %v_226 = add %v_225, 18: I32
-    %v_227 = add %$self, 4: Ptr
-    store %v_227, %v_226, 4
+    %v_224 = add %v_223, 18: I32
+    %v_225 = add %$self, 4: Ptr
+    store %v_225, %v_224, 4
     store %$self, 19, 4
     ret 1
   }
 
   b_26 {
-    %v_228 = cmp_eq %$resume, 0: I32
-    je %v_228, b_229, b_38
+    %v_226 = cmp_eq %$resume, 0: I32
+    je %v_226, b_227, b_38
   }
 
-  b_229 {
-    %v_230 = loads %v_2, 4: I32
-    %v_231 = loads %v_3, 4: I32
+  b_227 {
+    %v_228 = loads %v_2, 4: I32
+    %v_229 = loads %v_3, 4: I32
+    %v_230 = add %v_228, %v_229: I32
+    %v_231 = loads %v_4, 4: I32
     %v_232 = add %v_230, %v_231: I32
-    %v_233 = loads %v_4, 4: I32
-    %v_234 = add %v_232, %v_233: I32
-    %v_235 = add %v_234, 19: I32
-    %v_236 = add %$self, 4: Ptr
-    store %v_236, %v_235, 4
+    %v_233 = add %v_232, 19: I32
+    %v_234 = add %$self, 4: Ptr
+    store %v_234, %v_233, 4
     store %$self, 20, 4
     ret 1
   }
 
   b_27 {
-    %v_237 = cmp_eq %$resume, 0: I32
-    je %v_237, b_238, b_38
+    %v_235 = cmp_eq %$resume, 0: I32
+    je %v_235, b_236, b_38
   }
 
-  b_238 {
-    %v_239 = loads %v_2, 4: I32
-    %v_240 = loads %v_3, 4: I32
+  b_236 {
+    %v_237 = loads %v_2, 4: I32
+    %v_238 = loads %v_3, 4: I32
+    %v_239 = add %v_237, %v_238: I32
+    %v_240 = loads %v_4, 4: I32
     %v_241 = add %v_239, %v_240: I32
-    %v_242 = loads %v_4, 4: I32
-    %v_243 = add %v_241, %v_242: I32
-    %v_244 = add %v_243, 20: I32
-    %v_245 = add %$self, 4: Ptr
-    store %v_245, %v_244, 4
+    %v_242 = add %v_241, 20: I32
+    %v_243 = add %$self, 4: Ptr
+    store %v_243, %v_242, 4
     store %$self, 21, 4
     ret 1
   }
 
   b_28 {
-    %v_246 = cmp_eq %$resume, 0: I32
-    je %v_246, b_247, b_38
+    %v_244 = cmp_eq %$resume, 0: I32
+    je %v_244, b_245, b_38
   }
 
-  b_247 {
-    %v_248 = loads %v_2, 4: I32
-    %v_249 = loads %v_3, 4: I32
+  b_245 {
+    %v_246 = loads %v_2, 4: I32
+    %v_247 = loads %v_3, 4: I32
+    %v_248 = add %v_246, %v_247: I32
+    %v_249 = loads %v_4, 4: I32
     %v_250 = add %v_248, %v_249: I32
-    %v_251 = loads %v_4, 4: I32
-    %v_252 = add %v_250, %v_251: I32
-    %v_253 = add %v_252, 21: I32
-    %v_254 = add %$self, 4: Ptr
-    store %v_254, %v_253, 4
+    %v_251 = add %v_250, 21: I32
+    %v_252 = add %$self, 4: Ptr
+    store %v_252, %v_251, 4
     store %$self, 22, 4
     ret 1
   }
 
   b_29 {
-    %v_255 = cmp_eq %$resume, 0: I32
-    je %v_255, b_256, b_38
+    %v_253 = cmp_eq %$resume, 0: I32
+    je %v_253, b_254, b_38
   }
 
-  b_256 {
-    %v_257 = loads %v_2, 4: I32
-    %v_258 = loads %v_3, 4: I32
+  b_254 {
+    %v_255 = loads %v_2, 4: I32
+    %v_256 = loads %v_3, 4: I32
+    %v_257 = add %v_255, %v_256: I32
+    %v_258 = loads %v_4, 4: I32
     %v_259 = add %v_257, %v_258: I32
-    %v_260 = loads %v_4, 4: I32
-    %v_261 = add %v_259, %v_260: I32
-    %v_262 = add %v_261, 22: I32
-    %v_263 = add %$self, 4: Ptr
-    store %v_263, %v_262, 4
+    %v_260 = add %v_259, 22: I32
+    %v_261 = add %$self, 4: Ptr
+    store %v_261, %v_260, 4
     store %$self, 23, 4
     ret 1
   }
 
   b_30 {
-    %v_264 = cmp_eq %$resume, 0: I32
-    je %v_264, b_265, b_38
+    %v_262 = cmp_eq %$resume, 0: I32
+    je %v_262, b_263, b_38
   }
 
-  b_265 {
-    %v_266 = loads %v_2, 4: I32
-    %v_267 = loads %v_3, 4: I32
+  b_263 {
+    %v_264 = loads %v_2, 4: I32
+    %v_265 = loads %v_3, 4: I32
+    %v_266 = add %v_264, %v_265: I32
+    %v_267 = loads %v_4, 4: I32
     %v_268 = add %v_266, %v_267: I32
-    %v_269 = loads %v_4, 4: I32
-    %v_270 = add %v_268, %v_269: I32
-    %v_271 = add %v_270, 23: I32
-    %v_272 = add %$self, 4: Ptr
-    store %v_272, %v_271, 4
+    %v_269 = add %v_268, 23: I32
+    %v_270 = add %$self, 4: Ptr
+    store %v_270, %v_269, 4
     store %$self, 24, 4
     ret 1
   }
 
   b_31 {
-    %v_273 = cmp_eq %$resume, 0: I32
-    je %v_273, b_274, b_38
+    %v_271 = cmp_eq %$resume, 0: I32
+    je %v_271, b_272, b_38
   }
 
-  b_274 {
-    %v_275 = loads %v_2, 4: I32
-    %v_276 = loads %v_3, 4: I32
+  b_272 {
+    %v_273 = loads %v_2, 4: I32
+    %v_274 = loads %v_3, 4: I32
+    %v_275 = add %v_273, %v_274: I32
+    %v_276 = loads %v_4, 4: I32
     %v_277 = add %v_275, %v_276: I32
-    %v_278 = loads %v_4, 4: I32
-    %v_279 = add %v_277, %v_278: I32
-    %v_280 = add %v_279, 24: I32
-    %v_281 = add %$self, 4: Ptr
-    store %v_281, %v_280, 4
+    %v_278 = add %v_277, 24: I32
+    %v_279 = add %$self, 4: Ptr
+    store %v_279, %v_278, 4
     store %$self, 25, 4
     ret 1
   }
 
   b_32 {
-    %v_282 = cmp_eq %$resume, 0: I32
-    je %v_282, b_283, b_38
+    %v_280 = cmp_eq %$resume, 0: I32
+    je %v_280, b_281, b_38
   }
 
-  b_283 {
-    %v_284 = loads %v_2, 4: I32
-    %v_285 = loads %v_3, 4: I32
+  b_281 {
+    %v_282 = loads %v_2, 4: I32
+    %v_283 = loads %v_3, 4: I32
+    %v_284 = add %v_282, %v_283: I32
+    %v_285 = loads %v_4, 4: I32
     %v_286 = add %v_284, %v_285: I32
-    %v_287 = loads %v_4, 4: I32
-    %v_288 = add %v_286, %v_287: I32
-    %v_289 = add %v_288, 25: I32
-    %v_290 = add %$self, 4: Ptr
-    store %v_290, %v_289, 4
+    %v_287 = add %v_286, 25: I32
+    %v_288 = add %$self, 4: Ptr
+    store %v_288, %v_287, 4
     store %$self, 26, 4
     ret 1
   }
 
   b_33 {
-    %v_291 = cmp_eq %$resume, 0: I32
-    je %v_291, b_292, b_38
+    %v_289 = cmp_eq %$resume, 0: I32
+    je %v_289, b_290, b_38
   }
 
-  b_292 {
-    %v_293 = loads %v_2, 4: I32
-    %v_294 = loads %v_3, 4: I32
+  b_290 {
+    %v_291 = loads %v_2, 4: I32
+    %v_292 = loads %v_3, 4: I32
+    %v_293 = add %v_291, %v_292: I32
+    %v_294 = loads %v_4, 4: I32
     %v_295 = add %v_293, %v_294: I32
-    %v_296 = loads %v_4, 4: I32
-    %v_297 = add %v_295, %v_296: I32
-    %v_298 = add %v_297, 26: I32
-    %v_299 = add %$self, 4: Ptr
-    store %v_299, %v_298, 4
+    %v_296 = add %v_295, 26: I32
+    %v_297 = add %$self, 4: Ptr
+    store %v_297, %v_296, 4
     store %$self, 27, 4
     ret 1
   }
 
   b_34 {
-    %v_300 = cmp_eq %$resume, 0: I32
-    je %v_300, b_301, b_38
+    %v_298 = cmp_eq %$resume, 0: I32
+    je %v_298, b_299, b_38
   }
 
-  b_301 {
-    %v_302 = loads %v_2, 4: I32
-    %v_303 = loads %v_3, 4: I32
+  b_299 {
+    %v_300 = loads %v_2, 4: I32
+    %v_301 = loads %v_3, 4: I32
+    %v_302 = add %v_300, %v_301: I32
+    %v_303 = loads %v_4, 4: I32
     %v_304 = add %v_302, %v_303: I32
-    %v_305 = loads %v_4, 4: I32
-    %v_306 = add %v_304, %v_305: I32
-    %v_307 = add %v_306, 27: I32
-    %v_308 = add %$self, 4: Ptr
-    store %v_308, %v_307, 4
+    %v_305 = add %v_304, 27: I32
+    %v_306 = add %$self, 4: Ptr
+    store %v_306, %v_305, 4
     store %$self, 28, 4
     ret 1
   }
 
   b_35 {
-    %v_309 = cmp_eq %$resume, 0: I32
-    je %v_309, b_310, b_38
+    %v_307 = cmp_eq %$resume, 0: I32
+    je %v_307, b_308, b_38
   }
 
-  b_310 {
-    %v_311 = loads %v_2, 4: I32
-    %v_312 = loads %v_3, 4: I32
+  b_308 {
+    %v_309 = loads %v_2, 4: I32
+    %v_310 = loads %v_3, 4: I32
+    %v_311 = add %v_309, %v_310: I32
+    %v_312 = loads %v_4, 4: I32
     %v_313 = add %v_311, %v_312: I32
-    %v_314 = loads %v_4, 4: I32
-    %v_315 = add %v_313, %v_314: I32
-    %v_316 = add %v_315, 28: I32
-    %v_317 = add %$self, 4: Ptr
-    store %v_317, %v_316, 4
+    %v_314 = add %v_313, 28: I32
+    %v_315 = add %$self, 4: Ptr
+    store %v_315, %v_314, 4
     store %$self, 29, 4
     ret 1
   }
 
   b_36 {
-    %v_318 = cmp_eq %$resume, 0: I32
-    je %v_318, b_319, b_38
+    %v_316 = cmp_eq %$resume, 0: I32
+    je %v_316, b_317, b_38
   }
 
-  b_319 {
-    %v_320 = loads %v_2, 4: I32
-    %v_321 = loads %v_3, 4: I32
+  b_317 {
+    %v_318 = loads %v_2, 4: I32
+    %v_319 = loads %v_3, 4: I32
+    %v_320 = add %v_318, %v_319: I32
+    %v_321 = loads %v_4, 4: I32
     %v_322 = add %v_320, %v_321: I32
-    %v_323 = loads %v_4, 4: I32
-    %v_324 = add %v_322, %v_323: I32
-    %v_325 = add %v_324, 29: I32
-    %v_326 = add %$self, 4: Ptr
-    store %v_326, %v_325, 4
+    %v_323 = add %v_322, 29: I32
+    %v_324 = add %$self, 4: Ptr
+    store %v_324, %v_323, 4
     store %$self, 30, 4
     ret 1
   }
 
   b_37 {
-    %v_327 = cmp_eq %$resume, 0: I32
-    je %v_327, b_328, b_39
+    %v_325 = cmp_eq %$resume, 0: I32
+    je %v_325, b_326, b_39
   }
 
-  b_328 {
-    %v_329 = loads %v_2, 4: I32
-    %v_330 = loads %v_3, 4: I32
+  b_326 {
+    %v_327 = loads %v_2, 4: I32
+    %v_328 = loads %v_3, 4: I32
+    %v_329 = add %v_327, %v_328: I32
+    %v_330 = loads %v_4, 4: I32
     %v_331 = add %v_329, %v_330: I32
-    %v_332 = loads %v_4, 4: I32
-    %v_333 = add %v_331, %v_332: I32
-    %v_334 = add %v_333, 30: I32
-    %v_335 = add %$self, 4: Ptr
-    store %v_335, %v_334, 4
+    %v_332 = add %v_331, 30: I32
+    %v_333 = add %$self, 4: Ptr
+    store %v_333, %v_332, 4
     store %$self, 31, 4
     ret 1
   }
 
   b_38 {
-    %v_336 = cmp_eq %$resume, 0: I32
-    je %v_336, b_337, b_39
+    %v_334 = cmp_eq %$resume, 0: I32
+    je %v_334, b_335, b_39
   }
 
-  b_337 {
-    %v_338 = loads %v_2, 4: I32
-    %v_339 = loads %v_3, 4: I32
+  b_335 {
+    %v_336 = loads %v_2, 4: I32
+    %v_337 = loads %v_3, 4: I32
+    %v_338 = add %v_336, %v_337: I32
+    %v_339 = loads %v_4, 4: I32
     %v_340 = add %v_338, %v_339: I32
-    %v_341 = loads %v_4, 4: I32
-    %v_342 = add %v_340, %v_341: I32
-    %v_343 = add %v_342, 31: I32
-    %v_344 = add %$self, 4: Ptr
-    store %v_344, %v_343, 4
+    %v_341 = add %v_340, 31: I32
+    %v_342 = add %$self, 4: Ptr
+    store %v_342, %v_341, 4
     store %$self, 32, 4
     ret 1
   }
 
   b_39 {
-    %v_345 = cmp_eq %$resume, 0: I32
-    je %v_345, b_346, b_40
+    %v_343 = cmp_eq %$resume, 0: I32
+    je %v_343, b_344, b_40
   }
 
-  b_346 {
-    %v_347 = loads %v_2, 4: I32
-    %v_348 = loads %v_3, 4: I32
+  b_344 {
+    %v_345 = loads %v_2, 4: I32
+    %v_346 = loads %v_3, 4: I32
+    %v_347 = add %v_345, %v_346: I32
+    %v_348 = loads %v_4, 4: I32
     %v_349 = add %v_347, %v_348: I32
-    %v_350 = loads %v_4, 4: I32
-    %v_351 = add %v_349, %v_350: I32
-    %v_352 = add %v_351, 32: I32
-    %v_353 = add %$self, 4: Ptr
-    store %v_353, %v_352, 4
+    %v_350 = add %v_349, 32: I32
+    %v_351 = add %$self, 4: Ptr
+    store %v_351, %v_350, 4
     store %$self, 33, 4
     ret 1
   }
 
   b_40 {
-    %v_354 = cmp_eq %$resume, 0: I32
-    je %v_354, b_355, b_41
+    %v_352 = cmp_eq %$resume, 0: I32
+    je %v_352, b_353, b_41
   }
 
-  b_355 {
-    %v_356 = loads %v_2, 4: I32
-    %v_357 = loads %v_3, 4: I32
+  b_353 {
+    %v_354 = loads %v_2, 4: I32
+    %v_355 = loads %v_3, 4: I32
+    %v_356 = add %v_354, %v_355: I32
+    %v_357 = loads %v_4, 4: I32
     %v_358 = add %v_356, %v_357: I32
-    %v_359 = loads %v_4, 4: I32
-    %v_360 = add %v_358, %v_359: I32
-    %v_361 = add %v_360, 33: I32
-    %v_362 = add %$self, 4: Ptr
-    store %v_362, %v_361, 4
+    %v_359 = add %v_358, 33: I32
+    %v_360 = add %$self, 4: Ptr
+    store %v_360, %v_359, 4
     store %$self, 34, 4
     ret 1
   }
 
   b_41 {
-    %v_363 = cmp_eq %$resume, 0: I32
-    je %v_363, b_364, b_42
+    %v_361 = cmp_eq %$resume, 0: I32
+    je %v_361, b_362, b_42
   }
 
-  b_364 {
-    %v_365 = loads %v_2, 4: I32
-    %v_366 = loads %v_3, 4: I32
+  b_362 {
+    %v_363 = loads %v_2, 4: I32
+    %v_364 = loads %v_3, 4: I32
+    %v_365 = add %v_363, %v_364: I32
+    %v_366 = loads %v_4, 4: I32
     %v_367 = add %v_365, %v_366: I32
-    %v_368 = loads %v_4, 4: I32
-    %v_369 = add %v_367, %v_368: I32
-    %v_370 = add %v_369, 34: I32
-    %v_371 = add %$self, 4: Ptr
-    store %v_371, %v_370, 4
+    %v_368 = add %v_367, 34: I32
+    %v_369 = add %$self, 4: Ptr
+    store %v_369, %v_368, 4
     store %$self, 35, 4
     ret 1
   }
 
   b_42 {
-    %v_372 = cmp_eq %$resume, 0: I32
-    je %v_372, b_373, b_43
+    %v_370 = cmp_eq %$resume, 0: I32
+    je %v_370, b_371, b_43
   }
 
-  b_373 {
-    %v_374 = loads %v_2, 4: I32
-    %v_375 = loads %v_3, 4: I32
+  b_371 {
+    %v_372 = loads %v_2, 4: I32
+    %v_373 = loads %v_3, 4: I32
+    %v_374 = add %v_372, %v_373: I32
+    %v_375 = loads %v_4, 4: I32
     %v_376 = add %v_374, %v_375: I32
-    %v_377 = loads %v_4, 4: I32
-    %v_378 = add %v_376, %v_377: I32
-    %v_379 = add %v_378, 35: I32
-    %v_380 = add %$self, 4: Ptr
-    store %v_380, %v_379, 4
+    %v_377 = add %v_376, 35: I32
+    %v_378 = add %$self, 4: Ptr
+    store %v_378, %v_377, 4
     store %$self, 36, 4
     ret 1
   }
 
   b_43 {
-    %v_381 = cmp_eq %$resume, 0: I32
-    je %v_381, b_382, b_44
+    %v_379 = cmp_eq %$resume, 0: I32
+    je %v_379, b_380, b_44
   }
 
-  b_382 {
-    %v_383 = loads %v_2, 4: I32
-    %v_384 = loads %v_3, 4: I32
+  b_380 {
+    %v_381 = loads %v_2, 4: I32
+    %v_382 = loads %v_3, 4: I32
+    %v_383 = add %v_381, %v_382: I32
+    %v_384 = loads %v_4, 4: I32
     %v_385 = add %v_383, %v_384: I32
-    %v_386 = loads %v_4, 4: I32
-    %v_387 = add %v_385, %v_386: I32
-    %v_388 = add %v_387, 36: I32
-    %v_389 = add %$self, 4: Ptr
-    store %v_389, %v_388, 4
+    %v_386 = add %v_385, 36: I32
+    %v_387 = add %$self, 4: Ptr
+    store %v_387, %v_386, 4
     store %$self, 37, 4
     ret 1
   }
 
   b_44 {
-    %v_390 = cmp_eq %$resume, 0: I32
-    je %v_390, b_391, b_45
+    %v_388 = cmp_eq %$resume, 0: I32
+    je %v_388, b_389, b_45
   }
 
-  b_391 {
-    %v_392 = loads %v_2, 4: I32
-    %v_393 = loads %v_3, 4: I32
+  b_389 {
+    %v_390 = loads %v_2, 4: I32
+    %v_391 = loads %v_3, 4: I32
+    %v_392 = add %v_390, %v_391: I32
+    %v_393 = loads %v_4, 4: I32
     %v_394 = add %v_392, %v_393: I32
-    %v_395 = loads %v_4, 4: I32
-    %v_396 = add %v_394, %v_395: I32
-    %v_397 = add %v_396, 37: I32
-    %v_398 = add %$self, 4: Ptr
-    store %v_398, %v_397, 4
+    %v_395 = add %v_394, 37: I32
+    %v_396 = add %$self, 4: Ptr
+    store %v_396, %v_395, 4
     store %$self, 38, 4
     ret 1
   }
 
   b_45 {
-    %v_399 = cmp_eq %$resume, 0: I32
-    je %v_399, b_400, b_46
+    %v_397 = cmp_eq %$resume, 0: I32
+    je %v_397, b_398, b_46
   }
 
-  b_400 {
-    %v_401 = loads %v_2, 4: I32
-    %v_402 = loads %v_3, 4: I32
+  b_398 {
+    %v_399 = loads %v_2, 4: I32
+    %v_400 = loads %v_3, 4: I32
+    %v_401 = add %v_399, %v_400: I32
+    %v_402 = loads %v_4, 4: I32
     %v_403 = add %v_401, %v_402: I32
-    %v_404 = loads %v_4, 4: I32
-    %v_405 = add %v_403, %v_404: I32
-    %v_406 = add %v_405, 38: I32
-    %v_407 = add %$self, 4: Ptr
-    store %v_407, %v_406, 4
+    %v_404 = add %v_403, 38: I32
+    %v_405 = add %$self, 4: Ptr
+    store %v_405, %v_404, 4
     store %$self, 39, 4
     ret 1
   }
 
   b_46 {
-    %v_408 = cmp_eq %$resume, 0: I32
-    je %v_408, b_409, b_47
+    %v_406 = cmp_eq %$resume, 0: I32
+    je %v_406, b_407, b_47
   }
 
-  b_409 {
-    %v_410 = loads %v_2, 4: I32
-    %v_411 = loads %v_3, 4: I32
+  b_407 {
+    %v_408 = loads %v_2, 4: I32
+    %v_409 = loads %v_3, 4: I32
+    %v_410 = add %v_408, %v_409: I32
+    %v_411 = loads %v_4, 4: I32
     %v_412 = add %v_410, %v_411: I32
-    %v_413 = loads %v_4, 4: I32
-    %v_414 = add %v_412, %v_413: I32
-    %v_415 = add %v_414, 39: I32
-    %v_416 = add %$self, 4: Ptr
-    store %v_416, %v_415, 4
+    %v_413 = add %v_412, 39: I32
+    %v_414 = add %$self, 4: Ptr
+    store %v_414, %v_413, 4
     store %$self, 40, 4
     ret 1
   }
 
   b_47 {
-    %v_417 = cmp_eq %$resume, 0: I32
-    je %v_417, b_418, b_48
+    %v_415 = cmp_eq %$resume, 0: I32
+    je %v_415, b_416, b_48
   }
 
-  b_418 {
-    %v_419 = loads %v_2, 4: I32
-    %v_420 = loads %v_3, 4: I32
+  b_416 {
+    %v_417 = loads %v_2, 4: I32
+    %v_418 = loads %v_3, 4: I32
+    %v_419 = add %v_417, %v_418: I32
+    %v_420 = loads %v_4, 4: I32
     %v_421 = add %v_419, %v_420: I32
-    %v_422 = loads %v_4, 4: I32
-    %v_423 = add %v_421, %v_422: I32
-    %v_424 = add %v_423, 40: I32
-    %v_425 = add %$self, 4: Ptr
-    store %v_425, %v_424, 4
+    %v_422 = add %v_421, 40: I32
+    %v_423 = add %$self, 4: Ptr
+    store %v_423, %v_422, 4
     store %$self, 41, 4
     ret 1
   }
 
   b_48 {
-    %v_426 = cmp_eq %$resume, 0: I32
-    je %v_426, b_427, b_49
+    %v_424 = cmp_eq %$resume, 0: I32
+    je %v_424, b_425, b_49
   }
 
-  b_427 {
-    %v_428 = loads %v_2, 4: I32
-    %v_429 = loads %v_3, 4: I32
+  b_425 {
+    %v_426 = loads %v_2, 4: I32
+    %v_427 = loads %v_3, 4: I32
+    %v_428 = add %v_426, %v_427: I32
+    %v_429 = loads %v_4, 4: I32
     %v_430 = add %v_428, %v_429: I32
-    %v_431 = loads %v_4, 4: I32
-    %v_432 = add %v_430, %v_431: I32
-    %v_433 = add %v_432, 41: I32
-    %v_434 = add %$self, 4: Ptr
-    store %v_434, %v_433, 4
+    %v_431 = add %v_430, 41: I32
+    %v_432 = add %$self, 4: Ptr
+    store %v_432, %v_431, 4
     store %$self, 42, 4
     ret 1
   }
 
   b_49 {
-    %v_435 = cmp_eq %$resume, 0: I32
-    je %v_435, b_436, b_50
+    %v_433 = cmp_eq %$resume, 0: I32
+    je %v_433, b_434, b_50
   }
 
-  b_436 {
-    %v_437 = loads %v_2, 4: I32
-    %v_438 = loads %v_3, 4: I32
+  b_434 {
+    %v_435 = loads %v_2, 4: I32
+    %v_436 = loads %v_3, 4: I32
+    %v_437 = add %v_435, %v_436: I32
+    %v_438 = loads %v_4, 4: I32
     %v_439 = add %v_437, %v_438: I32
-    %v_440 = loads %v_4, 4: I32
-    %v_441 = add %v_439, %v_440: I32
-    %v_442 = add %v_441, 42: I32
-    %v_443 = add %$self, 4: Ptr
-    store %v_443, %v_442, 4
+    %v_440 = add %v_439, 42: I32
+    %v_441 = add %$self, 4: Ptr
+    store %v_441, %v_440, 4
     store %$self, 43, 4
     ret 1
   }
 
   b_50 {
-    %v_444 = cmp_eq %$resume, 0: I32
-    je %v_444, b_445, b_51
+    %v_442 = cmp_eq %$resume, 0: I32
+    je %v_442, b_443, b_51
   }
 
-  b_445 {
-    %v_446 = loads %v_2, 4: I32
-    %v_447 = loads %v_3, 4: I32
+  b_443 {
+    %v_444 = loads %v_2, 4: I32
+    %v_445 = loads %v_3, 4: I32
+    %v_446 = add %v_444, %v_445: I32
+    %v_447 = loads %v_4, 4: I32
     %v_448 = add %v_446, %v_447: I32
-    %v_449 = loads %v_4, 4: I32
-    %v_450 = add %v_448, %v_449: I32
-    %v_451 = add %v_450, 43: I32
-    %v_452 = add %$self, 4: Ptr
-    store %v_452, %v_451, 4
+    %v_449 = add %v_448, 43: I32
+    %v_450 = add %$self, 4: Ptr
+    store %v_450, %v_449, 4
     store %$self, 44, 4
     ret 1
   }
 
   b_51 {
-    %v_453 = cmp_eq %$resume, 0: I32
-    je %v_453, b_454, b_52
+    %v_451 = cmp_eq %$resume, 0: I32
+    je %v_451, b_452, b_52
   }
 
-  b_454 {
-    %v_455 = loads %v_2, 4: I32
-    %v_456 = loads %v_3, 4: I32
+  b_452 {
+    %v_453 = loads %v_2, 4: I32
+    %v_454 = loads %v_3, 4: I32
+    %v_455 = add %v_453, %v_454: I32
+    %v_456 = loads %v_4, 4: I32
     %v_457 = add %v_455, %v_456: I32
-    %v_458 = loads %v_4, 4: I32
-    %v_459 = add %v_457, %v_458: I32
-    %v_460 = add %v_459, 44: I32
-    %v_461 = add %$self, 4: Ptr
-    store %v_461, %v_460, 4
+    %v_458 = add %v_457, 44: I32
+    %v_459 = add %$self, 4: Ptr
+    store %v_459, %v_458, 4
     store %$self, 45, 4
     ret 1
   }
 
   b_52 {
-    %v_462 = cmp_eq %$resume, 0: I32
-    je %v_462, b_463, b_53
+    %v_460 = cmp_eq %$resume, 0: I32
+    je %v_460, b_461, b_53
   }
 
-  b_463 {
-    %v_464 = loads %v_2, 4: I32
-    %v_465 = loads %v_3, 4: I32
+  b_461 {
+    %v_462 = loads %v_2, 4: I32
+    %v_463 = loads %v_3, 4: I32
+    %v_464 = add %v_462, %v_463: I32
+    %v_465 = loads %v_4, 4: I32
     %v_466 = add %v_464, %v_465: I32
-    %v_467 = loads %v_4, 4: I32
-    %v_468 = add %v_466, %v_467: I32
-    %v_469 = add %v_468, 45: I32
-    %v_470 = add %$self, 4: Ptr
-    store %v_470, %v_469, 4
+    %v_467 = add %v_466, 45: I32
+    %v_468 = add %$self, 4: Ptr
+    store %v_468, %v_467, 4
     store %$self, 46, 4
     ret 1
   }
 
   b_53 {
-    %v_471 = cmp_eq %$resume, 0: I32
-    je %v_471, b_472, b_54
+    %v_469 = cmp_eq %$resume, 0: I32
+    je %v_469, b_470, b_54
   }
 
-  b_472 {
-    %v_473 = loads %v_2, 4: I32
-    %v_474 = loads %v_3, 4: I32
+  b_470 {
+    %v_471 = loads %v_2, 4: I32
+    %v_472 = loads %v_3, 4: I32
+    %v_473 = add %v_471, %v_472: I32
+    %v_474 = loads %v_4, 4: I32
     %v_475 = add %v_473, %v_474: I32
-    %v_476 = loads %v_4, 4: I32
-    %v_477 = add %v_475, %v_476: I32
-    %v_478 = add %v_477, 46: I32
-    %v_479 = add %$self, 4: Ptr
-    store %v_479, %v_478, 4
+    %v_476 = add %v_475, 46: I32
+    %v_477 = add %$self, 4: Ptr
+    store %v_477, %v_476, 4
     store %$self, 47, 4
     ret 1
   }
 
   b_54 {
-    %v_480 = cmp_eq %$resume, 0: I32
-    je %v_480, b_481, b_55
+    %v_478 = cmp_eq %$resume, 0: I32
+    je %v_478, b_479, b_55
   }
 
-  b_481 {
-    %v_482 = loads %v_2, 4: I32
-    %v_483 = loads %v_3, 4: I32
+  b_479 {
+    %v_480 = loads %v_2, 4: I32
+    %v_481 = loads %v_3, 4: I32
+    %v_482 = add %v_480, %v_481: I32
+    %v_483 = loads %v_4, 4: I32
     %v_484 = add %v_482, %v_483: I32
-    %v_485 = loads %v_4, 4: I32
-    %v_486 = add %v_484, %v_485: I32
-    %v_487 = add %v_486, 47: I32
-    %v_488 = add %$self, 4: Ptr
-    store %v_488, %v_487, 4
+    %v_485 = add %v_484, 47: I32
+    %v_486 = add %$self, 4: Ptr
+    store %v_486, %v_485, 4
     store %$self, 48, 4
     ret 1
   }
 
   b_55 {
-    %v_489 = cmp_eq %$resume, 0: I32
-    je %v_489, b_490, b_56
+    %v_487 = cmp_eq %$resume, 0: I32
+    je %v_487, b_488, b_56
   }
 
-  b_490 {
-    %v_491 = loads %v_2, 4: I32
-    %v_492 = loads %v_3, 4: I32
+  b_488 {
+    %v_489 = loads %v_2, 4: I32
+    %v_490 = loads %v_3, 4: I32
+    %v_491 = add %v_489, %v_490: I32
+    %v_492 = loads %v_4, 4: I32
     %v_493 = add %v_491, %v_492: I32
-    %v_494 = loads %v_4, 4: I32
-    %v_495 = add %v_493, %v_494: I32
-    %v_496 = add %v_495, 48: I32
-    %v_497 = add %$self, 4: Ptr
-    store %v_497, %v_496, 4
+    %v_494 = add %v_493, 48: I32
+    %v_495 = add %$self, 4: Ptr
+    store %v_495, %v_494, 4
     store %$self, 49, 4
     ret 1
   }
 
   b_56 {
-    %v_498 = cmp_eq %$resume, 0: I32
-    je %v_498, b_499, b_57
+    %v_496 = cmp_eq %$resume, 0: I32
+    je %v_496, b_497, b_57
   }
 
-  b_499 {
-    %v_500 = loads %v_2, 4: I32
-    %v_501 = loads %v_3, 4: I32
+  b_497 {
+    %v_498 = loads %v_2, 4: I32
+    %v_499 = loads %v_3, 4: I32
+    %v_500 = add %v_498, %v_499: I32
+    %v_501 = loads %v_4, 4: I32
     %v_502 = add %v_500, %v_501: I32
-    %v_503 = loads %v_4, 4: I32
-    %v_504 = add %v_502, %v_503: I32
-    %v_505 = add %v_504, 49: I32
-    %v_506 = add %$self, 4: Ptr
-    store %v_506, %v_505, 4
+    %v_503 = add %v_502, 49: I32
+    %v_504 = add %$self, 4: Ptr
+    store %v_504, %v_503, 4
     store %$self, 50, 4
     ret 1
   }
@@ -1147,8 +1128,8 @@ fifty$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
   }
 
   b_8 {
-    %v_507 = cmp_eq %$resume, 0: I32
-    je %v_507, b_67, b_38
+    %v_505 = cmp_eq %$resume, 0: I32
+    je %v_505, b_65, b_38
   }
 }
 

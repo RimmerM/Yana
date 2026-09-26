@@ -330,16 +330,6 @@ function main() {
   return v273;
 }
 
-function powerOfTwoVecDouble(exponent$0, exponent$1) {
-  var v3 = exponent$0 + 1023;
-  var v4 = exponent$1 + 1023;
-  var v6 = v3 + 4.503599627370496E15;
-  var v7 = v4 + 4.503599627370496E15;
-  var v9 = BigInt.asIntN(64, $bc$d2l(v6));
-  var v11 = BigInt.asIntN(64, $bc$d2l(v7));
-  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v9 & 4503599627370495n) << 52n)), $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v11 & 4503599627370495n) << 52n))];
-}
-
 function scaleByExponentVecFloat(value$0, value$1, value$2, value$3, exponent$0, exponent$1, exponent$2, exponent$3) {
   var v9 = exponent$0 > -126;
   var v10 = exponent$1 > -126;
@@ -415,13 +405,27 @@ function scaleByExponentVecDouble(value$0, value$1, exponent$0, exponent$1) {
   var v23 = v20 < 1023;
   var v24 = v22 ? v19 : 1023;
   var v25 = v23 ? v20 : 1023;
-  var v26 = powerOfTwoVecDouble(v12, v13);
-  var v27 = v26[0];
-  var v28 = v26[1];
-  var v29 = value$0 * v27;
-  var v30 = value$1 * v28;
-  var v31 = powerOfTwoVecDouble(v24, v25);
-  return [v29 * v31[0], v30 * v31[1]];
+  var v27 = v12 + 1023;
+  var v28 = v13 + 1023;
+  var v30 = v27 + 4.503599627370496E15;
+  var v31 = v28 + 4.503599627370496E15;
+  var v33 = BigInt.asIntN(64, $bc$d2l(v30));
+  var v35 = BigInt.asIntN(64, $bc$d2l(v31));
+  var v38 = BigInt.asIntN(64, v33 & 4503599627370495n);
+  var v40 = BigInt.asIntN(64, v35 & 4503599627370495n);
+  var v43 = BigInt.asIntN(64, v38 << 52n);
+  var v45 = BigInt.asIntN(64, v40 << 52n);
+  var v46 = $bc$l2d(v43);
+  var v47 = $bc$l2d(v45);
+  var v48 = value$0 * v46;
+  var v49 = value$1 * v47;
+  var v51 = v24 + 1023;
+  var v52 = v25 + 1023;
+  var v54 = v51 + 4.503599627370496E15;
+  var v55 = v52 + 4.503599627370496E15;
+  var v57 = BigInt.asIntN(64, $bc$d2l(v54));
+  var v59 = BigInt.asIntN(64, $bc$d2l(v55));
+  return [v48 * $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v57 & 4503599627370495n) << 52n)), v49 * $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v59 & 4503599627370495n) << 52n))];
 }
 
 function exponentOfVecDouble(value$0, value$1) {

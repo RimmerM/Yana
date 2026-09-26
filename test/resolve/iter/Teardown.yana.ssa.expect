@@ -599,9 +599,9 @@ bb0(%0: looped.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   %15: %Note address = field.addr .b inspect %0
   %52: %I32 address = field.addr .$index inspect %0
   %53: I32 trivial = load inspect %52
-  %54: I32 trivial = const 0
+  %54: I32 trivial = const 1
   %55: Bool trivial = eq inspect %53 inspect %54
-  branch inspect %55 -> bb1 -> bb12
+  branch inspect %55 -> bb10 -> bb12
 
 bb1:
   branch inspect %2 -> bb11 -> bb3
@@ -688,9 +688,9 @@ bb11:
   return consume %50
 
 bb12:
-  %56: I32 trivial = const 1
+  %56: I32 trivial = const 0
   %57: Bool trivial = eq inspect %53 inspect %56
-  branch inspect %57 -> bb10 -> bb2
+  branch inspect %57 -> bb1 -> bb2
 }
 
 fn looped$drop($self: looped.Iter) -> {} {

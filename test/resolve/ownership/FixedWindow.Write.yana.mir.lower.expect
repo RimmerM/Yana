@@ -5,24 +5,3 @@ main<complex>(): I32 {
   }
 }
 
-@header(viaLambda.lambda) = [0, 0, 0, 0]
-viaLambda.lambda<complex>(%viaLambda.lambda.env: Ptr) {
-  b_0 {
-    %v_1 = add %viaLambda.lambda.env, 8: Ptr
-    %v_2 = loads %v_1, 8: I64
-    %v_3 = cmp_eq %v_2, 0: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = load %viaLambda.lambda.env, 8: Ptr
-    store %v_6, 9, 4
-    ret 
-  }
-
-  b_4 {
-    %v_7 = syscall 60, 134: I64
-    unreachable 
-  }
-}
-

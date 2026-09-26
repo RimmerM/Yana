@@ -18,7 +18,7 @@ main<complex>(): I32 {
   b_9 {
     %v_10 = add %v_5, 4: Ptr
     %v_11 = loads %v_10, 4: I32
-    call_complex Array(a).reclaim(I32), %v_4, 3
+    call_simple Array(a).reclaim(I32), %v_4, 3
     %v_12 = alloca 24, 8: Ptr
     %v_13 = alloca 16, 8: Ptr
     %v_14 = add %v_13, 12: Ptr
@@ -52,7 +52,7 @@ main<complex>(): I32 {
 
   b_25 {
     %v_27 = loads %v_22, 4: I32
-    call_complex Array(a).reclaim(I32), %v_21, 3
+    call_simple Array(a).reclaim(I32), %v_21, 3
     %v_28 = alloca 24, 8: Ptr
     %v_29 = alloca 16, 8: Ptr
     %v_30 = add %v_29, 12: Ptr
@@ -73,7 +73,7 @@ main<complex>(): I32 {
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32
@@ -119,7 +119,7 @@ teardown(Maybe(Array(I32)))<complex>(%v_0: Ptr) {
     %v_8 = load %v_0, 8: I64
     %v_9 = add %v_0, 8: Ptr
     %v_10 = load %v_9, 4: I32
-    call_complex Array(a).reclaim(I32), %v_8, %v_10
+    call_simple Array(a).reclaim(I32), %v_8, %v_10
     jmp b_7
   }
 
@@ -144,7 +144,7 @@ teardown(Outcome(Array(I32), {}))<complex>(%v_0: Ptr) {
     %v_8 = load %v_7, 8: I64
     %v_9 = add %v_0, 16: Ptr
     %v_10 = load %v_9, 4: I32
-    call_complex Array(a).reclaim(I32), %v_8, %v_10
+    call_simple Array(a).reclaim(I32), %v_8, %v_10
     jmp b_6
   }
 

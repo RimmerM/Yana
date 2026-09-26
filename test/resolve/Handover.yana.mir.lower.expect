@@ -14,7 +14,6 @@ main<complex>(): I32 {
     store %v_5, 4, 4
     %v_6 = call_complex replaces$sum(Array(I32), I32), %v_1, 4: I32
     %v_7 = alloca 20, 4: Ptr
-    store %v_7, 1, 4
     %v_8 = add %v_7, 4: Ptr
     store %v_8, 2, 4
     %v_9 = add %v_7, 8: Ptr
@@ -82,7 +81,6 @@ main<complex>(): I32 {
     %v_51 = alloca 12, 4: Ptr
     %v_52 = bitcast %v_51: I64
     store %v_50, 3, 4
-    store %v_51, 1, 4
     %v_53 = add %v_51, 4: Ptr
     store %v_53, 2, 4
     %v_54 = add %v_51, 8: Ptr
@@ -90,7 +88,7 @@ main<complex>(): I32 {
     store %v_51, 2, 4
     %v_55 = call_complex replaces$sum(Array(I32), I32), %v_51, 3: I32
     %v_56 = load %v_50, 4: I32
-    call_complex Array(a).reclaim(I32), %v_52, %v_56
+    call_simple Array(a).reclaim(I32), %v_52, %v_56
     %v_57 = add %v_49, %v_55: I32
     ret %v_57
   }
@@ -148,7 +146,7 @@ replaces$sum(Array(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
     %v_3 = shr %v_1, 30: I32
     %v_4 = cmp_eq %v_3, 1: I32

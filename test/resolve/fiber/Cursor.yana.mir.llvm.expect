@@ -269,477 +269,585 @@ define fastcc i64 @main() #0 {
   store i64 0, ptr %21, align 1
   %22 = call fastcc i64 @stackGuardBytes()
   %23 = add i64 65536, %22
-  %24 = call fastcc ptr @guardedStack(i64 %23)
-  %25 = ptrtoint ptr %24 to i64
-  %26 = icmp eq i64 %25, 0
-  %27 = zext i1 %26 to i32
-  br i1 %26, label %125, label %126
+  %24 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %23, i64 3, i64 34, i64 -1, i64 0)
+  %25 = icmp slt i64 %24, 0
+  %26 = zext i1 %25 to i32
+  %27 = inttoptr i64 %24 to ptr
+  %28 = select i1 %25, ptr null, ptr %27
+  %29 = ptrtoint ptr %28 to i64
+  %30 = icmp eq i64 %29, 0
+  %31 = zext i1 %30 to i32
+  br i1 %30, label %310, label %301
 
-28:                                               ; preds = %41, %125
-  %29 = phi i64 [ 0, %125 ], [ %42, %41 ]
-  %30 = getelementptr i8, ptr %16, i64 16
-  %31 = load i8, ptr %30, align 1
-  %32 = zext i8 %31 to i32
-  %33 = icmp eq i32 %32, 2
-  %34 = zext i1 %33 to i32
-  br i1 %33, label %145, label %130
+32:                                               ; preds = %45, %129
+  %33 = phi i64 [ 0, %129 ], [ %46, %45 ]
+  %34 = getelementptr i8, ptr %16, i64 16
+  %35 = load i8, ptr %34, align 1
+  %36 = zext i8 %35 to i32
+  %37 = icmp eq i32 %36, 2
+  %38 = zext i1 %37 to i32
+  br i1 %37, label %147, label %134
 
-35:                                               ; preds = %145, %144, %136
-  %36 = getelementptr i8, ptr %16, i64 40
-  %37 = load ptr, ptr %36, align 1
-  %38 = ptrtoint ptr %37 to i64
-  %39 = icmp eq i64 %38, 0
-  %40 = zext i1 %39 to i32
-  br i1 %39, label %146, label %160
+39:                                               ; preds = %147, %146, %138
+  %40 = getelementptr i8, ptr %16, i64 40
+  %41 = load ptr, ptr %40, align 1
+  %42 = ptrtoint ptr %41 to i64
+  %43 = icmp eq i64 %42, 0
+  %44 = zext i1 %43 to i32
+  br i1 %43, label %148, label %166
 
-41:                                               ; preds = %136
-  %42 = add i64 %29, %141
-  br label %28
+45:                                               ; preds = %138
+  %46 = add i64 %33, %143
+  br label %32
 
-43:                                               ; preds = %66, %177
-  %44 = phi i64 [ 0, %177 ], [ %67, %66 ]
-  %45 = getelementptr i8, ptr %14, i64 16
-  %46 = load i8, ptr %45, align 1
-  %47 = zext i8 %46 to i32
-  %48 = icmp eq i32 %47, 2
-  %49 = zext i1 %48 to i32
-  br i1 %48, label %235, label %222
+47:                                               ; preds = %70, %187
+  %48 = phi i64 [ 0, %187 ], [ %71, %70 ]
+  %49 = getelementptr i8, ptr %14, i64 16
+  %50 = load i8, ptr %49, align 1
+  %51 = zext i8 %50 to i32
+  %52 = icmp eq i32 %51, 2
+  %53 = zext i1 %52 to i32
+  br i1 %52, label %245, label %234
 
-50:                                               ; preds = %236, %217
-  %51 = getelementptr i8, ptr %14, i64 40
-  %52 = load ptr, ptr %51, align 1
-  %53 = ptrtoint ptr %52 to i64
-  %54 = icmp eq i64 %53, 0
-  %55 = zext i1 %54 to i32
-  br i1 %54, label %182, label %188
+54:                                               ; preds = %246, %229
+  %55 = getelementptr i8, ptr %14, i64 40
+  %56 = load ptr, ptr %55, align 1
+  %57 = ptrtoint ptr %56 to i64
+  %58 = icmp eq i64 %57, 0
+  %59 = zext i1 %58 to i32
+  br i1 %58, label %192, label %198
 
-56:                                               ; preds = %217
-  %57 = getelementptr i8, ptr %13, i64 16
-  %58 = load i8, ptr %57, align 1
-  %59 = zext i8 %58 to i32
-  %60 = icmp eq i32 %59, 2
-  %61 = zext i1 %60 to i32
-  br i1 %60, label %251, label %241
+60:                                               ; preds = %229
+  %61 = getelementptr i8, ptr %13, i64 16
+  %62 = load i8, ptr %61, align 1
+  %63 = zext i8 %62 to i32
+  %64 = icmp eq i32 %63, 2
+  %65 = zext i1 %64 to i32
+  br i1 %64, label %261, label %251
 
-62:                                               ; preds = %236
-  %63 = icmp eq i32 %218, 1
-  %64 = zext i1 %63 to i32
-  br i1 %63, label %68, label %65
+66:                                               ; preds = %246
+  %67 = icmp eq i32 %230, 1
+  %68 = zext i1 %67 to i32
+  br i1 %67, label %72, label %69
 
-65:                                               ; preds = %62
-  br label %66
+69:                                               ; preds = %66
+  br label %70
 
-66:                                               ; preds = %72, %65
-  %67 = phi i64 [ %44, %65 ], [ %73, %72 ]
-  br label %43
+70:                                               ; preds = %76, %69
+  %71 = phi i64 [ %48, %69 ], [ %77, %76 ]
+  br label %47
 
-68:                                               ; preds = %62
-  %69 = icmp eq i32 %237, 1
-  %70 = zext i1 %69 to i32
-  br i1 %69, label %74, label %71
+72:                                               ; preds = %66
+  %73 = icmp eq i32 %247, 1
+  %74 = zext i1 %73 to i32
+  br i1 %73, label %78, label %75
 
-71:                                               ; preds = %68
-  br label %72
+75:                                               ; preds = %72
+  br label %76
 
-72:                                               ; preds = %74, %71
-  %73 = phi i64 [ %44, %71 ], [ %77, %74 ]
-  br label %66
+76:                                               ; preds = %78, %75
+  %77 = phi i64 [ %48, %75 ], [ %81, %78 ]
+  br label %70
 
-74:                                               ; preds = %68
-  %75 = mul i64 %219, 10
-  %76 = add i64 %75, %238
-  %77 = add i64 %44, %76
-  br label %72
+78:                                               ; preds = %72
+  %79 = mul i64 %231, 10
+  %80 = add i64 %79, %248
+  %81 = add i64 %48, %80
+  br label %76
 
-78:                                               ; preds = %93, %209
-  %79 = phi i64 [ %210, %209 ], [ %120, %93 ]
-  %80 = phi i32 [ %211, %209 ], [ %122, %93 ]
-  %81 = phi i32 [ %212, %209 ], [ %124, %93 ]
-  %82 = getelementptr i8, ptr %10, i64 16
-  %83 = load i8, ptr %82, align 1
-  %84 = zext i8 %83 to i32
-  %85 = icmp eq i32 %84, 2
-  %86 = zext i1 %85 to i32
-  br i1 %85, label %275, label %261
+82:                                               ; preds = %97, %223
+  %83 = phi i64 [ %224, %223 ], [ %124, %97 ]
+  %84 = phi i32 [ 0, %223 ], [ %126, %97 ]
+  %85 = phi i32 [ 0, %223 ], [ %128, %97 ]
+  %86 = getelementptr i8, ptr %10, i64 16
+  %87 = load i8, ptr %86, align 1
+  %88 = zext i8 %87 to i32
+  %89 = icmp eq i32 %88, 2
+  %90 = zext i1 %89 to i32
+  br i1 %89, label %283, label %271
 
-87:                                               ; preds = %252
+91:                                               ; preds = %262
   call fastcc void @"teardown(Maybe(String))"(ptr %8)
-  %88 = getelementptr i8, ptr %10, i64 40
-  %89 = load ptr, ptr %88, align 1
-  %90 = ptrtoint ptr %89 to i64
-  %91 = icmp eq i64 %90, 0
-  %92 = zext i1 %91 to i32
-  br i1 %91, label %276, label %283
+  %92 = getelementptr i8, ptr %10, i64 40
+  %93 = load ptr, ptr %92, align 1
+  %94 = ptrtoint ptr %93 to i64
+  %95 = icmp eq i64 %94, 0
+  %96 = zext i1 %95 to i32
+  br i1 %95, label %284, label %291
 
-93:                                               ; preds = %252
-  %94 = inttoptr i64 %253 to ptr
-  %95 = sext i32 %255 to i64
-  %96 = call fastcc ptr @"runSlots(CodeUnit)"(i64 %95)
-  %97 = ptrtoint ptr %96 to i64
-  %98 = icmp eq i64 %97, 0
-  %99 = zext i1 %98 to i32
-  %100 = select i1 %98, i64 0, i64 %95
-  store ptr %96, ptr %3, align 1
-  %101 = getelementptr i8, ptr %3, i64 8
-  %102 = load i32, ptr %101, align 1
-  %103 = zext i32 %102 to i64
-  %104 = and i64 %103, -1073741824
-  %105 = or i64 %104, %100
-  %106 = and i64 %105, 4294967295
-  %107 = and i64 %106, 1073741823
-  %108 = or i64 %107, 1073741824
-  %109 = trunc i64 %108 to i32
-  store i32 %109, ptr %101, align 1
-  %110 = getelementptr i8, ptr %3, i64 12
-  store i32 0, ptr %110, align 1
-  call fastcc void @String.appendUnits(ptr %3, ptr %94, i64 %95)
+97:                                               ; preds = %262
+  %98 = inttoptr i64 %263 to ptr
+  %99 = sext i32 %265 to i64
+  %100 = call fastcc ptr @"runSlots(CodeUnit)"(i64 %99)
+  %101 = ptrtoint ptr %100 to i64
+  %102 = icmp eq i64 %101, 0
+  %103 = zext i1 %102 to i32
+  %104 = select i1 %102, i64 0, i64 %99
+  store ptr %100, ptr %3, align 1
+  %105 = getelementptr i8, ptr %3, i64 8
+  %106 = load i32, ptr %105, align 1
+  %107 = zext i32 %106 to i64
+  %108 = and i64 %107, -1073741824
+  %109 = or i64 %108, %104
+  %110 = and i64 %109, 4294967295
+  %111 = and i64 %110, 1073741823
+  %112 = or i64 %111, 1073741824
+  %113 = trunc i64 %112 to i32
+  store i32 %113, ptr %105, align 1
+  %114 = getelementptr i8, ptr %3, i64 12
+  store i32 0, ptr %114, align 1
+  call fastcc void @String.appendUnits(ptr %3, ptr %98, i64 %99)
   call fastcc void @"teardown(Maybe(String))"(ptr %8)
-  store i64 %79, ptr %2, align 1
-  %111 = getelementptr i8, ptr %2, i64 8
-  store i32 %80, ptr %111, align 1
-  %112 = getelementptr i8, ptr %2, i64 12
-  store i32 %81, ptr %112, align 1
-  %113 = load i64, ptr %3, align 1
-  %114 = getelementptr i8, ptr %3, i64 8
-  %115 = load i32, ptr %114, align 1
-  %116 = getelementptr i8, ptr %3, i64 12
-  %117 = load i32, ptr %116, align 1
-  %118 = inttoptr i64 %113 to ptr
-  %119 = sext i32 %117 to i64
-  call fastcc void @String.appendUnits(ptr %2, ptr %118, i64 %119)
-  call fastcc void @String.reclaim(i64 %113, i32 %115)
+  store i64 %83, ptr %2, align 1
+  %115 = getelementptr i8, ptr %2, i64 8
+  store i32 %84, ptr %115, align 1
+  %116 = getelementptr i8, ptr %2, i64 12
+  store i32 %85, ptr %116, align 1
+  %117 = load i64, ptr %3, align 1
+  %118 = getelementptr i8, ptr %3, i64 8
+  %119 = load i32, ptr %118, align 1
+  %120 = getelementptr i8, ptr %3, i64 12
+  %121 = load i32, ptr %120, align 1
+  %122 = inttoptr i64 %117 to ptr
+  %123 = sext i32 %121 to i64
+  call fastcc void @String.appendUnits(ptr %2, ptr %122, i64 %123)
+  call fastcc void @String.reclaim(i64 %117, i32 %119)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %1, ptr align 1 %2, i64 16, i1 false)
   call fastcc void @String.appendUnits(ptr %1, ptr @"string'147", i64 1)
-  %120 = load i64, ptr %1, align 1
-  %121 = getelementptr i8, ptr %1, i64 8
-  %122 = load i32, ptr %121, align 1
-  %123 = getelementptr i8, ptr %1, i64 12
-  %124 = load i32, ptr %123, align 1
-  br label %78
+  %124 = load i64, ptr %1, align 1
+  %125 = getelementptr i8, ptr %1, i64 8
+  %126 = load i32, ptr %125, align 1
+  %127 = getelementptr i8, ptr %1, i64 12
+  %128 = load i32, ptr %127, align 1
+  br label %82
 
-125:                                              ; preds = %126, %17
-  br label %28
+129:                                              ; preds = %130, %296
+  br label %32
 
-126:                                              ; preds = %17
-  %127 = getelementptr i8, ptr %16, i64 40
-  store ptr %24, ptr %127, align 1
-  %128 = getelementptr i8, ptr %16, i64 48
-  store i64 %23, ptr %128, align 1
-  %129 = getelementptr i8, ptr %24, i64 %22
-  call fastcc void @newFiber(ptr %7, ptr %129, i64 65536, ptr %16, ptr %15)
+130:                                              ; preds = %296
+  %131 = getelementptr i8, ptr %16, i64 40
+  store ptr %297, ptr %131, align 1
+  %132 = getelementptr i8, ptr %16, i64 48
+  store i64 %23, ptr %132, align 1
+  %133 = getelementptr i8, ptr %297, i64 %22
+  call fastcc void @newFiber(ptr %7, ptr %133, i64 65536, ptr %16, ptr %15)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %16, ptr align 1 %7, i64 17, i1 false)
-  br label %125
+  br label %129
 
-130:                                              ; preds = %28
-  %131 = getelementptr i8, ptr %16, i64 16
-  %132 = load i8, ptr %131, align 1
-  %133 = zext i8 %132 to i32
-  %134 = icmp eq i32 %133, 2
-  %135 = zext i1 %134 to i32
-  br i1 %134, label %144, label %288
+134:                                              ; preds = %32
+  %135 = getelementptr i8, ptr %16, i64 16
+  %136 = icmp eq i32 %36, 2
+  %137 = zext i1 %136 to i32
+  br i1 %136, label %146, label %311
 
-136:                                              ; preds = %288
-  %137 = getelementptr i8, ptr %16, i64 24
-  %138 = load i8, ptr %137, align 1
-  %139 = zext i8 %138 to i32
-  %140 = getelementptr i8, ptr %16, i64 32
-  %141 = load i64, ptr %140, align 1
-  store i8 0, ptr %137, align 1
-  %142 = icmp eq i32 %139, 1
-  %143 = zext i1 %142 to i32
-  br i1 %142, label %41, label %35
+138:                                              ; preds = %311
+  %139 = getelementptr i8, ptr %16, i64 24
+  %140 = load i8, ptr %139, align 1
+  %141 = zext i8 %140 to i32
+  %142 = getelementptr i8, ptr %16, i64 32
+  %143 = load i64, ptr %142, align 1
+  store i8 0, ptr %139, align 1
+  %144 = icmp eq i32 %141, 1
+  %145 = zext i1 %144 to i32
+  br i1 %144, label %45, label %39
 
-144:                                              ; preds = %288, %130
-  br label %35
+146:                                              ; preds = %311, %134
+  br label %39
 
-145:                                              ; preds = %28
-  br label %35
+147:                                              ; preds = %32
+  br label %39
 
-146:                                              ; preds = %160, %35
+148:                                              ; preds = %166, %39
   call void @llvm.memset.p0.i64(ptr align 1 %14, i8 0, i64 16, i1 false)
-  %147 = getelementptr i8, ptr %14, i64 16
-  store i8 2, ptr %147, align 1
-  %148 = getelementptr i8, ptr %14, i64 24
-  store i8 0, ptr %148, align 1
-  %149 = getelementptr i8, ptr %14, i64 40
-  call void @llvm.memset.p0.i64(ptr align 1 %149, i8 0, i64 16, i1 false)
+  %149 = getelementptr i8, ptr %14, i64 16
+  store i8 2, ptr %149, align 1
+  %150 = getelementptr i8, ptr %14, i64 24
+  store i8 0, ptr %150, align 1
+  %151 = getelementptr i8, ptr %14, i64 40
+  call void @llvm.memset.p0.i64(ptr align 1 %151, i8 0, i64 16, i1 false)
   call void @llvm.memset.p0.i64(ptr align 1 %13, i8 0, i64 16, i1 false)
-  %150 = getelementptr i8, ptr %13, i64 16
-  store i8 2, ptr %150, align 1
-  %151 = getelementptr i8, ptr %13, i64 24
-  store i8 0, ptr %151, align 1
-  %152 = getelementptr i8, ptr %13, i64 40
-  call void @llvm.memset.p0.i64(ptr align 1 %152, i8 0, i64 16, i1 false)
+  %152 = getelementptr i8, ptr %13, i64 16
+  store i8 2, ptr %152, align 1
+  %153 = getelementptr i8, ptr %13, i64 24
+  store i8 0, ptr %153, align 1
+  %154 = getelementptr i8, ptr %13, i64 40
+  call void @llvm.memset.p0.i64(ptr align 1 %154, i8 0, i64 16, i1 false)
   store ptr @"funvalue(evens)", ptr %12, align 1
-  %153 = getelementptr i8, ptr %12, i64 8
-  store i64 0, ptr %153, align 1
-  %154 = call fastcc i64 @stackGuardBytes()
-  %155 = add i64 65536, %154
-  %156 = call fastcc ptr @guardedStack(i64 %155)
-  %157 = ptrtoint ptr %156 to i64
-  %158 = icmp eq i64 %157, 0
-  %159 = zext i1 %158 to i32
-  br i1 %158, label %165, label %173
+  %155 = getelementptr i8, ptr %12, i64 8
+  store i64 0, ptr %155, align 1
+  %156 = call fastcc i64 @stackGuardBytes()
+  %157 = add i64 65536, %156
+  %158 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %157, i64 3, i64 34, i64 -1, i64 0)
+  %159 = icmp slt i64 %158, 0
+  %160 = zext i1 %159 to i32
+  %161 = inttoptr i64 %158 to ptr
+  %162 = select i1 %159, ptr null, ptr %161
+  %163 = ptrtoint ptr %162 to i64
+  %164 = icmp eq i64 %163, 0
+  %165 = zext i1 %164 to i32
+  br i1 %164, label %331, label %322
 
-160:                                              ; preds = %35
-  %161 = getelementptr i8, ptr %16, i64 48
-  %162 = load i64, ptr %161, align 1
-  %163 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %38, i64 %162)
-  store ptr null, ptr %36, align 1
-  store i64 0, ptr %161, align 1
-  %164 = getelementptr i8, ptr %16, i64 16
-  store i8 2, ptr %164, align 1
-  br label %146
+166:                                              ; preds = %39
+  %167 = getelementptr i8, ptr %16, i64 48
+  %168 = load i64, ptr %167, align 1
+  %169 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %42, i64 %168)
+  store ptr null, ptr %40, align 1
+  store i64 0, ptr %167, align 1
+  %170 = getelementptr i8, ptr %16, i64 16
+  store i8 2, ptr %170, align 1
+  br label %148
 
-165:                                              ; preds = %173, %146
+171:                                              ; preds = %183, %317
   store ptr @"funvalue(odds)", ptr %11, align 1
-  %166 = getelementptr i8, ptr %11, i64 8
-  store i64 0, ptr %166, align 1
-  %167 = call fastcc i64 @stackGuardBytes()
-  %168 = add i64 65536, %167
-  %169 = call fastcc ptr @guardedStack(i64 %168)
-  %170 = ptrtoint ptr %169 to i64
-  %171 = icmp eq i64 %170, 0
-  %172 = zext i1 %171 to i32
-  br i1 %171, label %177, label %178
+  %172 = getelementptr i8, ptr %11, i64 8
+  store i64 0, ptr %172, align 1
+  %173 = call fastcc i64 @stackGuardBytes()
+  %174 = add i64 65536, %173
+  %175 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %174, i64 3, i64 34, i64 -1, i64 0)
+  %176 = icmp slt i64 %175, 0
+  %177 = zext i1 %176 to i32
+  %178 = inttoptr i64 %175 to ptr
+  %179 = select i1 %176, ptr null, ptr %178
+  %180 = ptrtoint ptr %179 to i64
+  %181 = icmp eq i64 %180, 0
+  %182 = zext i1 %181 to i32
+  br i1 %181, label %346, label %337
 
-173:                                              ; preds = %146
-  %174 = getelementptr i8, ptr %14, i64 40
-  store ptr %156, ptr %174, align 1
-  %175 = getelementptr i8, ptr %14, i64 48
-  store i64 %155, ptr %175, align 1
-  %176 = getelementptr i8, ptr %156, i64 %154
-  call fastcc void @newFiber(ptr %6, ptr %176, i64 65536, ptr %14, ptr %12)
+183:                                              ; preds = %317
+  %184 = getelementptr i8, ptr %14, i64 40
+  store ptr %318, ptr %184, align 1
+  %185 = getelementptr i8, ptr %14, i64 48
+  store i64 %157, ptr %185, align 1
+  %186 = getelementptr i8, ptr %318, i64 %156
+  call fastcc void @newFiber(ptr %6, ptr %186, i64 65536, ptr %14, ptr %12)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %14, ptr align 1 %6, i64 17, i1 false)
-  br label %165
+  br label %171
 
-177:                                              ; preds = %178, %165
-  br label %43
+187:                                              ; preds = %188, %332
+  br label %47
 
-178:                                              ; preds = %165
-  %179 = getelementptr i8, ptr %13, i64 40
-  store ptr %169, ptr %179, align 1
-  %180 = getelementptr i8, ptr %13, i64 48
-  store i64 %168, ptr %180, align 1
-  %181 = getelementptr i8, ptr %169, i64 %167
-  call fastcc void @newFiber(ptr %5, ptr %181, i64 65536, ptr %13, ptr %11)
+188:                                              ; preds = %332
+  %189 = getelementptr i8, ptr %13, i64 40
+  store ptr %333, ptr %189, align 1
+  %190 = getelementptr i8, ptr %13, i64 48
+  store i64 %174, ptr %190, align 1
+  %191 = getelementptr i8, ptr %333, i64 %173
+  call fastcc void @newFiber(ptr %5, ptr %191, i64 65536, ptr %13, ptr %11)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %13, ptr align 1 %5, i64 17, i1 false)
-  br label %177
+  br label %187
 
-182:                                              ; preds = %188, %50
-  %183 = getelementptr i8, ptr %13, i64 40
-  %184 = load ptr, ptr %183, align 1
-  %185 = ptrtoint ptr %184 to i64
-  %186 = icmp eq i64 %185, 0
-  %187 = zext i1 %186 to i32
-  br i1 %186, label %193, label %204
+192:                                              ; preds = %198, %54
+  %193 = getelementptr i8, ptr %13, i64 40
+  %194 = load ptr, ptr %193, align 1
+  %195 = ptrtoint ptr %194 to i64
+  %196 = icmp eq i64 %195, 0
+  %197 = zext i1 %196 to i32
+  br i1 %196, label %203, label %218
 
-188:                                              ; preds = %50
-  %189 = getelementptr i8, ptr %14, i64 48
-  %190 = load i64, ptr %189, align 1
-  %191 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %53, i64 %190)
-  store ptr null, ptr %51, align 1
-  store i64 0, ptr %189, align 1
-  %192 = getelementptr i8, ptr %14, i64 16
-  store i8 2, ptr %192, align 1
-  br label %182
+198:                                              ; preds = %54
+  %199 = getelementptr i8, ptr %14, i64 48
+  %200 = load i64, ptr %199, align 1
+  %201 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %57, i64 %200)
+  store ptr null, ptr %55, align 1
+  store i64 0, ptr %199, align 1
+  %202 = getelementptr i8, ptr %14, i64 16
+  store i8 2, ptr %202, align 1
+  br label %192
 
-193:                                              ; preds = %204, %182
+203:                                              ; preds = %218, %192
   call void @llvm.memset.p0.i64(ptr align 1 %10, i8 0, i64 16, i1 false)
-  %194 = getelementptr i8, ptr %10, i64 16
-  store i8 2, ptr %194, align 1
-  %195 = getelementptr i8, ptr %10, i64 36
-  store i32 1073741824, ptr %195, align 1
-  %196 = getelementptr i8, ptr %10, i64 40
-  call void @llvm.memset.p0.i64(ptr align 1 %196, i8 0, i64 16, i1 false)
+  %204 = getelementptr i8, ptr %10, i64 16
+  store i8 2, ptr %204, align 1
+  %205 = getelementptr i8, ptr %10, i64 36
+  store i32 1073741824, ptr %205, align 1
+  %206 = getelementptr i8, ptr %10, i64 40
+  call void @llvm.memset.p0.i64(ptr align 1 %206, i8 0, i64 16, i1 false)
   store ptr @"funvalue(words)", ptr %9, align 1
-  %197 = getelementptr i8, ptr %9, i64 8
-  store i64 0, ptr %197, align 1
-  %198 = call fastcc i64 @stackGuardBytes()
-  %199 = add i64 65536, %198
-  %200 = call fastcc ptr @guardedStack(i64 %199)
-  %201 = ptrtoint ptr %200 to i64
-  %202 = icmp eq i64 %201, 0
-  %203 = zext i1 %202 to i32
-  br i1 %202, label %209, label %213
+  %207 = getelementptr i8, ptr %9, i64 8
+  store i64 0, ptr %207, align 1
+  %208 = call fastcc i64 @stackGuardBytes()
+  %209 = add i64 65536, %208
+  %210 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %209, i64 3, i64 34, i64 -1, i64 0)
+  %211 = icmp slt i64 %210, 0
+  %212 = zext i1 %211 to i32
+  %213 = inttoptr i64 %210 to ptr
+  %214 = select i1 %211, ptr null, ptr %213
+  %215 = ptrtoint ptr %214 to i64
+  %216 = icmp eq i64 %215, 0
+  %217 = zext i1 %216 to i32
+  br i1 %216, label %361, label %352
 
-204:                                              ; preds = %182
-  %205 = getelementptr i8, ptr %13, i64 48
-  %206 = load i64, ptr %205, align 1
-  %207 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %185, i64 %206)
-  store ptr null, ptr %183, align 1
-  store i64 0, ptr %205, align 1
-  %208 = getelementptr i8, ptr %13, i64 16
-  store i8 2, ptr %208, align 1
-  br label %193
+218:                                              ; preds = %192
+  %219 = getelementptr i8, ptr %13, i64 48
+  %220 = load i64, ptr %219, align 1
+  %221 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %195, i64 %220)
+  store ptr null, ptr %193, align 1
+  store i64 0, ptr %219, align 1
+  %222 = getelementptr i8, ptr %13, i64 16
+  store i8 2, ptr %222, align 1
+  br label %203
 
-209:                                              ; preds = %213, %193
-  %210 = load i64, ptr @"constant$0", align 1
-  %211 = load i32, ptr getelementptr (i8, ptr @"constant$0", i64 8), align 1
-  %212 = load i32, ptr getelementptr (i8, ptr @"constant$0", i64 12), align 1
-  br label %78
+223:                                              ; preds = %225, %347
+  %224 = load i64, ptr @"constant$0", align 1
+  br label %82
 
-213:                                              ; preds = %193
-  %214 = getelementptr i8, ptr %10, i64 40
-  store ptr %200, ptr %214, align 1
-  %215 = getelementptr i8, ptr %10, i64 48
-  store i64 %199, ptr %215, align 1
-  %216 = getelementptr i8, ptr %200, i64 %198
-  call fastcc void @newFiber(ptr %4, ptr %216, i64 65536, ptr %10, ptr %9)
+225:                                              ; preds = %347
+  %226 = getelementptr i8, ptr %10, i64 40
+  store ptr %348, ptr %226, align 1
+  %227 = getelementptr i8, ptr %10, i64 48
+  store i64 %209, ptr %227, align 1
+  %228 = getelementptr i8, ptr %348, i64 %208
+  call fastcc void @newFiber(ptr %4, ptr %228, i64 65536, ptr %10, ptr %9)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %10, ptr align 1 %4, i64 17, i1 false)
-  br label %209
+  br label %223
 
-217:                                              ; preds = %235, %234, %228
-  %218 = phi i32 [ %231, %228 ], [ 0, %234 ], [ 0, %235 ]
-  %219 = phi i64 [ %233, %228 ], [ 0, %234 ], [ 0, %235 ]
-  %220 = icmp eq i32 %218, 0
-  %221 = zext i1 %220 to i32
-  br i1 %220, label %50, label %56
+229:                                              ; preds = %245, %244, %238
+  %230 = phi i32 [ %241, %238 ], [ 0, %244 ], [ 0, %245 ]
+  %231 = phi i64 [ %243, %238 ], [ 0, %244 ], [ 0, %245 ]
+  %232 = icmp eq i32 %230, 0
+  %233 = zext i1 %232 to i32
+  br i1 %232, label %54, label %60
 
-222:                                              ; preds = %43
-  %223 = getelementptr i8, ptr %14, i64 16
-  %224 = load i8, ptr %223, align 1
-  %225 = zext i8 %224 to i32
-  %226 = icmp eq i32 %225, 2
-  %227 = zext i1 %226 to i32
-  br i1 %226, label %234, label %294
+234:                                              ; preds = %47
+  %235 = getelementptr i8, ptr %14, i64 16
+  %236 = icmp eq i32 %51, 2
+  %237 = zext i1 %236 to i32
+  br i1 %236, label %244, label %362
 
-228:                                              ; preds = %294
-  %229 = getelementptr i8, ptr %14, i64 24
-  %230 = load i8, ptr %229, align 1
-  %231 = zext i8 %230 to i32
-  %232 = getelementptr i8, ptr %14, i64 32
-  %233 = load i64, ptr %232, align 1
-  store i8 0, ptr %229, align 1
-  br label %217
+238:                                              ; preds = %362
+  %239 = getelementptr i8, ptr %14, i64 24
+  %240 = load i8, ptr %239, align 1
+  %241 = zext i8 %240 to i32
+  %242 = getelementptr i8, ptr %14, i64 32
+  %243 = load i64, ptr %242, align 1
+  store i8 0, ptr %239, align 1
+  br label %229
 
-234:                                              ; preds = %294, %222
-  br label %217
+244:                                              ; preds = %362, %234
+  br label %229
 
-235:                                              ; preds = %43
-  br label %217
+245:                                              ; preds = %47
+  br label %229
 
-236:                                              ; preds = %251, %250, %244
-  %237 = phi i32 [ %247, %244 ], [ 0, %250 ], [ 0, %251 ]
-  %238 = phi i64 [ %249, %244 ], [ 0, %250 ], [ 0, %251 ]
-  %239 = icmp eq i32 %237, 0
-  %240 = zext i1 %239 to i32
-  br i1 %239, label %50, label %62
+246:                                              ; preds = %261, %260, %254
+  %247 = phi i32 [ %257, %254 ], [ 0, %260 ], [ 0, %261 ]
+  %248 = phi i64 [ %259, %254 ], [ 0, %260 ], [ 0, %261 ]
+  %249 = icmp eq i32 %247, 0
+  %250 = zext i1 %249 to i32
+  br i1 %249, label %54, label %66
 
-241:                                              ; preds = %56
-  %242 = icmp eq i32 %59, 2
-  %243 = zext i1 %242 to i32
-  br i1 %242, label %250, label %300
+251:                                              ; preds = %60
+  %252 = icmp eq i32 %63, 2
+  %253 = zext i1 %252 to i32
+  br i1 %252, label %260, label %368
 
-244:                                              ; preds = %300
-  %245 = getelementptr i8, ptr %13, i64 24
-  %246 = load i8, ptr %245, align 1
-  %247 = zext i8 %246 to i32
-  %248 = getelementptr i8, ptr %13, i64 32
-  %249 = load i64, ptr %248, align 1
-  store i8 0, ptr %245, align 1
-  br label %236
+254:                                              ; preds = %368
+  %255 = getelementptr i8, ptr %13, i64 24
+  %256 = load i8, ptr %255, align 1
+  %257 = zext i8 %256 to i32
+  %258 = getelementptr i8, ptr %13, i64 32
+  %259 = load i64, ptr %258, align 1
+  store i8 0, ptr %255, align 1
+  br label %246
 
-250:                                              ; preds = %300, %241
-  br label %236
+260:                                              ; preds = %368, %251
+  br label %246
 
-251:                                              ; preds = %56
-  br label %236
+261:                                              ; preds = %60
+  br label %246
 
-252:                                              ; preds = %275, %274, %267
-  %253 = phi i64 [ %269, %267 ], [ 0, %274 ], [ 0, %275 ]
-  %254 = phi i32 [ %271, %267 ], [ 0, %274 ], [ 0, %275 ]
-  %255 = phi i32 [ %273, %267 ], [ 1073741824, %274 ], [ 1073741824, %275 ]
-  store i64 %253, ptr %8, align 1
-  %256 = getelementptr i8, ptr %8, i64 8
-  store i32 %254, ptr %256, align 1
-  %257 = getelementptr i8, ptr %8, i64 12
-  store i32 %255, ptr %257, align 1
-  %258 = zext i32 %255 to i64
-  %259 = icmp ule i64 %258, 1073741823
-  %260 = zext i1 %259 to i32
-  br i1 %259, label %93, label %87
+262:                                              ; preds = %283, %282, %275
+  %263 = phi i64 [ %277, %275 ], [ 0, %282 ], [ 0, %283 ]
+  %264 = phi i32 [ %279, %275 ], [ 0, %282 ], [ 0, %283 ]
+  %265 = phi i32 [ %281, %275 ], [ 1073741824, %282 ], [ 1073741824, %283 ]
+  store i64 %263, ptr %8, align 1
+  %266 = getelementptr i8, ptr %8, i64 8
+  store i32 %264, ptr %266, align 1
+  %267 = getelementptr i8, ptr %8, i64 12
+  store i32 %265, ptr %267, align 1
+  %268 = zext i32 %265 to i64
+  %269 = icmp ule i64 %268, 1073741823
+  %270 = zext i1 %269 to i32
+  br i1 %269, label %97, label %91
 
-261:                                              ; preds = %78
-  %262 = getelementptr i8, ptr %10, i64 16
-  %263 = load i8, ptr %262, align 1
-  %264 = zext i8 %263 to i32
-  %265 = icmp eq i32 %264, 2
-  %266 = zext i1 %265 to i32
-  br i1 %265, label %274, label %306
+271:                                              ; preds = %82
+  %272 = getelementptr i8, ptr %10, i64 16
+  %273 = icmp eq i32 %88, 2
+  %274 = zext i1 %273 to i32
+  br i1 %273, label %282, label %374
 
-267:                                              ; preds = %306
-  %268 = getelementptr i8, ptr %10, i64 24
-  %269 = load i64, ptr %268, align 1
-  %270 = getelementptr i8, ptr %10, i64 32
-  %271 = load i32, ptr %270, align 1
-  %272 = getelementptr i8, ptr %10, i64 36
-  %273 = load i32, ptr %272, align 1
-  store i32 1073741824, ptr %272, align 1
-  br label %252
+275:                                              ; preds = %374
+  %276 = getelementptr i8, ptr %10, i64 24
+  %277 = load i64, ptr %276, align 1
+  %278 = getelementptr i8, ptr %10, i64 32
+  %279 = load i32, ptr %278, align 1
+  %280 = getelementptr i8, ptr %10, i64 36
+  %281 = load i32, ptr %280, align 1
+  store i32 1073741824, ptr %280, align 1
+  br label %262
 
-274:                                              ; preds = %306, %261
-  br label %252
+282:                                              ; preds = %374, %271
+  br label %262
 
-275:                                              ; preds = %78
-  br label %252
+283:                                              ; preds = %82
+  br label %262
 
-276:                                              ; preds = %283, %87
-  %277 = getelementptr i8, ptr %10, i64 24
-  call fastcc void @"teardown(Maybe(String))"(ptr %277)
-  %278 = mul i64 %29, 100000
-  %279 = mul i64 %44, 100
-  %280 = add i64 %278, %279
-  %281 = sext i32 %81 to i64
-  call fastcc void @String.reclaim(i64 %79, i32 %80)
-  %282 = add i64 %280, %281
-  ret i64 %282
+284:                                              ; preds = %291, %91
+  %285 = getelementptr i8, ptr %10, i64 24
+  call fastcc void @"teardown(Maybe(String))"(ptr %285)
+  %286 = mul i64 %33, 100000
+  %287 = mul i64 %48, 100
+  %288 = add i64 %286, %287
+  %289 = sext i32 %85 to i64
+  call fastcc void @String.reclaim(i64 %83, i32 %84)
+  %290 = add i64 %288, %289
+  ret i64 %290
 
-283:                                              ; preds = %87
-  %284 = getelementptr i8, ptr %10, i64 48
-  %285 = load i64, ptr %284, align 1
-  %286 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %90, i64 %285)
-  store ptr null, ptr %88, align 1
-  store i64 0, ptr %284, align 1
-  %287 = getelementptr i8, ptr %10, i64 16
-  store i8 2, ptr %287, align 1
-  br label %276
+291:                                              ; preds = %91
+  %292 = getelementptr i8, ptr %10, i64 48
+  %293 = load i64, ptr %292, align 1
+  %294 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %94, i64 %293)
+  store ptr null, ptr %92, align 1
+  store i64 0, ptr %292, align 1
+  %295 = getelementptr i8, ptr %10, i64 16
+  store i8 2, ptr %295, align 1
+  br label %284
 
-288:                                              ; preds = %130
-  store i8 1, ptr %131, align 1
-  %289 = load ptr, ptr %16, align 1
-  %290 = getelementptr i8, ptr %16, i64 8
-  %291 = call preserve_nonecc i64 @__yana_stack_switch(ptr %289, ptr %290, i64 0)
-  %292 = icmp eq i64 %291, 0
-  %293 = zext i1 %292 to i32
-  br i1 %292, label %144, label %136
+296:                                              ; preds = %310, %308, %307
+  %297 = phi ptr [ %28, %307 ], [ null, %308 ], [ null, %310 ]
+  %298 = ptrtoint ptr %297 to i64
+  %299 = icmp eq i64 %298, 0
+  %300 = zext i1 %299 to i32
+  br i1 %299, label %129, label %130
 
-294:                                              ; preds = %222
-  store i8 1, ptr %223, align 1
-  %295 = load ptr, ptr %14, align 1
-  %296 = getelementptr i8, ptr %14, i64 8
-  %297 = call preserve_nonecc i64 @__yana_stack_switch(ptr %295, ptr %296, i64 0)
-  %298 = icmp eq i64 %297, 0
-  %299 = zext i1 %298 to i32
-  br i1 %298, label %234, label %228
+301:                                              ; preds = %17
+  %302 = call fastcc i64 @systemPageBytes()
+  %303 = ptrtoint ptr %28 to i64
+  %304 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 10, i64 %303, i64 %302, i64 0)
+  %305 = icmp ne i64 %304, 0
+  %306 = zext i1 %305 to i32
+  br i1 %305, label %308, label %307
 
-300:                                              ; preds = %241
-  store i8 1, ptr %57, align 1
-  %301 = load ptr, ptr %13, align 1
-  %302 = getelementptr i8, ptr %13, i64 8
-  %303 = call preserve_nonecc i64 @__yana_stack_switch(ptr %301, ptr %302, i64 0)
-  %304 = icmp eq i64 %303, 0
-  %305 = zext i1 %304 to i32
-  br i1 %304, label %250, label %244
+307:                                              ; preds = %301
+  br label %296
 
-306:                                              ; preds = %261
-  store i8 1, ptr %262, align 1
-  %307 = load ptr, ptr %10, align 1
-  %308 = getelementptr i8, ptr %10, i64 8
-  %309 = call preserve_nonecc i64 @__yana_stack_switch(ptr %307, ptr %308, i64 0)
-  %310 = icmp eq i64 %309, 0
-  %311 = zext i1 %310 to i32
-  br i1 %310, label %274, label %267
+308:                                              ; preds = %301
+  %309 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %303, i64 %23)
+  br label %296
+
+310:                                              ; preds = %17
+  br label %296
+
+311:                                              ; preds = %134
+  store i8 1, ptr %135, align 1
+  %312 = load ptr, ptr %16, align 1
+  %313 = getelementptr i8, ptr %16, i64 8
+  %314 = call preserve_nonecc i64 @__yana_stack_switch(ptr %312, ptr %313, i64 0)
+  %315 = icmp eq i64 %314, 0
+  %316 = zext i1 %315 to i32
+  br i1 %315, label %146, label %138
+
+317:                                              ; preds = %331, %329, %328
+  %318 = phi ptr [ %162, %328 ], [ null, %329 ], [ null, %331 ]
+  %319 = ptrtoint ptr %318 to i64
+  %320 = icmp eq i64 %319, 0
+  %321 = zext i1 %320 to i32
+  br i1 %320, label %171, label %183
+
+322:                                              ; preds = %148
+  %323 = call fastcc i64 @systemPageBytes()
+  %324 = ptrtoint ptr %162 to i64
+  %325 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 10, i64 %324, i64 %323, i64 0)
+  %326 = icmp ne i64 %325, 0
+  %327 = zext i1 %326 to i32
+  br i1 %326, label %329, label %328
+
+328:                                              ; preds = %322
+  br label %317
+
+329:                                              ; preds = %322
+  %330 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %324, i64 %157)
+  br label %317
+
+331:                                              ; preds = %148
+  br label %317
+
+332:                                              ; preds = %346, %344, %343
+  %333 = phi ptr [ %179, %343 ], [ null, %344 ], [ null, %346 ]
+  %334 = ptrtoint ptr %333 to i64
+  %335 = icmp eq i64 %334, 0
+  %336 = zext i1 %335 to i32
+  br i1 %335, label %187, label %188
+
+337:                                              ; preds = %171
+  %338 = call fastcc i64 @systemPageBytes()
+  %339 = ptrtoint ptr %179 to i64
+  %340 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 10, i64 %339, i64 %338, i64 0)
+  %341 = icmp ne i64 %340, 0
+  %342 = zext i1 %341 to i32
+  br i1 %341, label %344, label %343
+
+343:                                              ; preds = %337
+  br label %332
+
+344:                                              ; preds = %337
+  %345 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %339, i64 %174)
+  br label %332
+
+346:                                              ; preds = %171
+  br label %332
+
+347:                                              ; preds = %361, %359, %358
+  %348 = phi ptr [ %214, %358 ], [ null, %359 ], [ null, %361 ]
+  %349 = ptrtoint ptr %348 to i64
+  %350 = icmp eq i64 %349, 0
+  %351 = zext i1 %350 to i32
+  br i1 %350, label %223, label %225
+
+352:                                              ; preds = %203
+  %353 = call fastcc i64 @systemPageBytes()
+  %354 = ptrtoint ptr %214 to i64
+  %355 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 10, i64 %354, i64 %353, i64 0)
+  %356 = icmp ne i64 %355, 0
+  %357 = zext i1 %356 to i32
+  br i1 %356, label %359, label %358
+
+358:                                              ; preds = %352
+  br label %347
+
+359:                                              ; preds = %352
+  %360 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %354, i64 %209)
+  br label %347
+
+361:                                              ; preds = %203
+  br label %347
+
+362:                                              ; preds = %234
+  store i8 1, ptr %235, align 1
+  %363 = load ptr, ptr %14, align 1
+  %364 = getelementptr i8, ptr %14, i64 8
+  %365 = call preserve_nonecc i64 @__yana_stack_switch(ptr %363, ptr %364, i64 0)
+  %366 = icmp eq i64 %365, 0
+  %367 = zext i1 %366 to i32
+  br i1 %366, label %244, label %238
+
+368:                                              ; preds = %251
+  store i8 1, ptr %61, align 1
+  %369 = load ptr, ptr %13, align 1
+  %370 = getelementptr i8, ptr %13, i64 8
+  %371 = call preserve_nonecc i64 @__yana_stack_switch(ptr %369, ptr %370, i64 0)
+  %372 = icmp eq i64 %371, 0
+  %373 = zext i1 %372 to i32
+  br i1 %372, label %260, label %254
+
+374:                                              ; preds = %271
+  store i8 1, ptr %272, align 1
+  %375 = load ptr, ptr %10, align 1
+  %376 = getelementptr i8, ptr %10, i64 8
+  %377 = call preserve_nonecc i64 @__yana_stack_switch(ptr %375, ptr %376, i64 0)
+  %378 = icmp eq i64 %377, 0
+  %379 = zext i1 %378 to i32
+  br i1 %378, label %282, label %275
 }
 
 define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
@@ -750,9 +858,9 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
   call void @llvm.memset.p0.i64(ptr align 1 %1, i8 0, i64 10, i1 false)
   br label %3
 
-3:                                                ; preds = %63, %2
-  %4 = phi i64 [ 10, %2 ], [ %21, %63 ]
-  %5 = phi i32 [ %value, %2 ], [ %16, %63 ]
+3:                                                ; preds = %77, %2
+  %4 = phi i64 [ 10, %2 ], [ %21, %77 ]
+  %5 = phi i32 [ %value, %2 ], [ %16, %77 ]
   %6 = icmp uge i32 %5, 100
   %7 = zext i1 %6 to i32
   br i1 %6, label %11, label %8
@@ -760,7 +868,7 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
 8:                                                ; preds = %3
   %9 = icmp uge i32 %5, 10
   %10 = zext i1 %9 to i32
-  br i1 %9, label %32, label %24
+  br i1 %9, label %34, label %24
 
 11:                                               ; preds = %3
   %12 = zext i32 %5 to i64
@@ -775,84 +883,129 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
   %21 = sub i64 %4, 2
   %22 = icmp uge i64 %21, 10
   %23 = zext i1 %22 to i32
-  br i1 %22, label %47, label %38
+  br i1 %22, label %49, label %40
 
 24:                                               ; preds = %8
   %25 = sub i64 %4, 1
   %26 = icmp uge i64 %25, 10
   %27 = zext i1 %26 to i32
-  br i1 %26, label %47, label %49
+  br i1 %26, label %49, label %51
 
-28:                                               ; preds = %70, %49
-  %29 = phi i64 [ %25, %49 ], [ %35, %70 ]
+28:                                               ; preds = %84, %51
+  %29 = phi i64 [ %25, %51 ], [ %37, %84 ]
   %30 = getelementptr i8, ptr %1, i64 %29
   %31 = sub i64 10, %29
-  call fastcc void @String.appendUnits(ptr %to, ptr %30, i64 %31)
-  ret void
+  %32 = icmp sle i64 %31, 0
+  %33 = zext i1 %32 to i32
+  br i1 %32, label %56, label %57
 
-32:                                               ; preds = %8
-  %33 = shl i32 %5, 1
-  %34 = zext i32 %33 to i64
-  %35 = sub i64 %4, 2
-  %36 = icmp uge i64 %35, 10
-  %37 = zext i1 %36 to i32
-  br i1 %36, label %47, label %54
+34:                                               ; preds = %8
+  %35 = shl i32 %5, 1
+  %36 = zext i32 %35 to i64
+  %37 = sub i64 %4, 2
+  %38 = icmp uge i64 %37, 10
+  %39 = zext i1 %38 to i32
+  br i1 %38, label %49, label %68
 
-38:                                               ; preds = %11
-  %39 = getelementptr i8, ptr @"string'148", i64 %20
-  %40 = load i8, ptr %39, align 1
-  %41 = zext i8 %40 to i32
-  %42 = getelementptr i8, ptr %1, i64 %21
-  %43 = trunc i32 %41 to i8
-  store i8 %43, ptr %42, align 1
-  %44 = add i64 %21, 1
-  %45 = icmp uge i64 %44, 10
-  %46 = zext i1 %45 to i32
-  br i1 %45, label %47, label %63
+40:                                               ; preds = %11
+  %41 = getelementptr i8, ptr @"string'148", i64 %20
+  %42 = load i8, ptr %41, align 1
+  %43 = zext i8 %42 to i32
+  %44 = getelementptr i8, ptr %1, i64 %21
+  %45 = trunc i32 %43 to i8
+  store i8 %45, ptr %44, align 1
+  %46 = add i64 %21, 1
+  %47 = icmp uge i64 %46, 10
+  %48 = zext i1 %47 to i32
+  br i1 %47, label %49, label %77
 
-47:                                               ; preds = %38, %11, %54, %32, %24
-  %48 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
+49:                                               ; preds = %40, %11, %98, %68, %34, %24
+  %50 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
   unreachable
 
-49:                                               ; preds = %24
-  %50 = add i32 48, %5
-  %51 = and i32 %50, 255
-  %52 = getelementptr i8, ptr %1, i64 %25
-  %53 = trunc i32 %51 to i8
-  store i8 %53, ptr %52, align 1
+51:                                               ; preds = %24
+  %52 = add i32 48, %5
+  %53 = and i32 %52, 255
+  %54 = getelementptr i8, ptr %1, i64 %25
+  %55 = trunc i32 %53 to i8
+  store i8 %55, ptr %54, align 1
   br label %28
 
-54:                                               ; preds = %32
-  %55 = getelementptr i8, ptr @"string'148", i64 %34
-  %56 = load i8, ptr %55, align 1
-  %57 = zext i8 %56 to i32
-  %58 = getelementptr i8, ptr %1, i64 %35
-  %59 = trunc i32 %57 to i8
-  store i8 %59, ptr %58, align 1
-  %60 = add i64 %35, 1
-  %61 = icmp uge i64 %60, 10
-  %62 = zext i1 %61 to i32
-  br i1 %61, label %47, label %70
+56:                                               ; preds = %105, %28
+  ret void
 
-63:                                               ; preds = %38
-  %64 = add i64 %20, 1
-  %65 = getelementptr i8, ptr @"string'148", i64 %64
-  %66 = load i8, ptr %65, align 1
-  %67 = zext i8 %66 to i32
-  %68 = getelementptr i8, ptr %1, i64 %44
-  %69 = trunc i32 %67 to i8
-  store i8 %69, ptr %68, align 1
+57:                                               ; preds = %28
+  %58 = getelementptr i8, ptr %to, i64 12
+  %59 = load i32, ptr %58, align 1
+  %60 = zext i32 %59 to i64
+  %61 = add i64 %60, %31
+  %62 = getelementptr i8, ptr %to, i64 8
+  %63 = load i32, ptr %62, align 1
+  %64 = zext i32 %63 to i64
+  %65 = and i64 %64, 1073741823
+  %66 = icmp sle i64 %61, %65
+  %67 = zext i1 %66 to i32
+  br i1 %66, label %98, label %91
+
+68:                                               ; preds = %34
+  %69 = getelementptr i8, ptr @"string'148", i64 %36
+  %70 = load i8, ptr %69, align 1
+  %71 = zext i8 %70 to i32
+  %72 = getelementptr i8, ptr %1, i64 %37
+  %73 = trunc i32 %71 to i8
+  store i8 %73, ptr %72, align 1
+  %74 = add i64 %37, 1
+  %75 = icmp uge i64 %74, 10
+  %76 = zext i1 %75 to i32
+  br i1 %75, label %49, label %84
+
+77:                                               ; preds = %40
+  %78 = add i64 %20, 1
+  %79 = getelementptr i8, ptr @"string'148", i64 %78
+  %80 = load i8, ptr %79, align 1
+  %81 = zext i8 %80 to i32
+  %82 = getelementptr i8, ptr %1, i64 %46
+  %83 = trunc i32 %81 to i8
+  store i8 %83, ptr %82, align 1
   br label %3
 
-70:                                               ; preds = %54
-  %71 = add i64 %34, 1
-  %72 = getelementptr i8, ptr @"string'148", i64 %71
-  %73 = load i8, ptr %72, align 1
-  %74 = zext i8 %73 to i32
-  %75 = getelementptr i8, ptr %1, i64 %60
-  %76 = trunc i32 %74 to i8
-  store i8 %76, ptr %75, align 1
+84:                                               ; preds = %68
+  %85 = add i64 %36, 1
+  %86 = getelementptr i8, ptr @"string'148", i64 %85
+  %87 = load i8, ptr %86, align 1
+  %88 = zext i8 %87 to i32
+  %89 = getelementptr i8, ptr %1, i64 %74
+  %90 = trunc i32 %88 to i8
+  store i8 %90, ptr %89, align 1
   br label %28
+
+91:                                               ; preds = %57
+  call fastcc void @"growArray(CodeUnit)"(ptr %to, i64 %61)
+  %92 = load i32, ptr %58, align 1
+  %93 = zext i32 %92 to i64
+  %94 = add i64 %93, %31
+  %95 = load i32, ptr %62, align 1
+  %96 = zext i32 %95 to i64
+  %97 = and i64 %96, 1073741823
+  br label %98
+
+98:                                               ; preds = %91, %57
+  %99 = phi i64 [ %60, %57 ], [ %93, %91 ]
+  %100 = phi i64 [ %61, %57 ], [ %94, %91 ]
+  %101 = phi i64 [ %65, %57 ], [ %97, %91 ]
+  %102 = getelementptr i8, ptr %to, i64 12
+  %103 = icmp slt i64 %101, %100
+  %104 = zext i1 %103 to i32
+  br i1 %103, label %49, label %105
+
+105:                                              ; preds = %98
+  %106 = load ptr, ptr %to, align 1
+  %107 = getelementptr i8, ptr %106, i64 %99
+  call fastcc void @copyMemory(ptr %107, ptr %30, i64 %31)
+  %108 = trunc i64 %100 to i32
+  %109 = and i32 %108, 1073741823
+  store i32 %109, ptr %102, align 1
+  br label %56
 }
 
 define fastcc void @String.reclaim(i64 %0, i32 %1) #0 {
@@ -1035,23 +1188,27 @@ define fastcc void @initHeap() #0 {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = call fastcc ptr @mapMemory(i64 4198400)
-  %3 = ptrtoint ptr %2 to i64
-  %4 = icmp eq i64 %3, 0
-  %5 = zext i1 %4 to i32
-  br i1 %4, label %9, label %6
+  %2 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 4198400, i64 3, i64 34, i64 -1, i64 0)
+  %3 = icmp slt i64 %2, 0
+  %4 = zext i1 %3 to i32
+  %5 = inttoptr i64 %2 to ptr
+  %6 = select i1 %3, ptr null, ptr %5
+  %7 = ptrtoint ptr %6 to i64
+  %8 = icmp eq i64 %7, 0
+  %9 = zext i1 %8 to i32
+  br i1 %8, label %13, label %10
 
-6:                                                ; preds = %1
-  call void @llvm.memset.p0.i64(ptr align 1 %2, i8 0, i64 256, i1 false)
-  store ptr %2, ptr @heapFree, align 1
-  %7 = getelementptr i8, ptr %2, i64 256
-  store ptr %7, ptr @heapNext, align 1
-  %8 = getelementptr i8, ptr %2, i64 4194304
-  store ptr %8, ptr @heapLimit, align 1
+10:                                               ; preds = %1
+  call void @llvm.memset.p0.i64(ptr align 1 %6, i8 0, i64 256, i1 false)
+  store ptr %6, ptr @heapFree, align 1
+  %11 = getelementptr i8, ptr %6, i64 256
+  store ptr %11, ptr @heapNext, align 1
+  %12 = getelementptr i8, ptr %6, i64 4194304
+  store ptr %12, ptr @heapLimit, align 1
   store i64 8388608, ptr @heapRegionNext, align 1
   ret void
 
-9:                                                ; preds = %1
+13:                                               ; preds = %1
   ret void
 }
 
@@ -1064,46 +1221,54 @@ define fastcc i32 @growHeap(i64 %needed) #0 {
   %4 = zext i1 %3 to i32
   %5 = select i1 %3, i64 %needed, i64 %2
   %6 = add i64 %5, 4096
-  %7 = call fastcc ptr @mapMemory(i64 %6)
-  %8 = ptrtoint ptr %7 to i64
-  %9 = icmp eq i64 %8, 0
-  %10 = zext i1 %9 to i32
-  br i1 %9, label %17, label %11
+  %7 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %6, i64 3, i64 34, i64 -1, i64 0)
+  %8 = icmp slt i64 %7, 0
+  %9 = zext i1 %8 to i32
+  %10 = inttoptr i64 %7 to ptr
+  %11 = select i1 %8, ptr null, ptr %10
+  %12 = ptrtoint ptr %11 to i64
+  %13 = icmp eq i64 %12, 0
+  %14 = zext i1 %13 to i32
+  br i1 %13, label %21, label %15
 
-11:                                               ; preds = %1
-  br label %12
+15:                                               ; preds = %1
+  br label %16
 
-12:                                               ; preds = %30, %11
-  %13 = phi i64 [ %5, %11 ], [ %20, %30 ]
-  %14 = phi ptr [ %7, %11 ], [ %25, %30 ]
-  store ptr %14, ptr @heapNext, align 1
-  %15 = getelementptr i8, ptr %14, i64 %13
-  store ptr %15, ptr @heapLimit, align 1
-  %16 = add i64 %13, %13
-  store i64 %16, ptr @heapRegionNext, align 1
+16:                                               ; preds = %38, %15
+  %17 = phi i64 [ %5, %15 ], [ %24, %38 ]
+  %18 = phi ptr [ %11, %15 ], [ %33, %38 ]
+  store ptr %18, ptr @heapNext, align 1
+  %19 = getelementptr i8, ptr %18, i64 %17
+  store ptr %19, ptr @heapLimit, align 1
+  %20 = add i64 %17, %17
+  store i64 %20, ptr @heapRegionNext, align 1
   ret i32 1
 
-17:                                               ; preds = %1
-  %18 = icmp sgt i64 %needed, 4194304
-  %19 = zext i1 %18 to i32
-  %20 = select i1 %18, i64 %needed, i64 4194304
-  %21 = icmp sge i64 %20, %5
-  %22 = zext i1 %21 to i32
-  br i1 %21, label %29, label %23
+21:                                               ; preds = %1
+  %22 = icmp sgt i64 %needed, 4194304
+  %23 = zext i1 %22 to i32
+  %24 = select i1 %22, i64 %needed, i64 4194304
+  %25 = icmp sge i64 %24, %5
+  %26 = zext i1 %25 to i32
+  br i1 %25, label %37, label %27
 
-23:                                               ; preds = %17
-  %24 = add i64 %20, 4096
-  %25 = call fastcc ptr @mapMemory(i64 %24)
-  %26 = ptrtoint ptr %25 to i64
-  %27 = icmp eq i64 %26, 0
-  %28 = zext i1 %27 to i32
-  br i1 %27, label %29, label %30
+27:                                               ; preds = %21
+  %28 = add i64 %24, 4096
+  %29 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %28, i64 3, i64 34, i64 -1, i64 0)
+  %30 = icmp slt i64 %29, 0
+  %31 = zext i1 %30 to i32
+  %32 = inttoptr i64 %29 to ptr
+  %33 = select i1 %30, ptr null, ptr %32
+  %34 = ptrtoint ptr %33 to i64
+  %35 = icmp eq i64 %34, 0
+  %36 = zext i1 %35 to i32
+  br i1 %35, label %37, label %38
 
-29:                                               ; preds = %23, %17
+37:                                               ; preds = %27, %21
   ret i32 0
 
-30:                                               ; preds = %23
-  br label %12
+38:                                               ; preds = %27
+  br label %16
 }
 
 define fastcc ptr @allocateHeap(i64 %size) #0 {
@@ -1186,88 +1351,6 @@ define fastcc ptr @allocateHeap(i64 %size) #0 {
   br label %38
 }
 
-define fastcc void @freeHeap(ptr %allocation) #0 {
-  br label %1
-
-1:                                                ; preds = %0
-  %2 = ptrtoint ptr %allocation to i64
-  %3 = icmp eq i64 %2, 0
-  %4 = zext i1 %3 to i32
-  br i1 %3, label %12, label %5
-
-5:                                                ; preds = %1
-  %6 = getelementptr i8, ptr %allocation, i64 -8
-  %7 = load i64, ptr %6, align 1
-  %8 = load ptr, ptr @heapFree, align 1
-  %9 = shl i64 %7, 3
-  %10 = getelementptr i8, ptr %8, i64 %9
-  %11 = load ptr, ptr %10, align 1
-  store ptr %11, ptr %allocation, align 1
-  store ptr %allocation, ptr %10, align 1
-  ret void
-
-12:                                               ; preds = %1
-  ret void
-}
-
-define fastcc void @blockAscending(ptr %to, ptr %from, i64 %count) #0 {
-  br label %1
-
-1:                                                ; preds = %0
-  %2 = sub i64 %count, 16
-  %3 = getelementptr i8, ptr %from, i64 %2
-  %4 = load <16 x i8>, ptr %3, align 1
-  br label %5
-
-5:                                                ; preds = %11, %1
-  %6 = phi i64 [ 0, %1 ], [ %7, %11 ]
-  %7 = add i64 %6, 64
-  %8 = icmp sle i64 %7, %count
-  %9 = zext i1 %8 to i32
-  br i1 %8, label %11, label %10
-
-10:                                               ; preds = %5
-  br label %24
-
-11:                                               ; preds = %5
-  %12 = getelementptr i8, ptr %from, i64 %6
-  %13 = load <16 x i8>, ptr %12, align 1
-  %14 = getelementptr i8, ptr %12, i64 16
-  %15 = load <16 x i8>, ptr %14, align 1
-  %16 = getelementptr i8, ptr %12, i64 32
-  %17 = load <16 x i8>, ptr %16, align 1
-  %18 = getelementptr i8, ptr %12, i64 48
-  %19 = load <16 x i8>, ptr %18, align 1
-  %20 = getelementptr i8, ptr %to, i64 %6
-  store <16 x i8> %13, ptr %20, align 1
-  %21 = getelementptr i8, ptr %20, i64 16
-  store <16 x i8> %15, ptr %21, align 1
-  %22 = getelementptr i8, ptr %20, i64 32
-  store <16 x i8> %17, ptr %22, align 1
-  %23 = getelementptr i8, ptr %20, i64 48
-  store <16 x i8> %19, ptr %23, align 1
-  br label %5
-
-24:                                               ; preds = %31, %10
-  %25 = phi i64 [ %6, %10 ], [ %26, %31 ]
-  %26 = add i64 %25, 16
-  %27 = icmp sle i64 %26, %count
-  %28 = zext i1 %27 to i32
-  br i1 %27, label %31, label %29
-
-29:                                               ; preds = %24
-  %30 = getelementptr i8, ptr %to, i64 %2
-  store <16 x i8> %4, ptr %30, align 1
-  ret void
-
-31:                                               ; preds = %24
-  %32 = getelementptr i8, ptr %to, i64 %25
-  %33 = getelementptr i8, ptr %from, i64 %25
-  %34 = load <16 x i8>, ptr %33, align 1
-  store <16 x i8> %34, ptr %32, align 1
-  br label %24
-}
-
 define fastcc void @copyMemory(ptr %to, ptr %from, i64 %count) #0 {
   br label %1
 
@@ -1279,7 +1362,7 @@ define fastcc void @copyMemory(ptr %to, ptr %from, i64 %count) #0 {
 4:                                                ; preds = %1
   %5 = icmp sge i64 %count, 8
   %6 = zext i1 %5 to i32
-  br i1 %5, label %57, label %28
+  br i1 %5, label %60, label %31
 
 7:                                                ; preds = %1
   %8 = icmp slt i64 %count, 64
@@ -1289,7 +1372,7 @@ define fastcc void @copyMemory(ptr %to, ptr %from, i64 %count) #0 {
 10:                                               ; preds = %7
   %11 = icmp sge i64 %count, 768
   %12 = zext i1 %11 to i32
-  br i1 %11, label %27, label %26
+  br i1 %11, label %30, label %26
 
 13:                                               ; preds = %7
   %14 = load <16 x i8>, ptr %from, align 1
@@ -1311,98 +1394,200 @@ define fastcc void @copyMemory(ptr %to, ptr %from, i64 %count) #0 {
   ret void
 
 26:                                               ; preds = %10
-  call fastcc void @blockAscending(ptr %to, ptr %from, i64 %count)
-  ret void
+  %27 = sub i64 %count, 16
+  %28 = getelementptr i8, ptr %from, i64 %27
+  %29 = load <16 x i8>, ptr %28, align 1
+  br label %76
 
-27:                                               ; preds = %10
+30:                                               ; preds = %10
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %to, ptr align 1 %from, i64 %count, i1 false)
   ret void
 
-28:                                               ; preds = %4
-  %29 = icmp sge i64 %count, 2
-  %30 = zext i1 %29 to i32
-  br i1 %29, label %38, label %31
-
-31:                                               ; preds = %28
-  %32 = icmp sge i64 %count, 1
+31:                                               ; preds = %4
+  %32 = icmp sge i64 %count, 2
   %33 = zext i1 %32 to i32
-  br i1 %32, label %34, label %72
+  br i1 %32, label %41, label %34
 
 34:                                               ; preds = %31
-  %35 = load i8, ptr %from, align 1
-  %36 = zext i8 %35 to i32
-  %37 = trunc i32 %36 to i8
-  store i8 %37, ptr %to, align 1
-  br label %72
+  %35 = icmp sge i64 %count, 1
+  %36 = zext i1 %35 to i32
+  br i1 %35, label %37, label %75
 
-38:                                               ; preds = %28
-  %39 = icmp sge i64 %count, 4
-  %40 = zext i1 %39 to i32
-  br i1 %39, label %51, label %41
+37:                                               ; preds = %34
+  %38 = load i8, ptr %from, align 1
+  %39 = zext i8 %38 to i32
+  %40 = trunc i32 %39 to i8
+  store i8 %40, ptr %to, align 1
+  br label %75
 
-41:                                               ; preds = %38
-  %42 = load i16, ptr %from, align 1
-  %43 = zext i16 %42 to i32
-  %44 = sub i64 %count, 2
-  %45 = getelementptr i8, ptr %from, i64 %44
-  %46 = load i16, ptr %45, align 1
-  %47 = zext i16 %46 to i32
-  %48 = trunc i32 %43 to i16
-  store i16 %48, ptr %to, align 1
-  %49 = getelementptr i8, ptr %to, i64 %44
-  %50 = trunc i32 %47 to i16
-  store i16 %50, ptr %49, align 1
-  br label %72
+41:                                               ; preds = %31
+  %42 = icmp sge i64 %count, 4
+  %43 = zext i1 %42 to i32
+  br i1 %42, label %54, label %44
 
-51:                                               ; preds = %38
-  %52 = load i32, ptr %from, align 1
-  %53 = sub i64 %count, 4
-  %54 = getelementptr i8, ptr %from, i64 %53
-  %55 = load i32, ptr %54, align 1
-  store i32 %52, ptr %to, align 1
-  %56 = getelementptr i8, ptr %to, i64 %53
-  store i32 %55, ptr %56, align 1
-  br label %72
+44:                                               ; preds = %41
+  %45 = load i16, ptr %from, align 1
+  %46 = zext i16 %45 to i32
+  %47 = sub i64 %count, 2
+  %48 = getelementptr i8, ptr %from, i64 %47
+  %49 = load i16, ptr %48, align 1
+  %50 = zext i16 %49 to i32
+  %51 = trunc i32 %46 to i16
+  store i16 %51, ptr %to, align 1
+  %52 = getelementptr i8, ptr %to, i64 %47
+  %53 = trunc i32 %50 to i16
+  store i16 %53, ptr %52, align 1
+  br label %75
 
-57:                                               ; preds = %4
-  %58 = icmp sge i64 %count, 16
-  %59 = zext i1 %58 to i32
-  br i1 %58, label %66, label %60
+54:                                               ; preds = %41
+  %55 = load i32, ptr %from, align 1
+  %56 = sub i64 %count, 4
+  %57 = getelementptr i8, ptr %from, i64 %56
+  %58 = load i32, ptr %57, align 1
+  store i32 %55, ptr %to, align 1
+  %59 = getelementptr i8, ptr %to, i64 %56
+  store i32 %58, ptr %59, align 1
+  br label %75
 
-60:                                               ; preds = %57
-  %61 = load i64, ptr %from, align 1
-  %62 = sub i64 %count, 8
-  %63 = getelementptr i8, ptr %from, i64 %62
-  %64 = load i64, ptr %63, align 1
-  store i64 %61, ptr %to, align 1
-  %65 = getelementptr i8, ptr %to, i64 %62
-  store i64 %64, ptr %65, align 1
-  br label %72
+60:                                               ; preds = %4
+  %61 = icmp sge i64 %count, 16
+  %62 = zext i1 %61 to i32
+  br i1 %61, label %69, label %63
 
-66:                                               ; preds = %57
-  %67 = load <16 x i8>, ptr %from, align 1
-  %68 = sub i64 %count, 16
-  %69 = getelementptr i8, ptr %from, i64 %68
-  %70 = load <16 x i8>, ptr %69, align 1
-  store <16 x i8> %67, ptr %to, align 1
-  %71 = getelementptr i8, ptr %to, i64 %68
-  store <16 x i8> %70, ptr %71, align 1
-  br label %72
+63:                                               ; preds = %60
+  %64 = load i64, ptr %from, align 1
+  %65 = sub i64 %count, 8
+  %66 = getelementptr i8, ptr %from, i64 %65
+  %67 = load i64, ptr %66, align 1
+  store i64 %64, ptr %to, align 1
+  %68 = getelementptr i8, ptr %to, i64 %65
+  store i64 %67, ptr %68, align 1
+  br label %75
 
-72:                                               ; preds = %66, %60, %51, %41, %34, %31
+69:                                               ; preds = %60
+  %70 = load <16 x i8>, ptr %from, align 1
+  %71 = sub i64 %count, 16
+  %72 = getelementptr i8, ptr %from, i64 %71
+  %73 = load <16 x i8>, ptr %72, align 1
+  store <16 x i8> %70, ptr %to, align 1
+  %74 = getelementptr i8, ptr %to, i64 %71
+  store <16 x i8> %73, ptr %74, align 1
+  br label %75
+
+75:                                               ; preds = %69, %63, %54, %44, %37, %34
   ret void
+
+76:                                               ; preds = %93, %26
+  %77 = phi i64 [ 0, %26 ], [ %78, %93 ]
+  %78 = add i64 %77, 64
+  %79 = icmp sle i64 %78, %count
+  %80 = zext i1 %79 to i32
+  br i1 %79, label %93, label %81
+
+81:                                               ; preds = %76
+  br label %82
+
+82:                                               ; preds = %89, %81
+  %83 = phi i64 [ %77, %81 ], [ %84, %89 ]
+  %84 = add i64 %83, 16
+  %85 = icmp sle i64 %84, %count
+  %86 = zext i1 %85 to i32
+  br i1 %85, label %89, label %87
+
+87:                                               ; preds = %82
+  %88 = getelementptr i8, ptr %to, i64 %27
+  store <16 x i8> %29, ptr %88, align 1
+  ret void
+
+89:                                               ; preds = %82
+  %90 = getelementptr i8, ptr %to, i64 %83
+  %91 = getelementptr i8, ptr %from, i64 %83
+  %92 = load <16 x i8>, ptr %91, align 1
+  store <16 x i8> %92, ptr %90, align 1
+  br label %82
+
+93:                                               ; preds = %76
+  %94 = getelementptr i8, ptr %from, i64 %77
+  %95 = load <16 x i8>, ptr %94, align 1
+  %96 = getelementptr i8, ptr %94, i64 16
+  %97 = load <16 x i8>, ptr %96, align 1
+  %98 = getelementptr i8, ptr %94, i64 32
+  %99 = load <16 x i8>, ptr %98, align 1
+  %100 = getelementptr i8, ptr %94, i64 48
+  %101 = load <16 x i8>, ptr %100, align 1
+  %102 = getelementptr i8, ptr %to, i64 %77
+  store <16 x i8> %95, ptr %102, align 1
+  %103 = getelementptr i8, ptr %102, i64 16
+  store <16 x i8> %97, ptr %103, align 1
+  %104 = getelementptr i8, ptr %102, i64 32
+  store <16 x i8> %99, ptr %104, align 1
+  %105 = getelementptr i8, ptr %102, i64 48
+  store <16 x i8> %101, ptr %105, align 1
+  br label %76
 }
 
-define fastcc ptr @mapMemory(i64 %size) #0 {
+define fastcc i64 @systemPageBytes() #0 {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %size, i64 3, i64 34, i64 -1, i64 0)
-  %3 = icmp slt i64 %2, 0
-  %4 = zext i1 %3 to i32
-  %5 = inttoptr i64 %2 to ptr
-  %6 = select i1 %3, ptr null, ptr %5
-  ret ptr %6
+  %2 = load ptr, ptr @commandLineEnvironment, align 1
+  %3 = ptrtoint ptr %2 to i64
+  %4 = icmp eq i64 %3, 0
+  %5 = zext i1 %4 to i32
+  br i1 %4, label %34, label %9
+
+6:                                                ; preds = %34, %23
+  br label %7
+
+7:                                                ; preds = %6, %29
+  %8 = phi i64 [ 4096, %6 ], [ %31, %29 ]
+  ret i64 %8
+
+9:                                                ; preds = %1
+  br label %10
+
+10:                                               ; preds = %32, %9
+  %11 = phi ptr [ %2, %9 ], [ %33, %32 ]
+  %12 = load ptr, ptr %11, align 1
+  %13 = ptrtoint ptr %12 to i64
+  %14 = icmp ne i64 %13, 0
+  %15 = zext i1 %14 to i32
+  br i1 %14, label %32, label %16
+
+16:                                               ; preds = %10
+  %17 = getelementptr i8, ptr %11, i64 8
+  br label %18
+
+18:                                               ; preds = %27, %16
+  %19 = phi ptr [ %17, %16 ], [ %28, %27 ]
+  %20 = load i64, ptr %19, align 1
+  %21 = icmp ne i64 %20, 0
+  %22 = zext i1 %21 to i32
+  br i1 %21, label %24, label %23
+
+23:                                               ; preds = %18
+  br label %6
+
+24:                                               ; preds = %18
+  %25 = icmp eq i64 %20, 6
+  %26 = zext i1 %25 to i32
+  br i1 %25, label %29, label %27
+
+27:                                               ; preds = %24
+  %28 = getelementptr i8, ptr %19, i64 16
+  br label %18
+
+29:                                               ; preds = %24
+  %30 = getelementptr i8, ptr %19, i64 8
+  %31 = load i64, ptr %30, align 1
+  br label %7
+
+32:                                               ; preds = %10
+  %33 = getelementptr i8, ptr %11, i64 8
+  br label %10
+
+34:                                               ; preds = %1
+  br label %6
 }
 
 define fastcc ptr @"runSlots(CodeUnit)"(i64 %capacity) #0 {
@@ -1454,95 +1639,6 @@ define fastcc void @newFiber(ptr %0, ptr %stack, i64 %stackBytes, ptr %context, 
   ret void
 }
 
-define fastcc ptr @guardedStack(i64 %mappedBytes) #0 {
-  br label %1
-
-1:                                                ; preds = %0
-  %2 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 9, i64 0, i64 %mappedBytes, i64 3, i64 34, i64 -1, i64 0)
-  %3 = icmp slt i64 %2, 0
-  %4 = zext i1 %3 to i32
-  %5 = inttoptr i64 %2 to ptr
-  %6 = select i1 %3, ptr null, ptr %5
-  %7 = ptrtoint ptr %6 to i64
-  %8 = icmp eq i64 %7, 0
-  %9 = zext i1 %8 to i32
-  br i1 %8, label %15, label %10
-
-10:                                               ; preds = %1
-  %11 = load ptr, ptr @commandLineEnvironment, align 1
-  %12 = ptrtoint ptr %11 to i64
-  %13 = icmp eq i64 %12, 0
-  %14 = zext i1 %13 to i32
-  br i1 %13, label %45, label %19
-
-15:                                               ; preds = %1
-  ret ptr null
-
-16:                                               ; preds = %47
-  ret ptr %6
-
-17:                                               ; preds = %47
-  %18 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %7, i64 %mappedBytes)
-  ret ptr null
-
-19:                                               ; preds = %10
-  br label %20
-
-20:                                               ; preds = %43, %19
-  %21 = phi ptr [ %11, %19 ], [ %44, %43 ]
-  %22 = load ptr, ptr %21, align 1
-  %23 = ptrtoint ptr %22 to i64
-  %24 = icmp ne i64 %23, 0
-  %25 = zext i1 %24 to i32
-  br i1 %24, label %43, label %26
-
-26:                                               ; preds = %20
-  %27 = getelementptr i8, ptr %21, i64 8
-  br label %28
-
-28:                                               ; preds = %38, %26
-  %29 = phi ptr [ %27, %26 ], [ %39, %38 ]
-  %30 = load i64, ptr %29, align 1
-  %31 = icmp ne i64 %30, 0
-  %32 = zext i1 %31 to i32
-  br i1 %31, label %34, label %33
-
-33:                                               ; preds = %28
-  br label %46
-
-34:                                               ; preds = %28
-  %35 = load i64, ptr %29, align 1
-  %36 = icmp eq i64 %35, 6
-  %37 = zext i1 %36 to i32
-  br i1 %36, label %40, label %38
-
-38:                                               ; preds = %34
-  %39 = getelementptr i8, ptr %29, i64 16
-  br label %28
-
-40:                                               ; preds = %34
-  %41 = getelementptr i8, ptr %29, i64 8
-  %42 = load i64, ptr %41, align 1
-  br label %47
-
-43:                                               ; preds = %20
-  %44 = getelementptr i8, ptr %21, i64 8
-  br label %20
-
-45:                                               ; preds = %10
-  br label %46
-
-46:                                               ; preds = %45, %33
-  br label %47
-
-47:                                               ; preds = %46, %40
-  %48 = phi i64 [ 4096, %46 ], [ %42, %40 ]
-  %49 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 10, i64 %7, i64 %48, i64 0)
-  %50 = icmp ne i64 %49, 0
-  %51 = zext i1 %50 to i32
-  br i1 %50, label %17, label %16
-}
-
 define fastcc i64 @stackGuardBytes() #0 {
   br label %1
 
@@ -1551,61 +1647,60 @@ define fastcc i64 @stackGuardBytes() #0 {
   %3 = ptrtoint ptr %2 to i64
   %4 = icmp eq i64 %3, 0
   %5 = zext i1 %4 to i32
-  br i1 %4, label %32, label %6
+  br i1 %4, label %31, label %6
 
 6:                                                ; preds = %1
   br label %7
 
-7:                                                ; preds = %30, %6
-  %8 = phi ptr [ %2, %6 ], [ %31, %30 ]
+7:                                                ; preds = %29, %6
+  %8 = phi ptr [ %2, %6 ], [ %30, %29 ]
   %9 = load ptr, ptr %8, align 1
   %10 = ptrtoint ptr %9 to i64
   %11 = icmp ne i64 %10, 0
   %12 = zext i1 %11 to i32
-  br i1 %11, label %30, label %13
+  br i1 %11, label %29, label %13
 
 13:                                               ; preds = %7
   %14 = getelementptr i8, ptr %8, i64 8
   br label %15
 
-15:                                               ; preds = %25, %13
-  %16 = phi ptr [ %14, %13 ], [ %26, %25 ]
+15:                                               ; preds = %24, %13
+  %16 = phi ptr [ %14, %13 ], [ %25, %24 ]
   %17 = load i64, ptr %16, align 1
   %18 = icmp ne i64 %17, 0
   %19 = zext i1 %18 to i32
   br i1 %18, label %21, label %20
 
 20:                                               ; preds = %15
-  br label %33
+  br label %32
 
 21:                                               ; preds = %15
-  %22 = load i64, ptr %16, align 1
-  %23 = icmp eq i64 %22, 6
-  %24 = zext i1 %23 to i32
-  br i1 %23, label %27, label %25
+  %22 = icmp eq i64 %17, 6
+  %23 = zext i1 %22 to i32
+  br i1 %22, label %26, label %24
 
-25:                                               ; preds = %21
-  %26 = getelementptr i8, ptr %16, i64 16
+24:                                               ; preds = %21
+  %25 = getelementptr i8, ptr %16, i64 16
   br label %15
 
-27:                                               ; preds = %21
-  %28 = getelementptr i8, ptr %16, i64 8
-  %29 = load i64, ptr %28, align 1
-  br label %34
-
-30:                                               ; preds = %7
-  %31 = getelementptr i8, ptr %8, i64 8
-  br label %7
-
-32:                                               ; preds = %1
+26:                                               ; preds = %21
+  %27 = getelementptr i8, ptr %16, i64 8
+  %28 = load i64, ptr %27, align 1
   br label %33
 
-33:                                               ; preds = %32, %20
-  br label %34
+29:                                               ; preds = %7
+  %30 = getelementptr i8, ptr %8, i64 8
+  br label %7
 
-34:                                               ; preds = %33, %27
-  %35 = phi i64 [ 4096, %33 ], [ %29, %27 ]
-  ret i64 %35
+31:                                               ; preds = %1
+  br label %32
+
+32:                                               ; preds = %31, %20
+  br label %33
+
+33:                                               ; preds = %32, %26
+  %34 = phi i64 [ 4096, %32 ], [ %28, %26 ]
+  ret i64 %34
 }
 
 define fastcc void @finishOn(ptr %self, i64 %value) #0 {

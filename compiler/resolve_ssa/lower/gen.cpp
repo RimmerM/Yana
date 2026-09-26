@@ -986,6 +986,7 @@ Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted
     // default is LLVM (see test/ResolveTester.cpp's `FixtureFront`).
     result->consumer = context.settings.backend == NativeBackend::Local && context.settings.mode != CompileMode::Llvm
         ? LowerConsumer::Local : LowerConsumer::Llvm;
+    result->vectorBytes = targetVectorBytes(context.settings);
 
     Lowering lowering {
         context, program, converted, *result,

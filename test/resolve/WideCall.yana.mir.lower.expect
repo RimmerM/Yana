@@ -10,17 +10,6 @@ main<complex>(): I32 {
   }
 }
 
-@header(call.thunk) = [0, 0, 0, 0]
-call.thunk<complex>(): I32 {
-  b_0 {
-    %v_1 = imm 1: I32
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @effects, %v_3, 4
-    ret %v_1
-  }
-}
-
 @header(callForcing.thunk) = [0, 0, 0, 0]
 callForcing.thunk<complex>(): I32 {
   b_0 {

@@ -1,4 +1,3 @@
-mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 parity<complex>(%n: I32, %salt: I32): I32 {
   b_0 {
@@ -29,84 +28,45 @@ main<complex>(): I32 {
   b_1 {
     %v_4 = phi [b_5, %v_3], [b_0, 0]: I32
     %v_6 = phi [b_5, %v_7], [b_0, 0]: I32
-    %v_8 = alloca 12, 4: Ptr
-    %v_9 = bitcast %v_8: I64
-    store %v_8, 10, 4
-    %v_10 = add %v_8, 4: Ptr
-    store %v_10, 20, 4
-    %v_11 = add %v_8, 8: Ptr
-    store %v_11, 30, 4
-    %v_12 = cmp_eq %v_6, 0: I32
-    je %v_12, b_13, b_14
+    %v_8 = cmp_eq %v_6, 0: I32
+    je %v_8, b_9, b_10
   }
 
   b_5 {
-    %v_15 = phi [b_16, %v_17], [b_18, 18446744073709551613], [b_19, 18446744073709551614], [b_13, 18446744073709551615]: I32
-    %v_20 = add %v_4, %v_15: I32
-    %v_21 = call_complex parity, %v_6, %v_6: I32
-    %v_3 = add %v_20, %v_21: I32
+    %v_11 = phi [b_12, %v_13], [b_14, 18446744073709551613], [b_15, 18446744073709551614], [b_9, 18446744073709551615]: I32
+    %v_16 = add %v_4, %v_11: I32
+    %v_17 = call_complex parity, %v_6, %v_6: I32
+    %v_3 = add %v_16, %v_17: I32
     %v_7 = add %v_6, 1: I32
-    %v_22 = cmp_ilt %v_7, 5: I32
-    je %v_22, b_1, b_2
+    %v_18 = cmp_ilt %v_7, 5: I32
+    je %v_18, b_1, b_2
+  }
+
+  b_10 {
+    %v_19 = cmp_eq %v_6, 1: I32
+    je %v_19, b_15, b_20
+  }
+
+  b_20 {
+    %v_21 = cmp_eq %v_6, 2: I32
+    je %v_21, b_14, b_12
+  }
+
+  b_12 {
+    %v_13 = add 10, %v_6: I32
+    jmp b_5
   }
 
   b_14 {
-    %v_23 = cmp_eq %v_6, 1: I32
-    je %v_23, b_19, b_24
-  }
-
-  b_24 {
-    %v_25 = cmp_eq %v_6, 2: I32
-    je %v_25, b_18, b_16
-  }
-
-  b_16 {
-    %v_17 = add 10, %v_6: I32
     jmp b_5
   }
 
-  b_18 {
+  b_15 {
     jmp b_5
-  }
-
-  b_19 {
-    call_complex Array(a).reclaim(I32), %v_9, 3
-    jmp b_5
-  }
-
-  b_13 {
-    call_complex Array(a).reclaim(I32), %v_9, 3
-    jmp b_5
-  }
-}
-
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
-  b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
-  }
-
-  b_6 {
-    ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
-    %v_11 = loads %v_10, 8: I64
-    %v_12 = load @heapFree, 8: Ptr
-    %v_13 = shl %v_11, 3: I64
-    %v_14 = add %v_12, %v_13: Ptr
-    %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    jmp b_5
   }
 }
 

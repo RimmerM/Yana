@@ -159,9 +159,9 @@ bb0(%0: mapped.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   %18: %Size address = alloc frame Size
   %54: %I32 address = field.addr .$index inspect %0
   %55: I32 trivial = load inspect %54
-  %56: I32 trivial = const 0
+  %56: I32 trivial = const 1
   %57: Bool trivial = eq inspect %55 inspect %56
-  branch inspect %57 -> bb1 -> bb13
+  branch inspect %57 -> bb11 -> bb13
 
 bb1:
   branch inspect %2 -> bb12 -> bb3
@@ -246,9 +246,9 @@ bb12:
   return consume %52
 
 bb13:
-  %58: I32 trivial = const 1
+  %58: I32 trivial = const 0
   %59: Bool trivial = eq inspect %55 inspect %58
-  branch inspect %59 -> bb11 -> bb2
+  branch inspect %59 -> bb1 -> bb2
 }
 
 fn mapped$next($self: mapped.Iter [unique slot 0 shape9 .2.*=shared slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>

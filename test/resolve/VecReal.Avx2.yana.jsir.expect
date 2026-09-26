@@ -1025,33 +1025,6 @@ fn main() -> one %r7
     %393: %r7 = coerce %392
     jump -> block112(%45, %393)
 
-fn powerOfTwoVecDouble(parts %r6) -> parts %r6
-  block0(%0: %r3, %1: %r3):
-    %2: %r3 = const 1023
-    %3: %r3 = binary.add %0, %2
-    %4: %r3 = binary.add %1, %2
-    %5: %r3 = const 4.503599627370496E15
-    %6: %r3 = binary.add %3, %5
-    %7: %r3 = binary.add %4, %5
-    %8: %r16 = helper.float.bits %6
-    %9: %r16 = coerce %8
-    %10: %r16 = helper.float.bits %7
-    %11: %r16 = coerce %10
-    %12: %r16 = const 4503599627370495n
-    %13: %r16 = binary.and %9, %12
-    %14: %r16 = coerce %13
-    %15: %r16 = binary.and %11, %12
-    %16: %r16 = coerce %15
-    %17: %r16 = const 52n
-    %18: %r16 = binary.shl %14, %17
-    %19: %r16 = coerce %18
-    %20: %r16 = binary.shl %16, %17
-    %21: %r16 = coerce %20
-    %22: %r3 = helper.bits.float %19
-    %23: %r3 = helper.bits.float %21
-    %24: %r5 = materialize %r6 %22, %23
-    return %24
-
 fn scaleByExponentVecFloat(parts %r2, parts %r2) -> parts %r2
   block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0):
     %8: %r0 = const -126
@@ -1201,18 +1174,56 @@ fn scaleByExponentVecDouble(parts %r6, parts %r6) -> parts %r6
     %23: %r8 = binary.lt %20, %21
     %24: %r3 = select %22, %19, %21
     %25: %r3 = select %23, %20, %21
-    %26: %r5 = call powerOfTwoVecDouble %12, %13
-    %27: %r3 = split %26 #0 of %r6
-    %28: %r3 = split %26 #1 of %r6
-    %29: %r3 = binary.mul %0, %27
-    %30: %r3 = binary.mul %1, %28
-    %31: %r5 = call powerOfTwoVecDouble %24, %25
-    %32: %r3 = split %31 #0 of %r6
-    %33: %r3 = split %31 #1 of %r6
-    %34: %r3 = binary.mul %29, %32
-    %35: %r3 = binary.mul %30, %33
-    %36: %r5 = materialize %r6 %34, %35
-    return %36
+    %26: %r3 = const 1023
+    %27: %r3 = binary.add %12, %26
+    %28: %r3 = binary.add %13, %26
+    %29: %r3 = const 4.503599627370496E15
+    %30: %r3 = binary.add %27, %29
+    %31: %r3 = binary.add %28, %29
+    %32: %r16 = helper.float.bits %30
+    %33: %r16 = coerce %32
+    %34: %r16 = helper.float.bits %31
+    %35: %r16 = coerce %34
+    %36: %r16 = const 4503599627370495n
+    %37: %r16 = binary.and %33, %36
+    %38: %r16 = coerce %37
+    %39: %r16 = binary.and %35, %36
+    %40: %r16 = coerce %39
+    %41: %r16 = const 52n
+    %42: %r16 = binary.shl %38, %41
+    %43: %r16 = coerce %42
+    %44: %r16 = binary.shl %40, %41
+    %45: %r16 = coerce %44
+    %46: %r3 = helper.bits.float %43
+    %47: %r3 = helper.bits.float %45
+    %48: %r3 = binary.mul %0, %46
+    %49: %r3 = binary.mul %1, %47
+    %50: %r3 = const 1023
+    %51: %r3 = binary.add %24, %50
+    %52: %r3 = binary.add %25, %50
+    %53: %r3 = const 4.503599627370496E15
+    %54: %r3 = binary.add %51, %53
+    %55: %r3 = binary.add %52, %53
+    %56: %r16 = helper.float.bits %54
+    %57: %r16 = coerce %56
+    %58: %r16 = helper.float.bits %55
+    %59: %r16 = coerce %58
+    %60: %r16 = const 4503599627370495n
+    %61: %r16 = binary.and %57, %60
+    %62: %r16 = coerce %61
+    %63: %r16 = binary.and %59, %60
+    %64: %r16 = coerce %63
+    %65: %r16 = const 52n
+    %66: %r16 = binary.shl %62, %65
+    %67: %r16 = coerce %66
+    %68: %r16 = binary.shl %64, %65
+    %69: %r16 = coerce %68
+    %70: %r3 = helper.bits.float %67
+    %71: %r3 = helper.bits.float %69
+    %72: %r3 = binary.mul %48, %70
+    %73: %r3 = binary.mul %49, %71
+    %74: %r5 = materialize %r6 %72, %73
+    return %74
 
 fn exponentOfVecDouble(parts %r6) -> parts %r6
   block0(%0: %r3, %1: %r3):

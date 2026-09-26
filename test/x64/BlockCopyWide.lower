@@ -1,7 +1,7 @@
 # extensions: avx2
 #
 # `BlockCopy.lower`'s copies on the machine that has a `ymm`: the step is 32 bytes and the ceiling
-# is 128, so every size below reaches a different rung than it does one level down. 20 bytes is
+# is 256 (128 until J181), so every size below reaches a different rung than it does one level down. 20 bytes is
 # still a 16-byte pair - the step halves to what the count can use - and 64 is two `vmovups` pairs
 # where v2 spends four.
 #
@@ -32,14 +32,14 @@ copyVector(%dst: Ptr, %src: Ptr) {
 
 copyCeiling(%dst: Ptr, %src: Ptr) {
     {
-        copy %dst, %src, 128
+        copy %dst, %src, 256
         ret
     }
 }
 
 copyAboveCeiling(%dst: Ptr, %src: Ptr) {
     {
-        copy %dst, %src, 129
+        copy %dst, %src, 257
         ret
     }
 }

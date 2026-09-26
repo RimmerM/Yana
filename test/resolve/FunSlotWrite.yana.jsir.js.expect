@@ -19,37 +19,37 @@ function run(g) {
   g.$c(g.$e);
 }
 
-function movedOut(k) {
-  var v6 = { $c: double$fn, $e: null };
-  replaceFn(v6, k);
-  return v6.$c(v6.$e, k);
-}
-
-function capturing(k) {
-  var v7 = { $c: capturing_lambda, $e: { k: k } };
-  replaceFn(v7, k);
-  return v7.$c(v7.$e, k);
-}
-
-function viaClosure(k) {
-  var v14 = { $c: double$fn, $e: null };
-  run({ $c: viaClosure_lambda, $e: { f: v14, k: k } });
-  return v14.$c(v14.$e, k);
-}
-
 function main() {
   var v9 = { $c: double$fn, $e: null };
   replaceFn(v9, 3);
   var v15 = Math.imul(v9.$c(v9.$e, 3), 100);
   var v22 = { $c: double$fn, $e: null };
   replaceFn(v22, 4);
-  var v61 = ((v15 + v22.$c(v22.$e, 4) | 0) + Math.imul(2, Math.imul(movedOut(3), 100) + movedOut(4) | 0) | 0) + Math.imul(4, Math.imul(capturing(3), 100) + capturing(4) | 0) | 0;
-  var v74 = { $c: double$fn, $e: null };
-  replaceFn(v74, 3);
-  var v87 = Math.imul(v74.$c(v74.$e, 3), 100);
-  var v96 = { $c: double$fn, $e: null };
-  replaceFn(v96, 4);
-  return ((v61 + Math.imul(8, v87 + v96.$c(v96.$e, 4) | 0) | 0) + Math.imul(16, Math.imul(viaClosure(3), 100) + viaClosure(4) | 0) | 0) + 39456 | 0;
+  var v27 = v15 + v22.$c(v22.$e, 4) | 0;
+  var v38 = { $c: double$fn, $e: null };
+  replaceFn(v38, 3);
+  var v50 = Math.imul(v38.$c(v38.$e, 3), 100);
+  var v57 = { $c: double$fn, $e: null };
+  replaceFn(v57, 4);
+  var v72 = v27 + Math.imul(2, v50 + v57.$c(v57.$e, 4) | 0) | 0;
+  var v84 = { $c: capturing_lambda, $e: { k: 3 } };
+  replaceFn(v84, 3);
+  var v90 = Math.imul(v84.$c(v84.$e, 3), 100);
+  var v98 = { $c: capturing_lambda, $e: { k: 4 } };
+  replaceFn(v98, 4);
+  var v107 = v72 + Math.imul(4, v90 + v98.$c(v98.$e, 4) | 0) | 0;
+  var v120 = { $c: double$fn, $e: null };
+  replaceFn(v120, 3);
+  var v133 = Math.imul(v120.$c(v120.$e, 3), 100);
+  var v142 = { $c: double$fn, $e: null };
+  replaceFn(v142, 4);
+  var v158 = v107 + Math.imul(8, v133 + v142.$c(v142.$e, 4) | 0) | 0;
+  var v177 = { $c: double$fn, $e: null };
+  run({ $c: viaClosure_lambda, $e: { f: v177, k: 3 } });
+  var v186 = Math.imul(v177.$c(v177.$e, 3), 100);
+  var v201 = { $c: double$fn, $e: null };
+  run({ $c: viaClosure_lambda, $e: { f: v201, k: 4 } });
+  return (v158 + Math.imul(16, v186 + v201.$c(v201.$e, 4) | 0) | 0) + 39456 | 0;
 }
 
 function capturing_lambda(capturing_lambda_env, x) {
