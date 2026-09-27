@@ -1,0 +1,111 @@
+
+interleaves<complex>(%a: i8x32, %b: i8x32, %c: i16x16, %d: i16x16): i8x32 {
+  b_0 {
+    %lo = vshuffle %a, %b, 0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47: i8x32
+    %hi = vshuffle %a, %b, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63: i8x32
+    %w = vshuffle %c, %d, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31: i16x16
+    %wb = bitcast %w: i8x32
+    %s = add %lo, %hi: i8x32
+    %r = add %s, %wb: i8x32
+    ret %r
+  }
+}
+
+interleavesWide<complex>(%a: i32x8, %b: i32x8, %c: i64x4, %d: i64x4, %e: f64x4, %f: f64x4): i64x4 {
+  b_0 {
+    %lo = vshuffle %a, %b, 0, 8, 1, 9, 2, 10, 3, 11: i32x8
+    %q = vshuffle %c, %d, 2, 6, 3, 7: i64x4
+    %x = vshuffle %e, %f, 0, 4, 1, 5: f64x4
+    %lq = bitcast %lo: i64x4
+    %xq = bitcast %x: i64x4
+    %s = add %lq, %q: i64x4
+    %r = add %s, %xq: i64x4
+    ret %r
+  }
+}
+
+quadwords<complex>(%a: i64x4, %b: i64x4, %c: i32x8, %d: i8x32): i64x4 {
+  b_0 {
+    %rev = vshuffle %a, %a, 3, 2, 1, 0: i64x4
+    %sec = vshuffle %a, %b, 5, 7, 4, 4: i64x4
+    %pairs = vshuffle %c, %c, 6, 7, 0, 1, 2, 3, 4, 5: i32x8
+    %runs = vshuffle %d, %d, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31: i8x32
+    %pq = bitcast %pairs: i64x4
+    %rq = bitcast %runs: i64x4
+    %s = add %rev, %sec: i64x4
+    %t = add %s, %pq: i64x4
+    %r = add %t, %rq: i64x4
+    ret %r
+  }
+}
+
+secondSource<complex>(%a: i8x32, %b: i8x32, %c: i16x16, %d: i16x16): i8x32 {
+  b_0 {
+    %bytes = vshuffle %a, %b, 48, 49, 50, 51, 52, 53, 54, 55, 32, 33, 34, 35, 36, 37, 38, 39, 56, 57, 58, 59, 60, 61, 62, 63, 40, 41, 42, 43, 44, 45, 46, 47: i8x32
+    %words = vshuffle %c, %d, 20, 21, 22, 23, 20, 21, 22, 23, 16, 17, 18, 19, 28, 29, 30, 31: i16x16
+    %wb = bitcast %words: i8x32
+    %r = add %bytes, %wb: i8x32
+    ret %r
+  }
+}
+
+
+--- codegen: interleaves ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm4]  => c5fd60e1
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c5fd68c1
+  vshuffle uses=[xmm4, xmm0] creates=[xmm1]  => c4e35d06c820
+  vshuffle uses=[xmm4, xmm0] creates=[xmm4]  => c4e35d06e031
+  vshuffle uses=[xmm2, xmm3] creates=[xmm0]  => c5ed61c3
+  vshuffle uses=[xmm2, xmm3] creates=[xmm2]  => c5ed69d3
+  vshuffle uses=[xmm0, xmm2] creates=[xmm0]  => c4e37d06c231
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  add uses=[xmm1, xmm4] creates=[xmm1]  => c5f5fccc
+  add uses=[xmm1, xmm0] creates=[xmm0]  => c5f5fcc0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: interleavesWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm6]  => c5fd62f1
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c5fd6ac1
+  vshuffle uses=[xmm6, xmm0] creates=[xmm6]  => c4e34d06f020
+  vshuffle uses=[xmm2, xmm3] creates=[xmm0]  => c5ed6cc3
+  vshuffle uses=[xmm2, xmm3] creates=[xmm2]  => c5ed6dd3
+  vshuffle uses=[xmm0, xmm2] creates=[xmm0]  => c4e37d06c231
+  vshuffle uses=[xmm4, xmm5] creates=[xmm1]  => c5dd14cd
+  vshuffle uses=[xmm4, xmm5] creates=[xmm4]  => c5dd15e5
+  vshuffle uses=[xmm1, xmm4] creates=[xmm1]  => c4e37506cc20
+  bitcast uses=[xmm6] creates=[xmm6]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm6, xmm0] creates=[xmm6]  => c5cdd4f0
+  add uses=[xmm6, xmm1] creates=[xmm0]  => c5cdd4c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: quadwords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm4]  => c4e3fd00e01b
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c4e3fd00c10d
+  vshuffle uses=[xmm2, xmm2] creates=[xmm2]  => c4e3fd00d293
+  vshuffle uses=[xmm3, xmm3] creates=[xmm3]  => c4e3fd00dbd8
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  add uses=[xmm4, xmm0] creates=[xmm4]  => c5ddd4e0
+  add uses=[xmm4, xmm2] creates=[xmm4]  => c5ddd4e2
+  add uses=[xmm4, xmm3] creates=[xmm0]  => c5ddd4c3
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: secondSource ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c4e3fd00c172
+  vshuffle uses=[xmm2, xmm3] creates=[xmm2]  => c4e3fd00d3c5
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  add uses=[xmm0, xmm2] creates=[xmm0]  => c5fdfcc2
+  ret uses=[xmm0] creates=[]  => c3

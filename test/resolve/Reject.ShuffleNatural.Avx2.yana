@@ -1,0 +1,21 @@
+{-
+   `shuffleNatural` refused at thirty-two lanes where the floor accepts it - J237.
+
+   # extensions: avx2
+
+   Each level compiles only the prefix it keeps, so a pattern is checked at a width by the build at
+   that width and no other: both calls below are clean at sixteen lanes (`sse4`, JavaScript) and are
+   refused here, each message naming the thirty-two lanes it was checked against. The `test/base`
+   ladder rows are what catch such a pattern in the library.
+-}
+
+-- Sixteen entries: the whole pattern at the floor, half of one here.
+fn floorOnly() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]), 0)
+
+-- Entry 20 names lane 40: not kept at sixteen lanes, kept and past the end at thirty-two.
+fn keptHere() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 40, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]), 0)
+
+fn main() -> Int:
+    return (floorOnly() + keptHere()) :: Int

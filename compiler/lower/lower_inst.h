@@ -1980,11 +1980,20 @@ struct LowerInstX86LowBit: LowerInstSingle {
 // in `vvvv`, and the vector being permuted out of the r/m operand.
 struct LowerInstX86Permute: LowerInstSingle {
     LowerInstX86Permute(StringId name, LowerType type, LowerPtr<LowerValue> indices,
-                        LowerPtr<LowerValue> from):
+                        LowerPtr<LowerValue> from, bool crossing = false):
         LowerInstSingle(X86Permute, name, type), indices(indices), from(from)
     {
         usedCount = 2;
+        flags = crossing ? 1 : 0;
     }
+
+    /*
+     * Whether an index names a lane of the whole register rather than of its own 128-bit half - read
+     * at a byte lane only, where it is the difference between `pshufb` (each half on its own, the
+     * control taken modulo sixteen) and VBMI's `vpermb` (J237). A doubleword lane is `vpermd`, which
+     * crosses whatever this says, so nothing else asks.
+     */
+    bool isCrossing() const { return flags != 0; }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> indices, from;
@@ -2858,4 +2867,17 @@ inline Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
     if(inst->kind != LowerInst::Imm) return Nothing();
 
     return Just(((LowerImm*)inst)->i);
+}
+
+/*
+ * The literal every lane of a vector holds, where it is a splat of one - raw, as `constantOf`'s is,
+ * so a reader at a lane narrower than 64 bits masks it. One question for x64's dot-product expansion
+ * (a zero accumulator) and `withinTable` (a mask or a shift count), which each re-derived it (J239).
+ * machine_vector.cpp's `splatConstantPattern` is not this: it reads a float lane's bits.
+ */
+inline Maybe<U64> splatLiteral(LowerBase base, LowerValue* value) {
+    auto inst = value->inst();
+    if(inst->kind != LowerInst::VecSplat) return Nothing();
+
+    return constantOf(base, ((LowerInstVecSplat*)inst)->from);
 }

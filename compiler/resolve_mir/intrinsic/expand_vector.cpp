@@ -428,8 +428,10 @@ Node* expandVecFma(Builder& builder, Function&, Node* const* arguments, const Su
  * `compiler/resolve` erased the pair because there a literal was a frame slot and a run of stores;
  * here it is one node with no storage behind it.
  */
-static bool constantPattern(Builder& builder, Node& argument, U32 sources, U32 lanes, U32 results,
-                            LocationId source, LanePattern& pattern) {
+// The entries of a pattern literal, as written - `constantPattern` and `expandVecShuffleNatural`
+// check them against two different rules, and what makes an argument a pattern at all is one rule.
+static bool patternEntries(Builder& builder, Node& argument, LocationId source,
+                           SmallArray<I64, 64>& entries) {
     auto reject = [&]() {
         builder.context.diagnostics.error("a lane pattern must be written as a literal at the call - it is the instruction's own field on every target that has one, and a computed pattern is a runtime shuffle, which is a platform module's business"_v,
                                           source);
@@ -439,24 +441,38 @@ static bool constantPattern(Builder& builder, Node& argument, U32 sources, U32 l
     if(argument.kind != Node::Aggregate) return reject();
 
     auto& written = (NodeAggregate&)argument;
-    if(written.components.size() != results) return reject();
-
     for(auto operand: written.components.contents(builder.base())) {
         if(operand.source() != SourceKind::Result) return reject();
 
         auto entry = constantInteger(builder, *builder.body.node(builder.base(), operand.nodeId()));
         if(!entry) return reject();
 
-        if(entry.unwrap() < 0 || U64(entry.unwrap()) >= U64(lanes) * sources) {
+        entries.push(entry.unwrap());
+    }
+
+    return true;
+}
+
+static bool constantPattern(Builder& builder, Node& argument, U32 sources, U32 lanes, U32 results,
+                            LocationId source, LanePattern& pattern) {
+    SmallArray<I64, 64> entries;
+    if(!patternEntries(builder, argument, source, entries)) return false;
+
+    // The count is the result's lane count by the declaration's own `[Int *m]`, so a literal of
+    // another length never reaches here - and a named pattern is refused above as not a literal.
+    assertTrue(entries.size() == results);
+
+    for(auto entry: entries) {
+        if(entry < 0 || U64(entry) >= U64(lanes) * sources) {
             builder.context.diagnostics.error("lane %@ is past the end of what this shuffle reads - %@"_v,
-                                              source, I32(entry.unwrap()),
+                                              source, I32(entry),
                                               sources == 1
                                                   ? "a one-vector shuffle names the lanes of its own source"_v
                                                   : "a two-vector shuffle names the lanes of the two placed end to end"_v);
             return false;
         }
 
-        pattern.push(U8(entry.unwrap()));
+        pattern.push(U8(entry));
     }
 
     return true;
@@ -475,6 +491,73 @@ Node* expandVecShuffle(Builder& builder, Function& callee, U32 sources, Node* co
     }
 
     return shuffleBy(builder, type, *arguments[0], *arguments[sources - 1], pattern, source);
+}
+
+/*
+ * `shuffleNatural` - one pattern for every natural width, written for the widest and cut to the one
+ * this build has (doc/spec/vectors.md, J237).
+ *
+ * What it answers is `shuffle` over the pattern's first `lanes` entries, so everything below the
+ * resolver sees an ordinary shuffle and nothing else learns the builtin exists. The rules are the
+ * ones that make the cut safe to write once:
+ *
+ *  - every entry, kept or not, names a lane of the *widest* vector of the lane type (64 bytes) and
+ *    the pattern holds no more than that has lanes - so a pattern that cannot be right at any width
+ *    is refused at every width, not only at `avx512`;
+ *  - a pattern shorter than this width is refused naming the width, and so is a kept entry naming a
+ *    lane past it. Each level compiles only its own prefix, which is why the message names the
+ *    width: the build that reports is the one whose prefix is wrong, and the others are silent.
+ *
+ * **An error and not a zero** for the out-of-width entry. `pshufb`'s "the high bit writes zero" is the
+ * one zero convention a machine offers, `shuffle` has none, and a zeroed lane would be a pattern that
+ * answers differently per width with nothing said - the one thing a natural-width body must not do.
+ */
+Node* expandVecShuffleNatural(Builder& builder, Function& callee, Node* const* arguments,
+                              const Substitution& with, LocationId source) {
+    auto type = resultType(builder, callee, with);
+    auto lanes = vectorLanes(builder.declBase(), type);
+    if(!lanes) return nullptr;
+
+    SmallArray<I64, 64> entries;
+    if(!patternEntries(builder, *arguments[1], source, entries)) return nullptr;
+
+    // The widest vector's lane count: 64 bytes over the lane's width. A lane type without a numeric
+    // width is not a vector lane, and the type already refused it.
+    auto numeric = numericOf(builder.declBase(), laneTypeOf(builder.declBase(), type));
+    auto widest = numeric && numeric.unwrap().bits >= 8 ? U32(512 / numeric.unwrap().bits) : lanes;
+
+    if(entries.size() > widest) {
+        builder.context.diagnostics.error("this pattern has %@ entries and a natural-width pattern holds at most %@ - one per lane of the widest vector of this lane type, 64 bytes, which is what every narrower width keeps a prefix of"_v,
+                                          source, I32(entries.size()), I32(widest));
+        return nullptr;
+    }
+
+    for(auto entry: entries) {
+        if(entry < 0 || U64(entry) >= widest) {
+            builder.context.diagnostics.error("lane %@ is past the end of every natural width - an entry of a natural-width pattern names a lane of the widest vector of this lane type, which has %@"_v,
+                                              source, I32(entry), I32(widest));
+            return nullptr;
+        }
+    }
+
+    if(entries.size() < lanes) {
+        builder.context.diagnostics.error("this pattern has %@ entries and the natural vector has %@ lanes at this target's width - a natural-width pattern is written for the widest vector and cut to the width a build has, so it needs at least that many"_v,
+                                          source, I32(entries.size()), I32(lanes));
+        return nullptr;
+    }
+
+    LanePattern pattern;
+    for(U32 i = 0; i < lanes; i++) {
+        if(U64(entries[i]) >= lanes) {
+            builder.context.diagnostics.error("entry %@ of this pattern is lane %@, and the natural vector has %@ lanes at this target's width - a natural-width pattern keeps its first %@ entries here, and each of those has to name a lane this width has"_v,
+                                              source, I32(i), I32(entries[i]), I32(lanes), I32(lanes));
+            return nullptr;
+        }
+
+        pattern.push(U8(entries[i]));
+    }
+
+    return shuffleBy(builder, type, *arguments[0], *arguments[0], pattern, source);
 }
 
 /*

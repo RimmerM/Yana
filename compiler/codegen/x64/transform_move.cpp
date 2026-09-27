@@ -140,6 +140,59 @@ struct MoveExpansion {
     }
 
     /*
+     * Whether every lane of `indices` is already below `tableLanes`, so the modulus has nothing to do:
+     * a logical right shift that leaves no more bits than the table indexes, an `and` with a narrow
+     * splat, and an `or` or a `select` of two such. That is a nibble table's index - `v >> 4` on bytes,
+     * which `expandByteShifts` below this makes a word shift and its own mask - and Base64's roll index
+     * `high | select(special, 8, 0)` (J234): the modulus's second `and` was paid for in the loop, with
+     * the pooled mask loaded again at each use.
+     */
+    bool withinTable(LowerValue* indices, U32 tableLanes, U32 depth = 2) {
+        auto inst = indices->inst();
+        auto bits = laneBytes(indices->type.lane) * 8;
+        auto laneMask = bits >= 64 ? ~U64(0) : (U64(1) << bits) - 1;
+
+        auto literal = [&](LowerValue* value) -> Maybe<U64> {
+            auto found = splatLiteral(e.base, value);
+            if(!found) return Nothing();
+            return Just(found.unwrap() & laneMask);
+        };
+
+        auto narrow = [&](LowerValue* value) {
+            auto found = literal(value);
+            if(found) return (found.unwrap() & ~U64(tableLanes - 1)) == 0;
+            return depth > 0 && withinTable(value, tableLanes, depth - 1);
+        };
+
+        switch(inst->kind) {
+            case LowerInst::And: {
+                auto binary = (LowerInstBinary*)inst;
+                return narrow(e.base[binary->lhs]) || narrow(e.base[binary->rhs]);
+            }
+            case LowerInst::Or: {
+                auto binary = (LowerInstBinary*)inst;
+                return narrow(e.base[binary->lhs]) && narrow(e.base[binary->rhs]);
+            }
+            case LowerInst::Select: {
+                auto select = (LowerInstSelect*)inst;
+                return narrow(e.base[select->lhs]) && narrow(e.base[select->rhs]);
+            }
+            case LowerInst::Shr: {
+                // A logical shift by `k` leaves `bits - k` bits.
+                auto binary = (LowerInstBinary*)inst;
+                // A count of zero at a quadword lane leaves all 64, which no table holds - and which
+                // `U64(1) << 64` would not say.
+                auto count = literal(e.base[binary->rhs]);
+                if(!count || count.unwrap() >= bits) return false;
+                auto left = bits - count.unwrap();
+                return left < 64 && (U64(1) << left) <= tableLanes;
+            }
+            default:
+                return false;
+        }
+    }
+
+    /*
      * A byte control for `pshufb` out of lane indices: byte `k` of lane `i` reads byte
      * `(indices[i] mod lanes) * width + k` of the table. The modulus is the `and` in front, the
      * scale is a shift at the lane's own width, and the spread is a constant byte shuffle - which
@@ -148,7 +201,8 @@ struct MoveExpansion {
     LowerValue* byteControl(LowerValue* indices, U32 tableLanes) {
         auto type = indices->type;
         auto width = laneBytes(type.lane);
-        auto wrapped = e.binary(LowerInst::And, type, indices, splat(type, tableLanes - 1));
+        auto wrapped = withinTable(indices, tableLanes) ? indices
+                     : e.binary(LowerInst::And, type, indices, splat(type, tableLanes - 1));
         if(width == 1) return wrapped;
 
         auto shift = width == 2 ? 1 : width == 4 ? 2 : 3;
@@ -206,6 +260,12 @@ struct MoveExpansion {
         auto width = laneBytes(type.lane);
         auto wide = type.byteWidth() == 32;
 
+        // A sixteen-byte table read at indices already inside it is one `pshufb` at any level: with
+        // no modulus to take, `vpermi2b` has nothing over it and costs a copy of the operand it
+        // overwrites. Measured on Base64's decoder at `avx512` (J234), whose sixteen-lane tail has two
+        // such lookups beside the sixty-four-lane loop: a megabyte 0.025 -> 0.021 ms.
+        if(width == 1 && type.byteWidth() == 16 && withinTable(indices, 16)) return permuteInst(type, indices, table);
+
         if(hasEvexRow(width == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
             return e.emit(new (e.fun.arena) LowerInstX86Permute2(StringId(), type, indices - e.base,
                                                                   table - e.base, table - e.base));
@@ -236,50 +296,21 @@ struct MoveExpansion {
      * A table of one 128-bit register read at indices of twice its width - the hex digits, Base64's
      * offsets and every other sixteen-byte table a loop at the natural width reads at `avx2`.
      *
-     * The table is placed in both halves (`vperm2f128` of itself, a shuffle whose result has twice
-     * its sources' lanes), and then each half of the index vector reads its own copy: `vpshufb` never
-     * crosses a half, which is the reason the 256-bit `permuteBytes` above needs two reads and a
-     * select, and exactly why it needs one here. At `avx512` the doubled table goes to `permute` - a
+     * The table arrives placed in both halves (`vperm2f128` of itself - `repeatTable`, below, built
+     * it beside the table's definition), and then each half of the index vector reads its own copy:
+     * `vpshufb` never crosses a half, which is the reason the 256-bit `permuteBytes` above needs two
+     * reads and a select, and exactly why it needs one here. At `avx512` the doubled table goes to `permute` - a
      * `vpermi2*` over two copies of two copies reads the index modulo the table's own lanes as well.
      */
-    LowerValue* lookupDoubled(LowerValue* table, LowerValue* indices) {
-        auto type = table->type;
-        auto lanes = type.lanes();
-        auto doubledType = vectorType(type.lane, lanes * 2);
-        auto doubled = e.shuffle(doubledType, table, table, [&](Size j) { return U8(j % lanes); });
+    LowerValue* lookupDoubled(LowerValue* doubled, U32 lanes, LowerValue* indices) {
+        auto doubledType = doubled->type;
 
-        if(hasEvexRow(laneBytes(type.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
+        if(hasEvexRow(laneBytes(doubledType.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
             return permute(doubled, indices);
         }
 
         auto bytes = vectorType(LowerLane::Int8, 32);
         return as(doubledType, permuteInst(bytes, byteControl(indices, lanes), as(bytes, doubled)));
-    }
-
-    /*
-     * A table of 128 or 256 bits read at 512-bit indices - the same sixteen-byte tables at `avx512`'s
-     * natural width, where `pushHex`'s digits and `memberOf`'s bitmap are read at sixty-four bytes.
-     *
-     * The table is repeated until it fills a `zmm` - doubled into a `ymm` as above where it is one
-     * register of 128 bits, and that joined with itself (`vinserti64x4`, FormVFullJoin) - and read by
-     * one `vpermi2b` over two copies of the result, which takes each index modulo 128 and so modulo the
-     * table's own lane count, the lookup's definition. The repetition depends on the table alone, so a
-     * loop reading a constant table hoists it with the table.
-     */
-    LowerValue* lookupRepeated(LowerValue* table, LowerValue* indices) {
-        auto type = table->type;
-        auto lanes = type.lanes();
-
-        if(type.byteWidth() == 16) {
-            auto doubledType = vectorType(type.lane, lanes * 2);
-            table = e.shuffle(doubledType, table, table, [&](Size j) { return U8(j % lanes); });
-            type = doubledType;
-            lanes = type.lanes();
-        }
-
-        auto fullType = vectorType(type.lane, lanes * 2);
-        auto full = e.shuffle(fullType, table, table, [](Size j) { return U8(j); });
-        return permute(full, indices);
     }
 
     /*
@@ -559,7 +590,63 @@ struct MoveExpansion {
 
 } // namespace
 
+/*
+ * A lookup's table repeated to `bytes`, built **beside the table's definition** rather than beside the
+ * lookup, and shared by every lookup of that table at that width - J238.
+ *
+ * The repetition depends on the table alone. Built beside the lookup, as it was until J238, it stood
+ * inside whatever loop the lookup did, and nothing below this pass moves code: a constant table was
+ * spared only because a shuffle of a constant folds, and a table *chosen* at run time - the hex digits
+ * of the case asked for, Base64's offsets and nibble rows of the alphabet asked for - was doubled at
+ * every lookup of every turn, twice a turn for the hex encoder. The natural-width codec bodies read
+ * those sixteen-byte tables at thirty-two and sixty-four indices, which is what made it worth placing.
+ *
+ * Just after the definition dominates every lookup the definition does, so the placement needs no
+ * dominator tree; a phi's table goes at the top of the phi's block (phis are a list of their own). A
+ * value with no instruction in a block keeps the old placement, and is not shared.
+ */
+struct RepeatedTable {
+    LowerValue* table;
+    U32 bytes;
+    LowerValue* repeated;
+};
+
+static LowerValue* repeatTable(LowerBase base, LowerFunction& fun, Array<RepeatedTable>& made,
+                               LowerValue* table, U32 bytes, Expansion& fallback) {
+    for(auto& entry: made) {
+        if(entry.table == table && entry.bytes == bytes) return entry.repeated;
+    }
+
+    // A phi is in its block's own list rather than among the instructions, so its table goes first.
+    auto def = table->inst();
+    auto home = def->block ? base[def->block] : nullptr;
+    auto found = isPhi(def) ? Maybe<Size>(Nothing()) : positionOf(base, home, def);
+    auto placed = home && (isPhi(def) || found);
+
+    Expansion beside { base, fun, home, found ? found.unwrap() + 1 : 0 };
+    auto& e = placed ? beside : fallback;
+
+    auto repeated = table;
+    while(repeated->type.byteWidth() < bytes) {
+        auto type = repeated->type;
+        auto lanes = type.lanes();
+        auto source = repeated;
+        // Doubled into both halves, then joined with itself - the two shapes selection has a form
+        // for (`vperm2f128`, `vinserti64x4`); a 512-bit `j % 32` over one source reads as neither.
+        auto half = type.byteWidth() == 16;
+        repeated = e.shuffle(vectorType(type.lane, lanes * 2), source, source,
+                             [&](Size j) { return U8(half ? j % lanes : j); });
+    }
+
+    // Only one beside the definition may be shared: one beside a lookup dominates only that lookup.
+    if(placed) made.push(RepeatedTable { table, bytes, repeated });
+    return repeated;
+}
+
 void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun) {
+    // Kept an `Array`: it outlives every expansion in the function, which is its whole purpose.
+    Array<RepeatedTable> repeatedTables;
+
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -573,22 +660,47 @@ void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun) {
             // The instruction itself, at the level that has one - see `selectPackedForm`.
             if(kind != LowerLaneMove::Lookup && hasEvexRow(EvexRow::Compress)) continue;
 
-            Expansion e { base, fun, block, i };
-            MoveExpansion m { ctx, e };
-
             auto source = base[move->source];
             auto control = base[move->control];
             LowerValue* answer = nullptr;
+
+            // The table's repetition goes in first, since it may land in this block above the move
+            // and push it down (`repeatTable`); the move's expansion starts where the move now is.
+            auto repeatedTo = [&](U32 bytes) {
+                Expansion here { base, fun, block, i };
+                auto size = block->instructions.size();
+                auto repeated = repeatTable(base, fun, repeatedTables, source, bytes, here);
+                i += block->instructions.size() - size;
+                return repeated;
+            };
+
+            LowerValue* full = nullptr;
+            LowerValue* doubled = nullptr;
+            if(kind == LowerLaneMove::Lookup && source->type.lanes() != control->type.lanes()) {
+                if(isFullVector(control->type) && source->type.byteWidth() < 64
+                   && hasEvexRow(laneBytes(source->type.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
+                    full = repeatedTo(64);
+                } else if(source->type.byteWidth() == 16 && control->type.byteWidth() == 32) {
+                    doubled = repeatedTo(32);
+                }
+            }
+
+            Expansion e { base, fun, block, i };
+            MoveExpansion m { ctx, e };
 
             // The indices are the table's lane width (`validateVectorInst`), so only the counts differ.
             if(kind == LowerLaneMove::Lookup) {
                 if(source->type.lanes() == control->type.lanes()) {
                     answer = m.permute(source, control);
-                } else if(isFullVector(control->type) && source->type.byteWidth() < 64
-                          && hasEvexRow(laneBytes(source->type.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
-                    answer = m.lookupRepeated(source, control);
-                } else if(source->type.byteWidth() == 16 && control->type.byteWidth() == 32) {
-                    answer = m.lookupDoubled(source, control);
+                } else if(full) {
+                    // A table of 128 or 256 bits read at 512-bit indices - `pushHex`'s digits and
+                    // `memberOf`'s bitmap at `avx512`'s natural width. Repeated to fill a `zmm`
+                    // (doubled into a `ymm`, then joined with itself - `vinserti64x4`), it is one
+                    // `vpermi2b` over two copies, which takes each index modulo 128 and so modulo the
+                    // table's own lane count: the lookup's definition, and `permute`'s own case.
+                    answer = m.permute(full, control);
+                } else if(doubled) {
+                    answer = m.lookupDoubled(doubled, source->type.lanes(), control);
                 } else {
                     answer = m.lookupThroughMemory(source, control, move->result.type);
                 }

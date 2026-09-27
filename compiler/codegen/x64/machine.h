@@ -1825,9 +1825,9 @@ bool twoSourcePermuteExpresses(LowerBase base, LowerInst* inst);
 // `lowerWideLanePermutes`, and the refusal in `unsupportedVectorReason` that asks the same question.
 bool shuffleReadsOneSource(LowerInst* inst);
 
-// Whether every entry names a lane in the same 128-bit half of its source as the result lane it
-// fills, which is every shuffle the wide tier's in-lane instructions express.
-bool shuffleStaysInLane(LowerInst* inst);
+// Whether a shuffle is the whole-register interleave at 256 bits that no one instruction at the level
+// expresses, and which: false for the low lanes, true for the high. See `lowerWideInterleaves`.
+Maybe<bool> wideInterleaveHalf(LowerBase base, LowerInst* inst);
 
 /*
  * The two conversions that change a vector's lane count, as the resolve stages write them - see

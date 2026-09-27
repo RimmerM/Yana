@@ -1,0 +1,83 @@
+{-
+   `shuffleNatural` at 32 lanes, checked element by element - J237.
+
+   # extensions: avx2
+
+   One pattern per call, written for the widest vector (sixty-four bytes) and cut to this build's
+   32 lanes, which is one `vpshufb` where the kept entries stay in their 128-bit half (the Base64 spread), and two `vpshufb`, a `vperm2f128` and a `vpor` where they do not. `VecShuffleNatural.yana`, `.Avx2.yana` and `.Avx512.yana` are one
+   program at the three widths; the byte listing is `x64/VectorByteCrossing.lower`, and
+   `lib/Core/VecShuffleNatural.test.yana` runs the same patterns on every `test/base` row.
+
+   `spread` is Base64's encoder spread with the input loaded four bytes early: output part `k` (sixteen
+   bytes) reads input bytes `4 + 12k` to `15 + 12k`, as the published AVX2 table does in each half. At
+   thirty-two lanes every part reads its own half, and at sixty-four parts 2 and 3 do not. `cross`
+   crosses at every width past sixteen, and `words` is the same rule at a sixteen-bit lane.
+
+   Every answer is stored and compared with the scalar reading of the pattern over the stored input;
+   the program answers the number of lanes that disagree, and a lane count other than 32 as 100.
+   The loop is the shape a codec has, where the control is loaded once rather than per iteration.
+-}
+
+-- Mutable, so that no input is a constant the folder could compute on its own.
+let &seed = 7 :: Int
+
+fn wrongBytes(got: Vec(U8), input: [U8], pattern: [Int *64], at: Int) -> Int:
+    let out = [0] :: [U8 *64]
+    storeVector(out, 0, got)
+    let &wrong = 0
+    for i in 0..lanes(got):
+        if out[i] != input[at + pattern[i]] then wrong += 1
+    return wrong
+
+fn main() -> Int:
+    let &input = [0] :: [U8 *256]
+    for i in 0..256:
+        input[i] = truncate((i * 7 + seed) % 251)
+
+    let v = loadVector(input, 0)
+    if lanes(v) != 32 then return 100
+
+    let spread = [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14,
+     17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26,
+     29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38,
+     41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50] :: [Int *64]
+    let cross = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+     16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27,
+     32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9,
+     16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57] :: [Int *64]
+
+    let &wrong = wrongBytes(shuffleNatural(v, [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14,
+                                   17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26,
+                                   29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38,
+                                   41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50]), input, spread, 0)
+    wrong += wrongBytes(shuffleNatural(v, [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                                    16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27,
+                                    32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9,
+                                    16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57]), input, cross, 0)
+
+    -- The loop: every chunk of the input through `cross`, the control a loop invariant.
+    let &out = [0] :: [U8 *256]
+    let w = lanes(v)
+    for j in 0..(256 / w):
+        let at = (j * w) :: Size
+        storeVector(out, at, shuffleNatural(loadVector(input, at), [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                                                                16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27,
+                                                                32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9,
+                                                                16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57]))
+    for i in 0..256:
+        if out[i] != input[i / w * w + cross[i % w]] then wrong += 1
+
+    -- A sixteen-bit lane, whose widest vector has thirty-two.
+    let &halves = [0] :: [U16 *32]
+    for i in 0..32:
+        halves[i] = truncate(i * 1001 + seed)
+    let h = loadVector(halves, 0)
+    let words = [7, 6, 5, 4, 3, 2, 1, 0, 8, 11, 14, 1, 4, 7, 10, 13,
+     16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27] :: [Int *32]
+    let hs = [0] :: [U16 *32]
+    storeVector(hs, 0, shuffleNatural(h, [7, 6, 5, 4, 3, 2, 1, 0, 8, 11, 14, 1, 4, 7, 10, 13,
+                                          16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27]))
+    for i in 0..lanes(h):
+        if hs[i] != halves[words[i]] then wrong += 1
+
+    return wrong

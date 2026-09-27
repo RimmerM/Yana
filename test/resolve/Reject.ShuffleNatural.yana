@@ -1,0 +1,40 @@
+{-
+   What `shuffleNatural` refuses at the floor's sixteen lanes - J237, doc/spec/vectors.md.
+
+   A natural-width pattern is written for the widest vector and cut to the width being built, so two of
+   its rules are the width's: the pattern has to reach it, and each entry it keeps has to name a lane
+   it has. The message names the width, because only the build whose prefix is wrong reports - the
+   same program at another level may be clean (`Reject.ShuffleNatural.Avx2.yana` is one that is clean
+   here and not there). The other rules hold at every width: a literal, no more entries than the widest
+   vector has lanes, and no entry past its end even where no width keeps it.
+-}
+
+let &pattern = [0] :: [Int *64]
+
+-- Not a literal, which is `shuffle`'s rule and its message.
+fn computed() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), pattern), 0)
+
+-- Eight entries, and the vector has sixteen lanes here.
+fn short() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [7, 6, 5, 4, 3, 2, 1, 0]), 0)
+
+-- Entry 3 is kept at sixteen lanes and names lane 16 - right at thirty-two, wrong here.
+fn keptPastWidth() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [0, 1, 2, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 0)
+
+-- Entry 40 is kept by no width but the widest, and names lane 64, which no width has.
+fn pastEveryWidth() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 64, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]), 0)
+
+-- Sixty-five entries, one more than a byte vector ever has lanes.
+fn tooLong() -> U8:
+    return lane(shuffleNatural(iota() :: Vec(U8), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 0]), 0)
+
+-- A doubleword lane's widest vector has sixteen lanes, so lane 16 is past every width there - and
+-- entry 15 is kept by no width but the widest.
+fn doublewords() -> U32:
+    return lane(shuffleNatural(iota() :: Vec(U32), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16]), 0)
+
+fn main():
+    print("{computed()} {short()} {keptPastWidth()} {pastEveryWidth()} {tooLong()} {doublewords()}")

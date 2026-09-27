@@ -398,6 +398,8 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
             return expandVecShuffle(builder, callee, 1, arguments, with, source);
         case Op::vecShuffle2:
             return expandVecShuffle(builder, callee, 2, arguments, with, source);
+        case Op::vecShuffleNatural:
+            return expandVecShuffleNatural(builder, callee, arguments, with, source);
         case Op::vecAlignLanes:
             return expandVecAlignLanes(builder, callee, arguments, with, source);
         case Op::vecReverse: return expandVecReverse(builder, callee, arguments, with, source);

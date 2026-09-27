@@ -247,6 +247,9 @@ Node* expandVecFma(Builder& builder, Function& callee, Node* const* arguments,
 
 Node* expandVecShuffle(Builder& builder, Function& callee, U32 sources, Node* const* arguments,
                        const Substitution& with, LocationId source);
+// `shuffleNatural`: the pattern for the widest vector, cut to this build's width and checked there.
+Node* expandVecShuffleNatural(Builder& builder, Function& callee, Node* const* arguments,
+                              const Substitution& with, LocationId source);
 Node* expandVecReverse(Builder& builder, Function& callee, Node* const* arguments,
                        const Substitution& with, LocationId source);
 Node* expandVecRotate(Builder& builder, Function& callee, Node* const* arguments,

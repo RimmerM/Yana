@@ -1,0 +1,853 @@
+module ResolveTest
+
+let & seed: I32 = 7
+
+fn wrongBytes(got: Vec(U8) [shared call], input: Array(U8) [shared call view], pattern: [I32 *64] [shared call], at: I32 [shared call]) -> I32 {
+bb0(%0: Vec(U8) trivial, %1: Array(U8) [shared call view] guaranteed, %2: [I32 *64] [shared call] guaranteed, %3: I32 trivial):
+  %18: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  %19: %I32 address = alloc frame I32 [shared call]
+  %20: %[U8 *64] address = alloc frame [U8 *64]
+  %21: %I32 address = alloc frame I32
+  %22: %I32 address = alloc frame I32
+  %23: %I32 address = alloc frame I32
+  store inspect %18 borrow %0
+  store inspect %19 borrow %3
+  %24: U8 trivial = const 0
+  %25: [U8 *64] trivial = aggregate.0 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24 consume %24
+  store inspect %20 consume %25
+  %26: [U8 *64] [shared call] guaranteed from{%20} = load inspect %20
+  %27: Array(U8) [shared slot 0 view] guaranteed from{%20} = call [a *n].elements(64, U8) borrow %26
+  %28: Size trivial = const 0
+  %29: Vec(U8) trivial = load inspect %18
+  call storeVector(U8) borrow %27 borrow %28 borrow %29
+  %30: I32 trivial = const 0
+  store inspect %21 consume %30
+  %31: Vec(U8) trivial = load inspect %18
+  %32: I32 trivial = const 16
+  %33: I32 trivial = const 0
+  %34: I32 trivial = const 1
+  store inspect %22 consume %33
+  jump -> bb1(consume %32, consume %34)
+
+bb1(%4: I32 trivial, %5: I32 trivial):
+  %35: I32 trivial = load inspect %22
+  %36: Bool trivial = lt inspect %35 inspect %4
+  branch inspect %36 -> bb4(consume %4, consume %5) -> bb3(consume %4, consume %5)
+
+bb2(%6: I32 trivial, %7: I32 trivial):
+  %37: I32 trivial = load inspect %22
+  %38: I32 trivial = add inspect %37 inspect %7
+  store inspect %22 consume %38
+  jump -> bb1(consume %6, consume %7)
+
+bb3(%8: I32 trivial, %9: I32 trivial):
+  %39: I32 trivial = load inspect %21
+  return consume %39
+
+bb4(%10: I32 trivial, %11: I32 trivial):
+  %40: I32 trivial = load inspect %22
+  store inspect %23 consume %40
+  %41: I32 trivial = load inspect %23
+  %42: Size trivial = convert inspect %41
+  %43: USize trivial = const 64
+  %44: USize trivial = bitcast inspect %42
+  %45: Bool trivial = ge inspect %44 inspect %43
+  call checkCondition borrow %45
+  %46: %U8 address = element.addr inspect %20 inspect %42
+  %47: U8 trivial = load inspect %46
+  %48: I32 trivial = load inspect %19
+  %49: I32 trivial = load inspect %23
+  %50: Size trivial = convert inspect %49
+  %51: USize trivial = const 64
+  %52: USize trivial = bitcast inspect %50
+  %53: Bool trivial = ge inspect %52 inspect %51
+  call checkCondition borrow %53
+  %54: %I32 address = element.addr inspect %2 inspect %50
+  %55: I32 trivial = load inspect %54
+  %56: I32 trivial = add inspect %48 inspect %55
+  %57: Array(U8) [shared call view] guaranteed from{%1} = load inspect %1
+  %58: Size trivial = convert inspect %56
+  jump -> bb8
+
+bb5(%12: I32 trivial, %13: I32 trivial):
+  jump -> bb6(consume %12, consume %13)
+
+bb6(%14: I32 trivial, %15: I32 trivial):
+  jump -> bb2(consume %14, consume %15)
+
+bb7(%16: I32 trivial, %17: I32 trivial):
+  %78: I32 [unique call] guaranteed from{%21} = load inspect %21
+  %79: I32 trivial = const 1
+  call +=(I32) borrow %78 borrow %79
+  jump -> bb6(consume %16, consume %17)
+
+bb8:
+  %60: %Size address = alloc frame Size [shared call]
+  store inspect %60 borrow %58
+  %61: Size trivial = load inspect %60
+  %62: USize trivial = bitcast inspect %61
+  %63: Array(U8) [shared slot 0 view] guaranteed from{%57} = load inspect %57
+  jump -> bb13
+
+bb9(%59: U8 [shared slot 0] guaranteed from{%1}):
+  %76: U8 trivial = load inspect %59
+  %77: Bool trivial = ne inspect %47 inspect %76
+  branch inspect %77 -> bb7(consume %10, consume %11) -> bb5(consume %10, consume %11)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %69: Array(U8) [shared slot 0 view] guaranteed from{%57} = load inspect %57
+  %70: %U8 [owned here shape6 .*=shared slot 0] trivial = call values(U8) borrow %69
+  %71: Size trivial = load inspect %60
+  %72: Size trivial = metric stride U8
+  %73: Size trivial = mul inspect %71 inspect %72
+  %74: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %70 inspect %73
+  %75: U8 [shared slot 0] guaranteed = load inspect %74
+  jump -> bb9(borrow %75)
+
+bb12:
+  call checkFailed
+  jump -> bb11
+
+bb13:
+  %65: %Size address = field.addr .length inspect %63
+  %66: Size trivial = load inspect %65
+  jump -> bb14(consume %66)
+
+bb14(%64: Size trivial):
+  %67: USize trivial = bitcast inspect %64
+  %68: Bool trivial = ge inspect %62 inspect %67
+  branch inspect %68 -> bb12 -> bb10
+}
+
+fn main() -> I32 {
+bb0:
+  %52: %[U8 *256] address = alloc frame [U8 *256]
+  %53: %I32 address = alloc frame I32
+  %54: %I32 address = alloc frame I32
+  %55: %Vec(U8) address = alloc frame Vec(U8)
+  %56: %[I32 *64] address = alloc frame [I32 *64]
+  %57: %[I32 *64] address = alloc frame [I32 *64]
+  %58: %I32 address = alloc frame I32
+  %59: %[U8 *256] address = alloc frame [U8 *256]
+  %60: %I32 address = alloc frame I32
+  %61: %I32 address = alloc frame I32
+  %62: %I32 address = alloc frame I32
+  %63: %Size address = alloc frame Size
+  %64: %I32 address = alloc frame I32
+  %65: %I32 address = alloc frame I32
+  %66: %[U16 *32] address = alloc frame [U16 *32]
+  %67: %I32 address = alloc frame I32
+  %68: %I32 address = alloc frame I32
+  %69: %Vec(U16) address = alloc frame Vec(U16)
+  %70: %[I32 *32] address = alloc frame [I32 *32]
+  %71: %[U16 *32] address = alloc frame [U16 *32]
+  %72: %I32 address = alloc frame I32
+  %73: %I32 address = alloc frame I32
+  %74: U8 trivial = const 0
+  %75: [U8 *256] trivial = aggregate.0 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74 consume %74
+  store inspect %52 consume %75
+  %76: I32 trivial = const 0
+  %77: I32 trivial = const 256
+  %78: I32 trivial = const 1
+  store inspect %53 consume %76
+  jump -> bb1(consume %77, consume %78)
+
+bb1(%0: I32 trivial, %1: I32 trivial):
+  %79: I32 trivial = load inspect %53
+  %80: Bool trivial = lt inspect %79 inspect %0
+  branch inspect %80 -> bb4(consume %0, consume %1) -> bb3(consume %0, consume %1)
+
+bb2(%2: I32 trivial, %3: I32 trivial):
+  %81: I32 trivial = load inspect %53
+  %82: I32 trivial = add inspect %81 inspect %3
+  store inspect %53 consume %82
+  jump -> bb1(consume %2, consume %3)
+
+bb3(%4: I32 trivial, %5: I32 trivial):
+  %83: [U8 *256] [shared call] guaranteed from{%52} = load inspect %52
+  %84: Array(U8) [shared slot 0 view] guaranteed from{%52} = call [a *n].elements(256, U8) borrow %83
+  %85: Size trivial = const 0
+  %86: Vec(U8) trivial = call loadVector(U8) borrow %84 borrow %85
+  store inspect %55 consume %86
+  %87: Vec(U8) trivial = load inspect %55
+  %88: I32 trivial = const 16
+  %89: I32 trivial = const 16
+  %90: Bool trivial = ne inspect %88 inspect %89
+  branch inspect %90 -> bb7 -> bb5
+
+bb4(%6: I32 trivial, %7: I32 trivial):
+  %91: I32 trivial = load inspect %53
+  store inspect %54 consume %91
+  %92: I32 trivial = load inspect %54
+  %93: Size trivial = convert inspect %92
+  %94: USize trivial = const 256
+  %95: USize trivial = bitcast inspect %93
+  %96: Bool trivial = ge inspect %95 inspect %94
+  call checkCondition borrow %96
+  %97: I32 trivial = load inspect %54
+  %98: I32 trivial = const 7
+  %99: I32 trivial = mul inspect %97 inspect %98
+  %100: %I32 address = global.addr seed
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = add inspect %99 inspect %101
+  %103: I32 trivial = const 251
+  %104: I32 trivial = rem inspect %102 inspect %103
+  %105: U8 trivial = convert inspect %104
+  %106: %U8 address = element.addr inspect %52 inspect %93
+  store inspect %106 consume %105
+  jump -> bb2(consume %6, consume %7)
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %107: I32 trivial = const 5
+  %108: I32 trivial = const 4
+  %109: I32 trivial = const 6
+  %110: I32 trivial = const 5
+  %111: I32 trivial = const 8
+  %112: I32 trivial = const 7
+  %113: I32 trivial = const 9
+  %114: I32 trivial = const 8
+  %115: I32 trivial = const 11
+  %116: I32 trivial = const 10
+  %117: I32 trivial = const 12
+  %118: I32 trivial = const 11
+  %119: I32 trivial = const 14
+  %120: I32 trivial = const 13
+  %121: I32 trivial = const 15
+  %122: I32 trivial = const 14
+  %123: I32 trivial = const 17
+  %124: I32 trivial = const 16
+  %125: I32 trivial = const 18
+  %126: I32 trivial = const 17
+  %127: I32 trivial = const 20
+  %128: I32 trivial = const 19
+  %129: I32 trivial = const 21
+  %130: I32 trivial = const 20
+  %131: I32 trivial = const 23
+  %132: I32 trivial = const 22
+  %133: I32 trivial = const 24
+  %134: I32 trivial = const 23
+  %135: I32 trivial = const 26
+  %136: I32 trivial = const 25
+  %137: I32 trivial = const 27
+  %138: I32 trivial = const 26
+  %139: I32 trivial = const 29
+  %140: I32 trivial = const 28
+  %141: I32 trivial = const 30
+  %142: I32 trivial = const 29
+  %143: I32 trivial = const 32
+  %144: I32 trivial = const 31
+  %145: I32 trivial = const 33
+  %146: I32 trivial = const 32
+  %147: I32 trivial = const 35
+  %148: I32 trivial = const 34
+  %149: I32 trivial = const 36
+  %150: I32 trivial = const 35
+  %151: I32 trivial = const 38
+  %152: I32 trivial = const 37
+  %153: I32 trivial = const 39
+  %154: I32 trivial = const 38
+  %155: I32 trivial = const 41
+  %156: I32 trivial = const 40
+  %157: I32 trivial = const 42
+  %158: I32 trivial = const 41
+  %159: I32 trivial = const 44
+  %160: I32 trivial = const 43
+  %161: I32 trivial = const 45
+  %162: I32 trivial = const 44
+  %163: I32 trivial = const 47
+  %164: I32 trivial = const 46
+  %165: I32 trivial = const 48
+  %166: I32 trivial = const 47
+  %167: I32 trivial = const 50
+  %168: I32 trivial = const 49
+  %169: I32 trivial = const 51
+  %170: I32 trivial = const 50
+  %171: [I32 *64] trivial = aggregate.0 consume %107 consume %108 consume %109 consume %110 consume %111 consume %112 consume %113 consume %114 consume %115 consume %116 consume %117 consume %118 consume %119 consume %120 consume %121 consume %122 consume %123 consume %124 consume %125 consume %126 consume %127 consume %128 consume %129 consume %130 consume %131 consume %132 consume %133 consume %134 consume %135 consume %136 consume %137 consume %138 consume %139 consume %140 consume %141 consume %142 consume %143 consume %144 consume %145 consume %146 consume %147 consume %148 consume %149 consume %150 consume %151 consume %152 consume %153 consume %154 consume %155 consume %156 consume %157 consume %158 consume %159 consume %160 consume %161 consume %162 consume %163 consume %164 consume %165 consume %166 consume %167 consume %168 consume %169 consume %170
+  store inspect %56 consume %171
+  %172: I32 trivial = const 15
+  %173: I32 trivial = const 14
+  %174: I32 trivial = const 13
+  %175: I32 trivial = const 12
+  %176: I32 trivial = const 11
+  %177: I32 trivial = const 10
+  %178: I32 trivial = const 9
+  %179: I32 trivial = const 8
+  %180: I32 trivial = const 7
+  %181: I32 trivial = const 6
+  %182: I32 trivial = const 5
+  %183: I32 trivial = const 4
+  %184: I32 trivial = const 3
+  %185: I32 trivial = const 2
+  %186: I32 trivial = const 1
+  %187: I32 trivial = const 0
+  %188: I32 trivial = const 16
+  %189: I32 trivial = const 21
+  %190: I32 trivial = const 26
+  %191: I32 trivial = const 31
+  %192: I32 trivial = const 4
+  %193: I32 trivial = const 9
+  %194: I32 trivial = const 14
+  %195: I32 trivial = const 19
+  %196: I32 trivial = const 24
+  %197: I32 trivial = const 29
+  %198: I32 trivial = const 2
+  %199: I32 trivial = const 7
+  %200: I32 trivial = const 12
+  %201: I32 trivial = const 17
+  %202: I32 trivial = const 22
+  %203: I32 trivial = const 27
+  %204: I32 trivial = const 32
+  %205: I32 trivial = const 39
+  %206: I32 trivial = const 46
+  %207: I32 trivial = const 53
+  %208: I32 trivial = const 60
+  %209: I32 trivial = const 3
+  %210: I32 trivial = const 10
+  %211: I32 trivial = const 17
+  %212: I32 trivial = const 24
+  %213: I32 trivial = const 31
+  %214: I32 trivial = const 38
+  %215: I32 trivial = const 45
+  %216: I32 trivial = const 52
+  %217: I32 trivial = const 59
+  %218: I32 trivial = const 2
+  %219: I32 trivial = const 9
+  %220: I32 trivial = const 16
+  %221: I32 trivial = const 23
+  %222: I32 trivial = const 30
+  %223: I32 trivial = const 37
+  %224: I32 trivial = const 44
+  %225: I32 trivial = const 51
+  %226: I32 trivial = const 58
+  %227: I32 trivial = const 1
+  %228: I32 trivial = const 8
+  %229: I32 trivial = const 15
+  %230: I32 trivial = const 22
+  %231: I32 trivial = const 29
+  %232: I32 trivial = const 36
+  %233: I32 trivial = const 43
+  %234: I32 trivial = const 50
+  %235: I32 trivial = const 57
+  %236: [I32 *64] trivial = aggregate.0 consume %172 consume %173 consume %174 consume %175 consume %176 consume %177 consume %178 consume %179 consume %180 consume %181 consume %182 consume %183 consume %184 consume %185 consume %186 consume %187 consume %188 consume %189 consume %190 consume %191 consume %192 consume %193 consume %194 consume %195 consume %196 consume %197 consume %198 consume %199 consume %200 consume %201 consume %202 consume %203 consume %204 consume %205 consume %206 consume %207 consume %208 consume %209 consume %210 consume %211 consume %212 consume %213 consume %214 consume %215 consume %216 consume %217 consume %218 consume %219 consume %220 consume %221 consume %222 consume %223 consume %224 consume %225 consume %226 consume %227 consume %228 consume %229 consume %230 consume %231 consume %232 consume %233 consume %234 consume %235
+  store inspect %57 consume %236
+  %237: Vec(U8) trivial = load inspect %55
+  %238: I32 trivial = const 5
+  %239: I32 trivial = const 4
+  %240: I32 trivial = const 6
+  %241: I32 trivial = const 5
+  %242: I32 trivial = const 8
+  %243: I32 trivial = const 7
+  %244: I32 trivial = const 9
+  %245: I32 trivial = const 8
+  %246: I32 trivial = const 11
+  %247: I32 trivial = const 10
+  %248: I32 trivial = const 12
+  %249: I32 trivial = const 11
+  %250: I32 trivial = const 14
+  %251: I32 trivial = const 13
+  %252: I32 trivial = const 15
+  %253: I32 trivial = const 14
+  %254: I32 trivial = const 17
+  %255: I32 trivial = const 16
+  %256: I32 trivial = const 18
+  %257: I32 trivial = const 17
+  %258: I32 trivial = const 20
+  %259: I32 trivial = const 19
+  %260: I32 trivial = const 21
+  %261: I32 trivial = const 20
+  %262: I32 trivial = const 23
+  %263: I32 trivial = const 22
+  %264: I32 trivial = const 24
+  %265: I32 trivial = const 23
+  %266: I32 trivial = const 26
+  %267: I32 trivial = const 25
+  %268: I32 trivial = const 27
+  %269: I32 trivial = const 26
+  %270: I32 trivial = const 29
+  %271: I32 trivial = const 28
+  %272: I32 trivial = const 30
+  %273: I32 trivial = const 29
+  %274: I32 trivial = const 32
+  %275: I32 trivial = const 31
+  %276: I32 trivial = const 33
+  %277: I32 trivial = const 32
+  %278: I32 trivial = const 35
+  %279: I32 trivial = const 34
+  %280: I32 trivial = const 36
+  %281: I32 trivial = const 35
+  %282: I32 trivial = const 38
+  %283: I32 trivial = const 37
+  %284: I32 trivial = const 39
+  %285: I32 trivial = const 38
+  %286: I32 trivial = const 41
+  %287: I32 trivial = const 40
+  %288: I32 trivial = const 42
+  %289: I32 trivial = const 41
+  %290: I32 trivial = const 44
+  %291: I32 trivial = const 43
+  %292: I32 trivial = const 45
+  %293: I32 trivial = const 44
+  %294: I32 trivial = const 47
+  %295: I32 trivial = const 46
+  %296: I32 trivial = const 48
+  %297: I32 trivial = const 47
+  %298: I32 trivial = const 50
+  %299: I32 trivial = const 49
+  %300: I32 trivial = const 51
+  %301: I32 trivial = const 50
+  %302: [I32 *64] trivial = aggregate.0 consume %238 consume %239 consume %240 consume %241 consume %242 consume %243 consume %244 consume %245 consume %246 consume %247 consume %248 consume %249 consume %250 consume %251 consume %252 consume %253 consume %254 consume %255 consume %256 consume %257 consume %258 consume %259 consume %260 consume %261 consume %262 consume %263 consume %264 consume %265 consume %266 consume %267 consume %268 consume %269 consume %270 consume %271 consume %272 consume %273 consume %274 consume %275 consume %276 consume %277 consume %278 consume %279 consume %280 consume %281 consume %282 consume %283 consume %284 consume %285 consume %286 consume %287 consume %288 consume %289 consume %290 consume %291 consume %292 consume %293 consume %294 consume %295 consume %296 consume %297 consume %298 consume %299 consume %300 consume %301
+  %303: Vec(U8) trivial = vec.shuffle [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14] inspect %237 inspect %237
+  %304: [U8 *256] [shared call] guaranteed from{%52} = load inspect %52
+  %305: Array(U8) [shared slot 0 view] guaranteed from{%52} = call [a *n].elements(256, U8) borrow %304
+  %306: [I32 *64] trivial = copy inspect %56
+  %307: I32 trivial = const 0
+  %308: I32 trivial = call wrongBytes borrow %303 borrow %305 borrow %306 borrow %307
+  store inspect %58 consume %308
+  %309: I32 [unique call] guaranteed from{%58} = load inspect %58
+  %310: Vec(U8) trivial = load inspect %55
+  %311: I32 trivial = const 15
+  %312: I32 trivial = const 14
+  %313: I32 trivial = const 13
+  %314: I32 trivial = const 12
+  %315: I32 trivial = const 11
+  %316: I32 trivial = const 10
+  %317: I32 trivial = const 9
+  %318: I32 trivial = const 8
+  %319: I32 trivial = const 7
+  %320: I32 trivial = const 6
+  %321: I32 trivial = const 5
+  %322: I32 trivial = const 4
+  %323: I32 trivial = const 3
+  %324: I32 trivial = const 2
+  %325: I32 trivial = const 1
+  %326: I32 trivial = const 0
+  %327: I32 trivial = const 16
+  %328: I32 trivial = const 21
+  %329: I32 trivial = const 26
+  %330: I32 trivial = const 31
+  %331: I32 trivial = const 4
+  %332: I32 trivial = const 9
+  %333: I32 trivial = const 14
+  %334: I32 trivial = const 19
+  %335: I32 trivial = const 24
+  %336: I32 trivial = const 29
+  %337: I32 trivial = const 2
+  %338: I32 trivial = const 7
+  %339: I32 trivial = const 12
+  %340: I32 trivial = const 17
+  %341: I32 trivial = const 22
+  %342: I32 trivial = const 27
+  %343: I32 trivial = const 32
+  %344: I32 trivial = const 39
+  %345: I32 trivial = const 46
+  %346: I32 trivial = const 53
+  %347: I32 trivial = const 60
+  %348: I32 trivial = const 3
+  %349: I32 trivial = const 10
+  %350: I32 trivial = const 17
+  %351: I32 trivial = const 24
+  %352: I32 trivial = const 31
+  %353: I32 trivial = const 38
+  %354: I32 trivial = const 45
+  %355: I32 trivial = const 52
+  %356: I32 trivial = const 59
+  %357: I32 trivial = const 2
+  %358: I32 trivial = const 9
+  %359: I32 trivial = const 16
+  %360: I32 trivial = const 23
+  %361: I32 trivial = const 30
+  %362: I32 trivial = const 37
+  %363: I32 trivial = const 44
+  %364: I32 trivial = const 51
+  %365: I32 trivial = const 58
+  %366: I32 trivial = const 1
+  %367: I32 trivial = const 8
+  %368: I32 trivial = const 15
+  %369: I32 trivial = const 22
+  %370: I32 trivial = const 29
+  %371: I32 trivial = const 36
+  %372: I32 trivial = const 43
+  %373: I32 trivial = const 50
+  %374: I32 trivial = const 57
+  %375: [I32 *64] trivial = aggregate.0 consume %311 consume %312 consume %313 consume %314 consume %315 consume %316 consume %317 consume %318 consume %319 consume %320 consume %321 consume %322 consume %323 consume %324 consume %325 consume %326 consume %327 consume %328 consume %329 consume %330 consume %331 consume %332 consume %333 consume %334 consume %335 consume %336 consume %337 consume %338 consume %339 consume %340 consume %341 consume %342 consume %343 consume %344 consume %345 consume %346 consume %347 consume %348 consume %349 consume %350 consume %351 consume %352 consume %353 consume %354 consume %355 consume %356 consume %357 consume %358 consume %359 consume %360 consume %361 consume %362 consume %363 consume %364 consume %365 consume %366 consume %367 consume %368 consume %369 consume %370 consume %371 consume %372 consume %373 consume %374
+  %376: Vec(U8) trivial = vec.shuffle [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %310 inspect %310
+  %377: [U8 *256] [shared call] guaranteed from{%52} = load inspect %52
+  %378: Array(U8) [shared slot 0 view] guaranteed from{%52} = call [a *n].elements(256, U8) borrow %377
+  %379: [I32 *64] trivial = copy inspect %57
+  %380: I32 trivial = const 0
+  %381: I32 trivial = call wrongBytes borrow %376 borrow %378 borrow %379 borrow %380
+  call +=(I32) borrow %309 borrow %381
+  %382: U8 trivial = const 0
+  %383: [U8 *256] trivial = aggregate.0 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382 consume %382
+  store inspect %59 consume %383
+  %384: Vec(U8) trivial = load inspect %55
+  %385: I32 trivial = const 16
+  store inspect %60 consume %385
+  %386: I32 trivial = const 16
+  %387: I32 trivial = const 256
+  %388: I32 trivial = div inspect %387 inspect %386
+  %389: I32 trivial = const 0
+  %390: I32 trivial = const 1
+  store inspect %61 consume %389
+  jump -> bb8(consume %388, consume %390)
+
+bb7:
+  %391: I32 trivial = const 100
+  return consume %391
+
+bb8(%8: I32 trivial, %9: I32 trivial):
+  %392: I32 trivial = load inspect %61
+  %393: Bool trivial = lt inspect %392 inspect %8
+  branch inspect %393 -> bb11(consume %8, consume %9) -> bb10(consume %8, consume %9)
+
+bb9(%10: I32 trivial, %11: I32 trivial):
+  %394: I32 trivial = load inspect %61
+  %395: I32 trivial = add inspect %394 inspect %11
+  store inspect %61 consume %395
+  jump -> bb8(consume %10, consume %11)
+
+bb10(%12: I32 trivial, %13: I32 trivial):
+  %396: I32 trivial = const 0
+  %397: I32 trivial = const 256
+  %398: I32 trivial = const 1
+  store inspect %64 consume %396
+  jump -> bb12(consume %397, consume %398)
+
+bb11(%14: I32 trivial, %15: I32 trivial):
+  %399: I32 trivial = load inspect %61
+  store inspect %62 consume %399
+  %400: I32 trivial = load inspect %62
+  %401: I32 trivial = const 16
+  %402: I32 trivial = mul inspect %400 inspect %401
+  %403: Size trivial = convert inspect %402
+  store inspect %63 consume %403
+  %404: [U8 *256] [shared call] guaranteed from{%59} = load inspect %59
+  %405: Array(U8) [shared slot 0 view] guaranteed from{%59} = call [a *n].elements(256, U8) borrow %404
+  %406: Size trivial = load inspect %63
+  %407: [U8 *256] [shared call] guaranteed from{%52} = load inspect %52
+  %408: Array(U8) [shared slot 0 view] guaranteed from{%52} = call [a *n].elements(256, U8) borrow %407
+  %409: Size trivial = load inspect %63
+  %410: Vec(U8) trivial = call loadVector(U8) borrow %408 borrow %409
+  %411: I32 trivial = const 15
+  %412: I32 trivial = const 14
+  %413: I32 trivial = const 13
+  %414: I32 trivial = const 12
+  %415: I32 trivial = const 11
+  %416: I32 trivial = const 10
+  %417: I32 trivial = const 9
+  %418: I32 trivial = const 8
+  %419: I32 trivial = const 7
+  %420: I32 trivial = const 6
+  %421: I32 trivial = const 5
+  %422: I32 trivial = const 4
+  %423: I32 trivial = const 3
+  %424: I32 trivial = const 2
+  %425: I32 trivial = const 1
+  %426: I32 trivial = const 0
+  %427: I32 trivial = const 16
+  %428: I32 trivial = const 21
+  %429: I32 trivial = const 26
+  %430: I32 trivial = const 31
+  %431: I32 trivial = const 4
+  %432: I32 trivial = const 9
+  %433: I32 trivial = const 14
+  %434: I32 trivial = const 19
+  %435: I32 trivial = const 24
+  %436: I32 trivial = const 29
+  %437: I32 trivial = const 2
+  %438: I32 trivial = const 7
+  %439: I32 trivial = const 12
+  %440: I32 trivial = const 17
+  %441: I32 trivial = const 22
+  %442: I32 trivial = const 27
+  %443: I32 trivial = const 32
+  %444: I32 trivial = const 39
+  %445: I32 trivial = const 46
+  %446: I32 trivial = const 53
+  %447: I32 trivial = const 60
+  %448: I32 trivial = const 3
+  %449: I32 trivial = const 10
+  %450: I32 trivial = const 17
+  %451: I32 trivial = const 24
+  %452: I32 trivial = const 31
+  %453: I32 trivial = const 38
+  %454: I32 trivial = const 45
+  %455: I32 trivial = const 52
+  %456: I32 trivial = const 59
+  %457: I32 trivial = const 2
+  %458: I32 trivial = const 9
+  %459: I32 trivial = const 16
+  %460: I32 trivial = const 23
+  %461: I32 trivial = const 30
+  %462: I32 trivial = const 37
+  %463: I32 trivial = const 44
+  %464: I32 trivial = const 51
+  %465: I32 trivial = const 58
+  %466: I32 trivial = const 1
+  %467: I32 trivial = const 8
+  %468: I32 trivial = const 15
+  %469: I32 trivial = const 22
+  %470: I32 trivial = const 29
+  %471: I32 trivial = const 36
+  %472: I32 trivial = const 43
+  %473: I32 trivial = const 50
+  %474: I32 trivial = const 57
+  %475: [I32 *64] trivial = aggregate.0 consume %411 consume %412 consume %413 consume %414 consume %415 consume %416 consume %417 consume %418 consume %419 consume %420 consume %421 consume %422 consume %423 consume %424 consume %425 consume %426 consume %427 consume %428 consume %429 consume %430 consume %431 consume %432 consume %433 consume %434 consume %435 consume %436 consume %437 consume %438 consume %439 consume %440 consume %441 consume %442 consume %443 consume %444 consume %445 consume %446 consume %447 consume %448 consume %449 consume %450 consume %451 consume %452 consume %453 consume %454 consume %455 consume %456 consume %457 consume %458 consume %459 consume %460 consume %461 consume %462 consume %463 consume %464 consume %465 consume %466 consume %467 consume %468 consume %469 consume %470 consume %471 consume %472 consume %473 consume %474
+  %476: Vec(U8) trivial = vec.shuffle [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %410 inspect %410
+  call storeVector(U8) borrow %405 borrow %406 borrow %476
+  jump -> bb9(consume %14, consume %15)
+
+bb12(%16: I32 trivial, %17: I32 trivial):
+  %477: I32 trivial = load inspect %64
+  %478: Bool trivial = lt inspect %477 inspect %16
+  branch inspect %478 -> bb15(consume %16, consume %17) -> bb14(consume %16, consume %17)
+
+bb13(%18: I32 trivial, %19: I32 trivial):
+  %479: I32 trivial = load inspect %64
+  %480: I32 trivial = add inspect %479 inspect %19
+  store inspect %64 consume %480
+  jump -> bb12(consume %18, consume %19)
+
+bb14(%20: I32 trivial, %21: I32 trivial):
+  %481: U16 trivial = const 0
+  %482: [U16 *32] trivial = aggregate.0 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481 consume %481
+  store inspect %66 consume %482
+  %483: I32 trivial = const 0
+  %484: I32 trivial = const 32
+  %485: I32 trivial = const 1
+  store inspect %67 consume %483
+  jump -> bb19(consume %484, consume %485)
+
+bb15(%22: I32 trivial, %23: I32 trivial):
+  %486: I32 trivial = load inspect %64
+  store inspect %65 consume %486
+  %487: I32 trivial = load inspect %65
+  %488: Size trivial = convert inspect %487
+  %489: USize trivial = const 256
+  %490: USize trivial = bitcast inspect %488
+  %491: Bool trivial = ge inspect %490 inspect %489
+  call checkCondition borrow %491
+  %492: %U8 address = element.addr inspect %59 inspect %488
+  %493: U8 trivial = load inspect %492
+  %494: I32 trivial = load inspect %65
+  %495: I32 trivial = const 16
+  %496: I32 trivial = div inspect %494 inspect %495
+  %497: I32 trivial = const 16
+  %498: I32 trivial = mul inspect %496 inspect %497
+  %499: I32 trivial = load inspect %65
+  %500: I32 trivial = const 16
+  %501: I32 trivial = rem inspect %499 inspect %500
+  %502: Size trivial = convert inspect %501
+  %503: USize trivial = const 64
+  %504: USize trivial = bitcast inspect %502
+  %505: Bool trivial = ge inspect %504 inspect %503
+  call checkCondition borrow %505
+  %506: %I32 address = element.addr inspect %57 inspect %502
+  %507: I32 trivial = load inspect %506
+  %508: I32 trivial = add inspect %498 inspect %507
+  %509: Size trivial = convert inspect %508
+  %510: USize trivial = const 256
+  %511: USize trivial = bitcast inspect %509
+  %512: Bool trivial = ge inspect %511 inspect %510
+  call checkCondition borrow %512
+  %513: %U8 address = element.addr inspect %52 inspect %509
+  %514: U8 trivial = load inspect %513
+  %515: Bool trivial = ne inspect %493 inspect %514
+  branch inspect %515 -> bb18(consume %22, consume %23) -> bb16(consume %22, consume %23)
+
+bb16(%24: I32 trivial, %25: I32 trivial):
+  jump -> bb17(consume %24, consume %25)
+
+bb17(%26: I32 trivial, %27: I32 trivial):
+  jump -> bb13(consume %26, consume %27)
+
+bb18(%28: I32 trivial, %29: I32 trivial):
+  %516: I32 [unique call] guaranteed from{%58} = load inspect %58
+  %517: I32 trivial = const 1
+  call +=(I32) borrow %516 borrow %517
+  jump -> bb17(consume %28, consume %29)
+
+bb19(%30: I32 trivial, %31: I32 trivial):
+  %518: I32 trivial = load inspect %67
+  %519: Bool trivial = lt inspect %518 inspect %30
+  branch inspect %519 -> bb22(consume %30, consume %31) -> bb21(consume %30, consume %31)
+
+bb20(%32: I32 trivial, %33: I32 trivial):
+  %520: I32 trivial = load inspect %67
+  %521: I32 trivial = add inspect %520 inspect %33
+  store inspect %67 consume %521
+  jump -> bb19(consume %32, consume %33)
+
+bb21(%34: I32 trivial, %35: I32 trivial):
+  %522: [U16 *32] [shared call] guaranteed from{%66} = load inspect %66
+  %523: Array(U16) [shared slot 0 view] guaranteed from{%66} = call [a *n].elements(32, U16) borrow %522
+  %524: Size trivial = const 0
+  %525: Vec(U16) trivial = call loadVector(U16) borrow %523 borrow %524
+  store inspect %69 consume %525
+  %526: I32 trivial = const 7
+  %527: I32 trivial = const 6
+  %528: I32 trivial = const 5
+  %529: I32 trivial = const 4
+  %530: I32 trivial = const 3
+  %531: I32 trivial = const 2
+  %532: I32 trivial = const 1
+  %533: I32 trivial = const 0
+  %534: I32 trivial = const 8
+  %535: I32 trivial = const 11
+  %536: I32 trivial = const 14
+  %537: I32 trivial = const 1
+  %538: I32 trivial = const 4
+  %539: I32 trivial = const 7
+  %540: I32 trivial = const 10
+  %541: I32 trivial = const 13
+  %542: I32 trivial = const 16
+  %543: I32 trivial = const 21
+  %544: I32 trivial = const 26
+  %545: I32 trivial = const 31
+  %546: I32 trivial = const 4
+  %547: I32 trivial = const 9
+  %548: I32 trivial = const 14
+  %549: I32 trivial = const 19
+  %550: I32 trivial = const 24
+  %551: I32 trivial = const 29
+  %552: I32 trivial = const 2
+  %553: I32 trivial = const 7
+  %554: I32 trivial = const 12
+  %555: I32 trivial = const 17
+  %556: I32 trivial = const 22
+  %557: I32 trivial = const 27
+  %558: [I32 *32] trivial = aggregate.0 consume %526 consume %527 consume %528 consume %529 consume %530 consume %531 consume %532 consume %533 consume %534 consume %535 consume %536 consume %537 consume %538 consume %539 consume %540 consume %541 consume %542 consume %543 consume %544 consume %545 consume %546 consume %547 consume %548 consume %549 consume %550 consume %551 consume %552 consume %553 consume %554 consume %555 consume %556 consume %557
+  store inspect %70 consume %558
+  %559: U16 trivial = const 0
+  %560: [U16 *32] trivial = aggregate.0 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559 consume %559
+  store inspect %71 consume %560
+  %561: [U16 *32] [shared call] guaranteed from{%71} = load inspect %71
+  %562: Array(U16) [shared slot 0 view] guaranteed from{%71} = call [a *n].elements(32, U16) borrow %561
+  %563: Size trivial = const 0
+  %564: Vec(U16) trivial = load inspect %69
+  %565: I32 trivial = const 7
+  %566: I32 trivial = const 6
+  %567: I32 trivial = const 5
+  %568: I32 trivial = const 4
+  %569: I32 trivial = const 3
+  %570: I32 trivial = const 2
+  %571: I32 trivial = const 1
+  %572: I32 trivial = const 0
+  %573: I32 trivial = const 8
+  %574: I32 trivial = const 11
+  %575: I32 trivial = const 14
+  %576: I32 trivial = const 1
+  %577: I32 trivial = const 4
+  %578: I32 trivial = const 7
+  %579: I32 trivial = const 10
+  %580: I32 trivial = const 13
+  %581: I32 trivial = const 16
+  %582: I32 trivial = const 21
+  %583: I32 trivial = const 26
+  %584: I32 trivial = const 31
+  %585: I32 trivial = const 4
+  %586: I32 trivial = const 9
+  %587: I32 trivial = const 14
+  %588: I32 trivial = const 19
+  %589: I32 trivial = const 24
+  %590: I32 trivial = const 29
+  %591: I32 trivial = const 2
+  %592: I32 trivial = const 7
+  %593: I32 trivial = const 12
+  %594: I32 trivial = const 17
+  %595: I32 trivial = const 22
+  %596: I32 trivial = const 27
+  %597: [I32 *32] trivial = aggregate.0 consume %565 consume %566 consume %567 consume %568 consume %569 consume %570 consume %571 consume %572 consume %573 consume %574 consume %575 consume %576 consume %577 consume %578 consume %579 consume %580 consume %581 consume %582 consume %583 consume %584 consume %585 consume %586 consume %587 consume %588 consume %589 consume %590 consume %591 consume %592 consume %593 consume %594 consume %595 consume %596
+  %598: Vec(U16) trivial = vec.shuffle [7, 6, 5, 4, 3, 2, 1, 0] inspect %564 inspect %564
+  call storeVector(U16) borrow %562 borrow %563 borrow %598
+  %599: Vec(U16) trivial = load inspect %69
+  %600: I32 trivial = const 8
+  %601: I32 trivial = const 0
+  %602: I32 trivial = const 1
+  store inspect %72 consume %601
+  jump -> bb23(consume %600, consume %602)
+
+bb22(%36: I32 trivial, %37: I32 trivial):
+  %603: I32 trivial = load inspect %67
+  store inspect %68 consume %603
+  %604: I32 trivial = load inspect %68
+  %605: Size trivial = convert inspect %604
+  %606: USize trivial = const 32
+  %607: USize trivial = bitcast inspect %605
+  %608: Bool trivial = ge inspect %607 inspect %606
+  call checkCondition borrow %608
+  %609: I32 trivial = load inspect %68
+  %610: I32 trivial = const 1001
+  %611: I32 trivial = mul inspect %609 inspect %610
+  %612: %I32 address = global.addr seed
+  %613: I32 trivial = load inspect %612
+  %614: I32 trivial = add inspect %611 inspect %613
+  %615: U16 trivial = convert inspect %614
+  %616: %U16 address = element.addr inspect %66 inspect %605
+  store inspect %616 consume %615
+  jump -> bb20(consume %36, consume %37)
+
+bb23(%38: I32 trivial, %39: I32 trivial):
+  %617: I32 trivial = load inspect %72
+  %618: Bool trivial = lt inspect %617 inspect %38
+  branch inspect %618 -> bb26(consume %38, consume %39) -> bb25(consume %38, consume %39)
+
+bb24(%40: I32 trivial, %41: I32 trivial):
+  %619: I32 trivial = load inspect %72
+  %620: I32 trivial = add inspect %619 inspect %41
+  store inspect %72 consume %620
+  jump -> bb23(consume %40, consume %41)
+
+bb25(%42: I32 trivial, %43: I32 trivial):
+  %621: I32 trivial = load inspect %58
+  return consume %621
+
+bb26(%44: I32 trivial, %45: I32 trivial):
+  %622: I32 trivial = load inspect %72
+  store inspect %73 consume %622
+  %623: I32 trivial = load inspect %73
+  %624: Size trivial = convert inspect %623
+  %625: USize trivial = const 32
+  %626: USize trivial = bitcast inspect %624
+  %627: Bool trivial = ge inspect %626 inspect %625
+  call checkCondition borrow %627
+  %628: %U16 address = element.addr inspect %71 inspect %624
+  %629: U16 trivial = load inspect %628
+  %630: I32 trivial = load inspect %73
+  %631: Size trivial = convert inspect %630
+  %632: USize trivial = const 32
+  %633: USize trivial = bitcast inspect %631
+  %634: Bool trivial = ge inspect %633 inspect %632
+  call checkCondition borrow %634
+  %635: %I32 address = element.addr inspect %70 inspect %631
+  %636: I32 trivial = load inspect %635
+  %637: Size trivial = convert inspect %636
+  %638: USize trivial = const 32
+  %639: USize trivial = bitcast inspect %637
+  %640: Bool trivial = ge inspect %639 inspect %638
+  call checkCondition borrow %640
+  %641: %U16 address = element.addr inspect %66 inspect %637
+  %642: U16 trivial = load inspect %641
+  %643: Bool trivial = ne inspect %629 inspect %642
+  branch inspect %643 -> bb29(consume %44, consume %45) -> bb27(consume %44, consume %45)
+
+bb27(%46: I32 trivial, %47: I32 trivial):
+  jump -> bb28(consume %46, consume %47)
+
+bb28(%48: I32 trivial, %49: I32 trivial):
+  jump -> bb24(consume %48, consume %49)
+
+bb29(%50: I32 trivial, %51: I32 trivial):
+  %644: I32 [unique call] guaranteed from{%58} = load inspect %58
+  %645: I32 trivial = const 1
+  call +=(I32) borrow %644 borrow %645
+  jump -> bb28(consume %50, consume %51)
+}
+
+entry main

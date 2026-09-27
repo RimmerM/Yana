@@ -1,0 +1,135 @@
+
+spread<complex>(%a: i8x32): i8x32 {
+  b_0 {
+    %r = vshuffle %a, %a, 5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14, 17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26: i8x32
+    ret %r
+  }
+}
+
+crossing<complex>(%a: i8x32): i8x32 {
+  b_0 {
+    %r = vshuffle %a, %a, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27: i8x32
+    ret %r
+  }
+}
+
+exchanged<complex>(%a: i8x32): i8x32 {
+  b_0 {
+    %r = vshuffle %a, %a, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15: i8x32
+    ret %r
+  }
+}
+
+words<complex>(%a: i16x16): i16x16 {
+  b_0 {
+    %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0, 8, 11, 14, 1, 4, 7, 10, 13: i16x16
+    ret %r
+  }
+}
+
+crossingLoop<complex>(%src: Ptr, %dst: Ptr, %n: I32) {
+  start {
+    %zero = cast 0: I32
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %zero], [body, %next]: I32
+    %v_0 = cmp_ilt %i, %n: I32
+    je %v_0, body, end
+  }
+
+  body {
+    %off = mul %i, 32: I32
+    %from = add %src, %off: Ptr
+    %to = add %dst, %off: Ptr
+    %v = load %from, 32: i8x32
+    %r = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27: i8x32
+    store %to, %r, 32
+    %next = add %i, 1: I32
+    jmp head
+  }
+
+  end {
+    ret 
+  }
+}
+
+
+--- codegen: spread ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v256$05040605080709080b0a0c0b0e0d0f0e0100020104030504070608070a090b0a] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e27d0005a7000000
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: crossing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c4e37d06c801
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_addr [rip + $v256$808080808080808080808080808080808080808004090e80808002070c808080] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e275000db1000000
+  x86_addr [rip + $v256$0f0e0d0c0b0a0908070605040302010000050a0f80808003080d80808001060b] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e27d0005c8000000
+  or uses=[xmm0, xmm1] creates=[xmm0]  => c5fdebc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: exchanged ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c001
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: words ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c4e37d06c801
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_addr [rip + $v256$80808080808080808080808080808080808080808080020308090e0f80808080] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e275000dc1000000
+  x86_addr [rip + $v256$0e0f0c0d0a0b08090607040502030001000106070c0d80808080808004050a0b] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e27d0005d8000000
+  or uses=[xmm0, xmm1] creates=[xmm0]  => c5fdebc1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: crossingLoop ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f0588000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d60000000
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => 31c0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7d31
+  align  => 66660f1f840000000000
+block body:
+  imm uses=[] creates=[-]  => 
+  mul uses=[rax, -] creates=[rcx]  => 6bc820
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f140f
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  vshuffle uses=[xmm2, xmm2] creates=[xmm3]  => c4e36d06da01
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  x86_permute uses=[xmm1, xmm3] creates=[xmm3]  => c4e26500d9
+  x86_permute uses=[xmm0, xmm2] creates=[xmm2]  => c4e26d00d0
+  or uses=[xmm2, xmm3] creates=[xmm2]  => c5edebd3
+  x86_addr scale=1 disp=0 uses=[rsi, rcx] creates=[-]  => 
+  store uses=[-, xmm2] creates=[]  => c5fe7f140e
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7cd9
+block end:
+  ret uses=[] creates=[]  => c3

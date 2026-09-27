@@ -3425,7 +3425,12 @@ void expandVectorDotProducts(Context&, LowerBase base, LowerFunction& fun) {
                 auto products = e.emit(new (fun.arena) LowerInstX86MulAddWords(
                     StringId(), type, lhs - base, rhs - base));
 
-                answer = e.binary(LowerInst::Add, type, acc, products);
+                // A zero accumulator - `accumulateWordProducts(zero(), ...)`, which is how a caller
+                // writes `pmaddwd` alone (Base64's decoder packing twelve-bit pairs, J234) - adds
+                // nothing, and the `paddd` of it would be a register copy and an add in the loop.
+                // `zero()` and `splat(0)` both reach this tier as a splat of the literal.
+                auto zero = splatLiteral(base, acc);
+                answer = zero && zero.unwrap() == 0 ? products : e.binary(LowerInst::Add, type, acc, products);
             } else {
                 auto unsignedWords = e.reinterpret(words, lhs);
                 auto signedWords = e.reinterpret(words, rhs);

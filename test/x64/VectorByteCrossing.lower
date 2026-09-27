@@ -1,0 +1,70 @@
+# One-source byte and word patterns that cross the 128-bit halves at `avx2` - J237.
+#
+# extensions: avx2
+#
+# `shuffleNatural` writes one pattern for every width, so the 32-lane prefix a build at `avx2` keeps may
+# cross the halves where no single AVX2 instruction does. `test/resolve/VecShuffleNatural.Avx2.yana`
+# asserts the lanes; this asserts the instructions (`lowerByteLaneShuffles`):
+#
+#   - **in-half** is one `vpshufb` with its control folded - Base64's encoder spread, which reads input
+#     bytes 4..15 in the low half and 16..27 in the high one.
+#   - **crossing** is `vperm2f128 $1` of the source, a `vpshufb` of each with `0x80` where the other
+#     supplies the byte, and a `vpor`: four instructions.
+#   - **every entry crossing** is the exchange and one `vpshufb`.
+#   - **a word lane** is the same over its byte pairs.
+#   - **in a loop** both controls are loaded once, above it, and the body is the four instructions.
+
+spread(%a: i8x32): i8x32 {
+    {
+        %r = vshuffle %a, %a, 5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14, 17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26: i8x32
+        ret %r
+    }
+}
+
+crossing(%a: i8x32): i8x32 {
+    {
+        %r = vshuffle %a, %a, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27: i8x32
+        ret %r
+    }
+}
+
+exchanged(%a: i8x32): i8x32 {
+    {
+        %r = vshuffle %a, %a, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15: i8x32
+        ret %r
+    }
+}
+
+words(%a: i16x16): i16x16 {
+    {
+        %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0, 8, 11, 14, 1, 4, 7, 10, 13: i16x16
+        ret %r
+    }
+}
+
+crossingLoop(%src: Ptr, %dst: Ptr, %n: I32) {
+    start {
+        %zero = cast 0: I32
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %zero], [body, %next]: I32
+        je (cmp_ilt %i, %n), body, end
+    }
+
+    body {
+        %off = mul %i, 32: I32
+        %from = add %src, %off: Ptr
+        %to = add %dst, %off: Ptr
+        %v = load %from, 32: i8x32
+        %r = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27: i8x32
+        store %to, %r, 32
+        %next = add %i, 1: I32
+        jmp head
+    }
+
+    end {
+        ret
+    }
+}

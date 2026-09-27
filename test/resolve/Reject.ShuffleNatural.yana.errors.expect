@@ -1,0 +1,6 @@
+16:16: error: a lane pattern must be written as a literal at the call - it is the instruction's own field on every target that has one, and a computed pattern is a runtime shuffle, which is a platform module's business
+20:16: error: this pattern has 8 entries and the natural vector has 16 lanes at this target's width - a natural-width pattern is written for the widest vector and cut to the width a build has, so it needs at least that many
+24:16: error: entry 3 of this pattern is lane 16, and the natural vector has 16 lanes at this target's width - a natural-width pattern keeps its first 16 entries here, and each of those has to name a lane this width has
+28:16: error: lane 64 is past the end of every natural width - an entry of a natural-width pattern names a lane of the widest vector of this lane type, which has 64
+32:16: error: this pattern has 65 entries and a natural-width pattern holds at most 64 - one per lane of the widest vector of this lane type, 64 bytes, which is what every narrower width keeps a prefix of
+37:16: error: lane 16 is past the end of every natural width - an entry of a natural-width pattern names a lane of the widest vector of this lane type, which has 16

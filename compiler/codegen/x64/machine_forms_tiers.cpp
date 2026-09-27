@@ -361,6 +361,45 @@ void MachineFormBuilder::registerWideForms() {
     permute(FormVPermuteF32, "vpermps ymm, ymm, ymm/m"_v, 0x16);
 
     /*
+     * The general crossing at a 64-bit lane, whose pattern *is* an immediate: `vpermq ymm1,
+     * ymm2/m256, imm8` writes result lane `i` with source lane `(imm8 >> 2i) & 3`. So where `vpermd`
+     * above needs its pattern made into a pooled vector first, this is a form like `pshufd` - and,
+     * like `pshufd`, twice, the second row reading the other operand for a pattern that names only
+     * the second source (`wideShuffleChoice` answers both, J236).
+     *
+     * One row serves every lane kind. `wideShuffleChoice` reads a byte, word or doubleword pattern
+     * that moves aligned eight-byte groups as this one, and a float lane is permuted in the integer
+     * domain the way `pshufd` permutes it one tier down - `vpermpd` would be a second pair of rows for
+     * a forwarding cycle on some parts.
+     *
+     * `VEX.W1` is the lane width - `vpermq` and the W0 encoding of the same opcode are not the same
+     * instruction - stated as `Fixed64`, which is how `vpsllvq` states its own. No 512-bit twin:
+     * at that width the immediate permutes inside each 256-bit half, which is why `registerFullForms`
+     * lists the opcode as structural.
+     */
+    auto permute64 = [&](MachineFormId id, StringView formName, bool second) {
+        auto& form = add(id, OpVShuffle, formName);
+        form.uses.push(anyReg(ClassYmm256));
+        if(second) form.uses.push(anyReg(ClassYmm256));
+        form.defs.push(def(ClassYmm256));
+        form.requiredFeatures = kFeatureAvx | kFeatureAvx2;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x00,
+            .escape = 0x0f, .prefix = 0x66,
+            .regField = defRef(0), .rmField = useRef(second ? 1 : 0),
+            .width = OperationWidth::Fixed64,
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F3A,
+            .vectorLength = 1,
+        };
+        form.encoding.patternImmediate = true;
+    };
+
+    permute64(FormVPermute64,       "vpermq ymm, ymm, pattern"_v, false);
+    permute64(FormVPermute64Second, "vpermq ymm, ymm, pattern (second source)"_v, true);
+
+    /*
      * The two halves read on their own, which is how a 256-bit vector and a 128-bit one meet.
      *
      * A lane above the low half cannot be reached by any of the extracts one tier down - those

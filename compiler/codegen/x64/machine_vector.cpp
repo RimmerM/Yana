@@ -189,7 +189,7 @@ static Maybe<PackedShuffleChoice> wideAlignChoice(LowerType type, Buffer<U8> pat
  * 10, 3, 11]` - which reads as an interleave and *is* one at four lanes - is not an instruction here
  * at all, and a tier that answered `vpunpckldq` for it would have produced a plausible wrong vector.
  *
- * That gives three questions rather than one, asked in this order:
+ * That gives four questions rather than one, asked in this order:
  *
  * - **Is it in-lane?** Every result lane takes a source lane from its own half. If so, the pattern
  *   reduces to a 128-bit one - the same one in both halves, since there is one control byte - and
@@ -202,6 +202,10 @@ static Maybe<PackedShuffleChoice> wideAlignChoice(LowerType type, Buffer<U8> pat
  *   halves its two sources hold. This is the *only* cross-half rearrangement in the tier, and it is
  *   what the top level of a reduction butterfly over eight lanes is - lane `j` paired with lane
  *   `j ^ 4` is exactly the two halves exchanged.
+ *
+ * - **Is it one source in whole quadwords?** `vpermq` by an immediate places any of the four 64-bit
+ *   lanes anywhere, so a one-source pattern that moves aligned eight-byte runs is one instruction at
+ *   every lane width (J236). Last, because the half exchange above is one of them.
  *
  * In that order because a pattern that is both - the identity, or a swap of the halves of one source
  * that is also an in-lane shuffle - is cheaper as the in-lane one: `vperm2f128` crosses the halves
@@ -270,20 +274,53 @@ static Maybe<PackedShuffleChoice> wideShuffleChoice(LowerType type, Buffer<U8> p
      * written in the instruction's terms rather than the IR's.
      */
     auto control = U8(0);
+    auto halves = true;
 
-    for(U32 k = 0; k < 2; k++) {
+    for(U32 k = 0; k < 2 && halves; k++) {
         auto source = halfOf(pattern[k * half]);
         auto base = U8(source & 1 ? half : 0);
         if(pattern[k * half] >= lanes) base = U8(base + lanes);
 
         for(U32 j = 0; j < half; j++) {
-            if(pattern[k * half + j] != base + j) return {};
+            if(pattern[k * half + j] != base + j) { halves = false; break; }
         }
 
         control |= U8(source << (k * 4));
     }
 
-    return Just(PackedShuffleChoice { FormVPerm2, control, true });
+    if(halves) return Just(PackedShuffleChoice { FormVPerm2, control, true });
+
+    /*
+     * Any pattern of one source that moves whole, aligned 64-bit groups - `vpermq` by an immediate,
+     * J236. Four quadwords, two bits each, and no notion of a half: every such pattern is the one
+     * instruction, including the ones the two questions above refused. A byte, word or doubleword
+     * pattern is read as the quadword one when its lanes travel in aligned runs of eight bytes, in
+     * order - the same reading `narrowShuffleChoice` gives a pair of bytes - so `[0..7, 16..23, 8..15,
+     * 24..31]` over bytes is `vpermq $0xd8`. After `vperm2f128`, which says a swap of halves as well
+     * and was here first; the two cost the same.
+     *
+     * A mask below a 64-bit lane is left out, as it is from the pair reading one tier down, and so is
+     * a 512-bit register, where the immediate permutes inside each 256-bit half.
+     */
+    auto width = laneBytes(type.lane);
+    if(type.byteWidth() != 32 || (type.isMask() && width != 8)) return {};
+
+    auto group = 8 / width;
+    auto second = pattern[0] >= lanes;
+    auto quads = U8(0);
+
+    for(U32 q = 0; q < 4; q++) {
+        auto first = pattern[q * group];
+        if((first >= lanes) != second || first % group != 0) return {};
+
+        for(U32 j = 1; j < group; j++) {
+            if(pattern[q * group + j] != first + j) return {};
+        }
+
+        quads |= U8(((first % lanes) / group) << (q * 2));
+    }
+
+    return Just(PackedShuffleChoice { second ? FormVPermute64Second : FormVPermute64, quads, true });
 }
 
 bool twoSourcePermuteExpresses(LowerBase base, LowerInst* inst) {
@@ -318,18 +355,28 @@ bool shuffleReadsOneSource(LowerInst* inst) {
     return true;
 }
 
-// Whether a shuffle stays inside each 128-bit half - see machine.h. Asked by the same two sides.
-bool shuffleStaysInLane(LowerInst* inst) {
+/*
+ * The whole-register interleave at 256 bits where nothing at the level says it in one instruction -
+ * `lowerWideInterleaves`' shape, J236, and asked by the same two sides `shuffleReadsOneSource` is.
+ * The answer is which interleave: false for the low lanes of both sources, true for the high ones.
+ */
+Maybe<bool> wideInterleaveHalf(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecShuffle) return {};
+
     auto shuffle = (LowerInstVecShuffle*)inst;
-    auto lanes = shuffle->result.type.lanes();
-    auto half = lanes / 2;
+    auto type = shuffle->result.type;
+
+    if(!(targetFeatures() & kFeatureAvx2)) return {};
+    if(type.byteWidth() != 32 || !isWholePackedRegister(type)) return {};
+    if(base[shuffle->left]->type != type || base[shuffle->right]->type != type) return {};
+    if(packedShuffleChoice(base, inst) || twoSourcePermuteExpresses(base, inst)) return {};
+
+    auto lanes = type.lanes();
     auto pattern = shuffle->pattern();
 
-    for(U32 k = 0; k < lanes; k++) {
-        if((pattern[k] % lanes) / half != k / half) return false;
-    }
-
-    return true;
+    if(isInterleave(pattern, lanes, false)) return Just(false);
+    if(isInterleave(pattern, lanes, true)) return Just(true);
+    return {};
 }
 
 // A value whose every reader is one instruction - which the middle of a lane-count conversion has
@@ -1377,6 +1424,10 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              */
             if(laneBytes(type.lane) == 1) {
                 assertTrue(isWholePackedRegister(type));
+
+                // A crossing byte pattern at VBMI, which `lowerByteLaneShuffles` builds only where
+                // the row is there (J237).
+                if(((LowerInstX86Permute*)inst)->isCrossing()) return widthForm(FormVPermute8, type);
                 return widthForm(FormVByteShuffle, type);
             }
 
@@ -2244,17 +2295,25 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                      * 32-bit lane pattern naming **one** source is `vpermd`/`vpermps` and a pooled
                      * index vector, so it is let through here and lowered below.
                      *
-                     * What is still refused is the two-source case at that width, and every pattern
+                     * What is still refused is the two-source case at that width, and ~~every pattern
                      * at a 64-bit lane that is neither in-lane nor a half exchange - `vpermq` states
                      * its pattern as an immediate and so belongs to `wideShuffleChoice`, which does
-                     * not have it yet.
+                     * not have it yet~~ - `wideShuffleChoice` has it now (J236), for any one-source
+                     * pattern moving aligned quadwords, so nothing at a 64-bit lane reaches here but
+                     * the two-source case. The whole-register interleave, the one two-source shape a
+                     * program names, is `lowerWideInterleaves`' before selection asks.
                      */
                     if(laneBytes(type.lane) == 4 && shuffleReadsOneSource(inst)) return {};
 
-                    // And a byte pattern of one source that stays inside each half, which is
-                    // `vpshufb` - `lowerByteLaneShuffles`, at this width as at the narrow one.
-                    if(laneBytes(type.lane) == 1 && !type.isMask() && shuffleReadsOneSource(inst) &&
-                       shuffleStaysInLane(inst)) {
+                    // The whole-register interleave, which `lowerWideInterleaves` makes two in-lane
+                    // ones and a `vperm2f128` (J236).
+                    if(wideInterleaveHalf(base, inst)) return {};
+
+                    // And a byte pattern of one source, which is `vpshufb` where it stays inside each
+                    // half and otherwise a `vpshufb` of each half's source joined by `vpor` - both
+                    // `lowerByteLaneShuffles`, at this width as at the narrow one (J237, which let the
+                    // crossing case through for `shuffleNatural`).
+                    if(laneBytes(type.lane) <= 2 && !type.isMask() && shuffleReadsOneSource(inst)) {
                         return {};
                     }
 
@@ -2269,13 +2328,13 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                  * the reasons the old text gave have expired: SSSE3 is inside the x86-64-v2 floor,
                  * and `poolVectorConstants` opened `.rodata` to vectors.
                  *
-                 * What is still refused: the two-source case, which is two `pshufb` and a `por`; and
-                 * a 16-bit lane, whose pattern is a byte pattern with the pairs written out and
-                 * which a program reaches today by bitcasting to `Vec(U8, 16)`.
+                 * What is still refused: the two-source case, which is two `pshufb` and a `por`.
+                 * ~~And a 16-bit lane~~, whose pattern is a byte pattern with the pairs written out -
+                 * which `lowerByteLaneShuffles` now writes (J237).
                  */
-                if(laneBytes(type.lane) == 1 && !type.isMask() && shuffleReadsOneSource(inst)) return {};
+                if(laneBytes(type.lane) <= 2 && !type.isMask() && shuffleReadsOneSource(inst)) return {};
 
-                return Just("no single instruction here expresses this lane pattern - `shufps` takes a run of lanes from each source and the interleaves take one of each, a 16-bit lane has nothing beyond those, and the general byte permute reads one source where this pattern names two"_v);
+                return Just("no single instruction here expresses this lane pattern - `shufps` takes a run of lanes from each source and the interleaves take one of each, and the general byte permute reads one source where this pattern names two"_v);
             }
 
             return {};

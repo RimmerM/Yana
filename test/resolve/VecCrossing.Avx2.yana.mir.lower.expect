@@ -1,0 +1,1032 @@
+mut @seed = [7, 0, 0, 0]
+mut @seed64 = [7, 0, 0, 0, 0, 0, 0, 0]
+mut @seedDouble = [0, 0, 0, 0, 0, 0, 232, 63]
+
+bytes'2<complex>(): i8x32 {
+  b_0 {
+    %v_1 = vsplat 0: i8x32
+    %v_2 = vwithlane %v_1, 1, 1: i8x32
+    %v_3 = vwithlane %v_2, 2, 2: i8x32
+    %v_4 = vwithlane %v_3, 3, 3: i8x32
+    %v_5 = vwithlane %v_4, 4, 4: i8x32
+    %v_6 = vwithlane %v_5, 5, 5: i8x32
+    %v_7 = vwithlane %v_6, 6, 6: i8x32
+    %v_8 = vwithlane %v_7, 7, 7: i8x32
+    %v_9 = vwithlane %v_8, 8, 8: i8x32
+    %v_10 = vwithlane %v_9, 9, 9: i8x32
+    %v_11 = vwithlane %v_10, 10, 10: i8x32
+    %v_12 = vwithlane %v_11, 11, 11: i8x32
+    %v_13 = vwithlane %v_12, 12, 12: i8x32
+    %v_14 = vwithlane %v_13, 13, 13: i8x32
+    %v_15 = vwithlane %v_14, 14, 14: i8x32
+    %v_16 = vwithlane %v_15, 15, 15: i8x32
+    %v_17 = vwithlane %v_16, 16, 16: i8x32
+    %v_18 = vwithlane %v_17, 17, 17: i8x32
+    %v_19 = vwithlane %v_18, 18, 18: i8x32
+    %v_20 = vwithlane %v_19, 19, 19: i8x32
+    %v_21 = vwithlane %v_20, 20, 20: i8x32
+    %v_22 = vwithlane %v_21, 21, 21: i8x32
+    %v_23 = vwithlane %v_22, 22, 22: i8x32
+    %v_24 = vwithlane %v_23, 23, 23: i8x32
+    %v_25 = vwithlane %v_24, 24, 24: i8x32
+    %v_26 = vwithlane %v_25, 25, 25: i8x32
+    %v_27 = vwithlane %v_26, 26, 26: i8x32
+    %v_28 = vwithlane %v_27, 27, 27: i8x32
+    %v_29 = vwithlane %v_28, 28, 28: i8x32
+    %v_30 = vwithlane %v_29, 29, 29: i8x32
+    %v_31 = vwithlane %v_30, 30, 30: i8x32
+    %v_32 = vwithlane %v_31, 31, 31: i8x32
+    %v_33 = loads @seed, 4: I32
+    %v_34 = and %v_33, 255: I32
+    %v_35 = vsplat %v_34: i8x32
+    %v_36 = add %v_32, %v_35: i8x32
+    ret %v_36
+  }
+}
+
+interleavedU8<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 1: Ptr
+    %v_2 = alloca 32, 1: Ptr
+    %v_3 = alloca 32, 1: Ptr
+    %v_4 = alloca 32, 1: Ptr
+    %v_5 = call_complex bytes'2: i8x32
+    %v_6 = vsplat 100: i8x32
+    %v_7 = add %v_5, %v_6: i8x32
+    store %v_1, %v_5, 32
+    store %v_2, %v_7, 32
+    %v_8 = vshuffle %v_5, %v_7, 0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47: i8x32
+    store %v_3, %v_8, 32
+    %v_9 = vshuffle %v_5, %v_7, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63: i8x32
+    store %v_4, %v_9, 32
+    jmp b_10
+  }
+
+  b_11 {
+    ret %v_12
+  }
+
+  b_10 {
+    %v_13 = phi [b_14, %v_12], [b_0, 0]: I32
+    %v_15 = phi [b_14, %v_16], [b_0, 0]: I64
+    %v_17 = imul 2, %v_15: I64
+    %v_18 = add %v_3, %v_17: Ptr
+    %v_19 = load %v_18, 1: I32
+    %v_20 = add %v_1, %v_15: Ptr
+    %v_21 = load %v_20, 1: I32
+    %v_22 = cmp_neq %v_19, %v_21: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = phi [b_24, %v_13], [b_23, %v_27]: I32
+    %v_28 = add %v_17, 1: I64
+    %v_29 = add %v_3, %v_28: Ptr
+    %v_30 = load %v_29, 1: I32
+    %v_31 = add %v_2, %v_15: Ptr
+    %v_32 = load %v_31, 1: I32
+    %v_33 = cmp_neq %v_30, %v_32: I32
+    %v_34 = add %v_26, 1: I32
+    %v_35 = select %v_33, %v_34, %v_26: I32
+    %v_36 = add %v_4, %v_17: Ptr
+    %v_37 = load %v_36, 1: I32
+    %v_38 = add 16, %v_15: I64
+    %v_39 = add %v_1, %v_38: Ptr
+    %v_40 = load %v_39, 1: I32
+    %v_41 = cmp_neq %v_37, %v_40: I32
+    %v_42 = add %v_35, 1: I32
+    %v_43 = select %v_41, %v_42, %v_35: I32
+    %v_44 = add %v_4, %v_28: Ptr
+    %v_45 = load %v_44, 1: I32
+    %v_46 = add %v_2, %v_38: Ptr
+    %v_47 = load %v_46, 1: I32
+    %v_48 = cmp_neq %v_45, %v_47: I32
+    je %v_48, b_49, b_50
+  }
+
+  b_23 {
+    %v_27 = add %v_13, 1: I32
+    jmp b_25
+  }
+
+  b_50 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_12 = phi [b_50, %v_43], [b_49, %v_51]: I32
+    %v_16 = add %v_15, 1: I64
+    %v_52 = cmp_ilt %v_16, 16: I32
+    je %v_52, b_10, b_11
+  }
+
+  b_49 {
+    %v_51 = add %v_43, 1: I32
+    jmp b_14
+  }
+}
+
+interleavedU16<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 2: Ptr
+    %v_2 = alloca 32, 2: Ptr
+    %v_3 = alloca 32, 2: Ptr
+    %v_4 = alloca 32, 2: Ptr
+    %v_5 = vsplat 0: i16x16
+    %v_6 = vwithlane %v_5, 1, 1: i16x16
+    %v_7 = vwithlane %v_6, 2, 2: i16x16
+    %v_8 = vwithlane %v_7, 3, 3: i16x16
+    %v_9 = vwithlane %v_8, 4, 4: i16x16
+    %v_10 = vwithlane %v_9, 5, 5: i16x16
+    %v_11 = vwithlane %v_10, 6, 6: i16x16
+    %v_12 = vwithlane %v_11, 7, 7: i16x16
+    %v_13 = vwithlane %v_12, 8, 8: i16x16
+    %v_14 = vwithlane %v_13, 9, 9: i16x16
+    %v_15 = vwithlane %v_14, 10, 10: i16x16
+    %v_16 = vwithlane %v_15, 11, 11: i16x16
+    %v_17 = vwithlane %v_16, 12, 12: i16x16
+    %v_18 = vwithlane %v_17, 13, 13: i16x16
+    %v_19 = vwithlane %v_18, 14, 14: i16x16
+    %v_20 = vwithlane %v_19, 15, 15: i16x16
+    %v_21 = vsplat 3: i16x16
+    %v_22 = mul %v_20, %v_21: i16x16
+    %v_23 = loads @seed, 4: I32
+    %v_24 = and %v_23, 65535: I32
+    %v_25 = vsplat %v_24: i16x16
+    %v_26 = add %v_22, %v_25: i16x16
+    %v_27 = vsplat 1000: i16x16
+    %v_28 = add %v_26, %v_27: i16x16
+    store %v_1, %v_26, 32
+    store %v_2, %v_28, 32
+    %v_29 = vshuffle %v_26, %v_28, 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23: i16x16
+    store %v_3, %v_29, 32
+    %v_30 = vshuffle %v_26, %v_28, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31: i16x16
+    store %v_4, %v_30, 32
+    jmp b_31
+  }
+
+  b_32 {
+    ret %v_33
+  }
+
+  b_31 {
+    %v_34 = phi [b_35, %v_33], [b_0, 0]: I32
+    %v_36 = phi [b_35, %v_37], [b_0, 0]: I64
+    %v_38 = imul 2, %v_36: I64
+    %v_39 = shl %v_38, 1: I64
+    %v_40 = add %v_3, %v_39: Ptr
+    %v_41 = load %v_40, 2: I32
+    %v_42 = shl %v_36, 1: I64
+    %v_43 = add %v_1, %v_42: Ptr
+    %v_44 = load %v_43, 2: I32
+    %v_45 = cmp_neq %v_41, %v_44: I32
+    je %v_45, b_46, b_47
+  }
+
+  b_47 {
+    jmp b_48
+  }
+
+  b_48 {
+    %v_49 = phi [b_47, %v_34], [b_46, %v_50]: I32
+    %v_51 = add %v_38, 1: I64
+    %v_52 = shl %v_51, 1: I64
+    %v_53 = add %v_3, %v_52: Ptr
+    %v_54 = load %v_53, 2: I32
+    %v_55 = shl %v_36, 1: I64
+    %v_56 = add %v_2, %v_55: Ptr
+    %v_57 = load %v_56, 2: I32
+    %v_58 = cmp_neq %v_54, %v_57: I32
+    %v_59 = add %v_49, 1: I32
+    %v_60 = select %v_58, %v_59, %v_49: I32
+    %v_61 = shl %v_38, 1: I64
+    %v_62 = add %v_4, %v_61: Ptr
+    %v_63 = load %v_62, 2: I32
+    %v_64 = add 8, %v_36: I64
+    %v_65 = shl %v_64, 1: I64
+    %v_66 = add %v_1, %v_65: Ptr
+    %v_67 = load %v_66, 2: I32
+    %v_68 = cmp_neq %v_63, %v_67: I32
+    %v_69 = add %v_60, 1: I32
+    %v_70 = select %v_68, %v_69, %v_60: I32
+    %v_71 = add %v_4, %v_52: Ptr
+    %v_72 = load %v_71, 2: I32
+    %v_73 = add %v_2, %v_65: Ptr
+    %v_74 = load %v_73, 2: I32
+    %v_75 = cmp_neq %v_72, %v_74: I32
+    je %v_75, b_76, b_77
+  }
+
+  b_46 {
+    %v_50 = add %v_34, 1: I32
+    jmp b_48
+  }
+
+  b_77 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_33 = phi [b_77, %v_70], [b_76, %v_78]: I32
+    %v_37 = add %v_36, 1: I64
+    %v_79 = cmp_ilt %v_37, 8: I32
+    je %v_79, b_31, b_32
+  }
+
+  b_76 {
+    %v_78 = add %v_70, 1: I32
+    jmp b_35
+  }
+}
+
+interleavedU32<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 4: Ptr
+    %v_2 = alloca 32, 4: Ptr
+    %v_3 = alloca 32, 4: Ptr
+    %v_4 = alloca 32, 4: Ptr
+    %v_5 = vsplat 0: i32x8
+    %v_6 = vwithlane %v_5, 1, 1: i32x8
+    %v_7 = vwithlane %v_6, 2, 2: i32x8
+    %v_8 = vwithlane %v_7, 3, 3: i32x8
+    %v_9 = vwithlane %v_8, 4, 4: i32x8
+    %v_10 = vwithlane %v_9, 5, 5: i32x8
+    %v_11 = vwithlane %v_10, 6, 6: i32x8
+    %v_12 = vwithlane %v_11, 7, 7: i32x8
+    %v_13 = vsplat 1001: i32x8
+    %v_14 = mul %v_12, %v_13: i32x8
+    %v_15 = loads @seed, 4: I32
+    %v_16 = vsplat %v_15: i32x8
+    %v_17 = add %v_14, %v_16: i32x8
+    %v_18 = vsplat 50000: i32x8
+    %v_19 = add %v_17, %v_18: i32x8
+    store %v_1, %v_17, 32
+    store %v_2, %v_19, 32
+    %v_20 = vshuffle %v_17, %v_19, 0, 8, 1, 9, 2, 10, 3, 11: i32x8
+    store %v_3, %v_20, 32
+    %v_21 = vshuffle %v_17, %v_19, 4, 12, 5, 13, 6, 14, 7, 15: i32x8
+    store %v_4, %v_21, 32
+    jmp b_22
+  }
+
+  b_23 {
+    ret %v_24
+  }
+
+  b_22 {
+    %v_25 = phi [b_26, %v_24], [b_0, 0]: I32
+    %v_27 = phi [b_26, %v_28], [b_0, 0]: I64
+    %v_29 = imul 2, %v_27: I64
+    %v_30 = shl %v_29, 2: I64
+    %v_31 = add %v_3, %v_30: Ptr
+    %v_32 = load %v_31, 4: I32
+    %v_33 = shl %v_27, 2: I64
+    %v_34 = add %v_1, %v_33: Ptr
+    %v_35 = load %v_34, 4: I32
+    %v_36 = cmp_neq %v_32, %v_35: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_38 {
+    jmp b_39
+  }
+
+  b_39 {
+    %v_40 = phi [b_38, %v_25], [b_37, %v_41]: I32
+    %v_42 = add %v_29, 1: I64
+    %v_43 = shl %v_42, 2: I64
+    %v_44 = add %v_3, %v_43: Ptr
+    %v_45 = load %v_44, 4: I32
+    %v_46 = shl %v_27, 2: I64
+    %v_47 = add %v_2, %v_46: Ptr
+    %v_48 = load %v_47, 4: I32
+    %v_49 = cmp_neq %v_45, %v_48: I32
+    %v_50 = add %v_40, 1: I32
+    %v_51 = select %v_49, %v_50, %v_40: I32
+    %v_52 = shl %v_29, 2: I64
+    %v_53 = add %v_4, %v_52: Ptr
+    %v_54 = load %v_53, 4: I32
+    %v_55 = add 4, %v_27: I64
+    %v_56 = shl %v_55, 2: I64
+    %v_57 = add %v_1, %v_56: Ptr
+    %v_58 = load %v_57, 4: I32
+    %v_59 = cmp_neq %v_54, %v_58: I32
+    %v_60 = add %v_51, 1: I32
+    %v_61 = select %v_59, %v_60, %v_51: I32
+    %v_62 = add %v_4, %v_43: Ptr
+    %v_63 = load %v_62, 4: I32
+    %v_64 = add %v_2, %v_56: Ptr
+    %v_65 = load %v_64, 4: I32
+    %v_66 = cmp_neq %v_63, %v_65: I32
+    je %v_66, b_67, b_68
+  }
+
+  b_37 {
+    %v_41 = add %v_25, 1: I32
+    jmp b_39
+  }
+
+  b_68 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_24 = phi [b_68, %v_61], [b_67, %v_69]: I32
+    %v_28 = add %v_27, 1: I64
+    %v_70 = cmp_ilt %v_28, 4: I32
+    je %v_70, b_22, b_23
+  }
+
+  b_67 {
+    %v_69 = add %v_61, 1: I32
+    jmp b_26
+  }
+}
+
+interleavedU64<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 8: Ptr
+    %v_2 = alloca 32, 8: Ptr
+    %v_3 = alloca 32, 8: Ptr
+    %v_4 = alloca 32, 8: Ptr
+    %v_5 = vsplat 0: i64x4
+    %v_6 = vwithlane %v_5, 1, 1: i64x4
+    %v_7 = vwithlane %v_6, 2, 2: i64x4
+    %v_8 = vwithlane %v_7, 3, 3: i64x4
+    %v_9 = vsplat 100003: i64x4
+    %v_10 = mul %v_8, %v_9: i64x4
+    %v_11 = load @seed64, 8: I64
+    %v_12 = vsplat %v_11: i64x4
+    %v_13 = add %v_10, %v_12: i64x4
+    %v_14 = vsplat 77: i64x4
+    %v_15 = add %v_13, %v_14: i64x4
+    store %v_1, %v_13, 32
+    store %v_2, %v_15, 32
+    %v_16 = vshuffle %v_13, %v_15, 0, 4, 1, 5: i64x4
+    store %v_3, %v_16, 32
+    %v_17 = vshuffle %v_13, %v_15, 2, 6, 3, 7: i64x4
+    store %v_4, %v_17, 32
+    jmp b_18
+  }
+
+  b_19 {
+    ret %v_20
+  }
+
+  b_18 {
+    %v_21 = phi [b_22, %v_20], [b_0, 0]: I32
+    %v_23 = phi [b_22, %v_24], [b_0, 0]: I64
+    %v_25 = imul 2, %v_23: I64
+    %v_26 = shl %v_25, 3: I64
+    %v_27 = add %v_3, %v_26: Ptr
+    %v_28 = load %v_27, 8: I64
+    %v_29 = shl %v_23, 3: I64
+    %v_30 = add %v_1, %v_29: Ptr
+    %v_31 = load %v_30, 8: I64
+    %v_32 = cmp_neq %v_28, %v_31: I32
+    je %v_32, b_33, b_34
+  }
+
+  b_34 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = phi [b_34, %v_21], [b_33, %v_37]: I32
+    %v_38 = add %v_25, 1: I64
+    %v_39 = shl %v_38, 3: I64
+    %v_40 = add %v_3, %v_39: Ptr
+    %v_41 = load %v_40, 8: I64
+    %v_42 = shl %v_23, 3: I64
+    %v_43 = add %v_2, %v_42: Ptr
+    %v_44 = load %v_43, 8: I64
+    %v_45 = cmp_neq %v_41, %v_44: I32
+    %v_46 = add %v_36, 1: I32
+    %v_47 = select %v_45, %v_46, %v_36: I32
+    %v_48 = shl %v_25, 3: I64
+    %v_49 = add %v_4, %v_48: Ptr
+    %v_50 = load %v_49, 8: I64
+    %v_51 = add 2, %v_23: I64
+    %v_52 = shl %v_51, 3: I64
+    %v_53 = add %v_1, %v_52: Ptr
+    %v_54 = load %v_53, 8: I64
+    %v_55 = cmp_neq %v_50, %v_54: I32
+    %v_56 = add %v_47, 1: I32
+    %v_57 = select %v_55, %v_56, %v_47: I32
+    %v_58 = add %v_4, %v_39: Ptr
+    %v_59 = load %v_58, 8: I64
+    %v_60 = add %v_2, %v_52: Ptr
+    %v_61 = load %v_60, 8: I64
+    %v_62 = cmp_neq %v_59, %v_61: I32
+    je %v_62, b_63, b_64
+  }
+
+  b_33 {
+    %v_37 = add %v_21, 1: I32
+    jmp b_35
+  }
+
+  b_64 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_20 = phi [b_64, %v_57], [b_63, %v_65]: I32
+    %v_24 = add %v_23, 1: I64
+    %v_66 = cmp_ilt %v_24, 2: I32
+    je %v_66, b_18, b_19
+  }
+
+  b_63 {
+    %v_65 = add %v_57, 1: I32
+    jmp b_22
+  }
+}
+
+interleavedDouble<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 8: Ptr
+    %v_2 = alloca 32, 8: Ptr
+    %v_3 = alloca 32, 8: Ptr
+    %v_4 = alloca 32, 8: Ptr
+    %v_5 = load @seedDouble, 8: F64
+    %v_6 = vsplat %v_5: f64x4
+    %v_7 = mul %v_5, 3: F64
+    %v_8 = vwithlane %v_6, %v_7, 1: f64x4
+    %v_9 = mul %v_5, 5: F64
+    %v_10 = vwithlane %v_8, %v_9, 2: f64x4
+    %v_11 = mul %v_5, 7: F64
+    %v_12 = vwithlane %v_10, %v_11, 3: f64x4
+    %v_13 = mul %v_5, -2: F64
+    %v_14 = vsplat %v_13: f64x4
+    %v_15 = mul %v_13, 3: F64
+    %v_16 = vwithlane %v_14, %v_15, 1: f64x4
+    %v_17 = mul %v_13, 5: F64
+    %v_18 = vwithlane %v_16, %v_17, 2: f64x4
+    %v_19 = mul %v_13, 7: F64
+    %v_20 = vwithlane %v_18, %v_19, 3: f64x4
+    store %v_1, %v_12, 32
+    store %v_2, %v_20, 32
+    %v_21 = vshuffle %v_12, %v_20, 0, 4, 1, 5: f64x4
+    store %v_3, %v_21, 32
+    %v_22 = vshuffle %v_12, %v_20, 2, 6, 3, 7: f64x4
+    store %v_4, %v_22, 32
+    jmp b_23
+  }
+
+  b_24 {
+    ret %v_25
+  }
+
+  b_23 {
+    %v_26 = phi [b_27, %v_25], [b_0, 0]: I32
+    %v_28 = phi [b_27, %v_29], [b_0, 0]: I64
+    %v_30 = imul 2, %v_28: I64
+    %v_31 = shl %v_30, 3: I64
+    %v_32 = add %v_3, %v_31: Ptr
+    %v_33 = load %v_32, 8: F64
+    %v_34 = shl %v_28, 3: I64
+    %v_35 = add %v_1, %v_34: Ptr
+    %v_36 = load %v_35, 8: F64
+    %v_37 = cmp_neq %v_33, %v_36: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_40 {
+    %v_41 = phi [b_39, %v_26], [b_38, %v_42]: I32
+    %v_43 = add %v_30, 1: I64
+    %v_44 = shl %v_43, 3: I64
+    %v_45 = add %v_3, %v_44: Ptr
+    %v_46 = load %v_45, 8: F64
+    %v_47 = shl %v_28, 3: I64
+    %v_48 = add %v_2, %v_47: Ptr
+    %v_49 = load %v_48, 8: F64
+    %v_50 = cmp_neq %v_46, %v_49: I32
+    %v_51 = add %v_41, 1: I32
+    %v_52 = select %v_50, %v_51, %v_41: I32
+    %v_53 = shl %v_30, 3: I64
+    %v_54 = add %v_4, %v_53: Ptr
+    %v_55 = load %v_54, 8: F64
+    %v_56 = add 2, %v_28: I64
+    %v_57 = shl %v_56, 3: I64
+    %v_58 = add %v_1, %v_57: Ptr
+    %v_59 = load %v_58, 8: F64
+    %v_60 = cmp_neq %v_55, %v_59: I32
+    %v_61 = add %v_52, 1: I32
+    %v_62 = select %v_60, %v_61, %v_52: I32
+    %v_63 = add %v_4, %v_44: Ptr
+    %v_64 = load %v_63, 8: F64
+    %v_65 = add %v_2, %v_57: Ptr
+    %v_66 = load %v_65, 8: F64
+    %v_67 = cmp_neq %v_64, %v_66: I32
+    je %v_67, b_68, b_69
+  }
+
+  b_38 {
+    %v_42 = add %v_26, 1: I32
+    jmp b_40
+  }
+
+  b_69 {
+    jmp b_27
+  }
+
+  b_27 {
+    %v_25 = phi [b_69, %v_62], [b_68, %v_70]: I32
+    %v_29 = add %v_28, 1: I64
+    %v_71 = cmp_ilt %v_29, 2: I32
+    je %v_71, b_23, b_24
+  }
+
+  b_68 {
+    %v_70 = add %v_62, 1: I32
+    jmp b_27
+  }
+}
+
+interleavedFloat<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 4: Ptr
+    %v_2 = alloca 32, 4: Ptr
+    %v_3 = alloca 32, 4: Ptr
+    %v_4 = alloca 32, 4: Ptr
+    %v_5 = vsplat 0: f32x8
+    %v_6 = vwithlane %v_5, 1, 1: f32x8
+    %v_7 = vwithlane %v_6, 2, 2: f32x8
+    %v_8 = vwithlane %v_7, 3, 3: f32x8
+    %v_9 = vwithlane %v_8, 4, 4: f32x8
+    %v_10 = vwithlane %v_9, 5, 5: f32x8
+    %v_11 = vwithlane %v_10, 6, 6: f32x8
+    %v_12 = vwithlane %v_11, 7, 7: f32x8
+    %v_13 = vsplat 2.5: f32x8
+    %v_14 = mul %v_12, %v_13: f32x8
+    %v_15 = vsplat 0.25: f32x8
+    %v_16 = add %v_14, %v_15: f32x8
+    %v_17 = vsplat -8: f32x8
+    %v_18 = add %v_16, %v_17: f32x8
+    store %v_1, %v_16, 32
+    store %v_2, %v_18, 32
+    %v_19 = vshuffle %v_16, %v_18, 0, 8, 1, 9, 2, 10, 3, 11: f32x8
+    store %v_3, %v_19, 32
+    %v_20 = vshuffle %v_16, %v_18, 4, 12, 5, 13, 6, 14, 7, 15: f32x8
+    store %v_4, %v_20, 32
+    jmp b_21
+  }
+
+  b_22 {
+    ret %v_23
+  }
+
+  b_21 {
+    %v_24 = phi [b_25, %v_23], [b_0, 0]: I32
+    %v_26 = phi [b_25, %v_27], [b_0, 0]: I64
+    %v_28 = imul 2, %v_26: I64
+    %v_29 = shl %v_28, 2: I64
+    %v_30 = add %v_3, %v_29: Ptr
+    %v_31 = load %v_30, 4: F32
+    %v_32 = shl %v_26, 2: I64
+    %v_33 = add %v_1, %v_32: Ptr
+    %v_34 = load %v_33, 4: F32
+    %v_35 = cmp_neq %v_31, %v_34: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_37, %v_24], [b_36, %v_40]: I32
+    %v_41 = add %v_28, 1: I64
+    %v_42 = shl %v_41, 2: I64
+    %v_43 = add %v_3, %v_42: Ptr
+    %v_44 = load %v_43, 4: F32
+    %v_45 = shl %v_26, 2: I64
+    %v_46 = add %v_2, %v_45: Ptr
+    %v_47 = load %v_46, 4: F32
+    %v_48 = cmp_neq %v_44, %v_47: I32
+    %v_49 = add %v_39, 1: I32
+    %v_50 = select %v_48, %v_49, %v_39: I32
+    %v_51 = shl %v_28, 2: I64
+    %v_52 = add %v_4, %v_51: Ptr
+    %v_53 = load %v_52, 4: F32
+    %v_54 = add 4, %v_26: I64
+    %v_55 = shl %v_54, 2: I64
+    %v_56 = add %v_1, %v_55: Ptr
+    %v_57 = load %v_56, 4: F32
+    %v_58 = cmp_neq %v_53, %v_57: I32
+    %v_59 = add %v_50, 1: I32
+    %v_60 = select %v_58, %v_59, %v_50: I32
+    %v_61 = add %v_4, %v_42: Ptr
+    %v_62 = load %v_61, 4: F32
+    %v_63 = add %v_2, %v_55: Ptr
+    %v_64 = load %v_63, 4: F32
+    %v_65 = cmp_neq %v_62, %v_64: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_36 {
+    %v_40 = add %v_24, 1: I32
+    jmp b_38
+  }
+
+  b_67 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_23 = phi [b_67, %v_60], [b_66, %v_68]: I32
+    %v_27 = add %v_26, 1: I64
+    %v_69 = cmp_ilt %v_27, 4: I32
+    je %v_69, b_21, b_22
+  }
+
+  b_66 {
+    %v_68 = add %v_60, 1: I32
+    jmp b_25
+  }
+}
+
+rearrangedU32<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 4: Ptr
+    %v_2 = alloca 32, 4: Ptr
+    %v_3 = alloca 32, 4: Ptr
+    %v_4 = vsplat 0: i32x8
+    %v_5 = vwithlane %v_4, 1, 1: i32x8
+    %v_6 = vwithlane %v_5, 2, 2: i32x8
+    %v_7 = vwithlane %v_6, 3, 3: i32x8
+    %v_8 = vwithlane %v_7, 4, 4: i32x8
+    %v_9 = vwithlane %v_8, 5, 5: i32x8
+    %v_10 = vwithlane %v_9, 6, 6: i32x8
+    %v_11 = vwithlane %v_10, 7, 7: i32x8
+    %v_12 = vsplat 1001: i32x8
+    %v_13 = mul %v_11, %v_12: i32x8
+    %v_14 = loads @seed, 4: I32
+    %v_15 = vsplat %v_14: i32x8
+    %v_16 = add %v_13, %v_15: i32x8
+    store %v_1, %v_16, 32
+    %v_17 = vshuffle %v_16, %v_16, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+    store %v_2, %v_17, 32
+    %v_18 = vshuffle %v_16, %v_16, 3, 4, 5, 6, 7, 0, 1, 2: i32x8
+    store %v_3, %v_18, 32
+    jmp b_19
+  }
+
+  b_20 {
+    ret %v_21
+  }
+
+  b_19 {
+    %v_22 = phi [b_23, %v_21], [b_0, 0]: I32
+    %v_24 = phi [b_23, %v_25], [b_0, 0]: I64
+    %v_26 = shl %v_24, 2: I64
+    %v_27 = add %v_2, %v_26: Ptr
+    %v_28 = load %v_27, 4: I32
+    %v_29 = sub 7, %v_24: I64
+    %v_30 = shl %v_29, 2: I64
+    %v_31 = add %v_1, %v_30: Ptr
+    %v_32 = load %v_31, 4: I32
+    %v_33 = cmp_neq %v_28, %v_32: I32
+    je %v_33, b_34, b_35
+  }
+
+  b_35 {
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = phi [b_35, %v_22], [b_34, %v_38]: I32
+    %v_39 = shl %v_24, 2: I64
+    %v_40 = add %v_3, %v_39: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = add %v_24, 3: I64
+    %v_43 = sar %v_42, 63: I64
+    %v_44 = shr %v_43, 61: I64
+    %v_45 = add %v_42, %v_44: I64
+    %v_46 = and %v_45, 18446744073709551608: I64
+    %v_47 = sub %v_42, %v_46: I64
+    %v_48 = shl %v_47, 2: I64
+    %v_49 = add %v_1, %v_48: Ptr
+    %v_50 = load %v_49, 4: I32
+    %v_51 = cmp_neq %v_41, %v_50: I32
+    je %v_51, b_52, b_53
+  }
+
+  b_34 {
+    %v_38 = add %v_22, 1: I32
+    jmp b_36
+  }
+
+  b_53 {
+    jmp b_23
+  }
+
+  b_23 {
+    %v_21 = phi [b_53, %v_37], [b_52, %v_54]: I32
+    %v_25 = add %v_24, 1: I64
+    %v_55 = cmp_ilt %v_25, 8: I32
+    je %v_55, b_19, b_20
+  }
+
+  b_52 {
+    %v_54 = add %v_37, 1: I32
+    jmp b_23
+  }
+}
+
+rearrangedU64<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 8: Ptr
+    %v_2 = alloca 32, 8: Ptr
+    %v_3 = alloca 32, 8: Ptr
+    %v_4 = vsplat 0: i64x4
+    %v_5 = vwithlane %v_4, 1, 1: i64x4
+    %v_6 = vwithlane %v_5, 2, 2: i64x4
+    %v_7 = vwithlane %v_6, 3, 3: i64x4
+    %v_8 = vsplat 100003: i64x4
+    %v_9 = mul %v_7, %v_8: i64x4
+    %v_10 = load @seed64, 8: I64
+    %v_11 = vsplat %v_10: i64x4
+    %v_12 = add %v_9, %v_11: i64x4
+    store %v_1, %v_12, 32
+    %v_13 = vshuffle %v_12, %v_12, 3, 2, 1, 0: i64x4
+    store %v_2, %v_13, 32
+    %v_14 = vshuffle %v_12, %v_12, 1, 2, 3, 0: i64x4
+    store %v_3, %v_14, 32
+    jmp b_15
+  }
+
+  b_16 {
+    ret %v_17
+  }
+
+  b_15 {
+    %v_18 = phi [b_19, %v_17], [b_0, 0]: I32
+    %v_20 = phi [b_19, %v_21], [b_0, 0]: I64
+    %v_22 = shl %v_20, 3: I64
+    %v_23 = add %v_2, %v_22: Ptr
+    %v_24 = load %v_23, 8: I64
+    %v_25 = sub 3, %v_20: I64
+    %v_26 = shl %v_25, 3: I64
+    %v_27 = add %v_1, %v_26: Ptr
+    %v_28 = load %v_27, 8: I64
+    %v_29 = cmp_neq %v_24, %v_28: I32
+    je %v_29, b_30, b_31
+  }
+
+  b_31 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_31, %v_18], [b_30, %v_34]: I32
+    %v_35 = shl %v_20, 3: I64
+    %v_36 = add %v_3, %v_35: Ptr
+    %v_37 = load %v_36, 8: I64
+    %v_21 = add %v_20, 1: I64
+    %v_38 = sar %v_21, 63: I64
+    %v_39 = shr %v_38, 62: I64
+    %v_40 = add %v_21, %v_39: I64
+    %v_41 = and %v_40, 18446744073709551612: I64
+    %v_42 = sub %v_21, %v_41: I64
+    %v_43 = shl %v_42, 3: I64
+    %v_44 = add %v_1, %v_43: Ptr
+    %v_45 = load %v_44, 8: I64
+    %v_46 = cmp_neq %v_37, %v_45: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_30 {
+    %v_34 = add %v_18, 1: I32
+    jmp b_32
+  }
+
+  b_48 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_17 = phi [b_48, %v_33], [b_47, %v_49]: I32
+    %v_50 = cmp_ilt %v_21, 4: I32
+    je %v_50, b_15, b_16
+  }
+
+  b_47 {
+    %v_49 = add %v_33, 1: I32
+    jmp b_19
+  }
+}
+
+quadGroups<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 32, 4: Ptr
+    %v_2 = alloca 32, 4: Ptr
+    %v_3 = alloca 32, 4: Ptr
+    %v_4 = alloca 32, 4: Ptr
+    %v_5 = alloca 32, 1: Ptr
+    %v_6 = alloca 32, 1: Ptr
+    %v_7 = alloca 64, 8: Ptr
+    %v_8 = alloca 32, 8: Ptr
+    %v_9 = vsplat 0: i32x8
+    %v_10 = vwithlane %v_9, 1, 1: i32x8
+    %v_11 = vwithlane %v_10, 2, 2: i32x8
+    %v_12 = vwithlane %v_11, 3, 3: i32x8
+    %v_13 = vwithlane %v_12, 4, 4: i32x8
+    %v_14 = vwithlane %v_13, 5, 5: i32x8
+    %v_15 = vwithlane %v_14, 6, 6: i32x8
+    %v_16 = vwithlane %v_15, 7, 7: i32x8
+    %v_17 = vsplat 1001: i32x8
+    %v_18 = mul %v_16, %v_17: i32x8
+    %v_19 = loads @seed, 4: I32
+    %v_20 = vsplat %v_19: i32x8
+    %v_21 = add %v_18, %v_20: i32x8
+    %v_22 = vsplat 50000: i32x8
+    %v_23 = add %v_21, %v_22: i32x8
+    %v_24 = call_complex bytes'2: i8x32
+    store %v_1, %v_21, 32
+    store %v_2, %v_23, 32
+    %v_25 = vshuffle %v_21, %v_21, 6, 7, 0, 1, 2, 3, 4, 5: i32x8
+    store %v_3, %v_25, 32
+    %v_26 = vshuffle %v_21, %v_23, 12, 13, 12, 13, 14, 15, 8, 9: i32x8
+    store %v_4, %v_26, 32
+    store %v_5, %v_24, 32
+    %v_27 = vshuffle %v_24, %v_24, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31: i8x32
+    store %v_6, %v_27, 32
+    jmp b_28
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_28 {
+    %v_31 = phi [b_32, %v_33], [b_0, 0]: I32
+    %v_34 = phi [b_32, %v_35], [b_0, 0]: I64
+    %v_36 = shl %v_34, 2: I64
+    %v_37 = add %v_3, %v_36: Ptr
+    %v_38 = load %v_37, 4: I32
+    %v_39 = add %v_34, 6: I64
+    %v_40 = sar %v_39, 63: I64
+    %v_41 = shr %v_40, 61: I64
+    %v_42 = add %v_39, %v_41: I64
+    %v_43 = and %v_42, 18446744073709551608: I64
+    %v_44 = sub %v_39, %v_43: I64
+    %v_45 = shl %v_44, 2: I64
+    %v_46 = add %v_1, %v_45: Ptr
+    %v_47 = load %v_46, 4: I32
+    %v_48 = cmp_neq %v_38, %v_47: I32
+    je %v_48, b_49, b_50
+  }
+
+  b_50 {
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = phi [b_50, %v_31], [b_49, %v_53]: I32
+    store %v_7, 4, 8
+    %v_54 = add %v_7, 8: Ptr
+    store %v_54, 5, 8
+    %v_55 = add %v_7, 16: Ptr
+    store %v_55, 4, 8
+    %v_56 = add %v_7, 24: Ptr
+    store %v_56, 5, 8
+    %v_57 = add %v_7, 32: Ptr
+    store %v_57, 6, 8
+    %v_58 = add %v_7, 40: Ptr
+    store %v_58, 7, 8
+    %v_59 = add %v_7, 48: Ptr
+    store %v_59, 0, 8
+    %v_60 = add %v_7, 56: Ptr
+    store %v_60, 1, 8
+    %v_61 = shl %v_34, 2: I64
+    %v_62 = add %v_4, %v_61: Ptr
+    %v_63 = load %v_62, 4: I32
+    %v_64 = shl %v_34, 3: I64
+    %v_65 = add %v_7, %v_64: Ptr
+    %v_66 = loads %v_65, 8: I64
+    %v_67 = cmp_ge %v_66, 8: I32
+    je %v_67, b_68, b_69
+  }
+
+  b_49 {
+    %v_53 = add %v_31, 1: I32
+    jmp b_51
+  }
+
+  b_70 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_70, %v_52], [b_71, %v_72]: I32
+    %v_35 = add %v_34, 1: I64
+    %v_73 = cmp_ilt %v_35, 8: I32
+    je %v_73, b_28, b_29
+  }
+
+  b_71 {
+    %v_72 = add %v_52, 1: I32
+    jmp b_32
+  }
+
+  b_74 {
+    ret %v_75
+  }
+
+  b_30 {
+    %v_76 = phi [b_77, %v_75], [b_29, %v_33]: I32
+    %v_78 = phi [b_77, %v_79], [b_29, 0]: I64
+    store %v_8, 0, 8
+    %v_80 = add %v_8, 8: Ptr
+    store %v_80, 2, 8
+    %v_81 = add %v_8, 16: Ptr
+    store %v_81, 1, 8
+    %v_82 = add %v_8, 24: Ptr
+    store %v_82, 3, 8
+    %v_83 = add %v_6, %v_78: Ptr
+    %v_84 = load %v_83, 1: I32
+    %v_85 = sar %v_78, 63: I64
+    %v_86 = shr %v_85, 61: I64
+    %v_87 = add %v_78, %v_86: I64
+    %v_88 = sar %v_87, 3: I64
+    %v_89 = shl %v_88, 3: I64
+    %v_90 = add %v_8, %v_89: Ptr
+    %v_91 = loads %v_90, 8: I64
+    %v_92 = shl %v_91, 3: I64
+    %v_93 = and %v_87, 18446744073709551608: I64
+    %v_94 = sub %v_78, %v_93: I64
+    %v_95 = add %v_92, %v_94: I64
+    %v_96 = cmp_ge %v_95, 32: I32
+    je %v_96, b_68, b_97
+  }
+
+  b_98 {
+    jmp b_77
+  }
+
+  b_77 {
+    %v_75 = phi [b_98, %v_76], [b_99, %v_100]: I32
+    %v_79 = add %v_78, 1: I64
+    %v_101 = cmp_ilt %v_79, 32: I32
+    je %v_101, b_30, b_74
+  }
+
+  b_99 {
+    %v_100 = add %v_76, 1: I32
+    jmp b_77
+  }
+
+  b_69 {
+    %v_102 = shl %v_66, 2: I64
+    %v_103 = add %v_2, %v_102: Ptr
+    %v_104 = load %v_103, 4: I32
+    %v_105 = cmp_neq %v_63, %v_104: I32
+    je %v_105, b_71, b_70
+  }
+
+  b_68 {
+    %v_106 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_97 {
+    %v_107 = add %v_5, %v_95: Ptr
+    %v_108 = load %v_107, 1: I32
+    %v_109 = cmp_neq %v_84, %v_108: I32
+    je %v_109, b_99, b_98
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex interleavedU8: I32
+    %v_2 = call_complex interleavedU16: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex interleavedU32: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = call_complex interleavedU64: I32
+    %v_7 = add %v_5, %v_6: I32
+    %v_8 = call_complex interleavedDouble: I32
+    %v_9 = add %v_7, %v_8: I32
+    %v_10 = call_complex interleavedFloat: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = call_complex rearrangedU32: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = call_complex rearrangedU64: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = call_complex quadGroups: I32
+    %v_17 = add %v_15, %v_16: I32
+    ret %v_17
+  }
+}
+

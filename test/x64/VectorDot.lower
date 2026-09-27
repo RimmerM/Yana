@@ -22,6 +22,16 @@ words(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
     }
 }
 
+# A zero accumulator adds nothing: `pmaddwd` alone, with no `paddd` behind it (J234, the expansion's
+# own check since J239 - `accumulateWordProducts(zero(), ...)` is how a caller writes `pmaddwd`).
+wordsZero(%a: i16x8, %b: i16x8): i32x4 {
+    {
+        %z = vsplat 0: i32x4
+        %r = vdotwords %z, %a, %b: i32x4
+        ret %r
+    }
+}
+
 bytes(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
     {
         %r = vdotbytes %acc, %u, %s: i32x4

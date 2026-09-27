@@ -273,6 +273,23 @@ pub let vectorBytes = 0 :: Size
 @builtin(vecShuffle) pub fn (n: Int, m: Int) shuffle(vector: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
 @builtin(vecShuffle2) pub fn (n: Int, m: Int) shuffle2(lhs: Vec(a, n), rhs: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
 
+{-
+   One pattern for every natural width - doc/spec/vectors.md, J237.
+
+   `shuffleNatural(v, pattern)` is `shuffle` over a `Vec(a)` whose pattern is written for the *widest*
+   vector of `a` (64 bytes: sixty-four entries at a byte lane) and cut to the width the build has, so
+   a build of sixteen lanes reads the first sixteen entries, one of thirty-two the first thirty-two,
+   and the rest are not read. A body written at the natural width therefore states its rearrangement
+   once, and each level gets the one instruction its width has for that prefix.
+
+   **The result's width is the natural one**, where `shuffle`'s is the pattern's length - which is the
+   difference the name says. The two rules that make a cut safe are checked where it is written, at
+   the width being built: the pattern has to reach this width, and every entry it keeps has to name a
+   lane this width has. An entry past the width is an error naming the width rather than a zeroed
+   lane, since a zero there would be a pattern answering differently per width with nothing said.
+-}
+@builtin(vecShuffleNatural) pub fn (m: Int) shuffleNatural(vector: Vec(a), pattern: [Int *m]) -> Vec(a)
+
 @builtin(vecReverse) pub fn (n: Int) reverse(vector: Vec(a, n)) -> Vec(a, n)
 @builtin(vecRotate) pub fn (n: Int) rotate(vector: Vec(a, n), by: Int) -> Vec(a, n)
 @builtin(vecInterleaveLow) pub fn (n: Int) interleaveLow(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)

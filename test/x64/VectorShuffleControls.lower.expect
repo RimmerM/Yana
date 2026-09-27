@@ -1,0 +1,156 @@
+
+homeLoop<complex>(%src: Ptr, %dst: Ptr, %flag: Ptr) {
+  top {
+    %v = load %src, 64: i8x64
+    %r = vshuffle %v, %v, 5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14, 17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26, 29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38, 41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50: i8x64
+    %s = vshuffle %r, %r, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27, 32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9, 16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57: i8x64
+    store %dst, %s, 64
+    %c = load %flag, 4: I32
+    %v_0 = cmp_neq %c, 0: I32
+    je %v_0, again, end
+  }
+
+  again {
+    jmp top
+  }
+
+  end {
+    ret 
+  }
+}
+
+sharedLoop<complex>(%src: Ptr, %dst: Ptr, %n: I32) {
+  start {
+    %zero = cast 0: I32
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %zero], [body, %next]: I32
+    %v_0 = cmp_ilt %i, %n: I32
+    je %v_0, body, end
+  }
+
+  body {
+    %off = mul %i, 64: I32
+    %from = add %src, %off: Ptr
+    %to = add %dst, %off: Ptr
+    %v = load %from, 64: i8x64
+    %w = load %to, 64: i8x64
+    %r = vshuffle %v, %v, 5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14, 17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26, 29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38, 41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50: i8x64
+    %s = vshuffle %w, %w, 5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14, 17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26, 29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38, 41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50: i8x64
+    %t = add %r, %s: i8x64
+    store %to, %t, 64
+    %next = add %i, 1: I32
+    jmp head
+  }
+
+  end {
+    ret 
+  }
+}
+
+permute2Loop<complex>(%src: Ptr, %dst: Ptr, %n: I32) {
+  start {
+    %zero = cast 0: I32
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %zero], [body, %next]: I32
+    %v_0 = cmp_ilt %i, %n: I32
+    je %v_0, body, end
+  }
+
+  body {
+    %off = mul %i, 64: I32
+    %from = add %src, %off: Ptr
+    %to = add %dst, %off: Ptr
+    %v = load %from, 64: i32x16
+    %r = vshuffle %v, %v, 3, 2, 1, 0, 5, 4, 7, 6, 13, 12, 15, 14, 9, 8, 11, 10: i32x16
+    store %to, %r, 64
+    %next = add %i, 1: I32
+    jmp head
+  }
+
+  end {
+    ret 
+  }
+}
+
+
+--- codegen: homeLoop ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => 62f17e486f0536010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => 62f17e486f0dec000000
+  jmp uses=[] creates=[]  => 
+block top:
+  load uses=[rdi] creates=[xmm2]  => 62f17e486f17
+  x86_permute uses=[xmm1, xmm2] creates=[xmm2]  => 62f275488dd2
+  x86_permute uses=[xmm0, xmm2] creates=[xmm2]  => 62f27d488dd2
+  store uses=[rsi, xmm2] creates=[]  => 62f17e487f16
+  load uses=[rdx] creates=[rax]  => 8b02
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 75e2
+block end:
+  ret uses=[] creates=[]  => c3
+
+--- codegen: sharedLoop ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => 62f17e486f05b6000000
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => 31c0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7d60
+  align  => 666666666666660f1f840000000000666666666666660f1f840000000000666666666666660f1f8400000000000f1f00
+block body:
+  imm uses=[] creates=[-]  => 
+  mul uses=[rax, -] creates=[rcx]  => 6bc840
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => 62f17e486f0c0f
+  x86_addr scale=1 disp=0 uses=[rsi, rcx] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => 62f17e486f140e
+  x86_permute uses=[xmm0, xmm1] creates=[xmm1]  => 62f27d488dc9
+  x86_permute uses=[xmm0, xmm2] creates=[xmm2]  => 62f27d488dd2
+  add uses=[xmm1, xmm2] creates=[xmm1]  => 62f17548fcca
+  x86_addr scale=1 disp=0 uses=[rsi, rcx] creates=[-]  => 
+  store uses=[-, xmm1] creates=[]  => 62f17e487f0c0e
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7cd0
+block end:
+  ret uses=[] creates=[]  => c3
+
+--- codegen: permute2Loop ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => 62f17e486f05b6000000
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => 31c0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7d23
+block body:
+  imm uses=[] creates=[-]  => 
+  mul uses=[rax, -] creates=[rcx]  => 6bc840
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => 62f17e486f0c0f
+  x86_permute2 uses=[xmm2, xmm1, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 62f17c4828d062f2754876d1
+  x86_addr scale=1 disp=0 uses=[rsi, rcx] creates=[-]  => 
+  store uses=[-, xmm2] creates=[]  => 62f17e487f140e
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  cmp_ilt uses=[rax, rdx] creates=[-]  => 39d0
+  je uses=[-] creates=[]  => 7cdd
+block end:
+  ret uses=[] creates=[]  => c3

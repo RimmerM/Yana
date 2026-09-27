@@ -1,0 +1,142 @@
+{-
+   `lookup` of a sixteen-byte (or eight-word) table at the natural width, with indices that carry
+   high bits - J239.
+
+   The indices `withinTable` must not prove inside the table - a shift leaving more bits than it
+   has entries, an `or` with a literal past it, a `select` with one arm past it - so each is taken
+   modulo the table, and an over-eager proof reads past it: `pshufb` answers zero for a control
+   byte with bit 7 set, which is how making the proof say yes to those three shapes showed here
+   (656 wrong lanes at `sse4` and `avx2`; `avx512`'s `vpermi2*` takes the modulus itself). And the
+   tables `repeatTable` places beside their definitions - chosen before the loop, chosen in it, a
+   parameter, computed in it - each read at the indices' width. `.Avx2.yana` and `.Avx512.yana` are
+   the same program, where the table is doubled into a `ymm` and repeated into a `zmm`.
+-}
+let &seed = 7 :: Int
+
+fn tableBytes(scale: Int) -> [U8 *16]:
+    let &t = [0] :: [U8 *16]
+    for j in 0..16:
+        t[j] = truncate(j * scale + seed)
+    return t
+
+fn inputBytes() -> [U8 *256]:
+    let &input = [0] :: [U8 *256]
+    for i in 0..256:
+        input[i] = truncate(i * 37 + seed)
+    return input
+
+-- Index shapes `withinTable` must *not* prove inside sixteen entries: five bits of a shift, an `or`
+-- with a literal of sixteen or more, and a `select` with one arm past the table. Each is read modulo
+-- the table, so an over-eager proof answers from past it.
+@noinline
+fn wideIndices(input: [U8], tb: [U8]) -> Int:
+    let t = loadVectorAt(tb, 0) :: Vec(U8, 16)
+    let three = splat(3 :: U8) :: Vec(U8)
+    let low = splat(15 :: U8) :: Vec(U8)
+    let high = splat(144 :: U8) :: Vec(U8)
+    let eight = splat(8 :: U8) :: Vec(U8)
+    let far = splat(200 :: U8) :: Vec(U8)
+    let out = [0] :: [U8 *64]
+    let n = lanes(zero() :: Vec(U8))
+    let &wrong = 0
+    let &at = 0 :: Size
+    while at + (n :: Size) <= 256:
+        let v = loadVector(input, at)
+        let nibble = v `and` low
+        storeVector(out, 0, lookup(t, v `shr` three))
+        for k in 0..n:
+            if out[k] != tb[(input[at + k] :: Int) / 8 % 16] then wrong += 1
+        storeVector(out, 0, lookup(t, nibble `or` high))
+        for k in 0..n:
+            if out[k] != tb[(input[at + k] :: Int) % 16] then wrong += 1
+        storeVector(out, 0, lookup(t, select(nibble .== eight, far, nibble)))
+        for k in 0..n:
+            let x = (input[at + k] :: Int) % 16
+            if out[k] != tb[if x == 8 then 200 % 16 else x] then wrong += 1
+        at += (n :: Size)
+    return wrong
+
+-- The same shapes at a word lane, where the control is scaled and spread: a shift leaving thirteen
+-- bits, an `or` of 64 and a `select` of 300 into an eight-entry table.
+@noinline
+fn wideWordIndices(input: [U16], tw: [U16]) -> Int:
+    let t = loadVectorAt(tw, 0) :: Vec(U16, 8)
+    let three = splat(3 :: U16) :: Vec(U16)
+    let low = splat(7 :: U16) :: Vec(U16)
+    let high = splat(64 :: U16) :: Vec(U16)
+    let four = splat(4 :: U16) :: Vec(U16)
+    let far = splat(300 :: U16) :: Vec(U16)
+    let out = [0] :: [U16 *32]
+    let n = lanes(zero() :: Vec(U16))
+    let &wrong = 0
+    let &at = 0 :: Size
+    while at + (n :: Size) <= 256:
+        let v = loadVector(input, at)
+        let part = v `and` low
+        storeVector(out, 0, lookup(t, v `shr` three))
+        for k in 0..n:
+            if out[k] != tw[(input[at + k] :: Int) / 8 % 8] then wrong += 1
+        storeVector(out, 0, lookup(t, part `or` high))
+        for k in 0..n:
+            if out[k] != tw[(input[at + k] :: Int) % 8] then wrong += 1
+        storeVector(out, 0, lookup(t, select(part .== four, far, part)))
+        for k in 0..n:
+            let x = (input[at + k] :: Int) % 8
+            if out[k] != tw[if x == 4 then 300 % 8 else x] then wrong += 1
+        at += (n :: Size)
+    return wrong
+
+-- A table repeated to the indices' width (`repeatTable`) wherever it is defined: chosen before the
+-- loop (a phi above it), chosen in the loop (a phi in its body), a parameter, and computed in the
+-- loop from the turn.
+@noinline
+fn repeated(upper: Bool, input: [U8], ta: [U8], tb: [U8], param: Vec(U8, 16)) -> Int:
+    let a = loadVectorAt(ta, 0) :: Vec(U8, 16)
+    let b = loadVectorAt(tb, 0) :: Vec(U8, 16)
+    let chosen = if upper then a else b
+    let tc = if upper then ta else tb
+    let tp = if upper then tb else ta
+    let four = splat(4 :: U8) :: Vec(U8)
+    let low = splat(15 :: U8) :: Vec(U8)
+    let out = [0] :: [U8 *64]
+    let n = lanes(zero() :: Vec(U8))
+    let &wrong = 0
+    let &at = 0 :: Size
+    let &turn = 0
+    while at + (n :: Size) <= 256:
+        let v = loadVector(input, at)
+        let inner = if turn % 2 == 0 then a else b
+        let ti = if turn % 2 == 0 then ta else tb
+        let local = a + (splat(truncate(turn) :: U8) :: Vec(U8, 16))
+        storeVector(out, 0, lookup(chosen, v `shr` four))
+        for k in 0..n:
+            if out[k] != tc[(input[at + k] :: Int) / 16] then wrong += 1
+        storeVector(out, 0, lookup(inner, v `and` low))
+        for k in 0..n:
+            if out[k] != ti[(input[at + k] :: Int) % 16] then wrong += 1
+        storeVector(out, 0, lookup(param, v))
+        for k in 0..n:
+            if out[k] != tp[(input[at + k] :: Int) % 16] then wrong += 1
+        storeVector(out, 0, lookup(local, v `and` low))
+        for k in 0..n:
+            let want = truncate((ta[(input[at + k] :: Int) % 16] :: Int) + turn) :: U8
+            if out[k] != want then wrong += 1
+        at += (n :: Size)
+        turn += 1
+    return wrong
+
+fn main() -> Int:
+    let &words = [0] :: [U16 *256]
+    for i in 0..256:
+        words[i] = truncate(i * 2741 + seed)
+    let &tw = [0] :: [U16 *8]
+    for j in 0..8:
+        tw[j] = truncate(j * 1001 + seed)
+    let input = inputBytes()
+    let ta = tableBytes(3)
+    let tb = tableBytes(5)
+    let wide = wideIndices(input, ta) + wideWordIndices(words, tw)
+    let one = repeated(True, input, ta, tb, loadVectorAt(tb, 0) :: Vec(U8, 16))
+    let other = repeated(False, input, ta, tb, loadVectorAt(ta, 0) :: Vec(U8, 16))
+    print("{wide} {one} {other}")
+    return wide + one + other

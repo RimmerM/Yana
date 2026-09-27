@@ -719,6 +719,10 @@ static const TransformPass kTransformPipeline[] = {
 
     { "poolVectorConstants"_v,         poolVectorConstants,         0, true },
 
+    // The whole-register interleave at `avx2`, as two in-lane ones and a half exchange - three
+    // shuffles selection answers, so above the permute passes only for being their neighbour.
+    { "lowerWideInterleaves"_v,        lowerWideInterleaves,        0, true },
+
     // Below `poolVectorConstants` and not above it: what this builds is already a `.rodata` load, so
     // there is nothing for that pass to find - and putting it above would hand that pass an index
     // vector to walk for no reason. It has to be above `selectMemorySources` for the reason every

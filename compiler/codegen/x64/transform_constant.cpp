@@ -426,7 +426,7 @@ bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size
          * The sources are one type between them and need not be the result's: a shuffle may change
          * the register's width, and the ones that do over a constant are exactly the ones worth
          * reading through - a sixteen-byte table doubled or repeated to be read at wider indices
-         * (`lookupDoubled`, `lookupRepeated`), and the halves `splitFullVectors` takes of a 512-bit
+         * (`repeatTable`), and the halves `splitFullVectors` takes of a 512-bit
          * constant. Read against the result's width alone, a table built lane by lane was rebuilt
          * with a `pinsrb` per lane on every call instead of becoming one load.
          */
@@ -1147,6 +1147,171 @@ void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
 }
 
 /*
+ * The whole-register interleave at 256 bits, at `avx2` - `interleaveLow`/`interleaveHigh` at the
+ * natural width, J236.
+ *
+ * `vpunpcklbw ymm` interleaves the low half *of each 128-bit half*, so the whole-register pattern -
+ * the low sixteen lanes of both sources, alternating - is not one instruction below `avx512`
+ * (`wideShuffleChoice` says why, and refuses it). It is three: both in-lane interleaves, whose four
+ * halves are the answer's four quarters in the wrong places, and one `vperm2f128` gathering the two
+ * wanted ones. The low result is the two low halves (`0x20`), the high result the two high ones
+ * (`0x31`), so a program asking for both - the hex encoder does - needs the two unpacks once: the
+ * pair is four instructions, not six. Nothing below this numbers values, so the sharing is this
+ * pass's own, within a block, where the unpacks built for the first answer stand above the second.
+ *
+ * ~~`vpermq` of each source first, which puts the quarters an in-lane unpack needs into place, and
+ * then the one unpack~~ is the same three instructions for one answer and four for the pair, but two
+ * of them cross the halves where this has one, and a crossing is the slower shuffle on every part
+ * that has both. At `avx512` the pattern is `vpermi2*` over a pooled index (`lowerTwoSourcePermutes`),
+ * one instruction, and this pass leaves it to that.
+ *
+ * Every lane width the builtin admits, integer or float: what is built is three shuffles selection
+ * already answers for any lane, so nothing here reads the width but the pattern.
+ */
+void lowerWideInterleaves(Context& ctx, LowerBase base, LowerFunction& fun) {
+    if(!(targetFeatures() & kFeatureAvx2)) return;
+
+    // The unpacks already built in this block, by the sources they read.
+    struct Built { LowerValue* left; LowerValue* right; LowerValue* low; LowerValue* high; };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+        SmallArray<Built, 4> built;
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecShuffle) continue;
+
+            auto which = wideInterleaveHalf(base, inst);
+            if(!which) continue;
+
+            auto shuffle = (LowerInstVecShuffle*)inst;
+            auto type = shuffle->result.type;
+            auto lanes = type.lanes();
+            auto half = lanes / 2;
+            auto quarter = half / 2;
+            auto low = !which.unwrap();
+
+            // The in-lane interleaves, low and high, in the IR's numbering: within half `h`, entry
+            // `2k` is lane `h * half + k` (+ quarter for the high one) of each source in turn.
+            Expansion e { base, fun, block, i };
+            auto inLane = [&](bool high) {
+                return e.shuffle(type, base[shuffle->left], base[shuffle->right], [&](Size j) {
+                    auto h = U32(j / half), k = U32(j % half / 2);
+                    auto lane = h * half + (high ? quarter : 0) + k;
+                    return U8(j % 2 ? lanes + lane : lane);
+                });
+            };
+
+            auto left = base[shuffle->left];
+            auto right = base[shuffle->right];
+            LowerValue* first = nullptr;
+            LowerValue* second = nullptr;
+
+            // Same sources is same type: `wideInterleaveHalf` asked both to be the result's.
+            for(auto& b: built) {
+                if(b.left == left && b.right == right) { first = b.low; second = b.high; break; }
+            }
+
+            if(!first) {
+                first = inLane(false);
+                second = inLane(true);
+                built.push(Built { left, right, first, second });
+            }
+
+            // `vperm2f128`: the low answer is the low half of each, the high answer the high half.
+            auto from = U32(low ? 0 : half);
+            auto answer = e.shuffle(type, first, second, [&](Size j) {
+                return U8(j < half ? from + j : lanes + from + j - half);
+            }, shuffle->result.name);
+
+            replaceAllUses(base, &shuffle->result, answer);
+            removeInst(base, inst);
+
+            // One or three inserted above it and it removed; each is answered by selection.
+            i = e.at - 1;
+        }
+    }
+}
+
+/*
+ * Where a shuffle's control vector is loaded - J237.
+ *
+ * A shuffle whose pattern is not an immediate (`pshufb`, `vpermd`, `vpermb`, `vpermi2*`) needs it as
+ * a pooled `.rodata` load, and the three passes below build that load. Beside the shuffle is right where the
+ * shuffle runs once: at VEX the load folds into the permute's memory operand and costs nothing of its
+ * own. **Inside a loop it is not** - nothing below this point moves code (`poolVectorConstants` says
+ * the same of its own roots), so the load ran every iteration: a `movdqu` in front of each `pshufb` at
+ * `sse4`, and the index of a `vpermb`/`vpermd`, which has to be a register, reloaded every time round.
+ * The natural-width shuffle a codec loop is written with is exactly that shape.
+ *
+ * So a shuffle in a loop has its control loaded once, at `constantHome` - the top of the entry block's
+ * successor, which dominates every block - and two shuffles of one function with one control share
+ * the load. What that costs is a register across the function, and `constantHome` gives the reason it
+ * is the cheapest kind: a load of a global nothing writes is rematerialized rather than spilled. A
+ * shuffle in no loop keeps its load beside it, so a straight-line body still folds.
+ *
+ * `buildLoops` is asked once per function, and only of one that has such a shuffle - it is what
+ * writes `loopDepth`, which nothing guarantees is current this early.
+ */
+struct ShuffleControls {
+    Context& ctx;
+    LowerBase base;
+    LowerFunction& fun;
+
+    bool placed = false;
+    LowerBlock* home = nullptr;
+
+    struct Shared { LowerGlobal* global; LowerType type; LowerValue* value; };
+    SmallArray<Shared, 4> shared;
+
+    /*
+     * The control, at `type`, holding `bytes` - inserted at `at` in `block` (which is moved past it)
+     * where `block` is in no loop, and at the top of `home` otherwise.
+     */
+    LowerValue* load(LowerBlock* block, Size& at, const U8* bytes, Size size, LowerType type) {
+        auto& module = *fun.module;
+        auto global = pooledBytes(ctx, module, bytes, size);
+
+        if(!placed) {
+            placed = true;
+            fun.buildLoops(base);
+            home = constantHome(base, fun);
+        }
+
+        auto hoist = home && block->loopDepth > 0;
+        if(hoist) {
+            for(auto& entry: shared) {
+                if(entry.global == global && entry.type == type) return entry.value;
+            }
+        }
+
+        auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+        auto value = new (fun.arena) LowerInstLoad(&address->result - base, StringId(), type, U32(size), false);
+
+        if(hoist) {
+            // At the top, so that it stands above every reader `home` itself may hold - and moving
+            // `at` if the shuffle is in `home`, which the insertion pushed down two places. That is
+            // defensive and nothing reaches it today (J239): `rotateLoops` gives a loop entered from
+            // the entry a preheader (`insertEntryPreheader`), so `home`'s one predecessor is the entry
+            // and it is in no loop - `x64/VectorShuffleControls.lower`'s `homeLoop` is that shape.
+            // Kept rather than asserted away, because the cost of being wrong is a shuffle lowered
+            // above its own operand.
+            insertInstAt(base, home, 0, address);
+            insertInstAt(base, home, 1, value);
+            if(home == block) at += 2;
+
+            shared.push(Shared { global, type, &value->result });
+        } else {
+            insertInstAt(base, block, at++, address);
+            insertInstAt(base, block, at++, value);
+        }
+
+        return &value->result;
+    }
+};
+
+/*
  * A 256-bit lane pattern that no single shuffle instruction expresses, made into `vpermd`/`vpermps`.
  *
  * **Every shuffle AVX2 has works inside each 128-bit half**, and the one exception moves halves
@@ -1175,7 +1340,7 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
     // AVX2 has no eight-lane vector for this to be asked about.
     if(!(targetFeatures() & kFeatureAvx2)) return;
 
-    auto& module = *fun.module;
+    ShuffleControls controls { ctx, base, fun };
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -1192,6 +1357,12 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
             // to `wideShuffleChoice` rather than here; a narrower one has no crossing permute below
             // AVX-512 at all.
             if(!isWideVector(type) || laneBytes(type.lane) != 4) continue;
+
+            // And 256 bits of it, not 512: the rows are VEX and have no 512-bit twin, so a sixteen-lane
+            // pattern selected here came out as `vpermd ymm` - half the answer, the upper eight lanes
+            // zero - until J237's natural-width test ran one at `avx512`. `lowerTwoSourcePermutes` is
+            // what a 512-bit one is, `vpermi2d` over the source twice.
+            if(isFullVector(type)) continue;
 
             // An instruction already expresses it, which is cheaper by a pooled constant and a
             // register - so this asks the same function the form selection will ask, rather than a
@@ -1228,27 +1399,22 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
             }
 
             auto indexType = LowerType { LowerLane::Int32, type.laneShift, false };
-            auto global = pooledBytes(ctx, module, bytes, size);
-            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
-            auto load = new (fun.arena) LowerInstLoad(
-                &address->result - base, StringId(), indexType, U32(size), false
-            );
+            auto at = i;
+            auto indices = controls.load(block, at, bytes, size, indexType);
 
             auto source = second ? shuffle->right : shuffle->left;
             auto permute = new (fun.arena) LowerInstX86Permute(
-                shuffle->result.name, type, &load->result - base, source
+                shuffle->result.name, type, indices - base, source
             );
 
-            insertInstAt(base, block, i, address);
-            insertInstAt(base, block, i + 1, load);
-            insertInstAt(base, block, i + 2, permute);
+            insertInstAt(base, block, at, permute);
 
             replaceAllUses(base, &shuffle->result, &permute->result);
             removeInst(base, inst);
 
-            // Three inserted and one removed, and the walk carries on below the permute - which
-            // reads a load this pass has no further business with.
-            i += 2;
+            // The walk carries on below the permute - which reads a load this pass has no further
+            // business with, wherever `controls` put it.
+            i = at;
         }
     }
 }
@@ -1268,25 +1434,42 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
  * operands. So this pass does, and what reaches selection is an `X86Permute` whose indices are
  * already materialized.
  *
- * **A byte lane only.** At a byte lane a lane index and a byte offset are the same number, which is
- * what lets this share `X86Permute` rather than restate what its indices mean. A 16-bit-lane pattern
- * is the same instruction over a pattern with the pairs written out, and it is deliberately left:
- * `bitcast(v) :: Vec(U8, 16)` is how a program reaches it today and is one instruction on neither
- * side, so the gap costs a spelling rather than a facility.
+ * **A byte or a word lane.** At a byte lane a lane index and a byte offset are the same number, which
+ * is what lets this share `X86Permute` rather than restate what its indices mean. A 16-bit-lane
+ * pattern is the same instruction over a pattern with the pairs written out, over the source read as
+ * bytes; ~~it is deliberately left, `bitcast(v) :: Vec(U8, 16)` being how a program reaches it~~ -
+ * J237 wrote the pairs out, since `shuffleNatural` over `Vec(U16)` is one call with no bitcast to
+ * write, and the pass is a loop over bytes either way.
  *
  * **One source, on the terms `lowerWideLanePermutes` states.** Two sources are two `pshufb` and a
  * `por` - the out-of-range half of each control written as `0x80`, which is the byte `pshufb`
  * defines as "write zero" - and whether that is worth three instructions and two pooled constants is
  * the same question this pass declines to answer at the wide tier.
  *
- * **In-lane at 256 bits.** `vpshufb ymm` permutes inside each 128-bit half independently, so a
- * 32-lane pattern that crosses halves is not this instruction at all. One that does not is: each half
- * of the control indexes its own half, which is why the control byte is taken modulo sixteen. The
- * wide row arrived with `expandLaneCountConversions`, whose narrowing gathers a source's low bytes in
- * each half; before it this pass was 128 bits only.
+ * **In-lane, or crossing by another route.** `vpshufb ymm` and `vpshufb zmm` permute inside each
+ * 128-bit half independently, so each half of the control indexes its own half, which is why an
+ * in-lane control byte is taken modulo sixteen. The wide row arrived with
+ * `expandLaneCountConversions`, whose narrowing gathers a source's low bytes in each half; before it
+ * this pass was 128 bits only. A pattern that crosses the halves (J237, for `shuffleNatural`):
+ *
+ *  - at VBMI is `vpermb` - one instruction at either width, the control the pattern itself, read
+ *    modulo the lane count. Ahead of `lowerTwoSourcePermutes`' `vpermi2b`, which reads the same
+ *    bytes but overwrites its index, so a constant pattern cost a copy of it at every use;
+ *  - at `avx2` is the pattern split by which half each entry reads: one `vpshufb` of the source for
+ *    the entries reading their own half, one of the source with its halves exchanged (a quadword
+ *    shuffle selection answers with `vperm2f128 $1`) for the rest, each control writing `0x80` -
+ *    `pshufb`'s zero - where the other supplies the byte, and a `vpor`. Four instructions and two
+ *    pooled controls, and one `vpshufb` of the exchanged source alone where every entry crosses. The
+ *    alternative `permuteBytes` uses for a runtime control - both halves broadcast, two reads and a
+ *    compare-and-blend on bit 4 - is five and needs the compare because its control is not known;
+ *    here which half an entry reads is.
+ *
+ * Every control is loaded where `ShuffleControls` says, which is once per function for a shuffle in
+ * a loop.
  */
 void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
-    auto& module = *fun.module;
+    ShuffleControls controls { ctx, base, fun };
+    auto crossingRow = hasEvexRow(EvexRow::BytePermute2); // `vpermb` is VBMI, as `vpermi2b` is
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -1297,10 +1480,10 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
 
             auto shuffle = (LowerInstVecShuffle*)inst;
             auto type = shuffle->result.type;
+            auto width = laneBytes(type.lane);
 
-            if(laneBytes(type.lane) != 1 || type.isMask()) continue;
+            if(width > 2 || type.isMask()) continue;
             if(!isWholePackedRegister(type)) continue;
-            if(isWideVector(type) && !shuffleStaysInLane(inst)) continue;
 
             // An instruction already expresses it, which is cheaper by a pooled constant and a
             // register - so this asks the same function the form selection will ask, rather than a
@@ -1328,38 +1511,103 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
 
             if(!oneSource) continue;
 
-            // The control, one byte per result byte, holding the source byte it takes. At a byte
-            // lane that is the pattern entry itself, relative to the source it belongs to - and at
-            // 256 bits relative to the half as well, `vpshufb` indexing each half on its own.
-            U8 bytes[kMaxVectorBytes] = {};
+            // The pattern as bytes of the one source: a word lane is its two bytes in order, which
+            // is all a 16-bit lane is to `pshufb` (J237 - it was left to a bitcast before).
             auto size = Size(type.byteWidth());
-
-            for(U32 k = 0; k < lanes; k++) {
-                bytes[k] = U8((second ? pattern[k] - lanes : pattern[k]) % 16);
+            U8 source[kMaxVectorBytes] = {};
+            for(U32 b = 0; b < size; b++) {
+                auto entry = U32(second ? pattern[b / width] - lanes : pattern[b / width]);
+                source[b] = U8(entry * width + b % width);
             }
 
-            auto global = pooledBytes(ctx, module, bytes, size);
-            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
-            auto load = new (fun.arena) LowerInstLoad(
-                &address->result - base, StringId(), type, U32(size), false
-            );
+            // Whether every byte stays inside its own 128-bit block - the halves of a `ymm`, the
+            // quarters of a `zmm` - which is what `vpshufb` reads at every width.
+            auto crossing = false;
+            for(U32 b = 0; b < size && !crossing; b++) {
+                if(source[b] / 16 != b / 16) crossing = true;
+            }
 
-            // Indices first, which is `LowerInstX86Permute`'s stated order and the one the wide pass
-            // above writes. `pshufb` names its operands the other way round and FormVByteShuffle is
-            // where that is reconciled - see the note on the row.
-            auto source = second ? shuffle->right : shuffle->left;
-            auto permute = new (fun.arena) LowerInstX86Permute(
-                shuffle->result.name, type, &load->result - base, source
-            );
+            // Two 128-bit halves and no VBMI is `avx2`'s sequence below; a 512-bit register without
+            // VBMI is left to `lowerTwoSourcePermutes`, as it always was.
+            if(crossing && !crossingRow && (!isWideVector(type) || isFullVector(type))) continue;
 
-            insertInstAt(base, block, i, address);
-            insertInstAt(base, block, i + 1, load);
-            insertInstAt(base, block, i + 2, permute);
+            auto bytes = vectorType(LowerLane::Int8, size);
+            Expansion e { base, fun, block, i };
+            auto from = base[second ? shuffle->right : shuffle->left];
+            if(width != 1) from = e.reinterpret(bytes, from);
+            auto at = e.at;
+            LowerValue* answer = nullptr;
 
-            replaceAllUses(base, &shuffle->result, &permute->result);
+            if(!crossing || crossingRow) {
+                // The control, one byte per result byte, holding the source byte it takes - relative
+                // to the half as well for `pshufb`, which indexes each 128-bit half on its own.
+                U8 control[kMaxVectorBytes] = {};
+                for(U32 b = 0; b < size; b++) control[b] = crossing ? source[b] : U8(source[b] % 16);
+
+                // Indices first, which is `LowerInstX86Permute`'s stated order and the one the wide
+                // pass above writes. `pshufb` names its operands the other way round and
+                // FormVByteShuffle is where that is reconciled - see the note on the row.
+                auto indices = controls.load(block, at, control, size, bytes);
+                auto permute = new (fun.arena) LowerInstX86Permute(
+                    width == 1 ? shuffle->result.name : StringId(), bytes, indices - base, from - base,
+                    crossing
+                );
+
+                insertInstAt(base, block, at++, permute);
+                answer = &permute->result;
+            } else {
+                // `avx2`: the bytes reading their own half from the source, the rest from the source
+                // with its halves exchanged, `0x80` where the other read supplies the byte.
+                U8 own[kMaxVectorBytes] = {};
+                U8 other[kMaxVectorBytes] = {};
+                auto anyOwn = false;
+
+                for(U32 b = 0; b < size; b++) {
+                    auto same = source[b] / 16 == b / 16;
+                    anyOwn = anyOwn || same;
+                    own[b] = same ? U8(source[b] % 16) : U8(0x80);
+                    other[b] = same ? U8(0x80) : U8(source[b] % 16);
+                }
+
+                auto quads = vectorType(LowerLane::Int64, 4);
+                e.at = at;
+                auto asQuads = e.reinterpret(quads, from);
+                auto swappedQuads = e.shuffle(quads, asQuads, asQuads,
+                                              [](Size j) { return U8((j + 2) % 4); });
+                auto swapped = e.reinterpret(bytes, swappedQuads);
+                at = e.at;
+
+                auto otherControl = controls.load(block, at, other, size, bytes);
+                auto fromOther = new (fun.arena) LowerInstX86Permute(StringId(), bytes, otherControl - base,
+                                                                      swapped - base);
+                insertInstAt(base, block, at++, fromOther);
+                answer = &fromOther->result;
+
+                if(anyOwn) {
+                    auto ownControl = controls.load(block, at, own, size, bytes);
+                    auto fromOwn = new (fun.arena) LowerInstX86Permute(StringId(), bytes, ownControl - base,
+                                                                        from - base);
+                    insertInstAt(base, block, at++, fromOwn);
+
+                    auto name = width == 1 ? shuffle->result.name : StringId();
+                    auto joined = new (fun.arena) LowerInstBinary(name, bytes, &fromOwn->result - base,
+                                                                  answer - base, LowerInst::Or);
+                    insertInstAt(base, block, at++, joined);
+                    answer = &joined->result;
+                }
+            }
+
+            if(width != 1) {
+                e.at = at;
+                answer = e.reinterpret(type, answer, shuffle->result.name);
+                at = e.at;
+            }
+
+            replaceAllUses(base, &shuffle->result, answer);
             removeInst(base, inst);
 
-            i += 2;
+            // The walk carries on at the instruction that followed the shuffle.
+            i = at - 1;
         }
     }
 }
@@ -1376,13 +1624,19 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
  * the second, which is `VecShuffle`'s numbering exactly. So the pattern *is* the index vector, written
  * at the lane's own width.
  *
- * The index is the destination, so the pooled load it comes from is the register the answer is written
- * into and nothing has to be copied to keep it.
+ * The index is the destination, so outside a loop the pooled load it comes from is the register the
+ * answer is written into and nothing has to be copied to keep it. Inside one it is loaded once above
+ * the loop (`ShuffleControls`, J239) and each turn copies it into the register the instruction
+ * overwrites: a register move where the loop held a load. The move is no worse - one uop either way,
+ * and a vector move is eliminated at rename on the cores that have `avx512` - and it leaves the load
+ * ports to the loop's own input, which is what a codec loop spends them on. J237 left this pass out
+ * of the hoist for the copy; the listing (`x64/VectorShuffleControls.lower`'s `permute2Loop`) is
+ * the one `vmovaps` in the loop's place of the `vmovdqu64`.
  */
 void lowerTwoSourcePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
     if(!hasEvexRow(EvexRow::Permute2)) return;
 
-    auto& module = *fun.module;
+    ShuffleControls controls { ctx, base, fun };
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -1407,28 +1661,23 @@ void lowerTwoSourcePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
 
             // An integer vector at the lane's own width, whatever the lanes hold - an index is a
             // number, as it is for `vpermps`.
-            static const LowerLane kIndexLane[4] = { LowerLane::Int8, LowerLane::Int16, LowerLane::Int32, LowerLane::Int64 };
+            static const LowerLane kIndexLane[4] = { LowerLane::Int8, LowerLane::Int16,
+                                                     LowerLane::Int32, LowerLane::Int64 };
             auto column = width == 1 ? 0 : width == 2 ? 1 : width == 4 ? 2 : 3;
             auto indexType = LowerType { kIndexLane[column], type.laneShift, false };
 
-            auto global = pooledBytes(ctx, module, bytes, size);
-            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
-            auto load = new (fun.arena) LowerInstLoad(
-                &address->result - base, StringId(), indexType, U32(size), false
-            );
-
+            auto at = i;
+            auto index = controls.load(block, at, bytes, size, indexType);
             auto permute = new (fun.arena) LowerInstX86Permute2(
-                shuffle->result.name, type, &load->result - base, shuffle->left, shuffle->right
+                shuffle->result.name, type, index - base, shuffle->left, shuffle->right
             );
 
-            insertInstAt(base, block, i, address);
-            insertInstAt(base, block, i + 1, load);
-            insertInstAt(base, block, i + 2, permute);
+            insertInstAt(base, block, at, permute);
 
             replaceAllUses(base, &shuffle->result, &permute->result);
             removeInst(base, inst);
 
-            i += 2;
+            i = at;
         }
     }
 }

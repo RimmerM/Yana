@@ -525,8 +525,13 @@ enum: MachineFormId {
      * result lane. Both take those indices out of a **vector register**, which is why these are the
      * one shuffle family here whose pattern is an operand rather than an immediate - see
      * LowerInst::X86Permute and `lowerWideLanePermutes`.
+     *
+     * And `vpermq` by an immediate, the general crossing at a 64-bit lane: four lanes, two bits of
+     * the byte each, so its pattern is a field and it is a form of its own - in both operands, as
+     * `pshufd` is (J236).
      */
-    FormVPerm2, FormVPermute32, FormVPermuteF32, FormVExtract128, FormVInsert128,
+    FormVPerm2, FormVPermute32, FormVPermuteF32, FormVPermute64, FormVPermute64Second,
+    FormVExtract128, FormVInsert128,
     FormVWideBroadcast8, FormVWideBroadcast16,
     FormVWideBroadcast32, FormVWideBroadcast64,
     FormVWideBroadcastF32, FormVWideBroadcastF64,
@@ -711,6 +716,10 @@ enum: MachineFormId {
     FormVPermute2x8, FormVWidePermute2x8, FormVPermute2x16, FormVWidePermute2x16,
     FormVPermute2x32, FormVWidePermute2x32, FormVPermute2x64, FormVWidePermute2x64,
     FormVPermute2F32, FormVWidePermute2F32, FormVPermute2F64, FormVWidePermute2F64,
+
+    // `vpermb` - one source's bytes by an index vector, across the whole register. See
+    // LowerInstX86Permute::isCrossing.
+    FormVPermute8, FormVWidePermute8,
 
     // `vpcompress*` and `vpexpand*` with the lanes past the answer zeroed - LowerInst::VecMove's two
     // masked movements, one row per lane at each width.

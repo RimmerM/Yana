@@ -189,7 +189,7 @@ bool fullWidthNative(LowerBase base, LowerInst* inst) {
 
         // `vpcompress*`/`vpexpand*` at every lane, and a lookup is `vpermi2*` - over the table itself
         // where it is as wide as its indices, and over the table repeated to 512 bits where it is
-        // narrower (`lookupRepeated`). Every lookup the library writes reads a table of 128 or 256
+        // narrower (`repeatTable`). Every lookup the library writes reads a table of 128 or 256
         // bits, whose lane count divides the indices'; one that does not is read a half at a time.
         case LowerInst::VecMove: {
             auto move = (LowerInstVecMove*)inst;

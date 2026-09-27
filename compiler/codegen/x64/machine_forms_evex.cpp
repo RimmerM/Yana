@@ -1173,6 +1173,30 @@ void MachineFormBuilder::registerEvexShuffleForms() {
     permute(FormVPermute2F64, FormVWidePermute2F64, "vpermi2pd xmm, xmm, xmm"_v, "vpermi2pd ymm, ymm, ymm"_v, 0x77, true,  0);
 
     /*
+     * `vpermb dst, indices, table` - EVEX.66.0F38.W0 8D /r, VBMI. The one-source byte permutation
+     * across the whole register (J237), where `vpshufb` reads each 128-bit half on its own.
+     *
+     * Beside `vpermi2b` rather than instead of it: that one reads two tables and is **destructive** in
+     * its indices, so a shuffle of one source by a constant pattern cost a copy of the index - and in
+     * a loop, the index itself - every time. This one is non-destructive and reads its indices from
+     * `vvvv`, which is `vpermd`'s shape and `LowerInstX86Permute`'s operand order, so it is that
+     * instruction's byte row at a crossing pattern (`isCrossing`). An index is read modulo the lane
+     * count, which is the whole of what a crossing shuffle's control needs to say.
+     */
+    {
+        auto& form = add(FormVPermute8, OpVPermute, "vpermb xmm, xmm, xmm"_v);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(kFeatureAvx512vbmi);
+        form.encoding = evex(kOpcodeMap0F38, 0x8d, false);
+        form.encoding.vvvvField = useRef(0);
+        form.encoding.rmField = useRef(1);
+
+        widen(FormVWidePermute8, FormVPermute8, "vpermb ymm, ymm, ymm"_v);
+    }
+
+    /*
      * `vpcompress*` and `vpexpand*` - the lanes a mask register sets, packed to the bottom or spread
      * out to them, with every other lane zeroed (`{z}`). EVEX.66.0F38: 63 and 62 for the byte and word
      * rows (VBMI2, W the lane), 8B and 89 for the doubleword and quadword ones, 8A and 88 for the float

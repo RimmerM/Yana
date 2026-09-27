@@ -1,0 +1,804 @@
+module ResolveTest
+
+let & seed: I32 = 7
+
+fn wrongBytes(got: Vec(U8) [shared call], input: Array(U8) [shared call view], pattern: [I32 *64] [shared call], at: I32 [shared call]) -> I32 {
+  local out: [U8 *64]
+  local & wrong: I32
+  local & local6: I32
+  local i: I32
+  local local8: U8 [shared slot 0]
+
+bb0:
+  %0: U8 = const 0
+  %1: [U8 *64] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (out) take %1
+  %3: [U8 *64] [shared call] = read borrow.shared (out) loan0
+  %4: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *64], U8) borrow.shared %3 roots{0}
+  %5: Size = const 0
+  %6: Vec(U8) = read copy.trivial (got)
+  %7: {} = call storeVector(U8) borrow.shared %4 borrow.shared %5 borrow.shared %6
+  %8: I32 = const 0
+  write.init borrow.unique (wrong) take %8
+  %10: Vec(U8) = read copy.trivial (got)
+  %11: I32 = const 16
+  %12: I32 = const 0
+  %13: I32 = const 1
+  write.init borrow.unique (local6) take %12
+  jump -> bb1(take %11, take %13)
+
+bb1(%14: I32, %15: I32):
+  %22: I32 = read copy.trivial (local6)
+  %23: Bool = lt inspect %22 inspect %14
+  branch inspect %23 -> bb4(take %14, take %15) -> bb3(take %14, take %15)
+
+bb2(%16: I32, %17: I32):
+  %64: I32 = read copy.trivial (local6)
+  %65: I32 = add inspect %64 inspect %17
+  write.assign borrow.unique (local6) take %65
+  jump -> bb1(take %16, take %17)
+
+bb3(%18: I32, %19: I32):
+  %68: I32 = read copy.trivial (wrong)
+  return take %68
+
+bb4(%24: I32, %25: I32):
+  %27: I32 = read copy.trivial (local6)
+  write.init borrow.unique (i) take %27
+  %29: I32 = read copy.trivial (i)
+  %30: Size = convert inspect %29
+  %31: USize = const 64
+  %32: USize = bitcast inspect %30
+  %33: Bool = ge inspect %32 inspect %31
+  %34: {} = call checkCondition borrow.shared %33
+  %35: U8 = read copy.trivial (out[...])
+  %36: I32 = read copy.trivial (at)
+  %37: I32 = read copy.trivial (i)
+  %38: Size = convert inspect %37
+  %39: USize = const 64
+  %40: USize = bitcast inspect %38
+  %41: Bool = ge inspect %40 inspect %39
+  %42: {} = call checkCondition borrow.shared %41
+  %43: I32 = read copy.trivial (pattern[...])
+  %44: I32 = add inspect %36 inspect %43
+  %45: Array(U8) [shared call view] = read borrow.shared (input) loan1
+  %46: Size = convert inspect %44
+  %47: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %45 borrow.shared %46 roots{1}
+  write.init borrow.unique (local8) borrow.shared %47
+  %49: U8 = read copy.trivial (local8)
+  %50: Bool = ne inspect %35 inspect %49
+  branch inspect %50 -> bb7(take %24, take %25) -> bb5(take %24, take %25)
+
+bb5(%51: I32, %52: I32):
+  jump -> bb6(take %51, take %52)
+
+bb6(%59: I32, %60: I32):
+  jump -> bb2(take %59, take %60)
+
+bb7(%53: I32, %54: I32):
+  %56: I32 [unique call] = read borrow.unique (wrong) loan2
+  %57: I32 = const 1
+  %58: {} = call +=(I32) borrow.unique %56 borrow.shared %57
+  jump -> bb6(take %53, take %54)
+}
+
+fn main() -> I32 {
+  local & input: [U8 *256]
+  local & local1: I32
+  local i: I32
+  local v: Vec(U8)
+  local spread: [I32 *64]
+  local cross: [I32 *64]
+  local & wrong: I32
+  local & out: [U8 *256]
+  local w: I32
+  local & local9: I32
+  local j: I32
+  local at: Size
+  local & local12: I32
+  local i: I32
+  local & halves: [U16 *32]
+  local & local15: I32
+  local i: I32
+  local h: Vec(U16)
+  local words: [I32 *32]
+  local hs: [U16 *32]
+  local & local20: I32
+  local i: I32
+
+bb0:
+  %0: U8 = const 0
+  %1: [U8 *256] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (input) take %1
+  %3: I32 = const 0
+  %4: I32 = const 256
+  %5: I32 = const 1
+  write.init borrow.unique (local1) take %3
+  jump -> bb1(take %4, take %5)
+
+bb1(%6: I32, %7: I32):
+  %14: I32 = read copy.trivial (local1)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: I32, %9: I32):
+  %37: I32 = read copy.trivial (local1)
+  %38: I32 = add inspect %37 inspect %9
+  write.assign borrow.unique (local1) take %38
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: I32, %11: I32):
+  %41: [U8 *256] [shared call] = read borrow.shared (input) loan0
+  %42: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *256], U8) borrow.shared %41 roots{0}
+  %43: Size = const 0
+  %44: Vec(U8) = call loadVector(U8) borrow.shared %42 borrow.shared %43
+  write.init borrow.unique (v) take %44
+  %46: Vec(U8) = read copy.trivial (v)
+  %47: I32 = const 16
+  %48: I32 = const 16
+  %49: Bool = ne inspect %47 inspect %48
+  branch inspect %49 -> bb7 -> bb5
+
+bb4(%16: I32, %17: I32):
+  %19: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %19
+  %21: I32 = read copy.trivial (i)
+  %22: Size = convert inspect %21
+  %23: USize = const 256
+  %24: USize = bitcast inspect %22
+  %25: Bool = ge inspect %24 inspect %23
+  %26: {} = call checkCondition borrow.shared %25
+  %27: I32 = read copy.trivial (i)
+  %28: I32 = const 7
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = read copy.trivial (global seed)
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = const 251
+  %33: I32 = rem inspect %31 inspect %32
+  %34: U8 = convert inspect %33
+  write.assign borrow.unique (input[...]) take %34
+  jump -> bb2(take %16, take %17)
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %54: I32 = const 5
+  %55: I32 = const 4
+  %56: I32 = const 6
+  %57: I32 = const 5
+  %58: I32 = const 8
+  %59: I32 = const 7
+  %60: I32 = const 9
+  %61: I32 = const 8
+  %62: I32 = const 11
+  %63: I32 = const 10
+  %64: I32 = const 12
+  %65: I32 = const 11
+  %66: I32 = const 14
+  %67: I32 = const 13
+  %68: I32 = const 15
+  %69: I32 = const 14
+  %70: I32 = const 17
+  %71: I32 = const 16
+  %72: I32 = const 18
+  %73: I32 = const 17
+  %74: I32 = const 20
+  %75: I32 = const 19
+  %76: I32 = const 21
+  %77: I32 = const 20
+  %78: I32 = const 23
+  %79: I32 = const 22
+  %80: I32 = const 24
+  %81: I32 = const 23
+  %82: I32 = const 26
+  %83: I32 = const 25
+  %84: I32 = const 27
+  %85: I32 = const 26
+  %86: I32 = const 29
+  %87: I32 = const 28
+  %88: I32 = const 30
+  %89: I32 = const 29
+  %90: I32 = const 32
+  %91: I32 = const 31
+  %92: I32 = const 33
+  %93: I32 = const 32
+  %94: I32 = const 35
+  %95: I32 = const 34
+  %96: I32 = const 36
+  %97: I32 = const 35
+  %98: I32 = const 38
+  %99: I32 = const 37
+  %100: I32 = const 39
+  %101: I32 = const 38
+  %102: I32 = const 41
+  %103: I32 = const 40
+  %104: I32 = const 42
+  %105: I32 = const 41
+  %106: I32 = const 44
+  %107: I32 = const 43
+  %108: I32 = const 45
+  %109: I32 = const 44
+  %110: I32 = const 47
+  %111: I32 = const 46
+  %112: I32 = const 48
+  %113: I32 = const 47
+  %114: I32 = const 50
+  %115: I32 = const 49
+  %116: I32 = const 51
+  %117: I32 = const 50
+  %118: [I32 *64] = aggregate.0 take %54 take %55 take %56 take %57 take %58 take %59 take %60 take %61 take %62 take %63 take %64 take %65 take %66 take %67 take %68 take %69 take %70 take %71 take %72 take %73 take %74 take %75 take %76 take %77 take %78 take %79 take %80 take %81 take %82 take %83 take %84 take %85 take %86 take %87 take %88 take %89 take %90 take %91 take %92 take %93 take %94 take %95 take %96 take %97 take %98 take %99 take %100 take %101 take %102 take %103 take %104 take %105 take %106 take %107 take %108 take %109 take %110 take %111 take %112 take %113 take %114 take %115 take %116 take %117
+  write.init borrow.unique (spread) take %118
+  %120: I32 = const 15
+  %121: I32 = const 14
+  %122: I32 = const 13
+  %123: I32 = const 12
+  %124: I32 = const 11
+  %125: I32 = const 10
+  %126: I32 = const 9
+  %127: I32 = const 8
+  %128: I32 = const 7
+  %129: I32 = const 6
+  %130: I32 = const 5
+  %131: I32 = const 4
+  %132: I32 = const 3
+  %133: I32 = const 2
+  %134: I32 = const 1
+  %135: I32 = const 0
+  %136: I32 = const 16
+  %137: I32 = const 21
+  %138: I32 = const 26
+  %139: I32 = const 31
+  %140: I32 = const 4
+  %141: I32 = const 9
+  %142: I32 = const 14
+  %143: I32 = const 19
+  %144: I32 = const 24
+  %145: I32 = const 29
+  %146: I32 = const 2
+  %147: I32 = const 7
+  %148: I32 = const 12
+  %149: I32 = const 17
+  %150: I32 = const 22
+  %151: I32 = const 27
+  %152: I32 = const 32
+  %153: I32 = const 39
+  %154: I32 = const 46
+  %155: I32 = const 53
+  %156: I32 = const 60
+  %157: I32 = const 3
+  %158: I32 = const 10
+  %159: I32 = const 17
+  %160: I32 = const 24
+  %161: I32 = const 31
+  %162: I32 = const 38
+  %163: I32 = const 45
+  %164: I32 = const 52
+  %165: I32 = const 59
+  %166: I32 = const 2
+  %167: I32 = const 9
+  %168: I32 = const 16
+  %169: I32 = const 23
+  %170: I32 = const 30
+  %171: I32 = const 37
+  %172: I32 = const 44
+  %173: I32 = const 51
+  %174: I32 = const 58
+  %175: I32 = const 1
+  %176: I32 = const 8
+  %177: I32 = const 15
+  %178: I32 = const 22
+  %179: I32 = const 29
+  %180: I32 = const 36
+  %181: I32 = const 43
+  %182: I32 = const 50
+  %183: I32 = const 57
+  %184: [I32 *64] = aggregate.0 take %120 take %121 take %122 take %123 take %124 take %125 take %126 take %127 take %128 take %129 take %130 take %131 take %132 take %133 take %134 take %135 take %136 take %137 take %138 take %139 take %140 take %141 take %142 take %143 take %144 take %145 take %146 take %147 take %148 take %149 take %150 take %151 take %152 take %153 take %154 take %155 take %156 take %157 take %158 take %159 take %160 take %161 take %162 take %163 take %164 take %165 take %166 take %167 take %168 take %169 take %170 take %171 take %172 take %173 take %174 take %175 take %176 take %177 take %178 take %179 take %180 take %181 take %182 take %183
+  write.init borrow.unique (cross) take %184
+  %186: Vec(U8) = read copy.trivial (v)
+  %187: I32 = const 5
+  %188: I32 = const 4
+  %189: I32 = const 6
+  %190: I32 = const 5
+  %191: I32 = const 8
+  %192: I32 = const 7
+  %193: I32 = const 9
+  %194: I32 = const 8
+  %195: I32 = const 11
+  %196: I32 = const 10
+  %197: I32 = const 12
+  %198: I32 = const 11
+  %199: I32 = const 14
+  %200: I32 = const 13
+  %201: I32 = const 15
+  %202: I32 = const 14
+  %203: I32 = const 17
+  %204: I32 = const 16
+  %205: I32 = const 18
+  %206: I32 = const 17
+  %207: I32 = const 20
+  %208: I32 = const 19
+  %209: I32 = const 21
+  %210: I32 = const 20
+  %211: I32 = const 23
+  %212: I32 = const 22
+  %213: I32 = const 24
+  %214: I32 = const 23
+  %215: I32 = const 26
+  %216: I32 = const 25
+  %217: I32 = const 27
+  %218: I32 = const 26
+  %219: I32 = const 29
+  %220: I32 = const 28
+  %221: I32 = const 30
+  %222: I32 = const 29
+  %223: I32 = const 32
+  %224: I32 = const 31
+  %225: I32 = const 33
+  %226: I32 = const 32
+  %227: I32 = const 35
+  %228: I32 = const 34
+  %229: I32 = const 36
+  %230: I32 = const 35
+  %231: I32 = const 38
+  %232: I32 = const 37
+  %233: I32 = const 39
+  %234: I32 = const 38
+  %235: I32 = const 41
+  %236: I32 = const 40
+  %237: I32 = const 42
+  %238: I32 = const 41
+  %239: I32 = const 44
+  %240: I32 = const 43
+  %241: I32 = const 45
+  %242: I32 = const 44
+  %243: I32 = const 47
+  %244: I32 = const 46
+  %245: I32 = const 48
+  %246: I32 = const 47
+  %247: I32 = const 50
+  %248: I32 = const 49
+  %249: I32 = const 51
+  %250: I32 = const 50
+  %251: [I32 *64] = aggregate.0 take %187 take %188 take %189 take %190 take %191 take %192 take %193 take %194 take %195 take %196 take %197 take %198 take %199 take %200 take %201 take %202 take %203 take %204 take %205 take %206 take %207 take %208 take %209 take %210 take %211 take %212 take %213 take %214 take %215 take %216 take %217 take %218 take %219 take %220 take %221 take %222 take %223 take %224 take %225 take %226 take %227 take %228 take %229 take %230 take %231 take %232 take %233 take %234 take %235 take %236 take %237 take %238 take %239 take %240 take %241 take %242 take %243 take %244 take %245 take %246 take %247 take %248 take %249 take %250
+  %252: Vec(U8) = vec.shuffle [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14] inspect %186 inspect %186
+  %253: [U8 *256] [shared call] = read borrow.shared (input) loan1
+  %254: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *256], U8) borrow.shared %253 roots{1}
+  %255: [I32 *64] = read copy.trivial (spread)
+  %256: I32 = const 0
+  %257: I32 = call wrongBytes borrow.shared %252 borrow.shared %254 borrow.shared %255 borrow.shared %256
+  write.init borrow.unique (wrong) take %257
+  %259: I32 [unique call] = read borrow.unique (wrong) loan2
+  %260: Vec(U8) = read copy.trivial (v)
+  %261: I32 = const 15
+  %262: I32 = const 14
+  %263: I32 = const 13
+  %264: I32 = const 12
+  %265: I32 = const 11
+  %266: I32 = const 10
+  %267: I32 = const 9
+  %268: I32 = const 8
+  %269: I32 = const 7
+  %270: I32 = const 6
+  %271: I32 = const 5
+  %272: I32 = const 4
+  %273: I32 = const 3
+  %274: I32 = const 2
+  %275: I32 = const 1
+  %276: I32 = const 0
+  %277: I32 = const 16
+  %278: I32 = const 21
+  %279: I32 = const 26
+  %280: I32 = const 31
+  %281: I32 = const 4
+  %282: I32 = const 9
+  %283: I32 = const 14
+  %284: I32 = const 19
+  %285: I32 = const 24
+  %286: I32 = const 29
+  %287: I32 = const 2
+  %288: I32 = const 7
+  %289: I32 = const 12
+  %290: I32 = const 17
+  %291: I32 = const 22
+  %292: I32 = const 27
+  %293: I32 = const 32
+  %294: I32 = const 39
+  %295: I32 = const 46
+  %296: I32 = const 53
+  %297: I32 = const 60
+  %298: I32 = const 3
+  %299: I32 = const 10
+  %300: I32 = const 17
+  %301: I32 = const 24
+  %302: I32 = const 31
+  %303: I32 = const 38
+  %304: I32 = const 45
+  %305: I32 = const 52
+  %306: I32 = const 59
+  %307: I32 = const 2
+  %308: I32 = const 9
+  %309: I32 = const 16
+  %310: I32 = const 23
+  %311: I32 = const 30
+  %312: I32 = const 37
+  %313: I32 = const 44
+  %314: I32 = const 51
+  %315: I32 = const 58
+  %316: I32 = const 1
+  %317: I32 = const 8
+  %318: I32 = const 15
+  %319: I32 = const 22
+  %320: I32 = const 29
+  %321: I32 = const 36
+  %322: I32 = const 43
+  %323: I32 = const 50
+  %324: I32 = const 57
+  %325: [I32 *64] = aggregate.0 take %261 take %262 take %263 take %264 take %265 take %266 take %267 take %268 take %269 take %270 take %271 take %272 take %273 take %274 take %275 take %276 take %277 take %278 take %279 take %280 take %281 take %282 take %283 take %284 take %285 take %286 take %287 take %288 take %289 take %290 take %291 take %292 take %293 take %294 take %295 take %296 take %297 take %298 take %299 take %300 take %301 take %302 take %303 take %304 take %305 take %306 take %307 take %308 take %309 take %310 take %311 take %312 take %313 take %314 take %315 take %316 take %317 take %318 take %319 take %320 take %321 take %322 take %323 take %324
+  %326: Vec(U8) = vec.shuffle [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %260 inspect %260
+  %327: [U8 *256] [shared call] = read borrow.shared (input) loan3
+  %328: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *256], U8) borrow.shared %327 roots{3}
+  %329: [I32 *64] = read copy.trivial (cross)
+  %330: I32 = const 0
+  %331: I32 = call wrongBytes borrow.shared %326 borrow.shared %328 borrow.shared %329 borrow.shared %330
+  %332: {} = call +=(I32) borrow.unique %259 borrow.shared %331
+  %333: U8 = const 0
+  %334: [U8 *256] = aggregate.0 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333 take %333
+  write.init borrow.unique (out) take %334
+  %336: Vec(U8) = read copy.trivial (v)
+  %337: I32 = const 16
+  write.init borrow.unique (w) take %337
+  %339: I32 = const 16
+  %340: I32 = const 256
+  %341: I32 = div inspect %340 inspect %339
+  %342: I32 = const 0
+  %343: I32 = const 1
+  write.init borrow.unique (local9) take %342
+  jump -> bb8(take %341, take %343)
+
+bb7:
+  %51: I32 = const 100
+  return take %51
+
+bb8(%344: I32, %345: I32):
+  %352: I32 = read copy.trivial (local9)
+  %353: Bool = lt inspect %352 inspect %344
+  branch inspect %353 -> bb11(take %344, take %345) -> bb10(take %344, take %345)
+
+bb9(%346: I32, %347: I32):
+  %439: I32 = read copy.trivial (local9)
+  %440: I32 = add inspect %439 inspect %347
+  write.assign borrow.unique (local9) take %440
+  jump -> bb8(take %346, take %347)
+
+bb10(%348: I32, %349: I32):
+  %443: I32 = const 0
+  %444: I32 = const 256
+  %445: I32 = const 1
+  write.init borrow.unique (local12) take %443
+  jump -> bb12(take %444, take %445)
+
+bb11(%354: I32, %355: I32):
+  %357: I32 = read copy.trivial (local9)
+  write.init borrow.unique (j) take %357
+  %359: I32 = read copy.trivial (j)
+  %360: I32 = const 16
+  %361: I32 = mul inspect %359 inspect %360
+  %362: Size = convert inspect %361
+  write.init borrow.unique (at) take %362
+  %364: [U8 *256] [shared call] = read borrow.shared (out) loan4
+  %365: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *256], U8) borrow.shared %364 roots{4}
+  %366: Size = read copy.trivial (at)
+  %367: [U8 *256] [shared call] = read borrow.shared (input) loan5
+  %368: Array(U8) [shared slot 0 view] = call.derivation elements([U8 *256], U8) borrow.shared %367 roots{5}
+  %369: Size = read copy.trivial (at)
+  %370: Vec(U8) = call loadVector(U8) borrow.shared %368 borrow.shared %369
+  %371: I32 = const 15
+  %372: I32 = const 14
+  %373: I32 = const 13
+  %374: I32 = const 12
+  %375: I32 = const 11
+  %376: I32 = const 10
+  %377: I32 = const 9
+  %378: I32 = const 8
+  %379: I32 = const 7
+  %380: I32 = const 6
+  %381: I32 = const 5
+  %382: I32 = const 4
+  %383: I32 = const 3
+  %384: I32 = const 2
+  %385: I32 = const 1
+  %386: I32 = const 0
+  %387: I32 = const 16
+  %388: I32 = const 21
+  %389: I32 = const 26
+  %390: I32 = const 31
+  %391: I32 = const 4
+  %392: I32 = const 9
+  %393: I32 = const 14
+  %394: I32 = const 19
+  %395: I32 = const 24
+  %396: I32 = const 29
+  %397: I32 = const 2
+  %398: I32 = const 7
+  %399: I32 = const 12
+  %400: I32 = const 17
+  %401: I32 = const 22
+  %402: I32 = const 27
+  %403: I32 = const 32
+  %404: I32 = const 39
+  %405: I32 = const 46
+  %406: I32 = const 53
+  %407: I32 = const 60
+  %408: I32 = const 3
+  %409: I32 = const 10
+  %410: I32 = const 17
+  %411: I32 = const 24
+  %412: I32 = const 31
+  %413: I32 = const 38
+  %414: I32 = const 45
+  %415: I32 = const 52
+  %416: I32 = const 59
+  %417: I32 = const 2
+  %418: I32 = const 9
+  %419: I32 = const 16
+  %420: I32 = const 23
+  %421: I32 = const 30
+  %422: I32 = const 37
+  %423: I32 = const 44
+  %424: I32 = const 51
+  %425: I32 = const 58
+  %426: I32 = const 1
+  %427: I32 = const 8
+  %428: I32 = const 15
+  %429: I32 = const 22
+  %430: I32 = const 29
+  %431: I32 = const 36
+  %432: I32 = const 43
+  %433: I32 = const 50
+  %434: I32 = const 57
+  %435: [I32 *64] = aggregate.0 take %371 take %372 take %373 take %374 take %375 take %376 take %377 take %378 take %379 take %380 take %381 take %382 take %383 take %384 take %385 take %386 take %387 take %388 take %389 take %390 take %391 take %392 take %393 take %394 take %395 take %396 take %397 take %398 take %399 take %400 take %401 take %402 take %403 take %404 take %405 take %406 take %407 take %408 take %409 take %410 take %411 take %412 take %413 take %414 take %415 take %416 take %417 take %418 take %419 take %420 take %421 take %422 take %423 take %424 take %425 take %426 take %427 take %428 take %429 take %430 take %431 take %432 take %433 take %434
+  %436: Vec(U8) = vec.shuffle [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %370 inspect %370
+  %437: {} = call storeVector(U8) borrow.shared %365 borrow.shared %366 borrow.shared %436
+  jump -> bb9(take %354, take %355)
+
+bb12(%446: I32, %447: I32):
+  %454: I32 = read copy.trivial (local12)
+  %455: Bool = lt inspect %454 inspect %446
+  branch inspect %455 -> bb15(take %446, take %447) -> bb14(take %446, take %447)
+
+bb13(%448: I32, %449: I32):
+  %503: I32 = read copy.trivial (local12)
+  %504: I32 = add inspect %503 inspect %449
+  write.assign borrow.unique (local12) take %504
+  jump -> bb12(take %448, take %449)
+
+bb14(%450: I32, %451: I32):
+  %507: U16 = const 0
+  %508: [U16 *32] = aggregate.0 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507 take %507
+  write.init borrow.unique (halves) take %508
+  %510: I32 = const 0
+  %511: I32 = const 32
+  %512: I32 = const 1
+  write.init borrow.unique (local15) take %510
+  jump -> bb19(take %511, take %512)
+
+bb15(%456: I32, %457: I32):
+  %459: I32 = read copy.trivial (local12)
+  write.init borrow.unique (i) take %459
+  %461: I32 = read copy.trivial (i)
+  %462: Size = convert inspect %461
+  %463: USize = const 256
+  %464: USize = bitcast inspect %462
+  %465: Bool = ge inspect %464 inspect %463
+  %466: {} = call checkCondition borrow.shared %465
+  %467: U8 = read copy.trivial (out[...])
+  %468: I32 = read copy.trivial (i)
+  %469: I32 = const 16
+  %470: I32 = div inspect %468 inspect %469
+  %471: I32 = const 16
+  %472: I32 = mul inspect %470 inspect %471
+  %473: I32 = read copy.trivial (i)
+  %474: I32 = const 16
+  %475: I32 = rem inspect %473 inspect %474
+  %476: Size = convert inspect %475
+  %477: USize = const 64
+  %478: USize = bitcast inspect %476
+  %479: Bool = ge inspect %478 inspect %477
+  %480: {} = call checkCondition borrow.shared %479
+  %481: I32 = read copy.trivial (cross[...])
+  %482: I32 = add inspect %472 inspect %481
+  %483: Size = convert inspect %482
+  %484: USize = const 256
+  %485: USize = bitcast inspect %483
+  %486: Bool = ge inspect %485 inspect %484
+  %487: {} = call checkCondition borrow.shared %486
+  %488: U8 = read copy.trivial (input[...])
+  %489: Bool = ne inspect %467 inspect %488
+  branch inspect %489 -> bb18(take %456, take %457) -> bb16(take %456, take %457)
+
+bb16(%490: I32, %491: I32):
+  jump -> bb17(take %490, take %491)
+
+bb17(%498: I32, %499: I32):
+  jump -> bb13(take %498, take %499)
+
+bb18(%492: I32, %493: I32):
+  %495: I32 [unique call] = read borrow.unique (wrong) loan6
+  %496: I32 = const 1
+  %497: {} = call +=(I32) borrow.unique %495 borrow.shared %496
+  jump -> bb17(take %492, take %493)
+
+bb19(%513: I32, %514: I32):
+  %521: I32 = read copy.trivial (local15)
+  %522: Bool = lt inspect %521 inspect %513
+  branch inspect %522 -> bb22(take %513, take %514) -> bb21(take %513, take %514)
+
+bb20(%515: I32, %516: I32):
+  %542: I32 = read copy.trivial (local15)
+  %543: I32 = add inspect %542 inspect %516
+  write.assign borrow.unique (local15) take %543
+  jump -> bb19(take %515, take %516)
+
+bb21(%517: I32, %518: I32):
+  %546: [U16 *32] [shared call] = read borrow.shared (halves) loan7
+  %547: Array(U16) [shared slot 0 view] = call.derivation elements([U16 *32], U16) borrow.shared %546 roots{7}
+  %548: Size = const 0
+  %549: Vec(U16) = call loadVector(U16) borrow.shared %547 borrow.shared %548
+  write.init borrow.unique (h) take %549
+  %551: I32 = const 7
+  %552: I32 = const 6
+  %553: I32 = const 5
+  %554: I32 = const 4
+  %555: I32 = const 3
+  %556: I32 = const 2
+  %557: I32 = const 1
+  %558: I32 = const 0
+  %559: I32 = const 8
+  %560: I32 = const 11
+  %561: I32 = const 14
+  %562: I32 = const 1
+  %563: I32 = const 4
+  %564: I32 = const 7
+  %565: I32 = const 10
+  %566: I32 = const 13
+  %567: I32 = const 16
+  %568: I32 = const 21
+  %569: I32 = const 26
+  %570: I32 = const 31
+  %571: I32 = const 4
+  %572: I32 = const 9
+  %573: I32 = const 14
+  %574: I32 = const 19
+  %575: I32 = const 24
+  %576: I32 = const 29
+  %577: I32 = const 2
+  %578: I32 = const 7
+  %579: I32 = const 12
+  %580: I32 = const 17
+  %581: I32 = const 22
+  %582: I32 = const 27
+  %583: [I32 *32] = aggregate.0 take %551 take %552 take %553 take %554 take %555 take %556 take %557 take %558 take %559 take %560 take %561 take %562 take %563 take %564 take %565 take %566 take %567 take %568 take %569 take %570 take %571 take %572 take %573 take %574 take %575 take %576 take %577 take %578 take %579 take %580 take %581 take %582
+  write.init borrow.unique (words) take %583
+  %585: U16 = const 0
+  %586: [U16 *32] = aggregate.0 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585 take %585
+  write.init borrow.unique (hs) take %586
+  %588: [U16 *32] [shared call] = read borrow.shared (hs) loan8
+  %589: Array(U16) [shared slot 0 view] = call.derivation elements([U16 *32], U16) borrow.shared %588 roots{8}
+  %590: Size = const 0
+  %591: Vec(U16) = read copy.trivial (h)
+  %592: I32 = const 7
+  %593: I32 = const 6
+  %594: I32 = const 5
+  %595: I32 = const 4
+  %596: I32 = const 3
+  %597: I32 = const 2
+  %598: I32 = const 1
+  %599: I32 = const 0
+  %600: I32 = const 8
+  %601: I32 = const 11
+  %602: I32 = const 14
+  %603: I32 = const 1
+  %604: I32 = const 4
+  %605: I32 = const 7
+  %606: I32 = const 10
+  %607: I32 = const 13
+  %608: I32 = const 16
+  %609: I32 = const 21
+  %610: I32 = const 26
+  %611: I32 = const 31
+  %612: I32 = const 4
+  %613: I32 = const 9
+  %614: I32 = const 14
+  %615: I32 = const 19
+  %616: I32 = const 24
+  %617: I32 = const 29
+  %618: I32 = const 2
+  %619: I32 = const 7
+  %620: I32 = const 12
+  %621: I32 = const 17
+  %622: I32 = const 22
+  %623: I32 = const 27
+  %624: [I32 *32] = aggregate.0 take %592 take %593 take %594 take %595 take %596 take %597 take %598 take %599 take %600 take %601 take %602 take %603 take %604 take %605 take %606 take %607 take %608 take %609 take %610 take %611 take %612 take %613 take %614 take %615 take %616 take %617 take %618 take %619 take %620 take %621 take %622 take %623
+  %625: Vec(U16) = vec.shuffle [7, 6, 5, 4, 3, 2, 1, 0] inspect %591 inspect %591
+  %626: {} = call storeVector(U16) borrow.shared %589 borrow.shared %590 borrow.shared %625
+  %627: Vec(U16) = read copy.trivial (h)
+  %628: I32 = const 8
+  %629: I32 = const 0
+  %630: I32 = const 1
+  write.init borrow.unique (local20) take %629
+  jump -> bb23(take %628, take %630)
+
+bb22(%523: I32, %524: I32):
+  %526: I32 = read copy.trivial (local15)
+  write.init borrow.unique (i) take %526
+  %528: I32 = read copy.trivial (i)
+  %529: Size = convert inspect %528
+  %530: USize = const 32
+  %531: USize = bitcast inspect %529
+  %532: Bool = ge inspect %531 inspect %530
+  %533: {} = call checkCondition borrow.shared %532
+  %534: I32 = read copy.trivial (i)
+  %535: I32 = const 1001
+  %536: I32 = mul inspect %534 inspect %535
+  %537: I32 = read copy.trivial (global seed)
+  %538: I32 = add inspect %536 inspect %537
+  %539: U16 = convert inspect %538
+  write.assign borrow.unique (halves[...]) take %539
+  jump -> bb20(take %523, take %524)
+
+bb23(%631: I32, %632: I32):
+  %639: I32 = read copy.trivial (local20)
+  %640: Bool = lt inspect %639 inspect %631
+  branch inspect %640 -> bb26(take %631, take %632) -> bb25(take %631, take %632)
+
+bb24(%633: I32, %634: I32):
+  %680: I32 = read copy.trivial (local20)
+  %681: I32 = add inspect %680 inspect %634
+  write.assign borrow.unique (local20) take %681
+  jump -> bb23(take %633, take %634)
+
+bb25(%635: I32, %636: I32):
+  %684: I32 = read copy.trivial (wrong)
+  return take %684
+
+bb26(%641: I32, %642: I32):
+  %644: I32 = read copy.trivial (local20)
+  write.init borrow.unique (i) take %644
+  %646: I32 = read copy.trivial (i)
+  %647: Size = convert inspect %646
+  %648: USize = const 32
+  %649: USize = bitcast inspect %647
+  %650: Bool = ge inspect %649 inspect %648
+  %651: {} = call checkCondition borrow.shared %650
+  %652: U16 = read copy.trivial (hs[...])
+  %653: I32 = read copy.trivial (i)
+  %654: Size = convert inspect %653
+  %655: USize = const 32
+  %656: USize = bitcast inspect %654
+  %657: Bool = ge inspect %656 inspect %655
+  %658: {} = call checkCondition borrow.shared %657
+  %659: I32 = read copy.trivial (words[...])
+  %660: Size = convert inspect %659
+  %661: USize = const 32
+  %662: USize = bitcast inspect %660
+  %663: Bool = ge inspect %662 inspect %661
+  %664: {} = call checkCondition borrow.shared %663
+  %665: U16 = read copy.trivial (halves[...])
+  %666: Bool = ne inspect %652 inspect %665
+  branch inspect %666 -> bb29(take %641, take %642) -> bb27(take %641, take %642)
+
+bb27(%667: I32, %668: I32):
+  jump -> bb28(take %667, take %668)
+
+bb28(%675: I32, %676: I32):
+  jump -> bb24(take %675, take %676)
+
+bb29(%669: I32, %670: I32):
+  %672: I32 [unique call] = read borrow.unique (wrong) loan9
+  %673: I32 = const 1
+  %674: {} = call +=(I32) borrow.unique %672 borrow.shared %673
+  jump -> bb28(take %669, take %670)
+}
+
+entry main
