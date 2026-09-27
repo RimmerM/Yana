@@ -10,6 +10,8 @@
    - `String.appendUtf8(text, &to)` and `String.appendUtf16(text, &to)` encode a string onto the
      end of an array.
    - `String.fromUtf8(bytes)` and `String.fromUtf16(units)` decode one into a new string.
+   - `String.fromValidUtf8(bytes)` is `fromUtf8` that refuses ill-formed bytes with `Nothing`, in
+     one pass natively rather than `isValidUtf8` and then a copy (J206).
    - `isValidUtf8(bytes)` and `isValidUtf16(units)` are the opt-in validation part 7.1 leaves to
      the caller.
    - `String.bytes(text)`, natively only, is a string's own units as a `[U8]` window, with no copy.

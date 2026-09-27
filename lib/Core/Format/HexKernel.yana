@@ -1,0 +1,176 @@
+module Core
+
+{-
+   ==========================================================================================
+   Hexadecimal as finite kernels - one window of input to one window of output.
+   ==========================================================================================
+
+   `Base64Kernel.yana`'s terms (Implementation-Streams.md §3.4, D1) for the simplest notation in this
+   directory: the encoder has no carry at all, and the decoder's is one nibble, which the caller keeps
+   as two locals (`high`, `held`) so that one driver in `lib/Stream/Hex.yana` serves every destination.
+
+   **The decoder is strict and whole.** It reads every unit it is given as a digit, in either case,
+   and a unit that is not one is `InvalidDigit` at that unit; a text that ends on a held nibble is
+   `OddLength` at its end. That is not `readHexBytes`, which stops at the first non-digit and leaves
+   a trailing odd digit unread - a reader of a notation inside a larger text - where these decode a
+   whole run a caller already cut out.
+-}
+
+pub data qualified HexFault = InvalidDigit | OddLength
+
+pub data HexError {at: Size, fault: HexFault}
+
+-- A decoding kernel's progress, and what stopped it when that was the text: the unit is at `read`.
+pub data HexProgress {read: Size, written: Size, fault: Maybe(HexFault)}
+
+-- Both cases in one table, lower then upper, chosen by an offset for `base64Units`' reason; bytes
+-- rather than a `String` because a `String`'s units are not bytes on JavaScript.
+let hexDigitUnits = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"
+] :: [U8 *32]
+
+{-
+   A unit's value as a digit in either case, or 255: `base64Values`' form and reason (J233). A byte
+   indexes it, so a lookup keeps no check; `hexNibble` below is the answer as a `Size`, which the URL,
+   QP and JSON kernels read too.
+-}
+let hexValues = [
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255,
+    255, 10, 11, 12, 13, 14, 15, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 10, 11, 12, 13, 14, 15, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+] :: [U8 *256]
+
+-- A digit's value in either case, or -1.
+@inline fn hexNibble(unit: U8) -> Size:
+    let value = hexValues[unit :: Size] :: Size
+    return if value < 16 then value else -1
+
+-- Exactly two units a byte, or `Nothing` past a `Size`.
+pub fn hexEncodedLength(count: Size) -> Maybe(Size):
+    if count < 0 || count > (maxValue() :: Size) / 2 then return Nothing
+    return Just(count * 2)
+
+-- What `count` units decode to when they are a whole text: half, rounded down.
+pub fn hexDecodedBound(count: Size) -> Size = if count <= 0 then 0 else count / 2
+
+{-
+   Every byte of `input` that fits, as two digits each at the front of `space`. No carry: a call stops
+   at a byte boundary, and a driver asks for two units of room.
+
+   **The blocks run first** (J235): `encodeHexBlocks` takes what it can a register at a time and the
+   table loop below finishes from where it stopped - which natively is nowhere, since the block bodies
+   take every byte that fits, ragged end included, and on JavaScript is everything.
+-}
+pub fn encodeHexRun(upper: Bool, input: '[U8], &space: '[U8]) -> CodecProgress:
+    let blocks = encodeHexBlocks(upper, input, space)
+    let offset = if upper then 16 else 0 :: Size
+    let &i = blocks.read
+    let &o = blocks.written
+
+    while need(input, i, 1) && need(space, o, 2):
+        let byte = input[i] :: Size
+        space[o] = hexDigitUnits[(byte `shr` 4) + offset]
+        space[o + 1] = hexDigitUnits[(byte `and` 15) + offset]
+        i += 1
+        o += 2
+
+    return CodecProgress {read: i, written: o}
+
+{-
+   The bytes at the front of `input` as digits at the front of `space`, a register at a time - the
+   counterpart of `decodeBase64Blocks`, with the same promise: **a prefix of the input, each byte two
+   units, and nothing written past them.**
+
+   **Split by target rather than replaced**, which is the one way this differs from its Base64 and hex
+   decoding siblings: natively the baseline *is* the natural-width body (`HexKernel.native.yana`, J238;
+   until then a sixteen-lane one, replaced at `avx512` by a sixty-four-lane one). That is the shape
+   `pushHex` had before J235 moved it here - its sixteen-lane loop was never a replacement - and
+   keeping it keeps `hexOf` a vector loop
+   under `-no-replacements`, where a do-nothing baseline would have made it the table walk. JavaScript
+   takes nothing and the loop above does all of it.
+-}
+@platform(js) fn encodeHexBlocks(upper: Bool, input: '[U8], &space: '[U8]) -> CodecProgress =
+    CodecProgress {read: 0, written: 0}
+
+-- The room decoding needs when `held` says whether a nibble is waiting: the byte `next` completes
+-- when it is a digit, or nothing when it would only be held or is a fault. Exact, for
+-- `base64EncodeRoom`'s reason - before J232 a non-digit after a held one asked for a byte, so a full
+-- fixed window said `OutputFull` where a larger one said `InvalidDigit`.
+pub fn hexDecodeRoom(held: Bool, next: U8) -> Size = if held && hexNibble(next) >= 0 then 1 else 0
+
+{-
+   Decode what of `input` fits in `space`. `high` and `held` are a byte's first digit an earlier run
+   ended on, which the caller starts empty and ends with `hexDecodeEnd`. Pairs at the front go through
+   the blocks and then the whole-pair loop; the walk after it is for a pair split across runs and for
+   the faults.
+-}
+pub fn decodeHexRun(&high: Size, &held: Bool, input: '[U8], &space: '[U8]) -> HexProgress:
+    let &at = 0 :: Size
+    let &n = 0 :: Size
+
+    while at < length(input):
+        if !held:
+            -- The blocks first (J235), from wherever a pair starts: the front of the run, or the unit
+            -- after a byte the walk below completed. Unguarded: each body tests its own room, and under
+            -- the do-nothing baseline the call and both slices are dead code, where a `+ 16` guard in
+            -- front was a comparison left behind - 0.8% on a sixteen-byte `decodeInto` at
+            -- `-no-replacements`, and slower at `sse4` too.
+            let blocks = decodeHexBlocks(input[at..length(input)], space.sliceMut(n, length(space)))
+            at += blocks.read
+            n += blocks.written
+            while need(input, at, 2) && need(space, n, 1):
+                let a = hexValues[input[at] :: Size]
+                let b = hexValues[input[at + 1] :: Size]
+                -- 255 is the one entry with its top bit set: one test for both digits.
+                if ((a `or` b) `and` 128) != 0 then break
+                space[n] = (a `shl` 4) `or` b
+                at += 2
+                n += 1
+            if at >= length(input) then break
+
+        let value = hexNibble(input[at])
+        if value < 0 then return HexProgress {read: at, written: n, fault: Just(HexFault.InvalidDigit)}
+        if held:
+            if n >= length(space) then break
+            space[n] = truncate((high `shl` 4) `or` value) :: U8
+            n += 1
+            held = False
+        else:
+            -- Held even when there is no room, so a call always progresses in the room
+            -- `hexDecodeRoom` asked for.
+            high = value
+            held = True
+        at += 1
+
+    return HexProgress {read: at, written: n, fault: Nothing}
+
+-- Whether a text may end on this carry: `OddLength` when a digit is held.
+pub fn hexDecodeEnd(held: Bool) -> Maybe(HexFault) = if held then Just(HexFault.OddLength) else Nothing
+
+{-
+   The whole digit pairs at the front of `input`, decoded a register at a time into the front of
+   `space` - `decodeBase64Blocks`' counterpart, for this kernel's pair loop and for `readHexBytes`
+   (`Hex.native.yana`'s `pushHexBlocks` lends its array's reserved bytes as the window). **An even
+   count of units, all digits, with exactly their bytes written**; a block holding anything else stops
+   it, and the walk behind it finishes the run - which is what lets the strict kernel, which faults
+   there, and the lenient reader, which stops there, share it.
+
+   The baseline takes nothing, which keeps the promise and is what JavaScript and `-no-replacements`
+   run; `HexKernel.native.yana` replaces it at the natural width (J238).
+   Each block stores exactly the bytes it decoded, so nothing past `written` changes.
+-}
+fn decodeHexBlocks(input: '[U8], &space: '[U8]) -> CodecProgress = CodecProgress {read: 0, written: 0}

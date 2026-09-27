@@ -1,0 +1,67 @@
+{-
+   `interleaveLow` and `interleaveHigh` at the natural width - J236.
+
+   The two are whole-vector operations: the low (or high) half of each source, alternating. At sixteen
+   lanes that is `punpckl*`/`punpckh*`; at thirty-two under `avx2` it is two in-lane interleaves and a
+   `vperm2f128` (`lowerWideInterleaves`), since every AVX2 interleave works inside each 128-bit half;
+   at `avx512` and `avx512-256` one `vpermi2*`; on JavaScript a lane walk. Each wrong answer is a
+   plausible vector - the in-lane unpack alone is exactly the right lanes in the wrong quarters - so
+   every lane is checked, through `all`, at every lane width the builtin admits.
+
+   With `a = iota` and `b = iota + n` over `n` lanes, lane `j` of the low interleave is `j / 2` plus
+   `n` at an odd `j`, and the high one is that plus `n / 2`: the answer is written as that arithmetic
+   rather than as a constant, so it holds at whatever width the row compiles.
+-}
+
+import Test
+
+@test fn interleaveBytes():
+    let j = iota() :: Vec(U8)
+    let n = truncate(lanes(j)) :: U8
+    let one = splat(1 :: U8) :: Vec(U8)
+    let b = j + (splat(n) :: Vec(U8))
+    let low = (j `shr` one) + select((j `and` one) .== one, splat(n) :: Vec(U8), zero() :: Vec(U8))
+
+    check(all(interleaveLow(j, b) .== low))
+    check(all(interleaveHigh(j, b) .== low + (splat(n / 2) :: Vec(U8))))
+
+@test fn interleaveWords():
+    let j = iota() :: Vec(U16)
+    let n = truncate(lanes(j)) :: U16
+    let one = splat(1 :: U16) :: Vec(U16)
+    let b = j + (splat(n) :: Vec(U16))
+    let low = (j `shr` one) + select((j `and` one) .== one, splat(n) :: Vec(U16), zero() :: Vec(U16))
+
+    check(all(interleaveLow(j, b) .== low))
+    check(all(interleaveHigh(j, b) .== low + (splat(n / 2) :: Vec(U16))))
+
+@test fn interleaveDoublewords():
+    let j = iota() :: Vec(U32)
+    let n = truncate(lanes(j)) :: U32
+    let one = splat(1 :: U32) :: Vec(U32)
+    let b = j + (splat(n) :: Vec(U32))
+    let low = (j `shr` one) + select((j `and` one) .== one, splat(n) :: Vec(U32), zero() :: Vec(U32))
+
+    check(all(interleaveLow(j, b) .== low))
+    check(all(interleaveHigh(j, b) .== low + (splat(n / 2) :: Vec(U32))))
+
+    -- The same lanes read as floats, which is the other family of rows (`unpcklps`/`unpckhps`).
+    let fl = interleaveLow(bitcast(j) :: Vec(F32), bitcast(b) :: Vec(F32))
+    let fh = interleaveHigh(bitcast(j) :: Vec(F32), bitcast(b) :: Vec(F32))
+    check(all((bitcast(fl) :: Vec(U32)) .== low))
+    check(all((bitcast(fh) :: Vec(U32)) .== low + (splat(n / 2) :: Vec(U32))))
+
+@test fn interleaveQuadwords():
+    let j = iota() :: Vec(U64)
+    let n = bitcast(lanes(j) :: I64) :: U64
+    let one = splat(1 :: U64) :: Vec(U64)
+    let b = j + (splat(n) :: Vec(U64))
+    let low = (j `shr` one) + select((j `and` one) .== one, splat(n) :: Vec(U64), zero() :: Vec(U64))
+
+    check(all(interleaveLow(j, b) .== low))
+    check(all(interleaveHigh(j, b) .== low + (splat(n / 2) :: Vec(U64))))
+
+    let dl = interleaveLow(bitcast(j) :: Vec(F64), bitcast(b) :: Vec(F64))
+    let dh = interleaveHigh(bitcast(j) :: Vec(F64), bitcast(b) :: Vec(F64))
+    check(all((bitcast(dl) :: Vec(U64)) .== low))
+    check(all((bitcast(dh) :: Vec(U64)) .== low + (splat(n / 2) :: Vec(U64))))

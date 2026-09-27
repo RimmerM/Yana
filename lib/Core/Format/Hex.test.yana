@@ -76,9 +76,10 @@ fn hexReference(bytes: [U8]) -> String:
     checkEqual(hexOf(elements([0 :: U8, 15, 240, 26, 161, 255])), "000ff01aa1ff")
 
     -- Every length from nothing to two blocks and a tail, against the scalar answer. Eighty rather
-    -- than forty because a block is sixteen bytes at `sse4` and `avx2` and thirty-two at `avx512`,
-    -- where `Hex.native.avx512.yana` takes the natural width - so the sweep has to reach two blocks
-    -- and a tail of the widest one.
+    -- than forty because a block was sixteen bytes at `sse4` and `avx2` and thirty-two at `avx512`,
+    -- where the replacement takes the natural width - so the sweep has to reach two blocks and a tail
+    -- of the widest one. It is sixty-four since Analysis-Avx512 step 10, and `Stream`'s
+    -- `hexEncodingBlocksAgree` sweeps to 200 (J235).
     let &bytes = [] :: [U8]
     for n in 0 .. 80:
         checkEqual(hexOf(elements(bytes)), hexReference(elements(bytes)))
@@ -213,9 +214,9 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
    Every length from nothing to a hundred bytes, read back from what the writer wrote, in both
    letter cases.
 
-   Natively the digit pairs are decoded sixteen units - eight bytes - at a time by a block form
-   (`pushHexBlocks` in `Hex.native.yana`) that abandons a block holding anything that is not a
-   digit, so the lengths worth walking are every one around each multiple of eight bytes, and the
+   Natively the digit pairs are decoded two registers of units at a time and then sixteen units -
+   eight bytes - by the kernel's block bodies (`decodeHexBlocks`, through `pushHexBlocks`), which
+   abandon a block holding anything that is not a digit, so the lengths worth walking are every one around each multiple of eight bytes, and the
    two cases worth having are the one the writer emits and the one it does not. The byte pattern
    reaches every value, which is where a run's arithmetic would be wrong if it were.
 -}
@@ -243,7 +244,7 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
 {-
    A unit that is not a digit at every position of a long run.
 
-   The block form takes sixteen units or none, so where the first non-digit falls decides how much
+   The block form takes a whole block of units or none, so where the first non-digit falls decides how much
    of the text the walk behind it is handed - and the bytes and the cursor have to come out the same
    wherever that is. An odd position stops in the middle of a pair, which is the case that leaves a
    digit unread.
@@ -251,9 +252,11 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
 @test fn hexStopsAtTheFirstNonDigit():
     let &bad = 0
 
-    for stop in 1 .. 40:
-        let &text = String.ofCapacity(80)
-        for k in 0 .. 80:
+    -- 300 units and stops through the first 270: past two turns of the natural-width body at its
+    -- widest (128 units each, J238), which a shorter text never enters at `avx512`.
+    for stop in 1 .. 270:
+        let &text = String.ofCapacity(300)
+        for k in 0 .. 300:
             text.pushUnit((if k == stop then "z" else "1") :: CodeUnit)
 
         let pairs = stop / 2
@@ -268,3 +271,46 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
             Err(_) -> (if pairs > 0 then bad = bad + 1)
 
     checkEqual(bad, 0)
+
+{-
+   The reader's blocks (J235: the kernel's `decodeHexBlocks`, two registers of units a turn and then
+   sixteen) at every kind of stop: a 320-unit text whose case alternates every three units, with a
+   unit just outside one of the digit runs at each of its first 300 positions - past two turns of the
+   natural-width body at sixty-four lanes (128 units each, J238) and into its sixteen-lane tail - and
+   the same text cut there - the bytes and the cursor the walk must give either way.
+-}
+@test fn hexReadingBlocksAgree():
+    let &bytes = emptyArray() :: Array(U8)
+    for k in 0 .. 160:
+        push(bytes, truncate(k * 73 + 29) :: U8)
+    let clean = hexOf(elements(bytes))
+    let outside = ["/", ":", "@", "G", "`", "g", ""] :: [String *7]
+
+    for stop in 0 .. 300:
+        for kind in 0 .. 7:
+            let &text = String.ofCapacity(330)
+            for k in 0 .. length(clean):
+                if k == stop:
+                    if kind == 6 then break
+                    text.push(outside[kind])
+                else:
+                    let unit = String.unit(clean, k)
+                    let cased = if (k / 3) % 2 == 1 && unit is "a"..="f" then unit - "a" + "A" else unit
+                    text.pushUnit(cased)
+
+            let pairs = stop / 2
+            let &at = 0 :: Size
+            match readHexBytes(text, at):
+                Ok(back):
+                    checkEqual(length(back), pairs)
+                    checkEqual(at, pairs * 2)
+                    check(itemsEqual(elements(back), elements(bytes)[0..pairs]))
+                Err(_) -> checkEqual(pairs, 0)
+
+-- The upper-case run is `pushHex`'s since J235, not a unit at a time: every length up to 200.
+@test fn hexBytesUpperEveryLength():
+    for n in 0 .. 201:
+        let &bytes = emptyArray() :: Array(U8)
+        for k in 0 .. n:
+            push(bytes, truncate(k * 151 + 7) :: U8)
+        checkEqual("{hexBytes(elements(bytes), upper: True)}", toUpperAscii(hexOf(elements(bytes))))

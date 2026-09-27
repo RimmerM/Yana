@@ -3,33 +3,22 @@ module Core
 import Native
 
 {-
-   The block form of `pushHex` - sixteen bytes read, thirty-two units written, one sixteen-byte table.
+   `pushHex` and the reader's blocks, natively - the kernel's block bodies (`HexKernel.native.yana`, at
+   the natural width since J238; until then sixteen lanes and a sixty-four-lane `.native.avx512.yana`)
+   lent the reserved run of a string or an array as a byte window, as `Base64.native.yana` lends
+   Base64's (J202 D5, J234). Until J235 each of these held
+   its own vector loop: `pushHex` the encoding bodies over a `%CodeUnit`, in this file and a replacement
+   of its own at `avx512`, and `pushHexBlocks` a sixteen-lane decoder by range tests.
 
-   `Format/Hex.yana` beside this states what the operation is and why it is lower case; what is here
-   is the half the target decides.
+   `Format/Hex.yana` beside this states what the operations are.
 
-   **The digit is a lookup** - the classic `pshufb` of a sixteen-entry table, which is `lookup` since
-   Analysis-Avx512.md §3.3. It used to be arithmetic, `d + 48` with a further `39` above nine, because
-   `shuffle` takes a compile-time pattern and there was no operation whose index vector was computed
-   at run time; that was a compare, a blend and an add per vector where this is one `pshufb`. The
-   table is built once, in front of the loop, and the lookup takes each index modulo sixteen - which
-   is what lets the low nibble be the byte itself, with no `and` in front of it.
-
-   **Sixteen lanes, written down, for `interleaveLow`'s reason** - the same one `Core/Read.yana`'s
-   digit scan states: the interleave is one instruction at sixteen lanes on every x86 back to SSE2
-   and there is none at thirty-two below `avx512`, because every AVX2 shuffle works inside its own
-   128-bit half. So a build at `avx2`, where `Vec(U8)` means thirty-two lanes, would not compile this.
-   Two `punpck`s turn the high and low nibble vectors into the thirty-two output units in their final
-   order. At `avx512` the interleave at thirty-two lanes is `vpermi2b`, and `Hex.native.avx512.yana`
-   replaces this body with the same loop at that width - 1.7x when the digit was arithmetic
-   (test/bench/avx512/findings.md §5), 1.12x since the lookup made this body 1.4-1.6x faster (§8).
-
-   The write goes into the string's own run rather than through `pushUnit`, which is what the
-   reservation is for: the units are provably in range once the capacity has been checked, so the
-   two stores are stores. `String.appendUnits` makes the same check for the same reason - a reserve
-   the allocator refused is a write past the end of the run and not a lost append.
+   **The write goes into the string's own run**, which is what the reservation is for: natively a
+   `String` is its UTF-8 bytes, digits are ASCII, and the length is set before the kernel runs, so the
+   window is exactly the units it writes and nothing is zero-filled. `String.appendUnits` makes the same
+   capacity check for the same reason - a reserve the allocator refused is a write past the end of the
+   run and not a lost append.
 -}
-pub fn pushHex(bytes: [U8], &to: String):
+@inline pub fn pushHex(bytes: [U8], &to: String, upper: Bool = False):
     let n = length(bytes)
     if n <= 0 then return
 
@@ -40,60 +29,21 @@ pub fn pushHex(bytes: [U8], &to: String):
     checkCondition((to.units.run.capacity :: Size) < wanted)
     to.units.length = truncate(wanted) :: Count
 
-    let source = bytes.items
-    let target = to.units.run.items + start
+    let &window = ArrayView {items: bitcast(to.units.run.items + start) :: %U8, length: n + n}
+    let blocks = encodeHexBlocks(upper, bytes, window)
 
-    let digits = hexDigitVector()
-
-    let &i = 0 :: Size
-    while i + 16 <= n:
-        let block = vectorAt(source + i) :: Vec(U8, 16)
-        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8, 16)))
-        let lowText = lookup(digits, block)
-
-        let low16 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit, 16)
-        let high16 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit, 16)
-        setVectorAt(target + i + i, low16)
-        setVectorAt(target + i + i + 16, high16)
-        i = i + 16
-
-    -- The ragged end is one more block, read past the end on §5.2's padding, and its units written
-    -- up to their count with `storeUpTo` - a write past the run would be the destruction of whatever
-    -- follows it. Its `r` bytes are `2r` units: the first sixteen in the low interleave and the rest,
-    -- if any, in the high one, whose count is then at or below zero and writes nothing.
-    if i < n:
-        let block = vectorPast(source + i) :: Vec(U8, 16)
-        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8, 16)))
-        let lowText = lookup(digits, block)
-        let units = truncate((n - i) + (n - i)) :: Int
-
-        storeUpTo(target + i + i, units `and` 31, bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit, 16))
-        storeUpTo(target + i + i + 16, units - 16, bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit, 16))
-
--- "0123456789abcdef" as a vector, for `lookup`: the digits past nine are `a` onwards.
-fn hexDigitVector() -> Vec(U8, 16):
-    let at = iota() :: Vec(U8, 16)
-    let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
-    let digit = splat("0" :: U8) :: Vec(U8, 16)
-    return at + select(at .> (splat(9) :: Vec(U8, 16)), letter, digit)
+    -- The native block bodies take every byte that fits - ragged end included - and the window is
+    -- exactly their room, so this is all of them. Tested rather than finished by `encodeHexRun`:
+    -- keeping `upper` and the count live across the call for a finish that never runs was a quarter
+    -- of a nanosecond on a sixteen-byte `hexOf` (J235 §5).
+    checkCondition(blocks.read != n)
 
 {-
-   The block form of the reader - sixteen units read, eight bytes written a turn. `pushHex` above is
-   the other direction and `Hex.yana` states what the notation is.
-
-   This is `Base64.native.yana`'s decoder at a smaller scale, which is what Analysis-Avx512.md §4.6
-   calls it, and the two share their shape: each of the three runs a digit can fall in is subtracted
-   before it is tested, so one operation says both *whether* a unit is in the run and what it is
-   worth there - `v - '0'` read as an unsigned byte is at or below nine exactly for the digits, and
-   is also their value. A block that is not sixteen digits is abandoned whole and the walk behind
-   this one finishes the run, which is why an odd trailing digit, a separator and a unit that is not
-   hexadecimal at all all need no case here.
-
-   **A pair is a little-endian word and the first unit is its low byte**, so the shift that makes the
-   first unit the *high* nibble is what puts the two in the order they were written. The bytes are
-   then every other lane, which is one `pshufb`, and the eight of them are one quadword store - the
-   register's upper half holds nothing this run owns, and a whole-register store would be a write
-   past the end of the array that a reservation would have to be padded for.
+   The block form of the reader: the kernel's `decodeHexBlocks`, lent the array's reserved bytes as
+   the window. What comes back is a pair boundary with exactly the pairs' bytes appended, which is all
+   `Hex.yana`'s walk needs: an odd trailing digit, a separator and a unit that is not hexadecimal at
+   all end a block, and the walk finishes the run from there. The window is a byte per two units of
+   what is left, and the blocks write nothing past their bytes.
 -}
 @replaces
 fn pushHexBlocks(text: String, from: Size, &bytes: Array(U8)) -> Size:
@@ -101,48 +51,14 @@ fn pushHexBlocks(text: String, from: Size, &bytes: Array(U8)) -> Size:
     if from + 16 > units then return from
 
     let held = bytes.length :: Size
-    reserve(bytes, held + ((units - from) / 2))
+    let room = (units - from) / 2
+    reserve(bytes, held + room)
 
-    let window = String.bytes(text)
-    let source = window.items
-    let target = bytes.run.items
+    -- The text's units from `from` as a window built rather than sliced: `from + 16 <= units` is tested
+    -- above and the slice's clamps were four `cmov`s on a sixteen-byte read.
+    let &window = ArrayView {items: bytes.run.items + held, length: room}
+    let source = ArrayView {items: String.bytes(text).items + from, length: units - from}
+    let run = decodeHexBlocks(source, window)
 
-    let digit = splat("0" :: U8) :: Vec(U8, 16)
-    let lower = splat("a" :: U8) :: Vec(U8, 16)
-    let upper = splat("A" :: U8) :: Vec(U8, 16)
-    let lastDigit = splat(9 :: U8) :: Vec(U8, 16)
-    let lastLetter = splat(5 :: U8) :: Vec(U8, 16)
-    let ten = splat(10 :: U8) :: Vec(U8, 16)
-
-    let &at = from
-    let &out = held
-
-    while at + 16 <= units:
-        let block = vectorAt(source + at) :: Vec(U8, 16)
-
-        let fromDigit = block - digit
-        let fromLower = block - lower
-        let fromUpper = block - upper
-
-        let isDigit = fromDigit .<= lastDigit
-        let isLower = fromLower .<= lastLetter
-        let isUpper = fromUpper .<= lastLetter
-
-        if !all(or(isDigit, or(isLower, isUpper))) then break
-
-        let &nibble = fromDigit
-        nibble = select(isLower, fromLower + ten, nibble)
-        nibble = select(isUpper, fromUpper + ten, nibble)
-
-        let pairs = bitcast(nibble) :: Vec(U16, 8)
-        let joined = ((pairs `and` (splat(0x00ff :: U16) :: Vec(U16, 8))) `shl` (splat(4 :: U16) :: Vec(U16, 8)))
-                     `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16, 8)))
-
-        let packed = shuffle(bitcast(joined) :: Vec(U8, 16), [0, 2, 4, 6, 8, 10, 12, 14, 15, 15, 15, 15, 15, 15, 15, 15])
-        store(bitcast(target + out) :: %U64, lane(bitcast(packed) :: Vec(U64, 2), 0))
-
-        at = at + 16
-        out = out + 8
-
-    bytes.length = truncate(out) :: Count
-    return at
+    bytes.length = truncate(held + run.written) :: Count
+    return from + run.read

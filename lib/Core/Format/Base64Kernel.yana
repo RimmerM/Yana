@@ -1,0 +1,524 @@
+module Core
+
+{-
+   ==========================================================================================
+   Base64 as finite kernels - one window of input to one window of output, and nothing else.
+   ==========================================================================================
+
+   `Base64.yana` beside this writes a whole run into a `String` and reads a whole `String` back; this
+   is the same notation cut the way a *stream* needs it (Implementation-Streams.md §3.4, D1): a kernel
+   takes a run of input and a window of output, does as much as both allow, and says how far it got.
+   It never allocates, never fails for want of room - it stops - and keeps nothing between calls: the
+   partial group, the line column and the decoder's padding state are **the caller's locals**, passed
+   by reference, so the one driver in `lib/Stream/Base64.yana` owns them and every destination shares
+   that one driver. Nothing here knows what a stream is.
+
+   **What of `Base64.yana` rests on these (D5, J202).** Its native writer's block bodies are this
+   file's group loop, lent the string's reserved units as a byte window, at no measured cost, and its
+   native reader's are `decodeBase64Blocks` asked for either alphabet (J234). The rest is kept: its
+   reader is lenient (either alphabet, `=` optional, a stray unit ends the run rather than failing)
+   where these are strict, and on JavaScript a `String`'s units are UTF-16, with no byte window to
+   lend.
+
+   **Strict, and the settings say what is strict about.** `url` picks the alphabet the decoder
+   accepts, not only the one the encoder writes - a text in the other one is `InvalidUnit` at the
+   first unit the two disagree on, which is the answer a caller validating a token wants. `pad` is
+   required when set and refused when not. `lineLength` is MIME's (RFC 2045 §6.8): the encoder breaks
+   lines with CRLF before a group that would pass it, and the decoder skips CR and LF, and only when
+   it is set.
+-}
+
+{-
+   How a run is written as base64, or read from it.
+
+   `lineLength` is in units and 0 means one line. A line holds whole groups - `max(1, lineLength / 4)`
+   of them - so a break always falls between two groups and a decoder never has to join a group
+   across one; 76 is MIME's, and 64 is PEM's.
+-}
+pub data Base64Settings {
+    url: Bool = False,
+    pad: Bool = True,
+    lineLength: Size = 0
+}
+
+-- How far a kernel got: input consumed and output written, both from the front of what it was given.
+pub data CodecProgress {read: Size, written: Size}
+
+{-
+   The decoder's reasons, each reported at a unit offset (`Base64Error.at`):
+
+   - `InvalidUnit` - a unit of neither the settings' alphabet nor its padding and line breaks;
+   - `BadPadding` - `=` where no padding can be: in the first two places of a group, or past the
+     group's fourth;
+   - `AfterPadding` - a unit of the alphabet after a group was padded, which ended the text;
+   - `Truncated` - the text ended inside a group: one unit of it, an unpadded short group where
+     padding is required, or padding that stopped short. Reported at the text's end;
+   - `NonCanonical` - a short group whose last unit sets bits no byte holds (`QR==` for `QQ==`), at
+     its first `=`, or at the text's end for an unpadded one. The strict decoder refuses these (R4,
+     J225): accepted, two texts decode to one value, which a signature over the text rather than
+     the bytes can be steered by.
+
+   **Qualified** (`Base64Fault.Truncated`), since J225: the module is `Core`, where four bare
+   constructor names as general as these would claim every program's `Truncated`.
+-}
+pub data qualified Base64Fault = InvalidUnit | BadPadding | AfterPadding | Truncated | NonCanonical
+
+pub data Base64Error {at: Size, fault: Base64Fault}
+
+-- A decoding kernel's progress, and what stopped it when that was the text rather than the room: the
+-- offending unit is then at `read`.
+pub data DecodeProgress {read: Size, written: Size, fault: Maybe(Base64Fault)}
+
+{-
+   Both alphabets, RFC 4648 §4 then §5, in one table: a unit is `base64Units[window + 64]` under `url`.
+   One table indexed by an offset rather than two tables chosen between, because a global is an owner
+   and choosing between two of them is the move `Base64.yana`'s `base64Alphabet` explains; and bytes
+   rather than a `String` because a `String`'s units are not bytes on JavaScript.
+
+   128 entries indexed by `((w shr s) and 63) + offset`. J200 had it twice over, to 256, indexed by a
+   byte, because the bounds pass read no range for a mask then; K3 (J201) taught it `and`, `shr` and a
+   `select`, and this index is in bounds by its own arithmetic on both targets.
+-}
+let base64Units = [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P",
+    "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d", "e", "f",
+    "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v",
+    "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "+", "/",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P",
+    "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d", "e", "f",
+    "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v",
+    "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "_"
+] :: [U8 *128]
+
+-- The unit for the six bits of `word` at `shift`, in the alphabet `offset` selects.
+@inline fn base64Unit(word: Size, shift: Size, offset: Size) -> U8 =
+    base64Units[((word `shr` shift) `and` 63) + offset]
+
+fn base64UnitOffset(url: Bool) -> Size = if url then 64 else 0
+
+-- Groups on one line, or 0 for one unbroken line.
+fn base64LineGroups(settings: Base64Settings) -> Size =
+    if settings.lineLength <= 0 then 0 else max(1, settings.lineLength / 4)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Sizes
+   ------------------------------------------------------------------------------------------
+-}
+
+{-
+   The exact encoded length of `count` bytes, line breaks included, or `Nothing` when it does not fit
+   in a `Size`. Tested before anything is multiplied: a group is at most six units (four and a break),
+   so a group count at or below a sixth of the largest `Size` cannot overflow any step below.
+-}
+pub fn base64EncodedLength(settings: Base64Settings, count: Size) -> Maybe(Size):
+    if count < 0 then return Nothing
+    let whole = count / 3
+    let left = count - whole * 3
+    let groups = if left > 0 then whole + 1 else whole
+    if groups > (maxValue() :: Size) / 6 then return Nothing
+    let &units = whole * 4
+    if left > 0 then units += if settings.pad then 4 else left + 1
+    let perLine = base64LineGroups(settings)
+    if perLine > 0 && groups > 0 then units += ((groups - 1) / perLine) * 2
+    return Just(units)
+
+{-
+   An upper bound on what `count` units decode to: three bytes a whole group and one fewer than the
+   units of a short one. It is never above `count`, so it needs no overflow test; it is exact for a
+   text with no padding and no line breaks, and a padded text is at most two over.
+-}
+pub fn base64DecodedBound(count: Size) -> Size =
+    if count <= 0 then 0 else (count / 4) * 3 + max(0, count % 4 - 1)
+
+{-
+   The window the encoder needs to progress with `left` bytes of input still to go: four units and a
+   line break when the line is full, or nothing when the input only tops up the carried partial group.
+   Exact rather than a round six, because a fixed destination must fail only when it is really short.
+-}
+pub fn base64EncodeRoom(settings: Base64Settings, tailCount: Size, column: Size, left: Size) -> Size =
+    if tailCount + left < 3 then 0 else 4 + base64BreakRoom(settings, column)
+
+-- The same for `finishBase64`: the last short group and its break, or nothing when no bytes are held.
+pub fn base64FinalRoom(settings: Base64Settings, tailCount: Size, column: Size) -> Size:
+    if tailCount <= 0 then return 0
+    let units = if settings.pad then 4 else tailCount + 1
+    return units + base64BreakRoom(settings, column)
+
+-- The largest window the encoder ever asks for: a group, and a line break before it where lines
+-- are broken. What a staged sink's scratch must hold (`sinkWindows`' `least`).
+pub fn base64EncodeLeast(settings: Base64Settings) -> Size =
+    if base64LineGroups(settings) > 0 then 6 else 4
+
+fn base64BreakRoom(settings: Base64Settings, column: Size) -> Size:
+    let perLine = base64LineGroups(settings)
+    return if perLine > 0 && column >= perLine * 4 then 2 else 0
+
+{-
+   The window the decoder needs to progress when `next` is the next unit: three bytes for an alphabet
+   unit that completes a group, one or two for an `=` that ends a short one and that the settings and
+   the carry accept, and nothing for anything else - a unit that is only held, a line break the
+   kernel skips, and a unit it faults on. Exact for `base64EncodeRoom`'s reason, which is why it
+   takes the settings and the carried `word`: until J232 it asked for three before a CR or a bad
+   unit and for an `=` under `pad: False`, so a fixed window a few bytes short reported `OutputFull`
+   where a larger one reported the fault or needed no room at all. It reads the same tests
+   `decodeBase64Quanta` does, in the same order.
+-}
+pub fn base64DecodeRoom(settings: Base64Settings, word: Size, held: Size, pads: Size, next: U8) -> Size:
+    if pads > 0 || held < 2 then return 0
+    if next == "=":
+        if !settings.pad || base64LooseBits(word, held) then return 0
+        return held - 1
+    return if held == 3 && base64Digit(next, settings.url) >= 0 then 3 else 0
+
+{-
+   ------------------------------------------------------------------------------------------
+   Encoding
+   ------------------------------------------------------------------------------------------
+-}
+
+{-
+   The whole groups at the front of `input`, written four units each at the front of `space`, as many
+   as both hold; the count of groups. No line breaks and no carry - `encodeBase64Quanta` below cuts
+   `space` to the line and completes a carried group first.
+
+   The loop states its bounds with `need` (D10) on both windows, which is what leaves it with no check
+   per group (J199). The four units are **four byte stores**: J200 stored them as one little-endian
+   word, because a `&` window's length was loaded again after every store through it and three of
+   four byte stores kept a check; K3 (J201) made that length one key for the call, and the byte form
+   is check-free on both targets and measured 0.81x the word form's time (J202 §1). This is the
+   baseline and the meaning; `Base64Kernel.native.yana` replaces it with the body `pushBase64Groups`
+   has, three quarters of a register a turn at the natural width (J238).
+-}
+fn encodeBase64Groups(url: Bool, input: '[U8], &space: '[U8]) -> Size =
+    encodeBase64GroupsFrom(url, input, space, 0, 0)
+
+-- The scalar loop from `from` and `at` on, which the block bodies finish their runs with.
+@inline fn encodeBase64GroupsFrom(url: Bool, input: '[U8], &space: '[U8], from: Size, at: Size) -> Size:
+    let offset = base64UnitOffset(url)
+    let &i = from
+    let &o = at
+
+    while need(input, i, 3) && need(space, o, 4):
+        let word = ((input[i] :: Size) `shl` 16) `or` ((input[i + 1] :: Size) `shl` 8) `or` (input[i + 2] :: Size)
+        space[o] = base64Unit(word, 18, offset)
+        space[o + 1] = base64Unit(word, 12, offset)
+        space[o + 2] = base64Unit(word, 6, offset)
+        space[o + 3] = base64Unit(word, 0, offset)
+        i += 3
+        o += 4
+
+    return o / 4
+
+-- A line break at `at` when the line in `column` is full and another group is about to follow it; how
+-- many units that wrote. The caller has made room for it.
+fn base64Break(settings: Base64Settings, &column: Size, &space: '[U8], at: Size) -> Size:
+    if base64BreakRoom(settings, column) == 0 then return 0
+    space[at] = "\r"
+    space[at + 1] = "\n"
+    column = 0
+    return 2
+
+-- One group's word as `units` units at `at` (four, or the two or three of a short one), and its
+-- padding out to four when `pad` says.
+fn base64Group(settings: Base64Settings, word: Size, units: Size, &space: '[U8], at: Size) -> Size:
+    let offset = base64UnitOffset(settings.url)
+    space[at] = base64Unit(word, 18, offset)
+    space[at + 1] = base64Unit(word, 12, offset)
+    let third = if units >= 3 then base64Unit(word, 6, offset) else "="
+    let fourth = if units >= 4 then base64Unit(word, 0, offset) else "="
+    if units >= 3 || settings.pad then space[at + 2] = third
+    if units >= 4 || settings.pad then space[at + 3] = fourth
+    return if settings.pad then 4 else units
+
+{-
+   Encode what of `input` fits in `space`, carrying a partial group across calls.
+
+   `tail` and `tailCount` are the zero to two bytes of a group that an earlier run ended inside, and
+   `column` the units on the current line; all three belong to the caller, which starts them at zero
+   and hands them to `finishBase64` at the end. A carried group is completed from the front of
+   `input` first. Whatever is left under three bytes once the room or the input runs out is carried,
+   so a call **consumes all of `input`** unless `space` filled - and it always progresses when `space`
+   holds `base64EncodeRoom` units, which is the window a driver asks for.
+-}
+pub fn encodeBase64Quanta(settings: Base64Settings, &tail: [U8 *2], &tailCount: Size, &column: Size,
+        input: '[U8], &space: '[U8]) -> CodecProgress:
+    let &at = 0 :: Size
+    let &n = 0 :: Size
+
+    if tailCount > 0:
+        let wanted = 3 - tailCount
+        if length(input) < wanted:
+            for k in 0..length(input):
+                tail[tailCount + k] = input[k]
+            tailCount += length(input)
+            return CodecProgress {read: length(input), written: 0}
+        if length(space) < base64EncodeRoom(settings, tailCount, column, length(input)) then
+            return CodecProgress {read: 0, written: 0}
+        let second = if tailCount == 2 then tail[1] else input[0]
+        let third = input[wanted - 1]
+        let word = ((tail[0] :: Size) `shl` 16) `or` ((second :: Size) `shl` 8) `or` (third :: Size)
+        n += base64Break(settings, column, space, 0)
+        n += base64Group(settings, word, 4, space, n)
+        column += 4
+        tailCount = 0
+        at = wanted
+
+    let perLine = base64LineGroups(settings)
+    if perLine == 0:
+        let groups = encodeBase64Groups(settings.url, input[at..length(input)], space.sliceMut(n, length(space)))
+        at += groups * 3
+        n += groups * 4
+    else:
+        -- A line at a time: a break when the line is full, then the groups the rest of it holds.
+        while length(input) - at >= 3 && length(space) - n >= 4 + base64BreakRoom(settings, column):
+            n += base64Break(settings, column, space, n)
+            let end = min(length(space), n + (perLine * 4 - column))
+            let groups = encodeBase64Groups(settings.url, input[at..length(input)], space.sliceMut(n, end))
+            at += groups * 3
+            n += groups * 4
+            column += groups * 4
+
+    let left = length(input) - at
+    if left < 3:
+        for k in 0..left:
+            tail[k] = input[at + k]
+        tailCount = left
+        at = length(input)
+
+    return CodecProgress {read: at, written: n}
+
+{-
+   The last group, from the zero to two bytes `encodeBase64Quanta` carried: two or three units, padded
+   to four when `pad` says, after a line break when the line is full. The caller made the room
+   `base64FinalRoom` states; the count written.
+-}
+pub fn finishBase64(settings: Base64Settings, tail: [U8 *2], tailCount: Size, &column: Size, &space: '[U8]) -> Size:
+    if tailCount <= 0 then return 0
+    let word = ((tail[0] :: Size) `shl` 16) `or` (if tailCount == 2 then (tail[1] :: Size) `shl` 8 else 0)
+    let broke = base64Break(settings, column, space, 0)
+    let units = base64Group(settings, word, tailCount + 1, space, broke)
+    column += units
+    return broke + units
+
+{-
+   ------------------------------------------------------------------------------------------
+   Decoding
+   ------------------------------------------------------------------------------------------
+-}
+
+{-
+   Both alphabets' decoding, RFC 4648 §4 then §5: `base64Values[unit + 256]` under `url` is a unit's
+   six-bit value, and 255 marks a unit of neither the alphabet nor anything else a group may hold. One
+   table and an offset for `base64Units`' reason. Indexed by a byte plus the offset, which the bounds
+   pass reads as the range 0 to 511 - a `U8`'s range and a `select` of 0 and 256 - so a lookup keeps
+   no check.
+
+   A table rather than J200's chain of range tests (J233): on random input - which is what base64
+   carries, compressed or encrypted data - a unit's class is the branch predictor's coin toss, and the
+   chain cost `Base64.decodeInto` 4.8 ms a megabyte where the table's one load a unit costs 0.3. It is
+   the one classification: the group loop, the unit walk and `base64DecodeRoom` all read it.
+-}
+let base64Values = [
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 255, 255, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 255, 255, 255, 255, 255, 255,
+    255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255, 255,
+    255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 255,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 255, 255, 255, 255, 255, 255,
+    255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255, 63,
+    255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+] :: [U8 *512]
+
+fn base64ValueOffset(url: Bool) -> Size = if url then 256 else 0
+
+-- A unit's table entry under the alphabet `offset` selects: its value, or 255.
+@inline fn base64Value(unit: U8, offset: Size) -> U8 = base64Values[(unit :: Size) + offset]
+
+-- A unit's six-bit value in the alphabet `url` names, or -1.
+@inline fn base64Digit(unit: U8, url: Bool) -> Size:
+    let value = base64Value(unit, base64ValueOffset(url)) :: Size
+    return if value < 64 then value else -1
+
+{-
+   The whole groups of four alphabet units at the front of `input`, written as three bytes each at the
+   front of `space`; how far that got, always a whole number of groups. It stops at the first group
+   holding anything else - padding, a line break, a bad unit - and leaves it to the unit walk in
+   `decodeBase64Quanta`, which is the code for all of those.
+
+   A group's three bytes are **one big-endian word store** whose fourth byte is the next group's first,
+   overwritten by it or left past `written` as scratch the window allows, so the loop wants four bytes
+   of room and the last group of a window that has exactly three goes through the unit walk. So a
+   window's byte just past what a call reports written may have changed - `Base64.decodeInto` says
+   so to its caller, whose buffer is the window there. J200
+   chose the word to keep checks off byte stores; K3 (J201) made three byte stores check-free too, and
+   they measured **1.11x** this form's time (J202 §1: 680 against 611 ms a gigabyte), so the word stays.
+   Each unit is one load from `base64Values` (J233), where `base64Digit` was a chain of range tests.
+   **Out of line** on purpose: copied into `decodeBase64Quanta`, the local backend's allocator spilled
+   the four values and the word to the stack in a body that large, and the loop read 1.34 ms a megabyte
+   against 0.42 here - a call per window costs less than that at 16 bytes too (J233).
+
+   **The blocks run first** (J234): `decodeBase64Blocks` takes what it can a register at a time and this
+   loop finishes from the group boundary it stopped at. Its baseline takes nothing, so without a block
+   body - JavaScript, `-no-replacements` - this is the group loop alone, as it was.
+-}
+@noinline fn decodeBase64Groups(url: Bool, input: '[U8], &space: '[U8]) -> CodecProgress:
+    let blocks = decodeBase64Blocks(url, False, input, space)
+    return decodeBase64GroupsFrom(url, input, space, blocks.read, blocks.written)
+
+-- The group loop from `from` and `at` on, which is what finishes a run the blocks stopped in.
+@inline fn decodeBase64GroupsFrom(url: Bool, input: '[U8], &space: '[U8], from: Size, at: Size) -> CodecProgress:
+    let offset = base64ValueOffset(url)
+    let &i = from
+    let &o = at
+
+    while need(input, i, 4) && need(space, o, 4):
+        let a = base64Value(input[i], offset) :: U32
+        let b = base64Value(input[i + 1], offset) :: U32
+        let c = base64Value(input[i + 2], offset) :: U32
+        let d = base64Value(input[i + 3], offset) :: U32
+        -- 255 is the one entry with its top bit set, so one test says whether all four are digits.
+        if ((a `or` b `or` c `or` d) `and` 128) != 0 then break
+        writeBigU32(space, o, (a `shl` 26) `or` (b `shl` 20) `or` (c `shl` 14) `or` (d `shl` 8))
+        i += 4
+        o += 3
+
+    return CodecProgress {read: i, written: o}
+
+{-
+   The whole groups at the front of `input` a register at a time, decoded into the front of `space`:
+   how far that got, a whole number of groups, where every unit read is a digit and every byte written
+   is one of theirs. **The baseline takes nothing**, which keeps that promise, and is a body rather than
+   a stub for `pushBase64Blocks`' reason: whatever this takes, the caller's own loop finishes the run,
+   so the answer cannot depend on which body ran - which is what the suite's `no-replacements` row
+   and the ladder check between them.
+
+   `url` is the alphabet, strictly, and `either` takes both - RFC 4648 §4's `+` and `/` and §5's `-`
+   and `_` in one text - which is the lenient `readBase64`'s and not a stream's. The bodies are in
+   `Base64Kernel.native.yana` (the natural width, J238) and `.native.avx512.yana` (sixty-four lanes by
+   a 128-entry table, kept for what it measures), and each stops
+   at the first block holding anything else: `=`, a line break and a bad unit are the caller's.
+
+   A body may write **past `written`, inside the window** - its stores are wider than the bytes they
+   carry - so a caller whose window is a real buffer finds scratch there, as the group loop's word
+   store already leaves one byte of.
+-}
+fn decodeBase64Blocks(url: Bool, either: Bool, input: '[U8], &space: '[U8]) -> CodecProgress =
+    CodecProgress {read: 0, written: 0}
+
+{-
+   Decode what of `input` fits in `space`, carrying a partial group across calls.
+
+   `word` and `held` are the six-bit values of a group an earlier run ended inside, and `pads` how many
+   `=` have been read; the caller starts all three at zero and ends with `base64DecodeEnd`. A
+   group's bytes are written when its fourth unit arrives, or its first `=`. The call stops when the
+   room does - with `fault` empty, and it always progresses in `base64DecodeRoom` bytes - or at a
+   unit the text should not have, which is then at `read`.
+-}
+pub fn decodeBase64Quanta(settings: Base64Settings, &word: Size, &held: Size, &pads: Size,
+        input: '[U8], &space: '[U8]) -> DecodeProgress:
+    let &at = 0 :: Size
+    let &n = 0 :: Size
+
+    while at < length(input):
+        if held == 0 && pads == 0:
+            let run = decodeBase64Groups(settings.url, input[at..length(input)], space.sliceMut(n, length(space)))
+            at += run.read
+            n += run.written
+            if at >= length(input) then break
+
+        let unit = input[at]
+        if settings.lineLength > 0 && (unit == "\r" || unit == "\n"):
+            at += 1
+            continue
+
+        if unit == "=":
+            if !settings.pad then return DecodeProgress {read: at, written: n, fault: Just(Base64Fault.InvalidUnit)}
+            if held < 2 || held + pads >= 4 then return DecodeProgress {read: at, written: n, fault: Just(Base64Fault.BadPadding)}
+            if pads == 0:
+                -- The group's bytes, which padding has just said are all it has - and only those: the
+                -- bits past them must be zero, or the text is one of several spelling the same bytes.
+                if base64LooseBits(word, held) then
+                    return DecodeProgress {read: at, written: n, fault: Just(Base64Fault.NonCanonical)}
+                if length(space) - n < held - 1 then break
+                let full = word `shl` (6 * (4 - held))
+                space[n] = truncate(full `shr` 16) :: U8
+                if held == 3 then space[n + 1] = truncate(full `shr` 8) :: U8
+                n += held - 1
+            pads += 1
+            at += 1
+            continue
+
+        let value = base64Digit(unit, settings.url)
+        if value < 0 then return DecodeProgress {read: at, written: n, fault: Just(Base64Fault.InvalidUnit)}
+        if pads > 0 then return DecodeProgress {read: at, written: n, fault: Just(Base64Fault.AfterPadding)}
+
+        if held == 3:
+            if length(space) - n < 3 then break
+            let full = (word `shl` 6) `or` value
+            space[n] = truncate(full `shr` 16) :: U8
+            space[n + 1] = truncate(full `shr` 8) :: U8
+            space[n + 2] = truncate(full) :: U8
+            n += 3
+            word = 0
+            held = 0
+        else:
+            word = (word `shl` 6) `or` value
+            held += 1
+        at += 1
+
+    return DecodeProgress {read: at, written: n, fault: Nothing}
+
+{-
+   Whether a text may end with this carry: `Truncated` when it stopped inside a group - one unit of
+   one, a short group where padding is required, or padding that stopped short - `NonCanonical` for
+   an unpadded short group with bits past its bytes, and nothing when it ended at a group boundary or
+   on a canonical unpadded short group the settings allow.
+-}
+pub fn base64DecodeEnd(settings: Base64Settings, word: Size, held: Size, pads: Size) -> Maybe(Base64Fault):
+    if pads > 0 then return if held + pads == 4 then Nothing else Just(Base64Fault.Truncated)
+    if held == 1 || (held > 0 && settings.pad) then return Just(Base64Fault.Truncated)
+    if base64LooseBits(word, held) then return Just(Base64Fault.NonCanonical)
+    return Nothing
+
+-- Whether a short group of `held` units sets any of the low `8 - 2 * held` bits no byte of it holds:
+-- four of two units, two of three.
+fn base64LooseBits(word: Size, held: Size) -> Bool =
+    held >= 2 && (word `and` ((1 `shl` (8 - 2 * held)) - 1)) != 0
+
+-- What `finishBase64Decode` writes: the one or two bytes of an unpadded short group, else nothing.
+pub fn base64DecodeFinalRoom(held: Size, pads: Size) -> Size =
+    if pads == 0 && held >= 2 then held - 1 else 0
+
+-- An unpadded short group's bytes, which `base64DecodeEnd` accepted; the caller made
+-- `base64DecodeFinalRoom` of room, and the count written.
+pub fn finishBase64Decode(word: Size, held: Size, &space: '[U8]) -> Size:
+    if held < 2 then return 0
+    let full = word `shl` (6 * (4 - held))
+    space[0] = truncate(full `shr` 16) :: U8
+    if held == 3 then space[1] = truncate(full `shr` 8) :: U8
+    return held - 1

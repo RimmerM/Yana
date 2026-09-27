@@ -125,17 +125,16 @@ fn digitValue(unit: Int, radix: Int) -> Int:
    that is not obvious and is not negotiable.
 
    `interleaveLow` is a *portable* whole-vector operation: at sixteen lanes it is one instruction on
-   every x86 back to SSE2, and at thirty-two there is no instruction for it at `avx2` - every shuffle at
-   256 bits works inside each 128-bit half and the only crossing is an exchange of whole halves. So a
-   build at `avx2`, where `Vec(U8)` means thirty-two lanes, does not compile this at all; the backend
-   refuses it by name rather than emitting something else, which is how it was found. At `avx512` it
-   is `vpermi2b` and an index vector (Analysis-Avx512.md §2.5), which is what unpinned `pushHex` -
-   but sixteen is all *this* needs: the tree below reads eight digits and nothing here scales with the
-   width, so a wider load would buy nothing and cost the index vector. The count is stated and the same
-   code runs at every tier (test/bench/avx512/findings.md §5).
+   every x86 back to SSE2. At thirty-two it was refused at `avx2` until J236 (every shuffle at 256 bits
+   works inside each 128-bit half) and is two unpacks and a `vperm2f128` since; at `avx512` it is
+   `vpermi2b` and an index vector (Analysis-Avx512.md §2.5). That refusal was the first reason for the
+   pin, and J238, which moved the codec bodies to the natural width, left this one pinned for the
+   reason that remains: sixteen is all *this* needs - the tree below reads eight digits and nothing here
+   scales with the width, so a wider load would buy nothing and cost the wider interleave. The count is
+   stated and the same code runs at every tier (test/bench/avx512/findings.md §5).
 
-   `vectorPast` rather than `loadVectorTail` for the same reason: the load has to be sixteen units
-   wide whatever the natural width is. It takes a raw address and promises nothing, and what makes it
+   `vectorPast` rather than `loadVectorTail` because the load has to be sixteen units wide whatever
+   the natural width is. It takes a raw address and promises nothing, and what makes it
    safe is the same fact §8's guarantee rests on - a `String`'s units are a run the language allocated
    and padded, so sixteen bytes from anywhere inside it are readable. What is past the end is whatever
    the padding holds, so it may look like a digit, and `digitRunOf` is handed the count that says how

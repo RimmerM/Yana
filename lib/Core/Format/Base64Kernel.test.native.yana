@@ -1,0 +1,91 @@
+module Core
+
+{-
+   The Base64 decoder's natural-width block body run directly (J240), on every row - above all
+   `avx512`'s, where `.native.avx512.yana`'s VBMI body replaces `decodeBase64Blocks` and nothing else
+   would ever execute the natural body at sixty-four lanes or read `base64Gather`'s second row. The
+   shipping body is asked the same questions beside it.
+
+   The answer is the scalar one, and exact: both bodies read blocks of sixteen units or of a whole
+   register and take a block only when every unit of it is a digit, so a clean run of `count` units
+   with room to spare is read to its last multiple of sixteen (the shipping body under
+   `-no-replacements` is the baseline, which reads nothing), and one whose first stranger is at `p`
+   to the multiple of sixteen at or below `p` - and the bytes written are the raw bytes of those whole
+   groups. A room-limited window is checked for what may be claimed of it: the groups written are the
+   raw ones, and not a byte past the window moves.
+-}
+
+import Test
+import Native
+
+fn kernelNoise(count: Size) -> Array(U8):
+    let &out = emptyArray() :: Array(U8)
+    let &state = 0x2545f4914f6cdd1d :: U64
+    for _ in 0..count:
+        state = state `xor` (state `shl` 13)
+        state = state `xor` (state `shr` 7)
+        state = state `xor` (state `shl` 17)
+        push(out, truncate(state `shr` 56) :: U8)
+    return out
+
+-- The text's units as bytes, with every other `+` and `/` turned into `-` and `_` when `mixed`.
+fn kernelUnits(text: String, mixed: Bool) -> Array(U8):
+    let &out = emptyArray() :: Array(U8)
+    let &swaps = 0 :: Size
+    for i in 0..length(text):
+        let &unit = truncate(String.unit(text, i)) :: U8
+        if mixed && (unit == "+" || unit == "/"):
+            if swaps % 2 == 1 then unit = if unit == "+" then "-" :: U8 else "_" :: U8
+            swaps += 1
+        push(out, unit)
+    return out
+
+-- One body's answer over `units` into `room` bytes of a larger store, checked; the units read.
+fn kernelDecoded(natural: Bool, url: Bool, either: Bool, units: '[U8], raw: '[U8], room: Size) -> Size:
+    let &store = emptyArray() :: Array(U8)
+    for _ in 0..(room + 80):
+        push(store, 0xa5)
+    let &space = sliceMut(store, 0, room)
+    let progress = if natural then decodeBase64BlocksNatural(url, either, units, space)
+                   else decodeBase64Blocks(url, either, units, space)
+
+    checkEqual(progress.read % 16, 0)
+    checkEqual(progress.written, progress.read / 4 * 3)
+    check(progress.written <= room)
+    check(itemsEqual(elements(store[0..progress.written]), elements(raw[0..progress.written])))
+    for k in room..length(store):
+        if store[k] != 0xa5 then checkEqual(k, -1)
+    return progress.read
+
+-- The natural body reads exactly `want`; the shipping one too, except under `-no-replacements`, where
+-- it is `Base64Kernel.yana`'s baseline and decodes nothing.
+fn kernelReads(natural: Bool, read: Size, want: Size):
+    if natural || read != 0 then checkEqual(read, want)
+
+@test fn base64NaturalBlocksAgree():
+    let raw = kernelNoise(300)
+    for variant in 0..3:
+        let url = variant == 1
+        let either = variant == 2
+        let units = kernelUnits(base64Of(elements(raw), url: url, pad: False), either)
+
+        -- Clean runs of every length to 400 units: past two sixty-four-unit blocks and the tail.
+        for count in 0..(length(units) + 1):
+            let room = count + 64
+            for natural in 0..2:
+                kernelReads(natural == 1, kernelDecoded(natural == 1, url, either, units[0..count], raw, room),
+                            count / 16 * 16)
+
+        -- A stranger at each of the first 300 positions: `!`, or the other alphabet's unit where the
+        -- body is strict about which one.
+        for stop in 0..300:
+            let &disturbed = copy(units)
+            disturbed[stop] = if either || stop % 2 == 0 then "!" :: U8 else if url then "+" :: U8 else "_" :: U8
+            for natural in 0..2:
+                kernelReads(natural == 1, kernelDecoded(natural == 1, url, either, elements(disturbed), raw, 400),
+                            stop / 16 * 16)
+
+        -- And every room up to the whole: the body stops for the window, never writes past it.
+        for room in 0..240:
+            for natural in 0..2:
+                let _ = kernelDecoded(natural == 1, url, either, elements(units), raw, room)

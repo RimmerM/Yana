@@ -1,0 +1,123 @@
+{-
+   `shuffleNatural` at the natural width - J237.
+
+   One pattern written for the widest vector and cut to the width the row compiles: sixteen lanes on
+   `sse4` and JavaScript (`pshufb`, a lane walk), thirty-two on `avx2` (one `vpshufb` in-half, a
+   `vpshufb` pair, `vperm2f128` and `vpor` crossing) and `avx512-256` (`vpermb ymm`), sixty-four on
+   `avx512` (`vpermb zmm`). Each answer is stored and compared lane by lane with the scalar reading
+   of the pattern, since a wrong control is a plausible vector - the right bytes from the wrong half.
+
+   `spread` is the Base64 encoder's: with the input loaded four bytes early, output part `k` reads
+   input bytes `4 + 12k` to `15 + 12k` - in-half at thirty-two lanes, crossing at sixty-four.
+-}
+
+import Test
+
+-- The input, which is not a pattern a folder could see through, and the scalar reading beside it.
+fn bytesIn() -> [U8 *64]:
+    let &input = [0] :: [U8 *64]
+    for i in 0..64:
+        input[i] = truncate((i * 37 + 11) % 251)
+    return input
+
+fn wrongLanes(got: Vec(U8), input: [U8], pattern: [Int *64]) -> Int:
+    let out = [0] :: [U8 *64]
+    storeVector(out, 0, got)
+    let &wrong = 0
+    for i in 0..lanes(got):
+        if out[i] != input[pattern[i]] then wrong += 1
+    return wrong
+
+@test fn base64Spread():
+    let input = bytesIn()
+    let spread = [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14,
+                  17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26,
+                  29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38,
+                  41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50] :: [Int *64]
+    let got = shuffleNatural(loadVector(input, 0), [5, 4, 6, 5, 8, 7, 9, 8, 11, 10, 12, 11, 14, 13, 15, 14,
+                                                    17, 16, 18, 17, 20, 19, 21, 20, 23, 22, 24, 23, 26, 25, 27, 26,
+                                                    29, 28, 30, 29, 32, 31, 33, 32, 35, 34, 36, 35, 38, 37, 39, 38,
+                                                    41, 40, 42, 41, 44, 43, 45, 44, 47, 46, 48, 47, 50, 49, 51, 50])
+    checkEqual(wrongLanes(got, input, spread), 0)
+
+@test fn crossingEveryWidth():
+    let input = bytesIn()
+    let cross = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                 16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27,
+                 32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9,
+                 16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57] :: [Int *64]
+    let got = shuffleNatural(loadVector(input, 0), [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+                                                    16, 21, 26, 31, 4, 9, 14, 19, 24, 29, 2, 7, 12, 17, 22, 27,
+                                                    32, 39, 46, 53, 60, 3, 10, 17, 24, 31, 38, 45, 52, 59, 2, 9,
+                                                    16, 23, 30, 37, 44, 51, 58, 1, 8, 15, 22, 29, 36, 43, 50, 57])
+    checkEqual(wrongLanes(got, input, cross), 0)
+
+-- A doubleword lane, whose widest vector has sixteen: `pshufd`, `vpermd`, and `vpermi2d` at 512 bits.
+@test fn doublewords():
+    let j = iota() :: Vec(U32)
+    let got = shuffleNatural(j * (splat(3 :: U32) :: Vec(U32)), [3, 2, 1, 0, 5, 4, 7, 6, 13, 12, 15, 14, 9, 8, 11, 10])
+    let pattern = [3, 2, 1, 0, 5, 4, 7, 6, 13, 12, 15, 14, 9, 8, 11, 10] :: [Int *16]
+    let out = [0] :: [U32 *16]
+    storeVector(out, 0, got)
+    for i in 0..lanes(j):
+        checkEqual(out[i], truncate(pattern[i] * 3) :: U32)
+
+{-
+   The other lane widths (J239). Each pattern keeps its entries inside every width it is cut to, and
+   crosses the 128-bit halves (and at 512 bits the 256-bit ones) wherever the width has them.
+
+   A word lane is the byte pairs of `pshufb`/`vpshufb` and `vpermb` over them at `avx512`; a
+   quadword lane at 256 bits is `vpermq` by an immediate, and at 512 bits its index vector; a float
+   lane is the same instructions as its integer width, read in the float domain.
+-}
+@test fn words():
+    let &input = [0] :: [U16 *32]
+    for i in 0..32:
+        input[i] = truncate(i * 257 + 11) :: U16
+    let pattern = [3, 1, 7, 0, 2, 6, 5, 4, 15, 0, 9, 1, 14, 2, 3, 11,
+                   31, 16, 20, 17, 30, 1, 2, 3, 29, 28, 27, 26, 25, 24, 23, 22] :: [Int *32]
+    let got = shuffleNatural(loadVector(input, 0), [3, 1, 7, 0, 2, 6, 5, 4, 15, 0, 9, 1, 14, 2, 3, 11,
+                                                    31, 16, 20, 17, 30, 1, 2, 3, 29, 28, 27, 26, 25, 24, 23, 22])
+    let out = [0] :: [U16 *32]
+    storeVector(out, 0, got)
+    for i in 0..lanes(got):
+        checkEqual(out[i], input[pattern[i]])
+
+@test fn quadwords():
+    let &input = [0] :: [U64 *8]
+    let &v = 7 :: U64
+    for i in 0..8:
+        input[i] = v
+        v = v * 1000 + 13
+    let pattern = [1, 0, 0, 3, 7, 4, 6, 5] :: [Int *8]
+    let got = shuffleNatural(loadVector(input, 0), [1, 0, 0, 3, 7, 4, 6, 5])
+    let out = [0] :: [U64 *8]
+    storeVector(out, 0, got)
+    for i in 0..lanes(got):
+        checkEqual(out[i], input[pattern[i]])
+
+@test fn singles():
+    let &input = [0.0] :: [F32 *16]
+    let &v = 0.5 :: F32
+    for i in 0..16:
+        input[i] = v
+        v = v * 1.5 + 0.25
+    let pattern = [2, 0, 3, 1, 7, 1, 0, 5, 15, 14, 9, 8, 0, 1, 2, 3] :: [Int *16]
+    let got = shuffleNatural(loadVector(input, 0), [2, 0, 3, 1, 7, 1, 0, 5, 15, 14, 9, 8, 0, 1, 2, 3])
+    let out = [0.0] :: [F32 *16]
+    storeVector(out, 0, got)
+    for i in 0..lanes(got):
+        checkEqual(out[i], input[pattern[i]])
+
+@test fn doubles():
+    let &input = [0.0] :: [F64 *8]
+    let &v = 0.75 :: F64
+    for i in 0..8:
+        input[i] = v
+        v = v * 3.0 + 0.5
+    let pattern = [1, 1, 3, 0, 4, 7, 2, 6] :: [Int *8]
+    let got = shuffleNatural(loadVector(input, 0), [1, 1, 3, 0, 4, 7, 2, 6])
+    let out = [0.0] :: [F64 *8]
+    storeVector(out, 0, got)
+    for i in 0..lanes(got):
+        checkEqual(out[i], input[pattern[i]])

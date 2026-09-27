@@ -10,9 +10,9 @@ import Native
    the native half's block form has nothing to say here; the reservation is the no-op it is on this
    target and is left off rather than written to be ignored.
 -}
-pub fn pushHex(bytes: [U8], &to: String):
+pub fn pushHex(bytes: [U8], &to: String, upper: Bool = False):
     let n = length(bytes)
     for i in 0 .. n:
         let byte = bytes[i] :: Int
-        to.pushUnit(hexUnit(byte `shr` 4))
-        to.pushUnit(hexUnit(byte `and` 15))
+        to.pushUnit(hexUnitCased(byte `shr` 4, upper))
+        to.pushUnit(hexUnitCased(byte `and` 15, upper))

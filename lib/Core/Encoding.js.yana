@@ -52,6 +52,21 @@ pub fn String.fromUtf8(bytes: [U8]) -> String:
     return if marked then "\xFEFF" ++ text else text
 
 {-
+   `String.fromValidUtf8` on this target: the host's decode, and the scalar validation only where
+   its answer holds a U+FFFD (J206).
+
+   `TextDecoder` replaces every ill-formed sequence with U+FFFD, so an answer without one came from
+   well-formed bytes and is the string; one with one is either invalid input or a U+FFFD the bytes
+   really held, and only the scalar walk tells those apart. The decoder's `fatal` mode would say it in
+   one call, but it reports by throwing and nothing on this target catches. So the common case is one
+   host decode and one host search, and text carrying a genuine U+FFFD pays the walk as well.
+-}
+pub fn String.fromValidUtf8(bytes: [U8]) -> Maybe(String):
+    let text = String.fromUtf8(bytes)
+    if text.contains("\xFFFD") && !utf8ValidFrom(bytes, 0) then return Nothing
+    return Just(text)
+
+{-
    The units, as they are - a lone surrogate included, which a host string may hold.
 
    `String.fromCharCode.apply` over pieces of the array, because a single `apply` spreads its

@@ -23,9 +23,10 @@ import Native
    **Three bytes at a time, and the tail written out.** The body of the loop is one twenty-four-bit
    word built from three loads and four table lookups, which is what makes this worth writing rather
    than expressing as a bit-at-a-time shift register. That loop is `pushBase64Groups`, the one body
-   both targets share; natively `Base64.native.yana` replaces it with the block form `pushHex` has -
-   twelve bytes spread into four lanes by one shuffle, the four windows cut out with shifts, and the
-   alphabet one `lookup` of a sixteen-entry offset table (Analysis-Avx512.md §3.3).
+   both targets share; natively `Base64.native.yana` replaces it with the kernel's block form, as
+   `pushHex` has - three quarters of a register of bytes spread into 32-bit lanes by one shuffle, the
+   four windows cut out with shifts, and the alphabet one `lookup` of a sixteen-entry offset table
+   (Analysis-Avx512.md §3.3), at the natural width since J238.
 
    **The reader accepts either alphabet whichever the style names**, exactly as `hexValue` accepts
    either letter case: a reader that refused `-` because its style said `+` would be describing the
@@ -93,7 +94,7 @@ pub fn base64Of(bytes: [U8], url: Bool = False, pad: Bool = True) -> String:
 
    One twenty-four-bit word, four six-bit windows out of it, and no test inside the body: the tail is
    what the loop stops in front of. This is the baseline, and the meaning; `Base64.native.yana` replaces
-   it with a body that does twelve bytes a turn.
+   it with the kernel's block body, three quarters of a register of bytes a turn (J202, J238).
 -}
 fn pushBase64Groups(bytes: [U8], url: Bool, &to: String) -> Size:
     let alphabet = base64Alphabet(url)

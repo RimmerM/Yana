@@ -216,3 +216,34 @@ fn asciiRun(count: Size) -> String:
         if countChars(String.fromUtf16(elements(lone))) != 71 then wrong = wrong + 1
 
     checkEqual(wrong, 0)
+
+{-
+   `String.fromValidUtf8` against the two-pass answer it replaces - `isValidUtf8`, then `fromUtf8` -
+   with each sequence at every offset of a run longer than two registers, so natively the block loop
+   meets it whole, across a block boundary and in the tail. A genuine U+FFFD is valid text, which is
+   what the JavaScript form's shortcut must not refuse.
+-}
+fn agreesWithTwoPasses(bytes: [U8]) -> Bool:
+    match String.fromValidUtf8(bytes):
+        Just(text) -> return isValidUtf8(bytes) && text == String.fromUtf8(bytes)
+        Nothing -> return !isValidUtf8(bytes)
+
+@test fn fromValidUtf8AtEveryOffset():
+    let sequences = [[0xC3, 0xB6], [0xEF, 0xBF, 0xBD], [0xF0, 0x9F, 0x98, 0x80], [0x80],
+                     [0xC3], [0xF0, 0x9F, 0x98], [0xED, 0xA0, 0x80], [0xFF]] :: [[U8]]
+    for s in 0..length(sequences):
+        for at in 0..80:
+            let &bytes = [] :: [U8]
+            for i in 0..at:
+                push(bytes, truncate(0x41 + i % 26) :: U8)
+            appendBytes(bytes, sequences[s])
+            for _ in 0..(80 - at):
+                push(bytes, 0x7A)
+            check(agreesWithTwoPasses(bytes), "sequence {s} at {at}")
+            check(agreesWithTwoPasses(bytes[0..at + length(sequences[s])]), "cut {s} at {at}")
+    check(String.fromValidUtf8(elements([] :: [U8])) is Just(_))
+    check(String.fromValidUtf8(elements([0xC3 :: U8, 0x28])) is Nothing)
+    let Just(text) = String.fromValidUtf8(elements([0x73 :: U8, 0x6E, 0xC3, 0xB6])) | else:
+        check(False)
+        return
+    checkEqual(text, "snö")

@@ -1,0 +1,309 @@
+module Core
+
+import Native
+
+{-
+   The block form of `encodeBase64Groups` at the **natural width** (J238) - three quarters of a
+   register read and a register of units written a turn: twelve bytes and sixteen units at `sse4`,
+   twenty-four and thirty-two at `avx2`, forty-eight and sixty-four at `avx512` - and, since J202 (D5),
+   the block body of `base64Of` too: `Base64.native.yana`'s `pushBase64Groups` lends this loop the
+   string's reserved units as a byte window rather than keeping a copy of it.
+
+   **The spread** places each group's three bytes big-end-first in the low three bytes of a 32-bit
+   lane, so the lane holds the group's twenty-four-bit word `w`. It is one `shuffleNatural` pattern,
+   and which one decides what it costs at `avx2`: read from `i`, the group of lane 4 (bytes 12 to 14)
+   is in the register's first half and its lane in the second, so the spread crosses the halves - four
+   instructions there (J237). Read from `i - 4` - the published AVX2 encoder's layout - each 16-byte
+   part `k` of the answer reads bytes `4 + 12k` to `15 + 12k` of the register, which at thirty-two
+   lanes are both in part `k`'s own half: one `vpshufb`. At sixteen lanes it is `pshufb` either way and
+   at sixty-four `vpermb` either way. Since `i - 4` needs four bytes behind it, **the first block is
+   read from `i`** with the crossing pattern, and every later one from `i - 4`; the loop then stops
+   when fewer than `vectorBytes - 4` bytes are left rather than `vectorBytes`.
+
+   **The windows.** The four six-bit windows are `w >> 18`, `w >> 12`, `w >> 6` and `w`, each wanted in
+   its own byte of the lane, low to high - which is four shifts that land each window where it goes and
+   four masks that keep it there, `or`ed together. The published encoders fold that into two
+   multiply-high steps; this language has no multiply-high, and the shifts are the same answer.
+
+   **The alphabet is one lookup** (Analysis-Avx512.md §3.3), not a table of sixty-four: a window's unit
+   is the window plus an offset that is the same across each run of the alphabet - `A`-`Z`, `a`-`z`,
+   `0`-`9`, then the two symbols. `max(d, 51) - 51` is zero for the letters and one to twelve for the
+   rest, the capitals are moved to thirteen, and that number reads the offset out of a sixteen-entry
+   table: one `pshufb`, a `vpshufb` of it in both halves, a `vpermi2b` of it repeated - the repetition
+   built once in front of the loop by the x64 backend (`repeatTable` in
+   `compiler/codegen/x64/transform_move.cpp`, J238). The two alphabets differ only in the last two
+   offsets.
+
+   **The tail** below a register's worth is the sixteen-lane loop (`encodeBase64Groups16`), which takes
+   twelve bytes at a time down to the last fifteen, and then the scalar groups. At `sse4` the natural
+   loop is that width already and the tail is not compiled.
+-}
+-- Each lane's twenty-four-bit word into its four windows' units, a byte each, at any width: `m`
+-- words in and `n` units out, four to a word - the caller's ascription says `n`. The sixteen-lane
+-- tail and the natural-width loop are both this.
+@inline(always) fn (m: Int, n: Int) base64GroupUnits(word: Vec(U32, m), offsets: Vec(U8, 16)) -> Vec(U8, n):
+    let w0 = (word `shr` (splat(18) :: Vec(U32, m))) `and` (splat(0x3f) :: Vec(U32, m))
+    let w1 = (word `shr` (splat(4) :: Vec(U32, m))) `and` (splat(0x3f00) :: Vec(U32, m))
+    let w2 = (word `shl` (splat(10) :: Vec(U32, m))) `and` (splat(0x3f0000) :: Vec(U32, m))
+    let w3 = (word `shl` (splat(24) :: Vec(U32, m))) `and` (splat(0x3f000000) :: Vec(U32, m))
+    let windows = bitcast(w0 `or` w1 `or` w2 `or` w3) :: Vec(U8, n)
+
+    let letters = splat(51) :: Vec(U8, n)
+    let run = select(windows .< (splat(26) :: Vec(U8, n)), splat(13) :: Vec(U8, n),
+                     max(windows, letters) - letters)
+    return windows + lookup(offsets, run)
+
+{-
+   What each run of the alphabet adds to its windows, as bytes that wrap: entry 0 is the small letters
+   (`a` - 26), 1 to 10 the digits (`0` - 52), 11 and 12 the two symbols, 13 the capitals (`A`).
+-}
+fn base64Offsets(url: Bool) -> Vec(U8, 16):
+    let digits = splat(252 :: U8) :: Vec(U8, 16)            -- 48 - 52, `0` at window 52
+    let plus = if url then 239 :: U8 else 237 :: U8         -- `-` 45 or `+` 43, at window 62
+    let slash = if url then 32 :: U8 else 240 :: U8         -- `_` 95 or `/` 47, at window 63
+
+    let small = withLane(digits, 0, 71 :: U8)               -- 97 - 26, `a` at window 26
+    let symbols = withLane(withLane(small, 11, plus), 12, slash)
+    return withLane(symbols, 13, 65 :: U8)                  -- `A` at window 0
+
+-- The sixteen-lane loop from `from` and `at` on, reading at `i`: the natural width's tail.
+@inline fn encodeBase64Groups16(offsets: Vec(U8, 16), input: '[U8], &space: '[U8], from: Size, at: Size)
+        -> {read: Size, written: Size}:
+    let count = length(input)
+    let room = length(space)
+    let source = input.items
+    let target = space.items
+
+    let &i = from
+    let &o = at
+
+    while i + 16 <= count && o + 16 <= room:
+        let block = vectorAt(source + i) :: Vec(U8, 16)
+        let spread = shuffle(block, [2, 1, 0, 0, 5, 4, 3, 3, 8, 7, 6, 6, 11, 10, 9, 9])
+        setVectorAt(target + o, base64GroupUnits(bitcast(spread) :: Vec(U32, 4), offsets) :: Vec(U8, 16))
+
+        i = i + 12
+        o = o + 16
+
+    return {read: i, written: o}
+
+@replaces
+fn encodeBase64Groups(url: Bool, input: '[U8], &space: '[U8]) -> Size:
+    let count = length(input)
+    let room = length(space)
+    let source = input.items
+    let target = space.items
+    let offsets = base64Offsets(url)
+
+    let width = vectorBytes
+    let step = width - (width `shr` 2)
+
+    let &i = 0 :: Size
+    let &o = 0 :: Size
+
+    if count >= width && room >= width:
+        -- From `i`: group g's bytes are at 3g.
+        let first = bitcast(shuffleNatural(vectorAt(source) :: Vec(U8), [
+            2, 1, 0, 0, 5, 4, 3, 3, 8, 7, 6, 6, 11, 10, 9, 9,
+            14, 13, 12, 12, 17, 16, 15, 15, 20, 19, 18, 18, 23, 22, 21, 21,
+            26, 25, 24, 24, 29, 28, 27, 27, 32, 31, 30, 30, 35, 34, 33, 33,
+            38, 37, 36, 36, 41, 40, 39, 39, 44, 43, 42, 42, 47, 46, 45, 45
+        ])) :: Vec(U32)
+        setVectorAt(target, base64GroupUnits(first, offsets) :: Vec(U8))
+        i = step
+        o = width
+
+        -- From `i - 4`: group g's bytes are at 4 + 3g.
+        while i + width - 4 <= count && o + width <= room:
+            let block = vectorAt(source + i - 4) :: Vec(U8)
+            let word = bitcast(shuffleNatural(block, [
+                6, 5, 4, 4, 9, 8, 7, 7, 12, 11, 10, 10, 15, 14, 13, 13,
+                18, 17, 16, 16, 21, 20, 19, 19, 24, 23, 22, 22, 27, 26, 25, 25,
+                30, 29, 28, 28, 33, 32, 31, 31, 36, 35, 34, 34, 39, 38, 37, 37,
+                42, 41, 40, 40, 45, 44, 43, 43, 48, 47, 46, 46, 51, 50, 49, 49
+            ])) :: Vec(U32)
+            setVectorAt(target + o, base64GroupUnits(word, offsets) :: Vec(U8))
+            i = i + step
+            o = o + width
+
+    if width > 16:
+        let tail = encodeBase64Groups16(offsets, input, space, i, o)
+        i = tail.read
+        o = tail.written
+
+    return encodeBase64GroupsFrom(url, input, space, i, o)
+
+{-
+   `decodeBase64Blocks16` - sixteen units read and twelve bytes written a turn - and, at the natural
+   width (below), `decodeBase64Blocks`: for the
+   stream decoder's group loop and, since J234, `readBase64`'s block body too (`Base64.native.yana`'s
+   `pushBase64Blocks` lends its array's reserved bytes as the window, as `pushBase64Groups` lends the
+   encoder a string's units).
+
+   **Classified by nibble tables, one alphabet at a time** - Muła's route, which `pushBase64Blocks`'
+   range tests were written against and set aside because that reader takes either alphabet. A unit is
+   a digit when `lo[unit & 15] & hi[unit >> 4]` is zero: `hi` gives each high nibble a class bit
+   (0 and 1 and 8 to 15 one class that nothing is legal in; 4 and 6, the two letter rows starting at
+   one, share one) and `lo` sets the bit of every class in which that low nibble is *not* a digit - so a
+   table is the alphabet's legal set as a bitmap of classes by columns, and the two alphabets differ
+   only in columns 11, 13 and 15. The six-bit value is the unit plus what `roll` answers at its high
+   nibble, where every row but two is one run of the alphabet: row 2 holds `+` and `/` (`-` alone in
+   the URL alphabet), and row 5 the capitals and `_`. One comparison for the alphabet's `/` or `_`
+   moves that unit to index `row | 8`, which no legal row uses, and that entry is its difference.
+
+   **Either alphabet is a remap in front**: `-` becomes `+` and `_` becomes `/`, two comparisons and two
+   selects, and the standard tables do the rest. `either` is a constant at each caller, so the strict
+   decoder does not pay for it.
+
+   **Packing**: two six-bit values into twelve bits by shifts (a unit pair is a little-endian word, so
+   the first is the low byte), then the pair of those into twenty-four by one `accumulateWordProducts`
+   - `pmaddwd` - against 4096 and 1, where the shift route took four operations; then one shuffle to the
+   bytes' order. The store is the whole register, so it wants sixteen bytes of room for the twelve.
+-}
+let base64Nibbles = [
+    -- standard: lo, hi, roll
+    11, 3, 3, 3, 3, 3, 3, 3, 3, 3, 7, 53, 55, 55, 55, 53,
+    1, 1, 2, 4, 8, 16, 8, 32, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 19, 4, 191, 191, 185, 185, 0, 0, 16, 0, 0, 0, 0, 0,
+    -- URL: lo, hi, roll
+    11, 3, 3, 3, 3, 3, 3, 3, 3, 3, 7, 55, 55, 53, 55, 39,
+    1, 1, 2, 4, 8, 16, 8, 32, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 17, 4, 191, 191, 185, 185, 0, 0, 0, 0, 0, 224, 0, 0
+] :: [U8 *96]
+
+-- Each four units' six-bit values, read as `k` words, into their group's twenty-four-bit word in the
+-- low three bytes of each of `m` doubleword lanes, at any width - the caller's ascription says `m`.
+@inline(always) fn (k: Int, m: Int) base64GroupWords(pairs: Vec(U16, k)) -> Vec(I32, m):
+    let twelve = ((pairs `and` (splat(0x003f :: U16) :: Vec(U16, k))) `shl` (splat(6 :: U16) :: Vec(U16, k)))
+                 `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16, k)))
+    let scale = bitcast(splat(0x00011000 :: U32) :: Vec(U32, m)) :: Vec(I16, k)
+    return accumulateWordProducts(zero() :: Vec(I32, m), bitcast(twelve) :: Vec(I16, k), scale)
+
+-- Sixteen units' six-bit values into the twelve bytes they carry, at the front of the answer.
+@inline fn base64PackBlock(value: Vec(U8, 16)) -> Vec(U8, 16):
+    let word = base64GroupWords(bitcast(value) :: Vec(U16, 8)) :: Vec(I32, 4)
+    return shuffle(bitcast(word) :: Vec(U8, 16), [2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, 15, 15, 15, 15])
+
+-- The sixteen-lane loop from `from` and `at` on - the whole of `sse4`'s body, and the natural width's
+-- tail at the others.
+@inline fn decodeBase64Blocks16(url: Bool, either: Bool, input: '[U8], &space: '[U8], from: Size, at: Size)
+        -> CodecProgress:
+    let count = length(input)
+    let room = length(space)
+    if from + 16 > count || at + 16 > room then return CodecProgress {read: from, written: at}
+
+    let source = input.items
+    let target = space.items
+
+    let row = if url && !either then 48 else 0 :: Size
+    let lo = loadVectorAt(base64Nibbles, row) :: Vec(U8, 16)
+    let hi = loadVectorAt(base64Nibbles, row + 16) :: Vec(U8, 16)
+    let roll = loadVectorAt(base64Nibbles, row + 32) :: Vec(U8, 16)
+    let special = splat(if url && !either then "_" :: U8 else "/" :: U8) :: Vec(U8, 16)
+    let nibble = splat(4 :: U8) :: Vec(U8, 16)
+    let spare = splat(8 :: U8) :: Vec(U8, 16)
+    let empty = zero() :: Vec(U8, 16)
+
+    let &i = from
+    let &o = at
+
+    while i + 16 <= count && o + 16 <= room:
+        let &block = vectorAt(source + i) :: Vec(U8, 16)
+        if either:
+            block = select(block .== (splat("-" :: U8) :: Vec(U8, 16)), splat("+" :: U8) :: Vec(U8, 16), block)
+            block = select(block .== (splat("_" :: U8) :: Vec(U8, 16)), splat("/" :: U8) :: Vec(U8, 16), block)
+
+        let high = block `shr` nibble
+        if !all((lookup(lo, block) `and` lookup(hi, high)) .== empty) then break
+
+        let index = high `or` (select(block .== special, spare, empty))
+        setVectorAt(target + o, base64PackBlock(block + lookup(roll, index)))
+
+        i = i + 16
+        o = o + 12
+
+    return CodecProgress {read: i, written: o}
+
+{-
+   `decodeBase64Blocks` at the **natural width** (J238): a register of units read and three quarters of
+   one written a turn, then the sixteen-lane loop above for what is left of the run.
+
+   The classification and the values are that loop's, a lane at a time, with its three sixteen-entry
+   tables read at the natural width's indices (the repetition in front of the loop, the x64 backend's
+   `repeatTable`). The pack is its `base64GroupWords` at the natural width, and then the bytes have to
+   be made one run:
+
+   - **Within each 16-byte part** one `shuffleNatural` puts that part's twelve bytes at its front -
+     `pshufb`, `vpshufb`, `vpshufb` at every width, since the pattern never leaves a part.
+   - **Across the parts** is the width's own question, and no `shuffleNatural` can ask it: the pattern
+     that gathers the parts' doublewords is `[0, 1, 2, 4, ...]`, whose entry `4` is past a sixteen-lane
+     build's four doublewords, and a pattern is one prefix of one text at every width (J237). So it is a
+     `lookup` of the doublewords at a row of indices chosen by `vectorBytes` - a constant at each level,
+     so the choice folds - which is one `vpermd` at `avx2` and one permute at `avx512`; at sixteen lanes
+     there is nothing to gather and the branch is not compiled.
+
+   The store is the whole register, so the loop wants a register of room for three quarters of one and
+   stops earlier than the bytes alone would; the sixteen-lane loop and then the scalar groups take the
+   rest, as they take the rest of the units.
+-}
+let base64Gather = [
+    -- eight doublewords (`avx2`), then sixteen (`avx512`): each part's three, in order
+    0, 1, 2, 4, 5, 6, 3, 7,
+    0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 3, 7, 11, 15
+] :: [U32 *24]
+
+{-
+   Named apart from `decodeBase64Blocks`, which only calls it, so that a test can run it at the one
+   level where it is not the body - `avx512`, where `.native.avx512.yana`'s replaces it - and the
+   sixty-four-lane build of it, `base64Gather`'s second row, is not code no row ever executes
+   (`Base64Kernel.test.native.yana`).
+-}
+@inline(always)
+fn decodeBase64BlocksNatural(url: Bool, either: Bool, input: '[U8], &space: '[U8]) -> CodecProgress:
+    let count = length(input)
+    let room = length(space)
+    let source = input.items
+    let target = space.items
+    let width = vectorBytes
+
+    let &i = 0 :: Size
+    let &o = 0 :: Size
+
+    if width > 16 && count >= width && room >= width:
+        let row = if url && !either then 48 else 0 :: Size
+        let lo = loadVectorAt(base64Nibbles, row) :: Vec(U8, 16)
+        let hi = loadVectorAt(base64Nibbles, row + 16) :: Vec(U8, 16)
+        let roll = loadVectorAt(base64Nibbles, row + 32) :: Vec(U8, 16)
+        let special = splat(if url && !either then "_" :: U8 else "/" :: U8) :: Vec(U8)
+        let nibble = splat(4 :: U8) :: Vec(U8)
+        let spare = splat(8 :: U8) :: Vec(U8)
+        let empty = zero() :: Vec(U8)
+        let gather = loadVectorAt(base64Gather, if width == 32 then 0 else 8) :: Vec(U32)
+
+        while i + width <= count && o + width <= room:
+            let &block = vectorAt(source + i) :: Vec(U8)
+            if either:
+                block = select(block .== (splat("-" :: U8) :: Vec(U8)), splat("+" :: U8) :: Vec(U8), block)
+                block = select(block .== (splat("_" :: U8) :: Vec(U8)), splat("/" :: U8) :: Vec(U8), block)
+
+            let high = block `shr` nibble
+            if !all((lookup(lo, block) `and` lookup(hi, high)) .== empty) then break
+
+            let index = high `or` (select(block .== special, spare, empty))
+            let word = base64GroupWords(bitcast(block + lookup(roll, index)) :: Vec(U16)) :: Vec(I32)
+            let parts = shuffleNatural(bitcast(word) :: Vec(U8), [
+                2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, 15, 15, 15, 15,
+                18, 17, 16, 22, 21, 20, 26, 25, 24, 30, 29, 28, 31, 31, 31, 31,
+                34, 33, 32, 38, 37, 36, 42, 41, 40, 46, 45, 44, 47, 47, 47, 47,
+                50, 49, 48, 54, 53, 52, 58, 57, 56, 62, 61, 60, 63, 63, 63, 63
+            ])
+            setVectorAt(target + o, bitcast(lookup(bitcast(parts) :: Vec(U32), gather)) :: Vec(U8))
+
+            i = i + width
+            o = o + width - (width `shr` 2)
+
+    return decodeBase64Blocks16(url, either, input, space, i, o)
+
+@replaces @inline(always)
+fn decodeBase64Blocks(url: Bool, either: Bool, input: '[U8], &space: '[U8]) -> CodecProgress =
+    decodeBase64BlocksNatural(url, either, input, space)

@@ -15,8 +15,9 @@ import Native
    earlier.
 
    `pushHex` is the half that is split by target, so it is in `Hex.native.yana` and `Hex.js.yana` -
-   natively a vector loop into the string's own bytes, on JS a `pushUnit` pair per byte, and those
-   two have nothing in common (Analysis-Modules.md §2.5). Everything else here is one body.
+   natively the kernel's block bodies writing into the string's own bytes (J235), on JS a `pushUnit`
+   pair per byte, and those two have nothing in common (Analysis-Modules.md §2.5). Everything else here
+   is one body.
 -}
 
 {-
@@ -92,9 +93,9 @@ pub fn isHexDigit(unit: CodeUnit) -> Bool = hexValue(unit) is Just(_)
    nothing about containers.
 
    **Lower case, with no argument to say otherwise.** Every protocol that compares digest text as a
-   string - a `Content-MD5` header, a `.sha256` sidecar, git - writes it that way, and a case flag
-   would be a branch inside the loop paid for by every caller that does not want one. The upper-case
-   form is `toUpperAscii` of this, which is a second pass nobody has asked for yet.
+   string - a `Content-MD5` header, a `.sha256` sidecar, git - writes it that way. The upper-case form
+   is `hexBytes(bytes, upper: True)` in a format hole, or `pushHex`'s `upper`: since J235 the case is
+   which sixteen-entry table the block body builds in front of its loop, so it costs nothing inside it.
 
    `pushHex` is the half that is split: natively it is a vector loop into the string's own bytes and
    on JS it is a `pushUnit` pair per byte, and those two have nothing in common (Analysis-Modules.md
@@ -107,8 +108,8 @@ pub fn hexOf(bytes: [U8]) -> String:
 
 -- One nibble's digit - `0`-`9` then `a`-`f`, as arithmetic rather than as a table: the branch is
 -- one `cmp` and a `cmov`, and a table would be a load and a bounds check the compiler cannot
--- remove. It is what the JS half and the native tail are written out of, and the native block form
--- is this same expression applied lanewise.
+-- remove. It is what the JS half is written out of; the native block bodies read a sixteen-entry
+-- table of the same digits (`hexDigitUnits`).
 pub fn hexUnit(nibble: Int) -> CodeUnit = truncate(if nibble < 10 then "0" + nibble else nibble - 10 + "a")
 
 {-
@@ -184,10 +185,10 @@ pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(
 instance ShowWith(HexBytesStyle, [U8]):
     fn showWith(subject: HexFormat, &to: String):
         let value = subject.style :: HexBytesStyle
-        -- The plain lower-case run with nothing between it is what `pushHex` already is, and it is a
-        -- vector loop natively. Nothing below it is, so the settings are worth this test.
-        if !value.upper && value.separator == 0:
-            pushHex(subject.value, to)
+        -- A run with nothing between its bytes is what `pushHex` already is, in either case, and it is a
+        -- vector loop natively. Nothing below it is, so the setting is worth this test.
+        if value.separator == 0:
+            pushHex(subject.value, to, value.upper)
             return
 
         let bytes = subject.value
@@ -284,7 +285,8 @@ instance ReadWith(HexBytesStyle, [U8]):
    with exactly the bytes of the pairs between the two appended.**
 
    The baseline decodes nothing, which satisfies that promise and leaves the walk below to do all of
-   it; `Hex.native.yana` replaces it with the block form. The separator is not a parameter because a
-   run with one in it has no blocks: the caller tests for it and does not come here.
+   it; `Hex.native.yana` replaces it with the kernel's `decodeHexBlocks` (J235). The separator is not
+   a parameter because a run with one in it has no blocks: the caller tests for it and does not come
+   here.
 -}
 fn pushHexBlocks(text: String, from: Size, &bytes: Array(U8)) -> Size = from

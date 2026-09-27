@@ -1,0 +1,95 @@
+module Core
+
+import Native
+
+{-
+   `decodeBase64Blocks` at sixty-four lanes: sixty-four units read and forty-eight bytes written a turn,
+   then the sixteen-lane loop for what is left of the run (`Base64Kernel.native.yana`).
+
+   **Kept beside the natural-width body because it beats it here** (J238). The natural body is the
+   nibble tables at sixty-four lanes - three table reads, a remap, the pack and a gather - and read a
+   megabyte of `readBase64` in 0.057 ms against this body's 0.042, a megabyte of `Base64.decodeInto`
+   in 0.031 against 0.029, and 256 bytes of `readBase64` in 29.1 ns against 23.8 (min of 11 rounds,
+   one core). The encoder that stood here went: the natural one is as fast at sixty-four lanes (0.031
+   ms against 0.033 a megabyte) and faster on short runs (13.3 ns against 21.5 at 256 bytes). This is
+   the one explicit level left in the Base64 kernel, and the reason is the table: `avx512` reads a
+   128-entry table in two `vpermi2b`s, where the nibble route below it needs three reads and a remap.
+
+   **One table of 128 entries classifies and maps**, which is §4.6's plan with its one correction
+   undone: a table indexed by the whole unit - not by its nibbles - has an entry for `+`, `-`, `/` and
+   `_` each, so either alphabet or both at once is only which table (`base64Values`' rows for the two
+   strict ones, `base64EitherValues` for `readBase64`), and there is no remap and no special case. An
+   entry is the digit's value or 255. This language has no two-register table - a `Vec` is at most
+   sixty-four lanes, so `vpermi2b` over two different registers cannot be written - and the table is
+   read as two halves, each one `lookup` (a `vpermi2b` with its half as both sources, VBMI), chosen by
+   the unit's bit 6. A unit at or above 128 reads some entry modulo 128 and is caught with the 255s: a
+   block is taken when `value | unit` has no top bit set anywhere.
+
+   **Packed by two byte dot products** (`vpdpbusd`, VNNI - both in the `avx512` level's definition):
+   the first gives each four-unit lane `a * 64 + b`, the second adds `c * 64 + d` to that shifted left
+   twelve, which is the group's twenty-four-bit word in three instructions where the shift route took
+   six. One `vpermb` puts each word's three bytes big end first in the low forty-eight, and the store is
+   `storeUpTo` of those forty-eight - one masked store - so this body wants no room past its bytes.
+
+   **`@inline(always)`**, as the natural-width body is: at `@inline` the inliner kept this one out of
+   `readBase64`'s `readWith`, a call with the window and the answer through memory, and a sixteen-byte
+   `readBase64` read 22.4 ns against 21.1 before J234. Always inlined it reads 21.0, and a megabyte of
+   `Base64.decodeInto` went from 0.025 to 0.020 ms with it.
+
+   **Gated by the level alone.** `vpermi2b`/`vpermb` are VBMI and `vpdpbusd` is VNNI; both are in the
+   `avx512` level's definition (Analysis-Avx512.md §0.2: the Ice Lake and Zen 4 intersection), so a
+   Skylake-X, which has neither, is not an `avx512` target at all but an `avx2` one, and runs the
+   natural-width body at thirty-two lanes.
+-}
+let base64EitherValues = [
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 62, 255, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 255, 255, 255, 255, 255, 255,
+    255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255, 63,
+    255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 255, 255, 255, 255, 255
+] :: [U8 *128]
+
+@replaces @inline(always)
+fn decodeBase64Blocks(url: Bool, either: Bool, input: '[U8], &space: '[U8]) -> CodecProgress:
+    let count = length(input)
+    let room = length(space)
+    let source = input.items
+    let target = space.items
+
+    let &i = 0 :: Size
+    let &o = 0 :: Size
+
+    if count >= 64 && room >= 48:
+        let offset = if url then 256 else 0 :: Size
+        let low = if either then loadVectorAt(base64EitherValues, 0) :: Vec(U8, 64)
+                  else loadVectorAt(base64Values, offset) :: Vec(U8, 64)
+        let high = if either then loadVectorAt(base64EitherValues, 64) :: Vec(U8, 64)
+                   else loadVectorAt(base64Values, offset + 64) :: Vec(U8, 64)
+
+        let halfway = splat(64 :: U8) :: Vec(U8, 64)
+        let top = splat(128 :: U8) :: Vec(U8, 64)
+        let first = bitcast(splat(0x00000140 :: U32) :: Vec(U32, 16)) :: Vec(I8, 64)
+        let second = bitcast(splat(0x01400000 :: U32) :: Vec(U32, 16)) :: Vec(I8, 64)
+        let twelve = splat(12 :: I32) :: Vec(I32, 16)
+
+        while i + 64 <= count && o + 48 <= room:
+            let block = vectorAt(source + i) :: Vec(U8, 64)
+            let value = select(block .< halfway, lookup(low, block), lookup(high, block))
+            if !all((value `or` block) .< top) then break
+
+            let pair = accumulateByteProducts(zero() :: Vec(I32, 16), value, first)
+            let word = accumulateByteProducts(pair `shl` twelve, value, second)
+            storeUpTo(target + o, 48, shuffle(bitcast(word) :: Vec(U8, 64), [
+                2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, 18, 17, 16, 22,
+                21, 20, 26, 25, 24, 30, 29, 28, 34, 33, 32, 38, 37, 36, 42, 41,
+                40, 46, 45, 44, 50, 49, 48, 54, 53, 52, 58, 57, 56, 62, 61, 60,
+                63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63
+            ]))
+
+            i = i + 64
+            o = o + 48
+
+    return decodeBase64Blocks16(url, either, input, space, i, o)

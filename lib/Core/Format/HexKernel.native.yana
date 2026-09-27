@@ -1,0 +1,202 @@
+module Core
+
+import Native
+
+{-
+   The block bodies of `HexKernel.yana`, natively, at the **natural width** (J238): `encodeHexBlocks` -
+   a register of bytes read and two of units written a turn - and `decodeHexBlocks`, two registers of
+   units read and one of bytes written. `vectorBytes` is sixteen at `sse4`, thirty-two at `avx2` and
+   sixty-four at `avx512`, and each level gets its own width from this one text. Since J235 they are
+   also `hexOf`'s and `readHexBytes`' (`Hex.native.yana` lends each the reserved run of its string or
+   array as a byte window), which until then had loops of their own here.
+
+   **The digit is a lookup** - the classic `pshufb` of a sixteen-entry table, which is `lookup` since
+   Analysis-Avx512.md §3.3. The table stays sixteen bytes and is read at the natural width's indices:
+   one `pshufb` at `sse4`, one `vpshufb` of the table in both halves at `avx2`, one `vpermi2b` of it
+   repeated at `avx512` - the repetition built once, beside the table, in front of the loop (J238: the
+   x64 backend's `repeatTable`, `compiler/codegen/x64/transform_move.cpp`; until then it stood at each
+   lookup, twice a turn, once `upper` made the table a value chosen at run time). A table of the
+   natural width read at as many indices would be the same at `sse4` and `avx512` and a
+   five-instruction crossing read at `avx2`, which cannot know that its two halves are one table. The
+   lookup takes each index modulo sixteen, which is what lets the low nibble be the byte itself, with
+   no `and` in front of it.
+
+   **The interleave is the width's own**: two `punpck`s at `sse4`, both in-half unpacks and two
+   `vperm2f128`s at `avx2` (J236), a `vpermi2b` each at `avx512`. Until J238 the baseline was pinned at
+   sixteen lanes because `avx2` refused the interleave, and `.native.avx512.yana` was this loop at
+   sixty-four; one body is both now.
+
+   **The ragged end is one more block**, read past the end on §5.2's padding - the input is a window,
+   which carries it - and its units written up to their count with `storeUpTo`, so the body takes every
+   byte that fits and writes nothing past them: a write past the window would be the destruction of
+   whatever follows it. Its `r` bytes are `2r` units: the first register's worth in the low interleave
+   and the rest, if any, in the high one, whose count is then at or below zero and writes nothing -
+   the low store's count may pass its lanes, which `storeUpTo` takes as the whole register.
+
+   `@inline(always)`, for `decodeBase64Blocks`' reason (J234 §5): at `@inline` the inliner may keep the
+   body out of `hexOf`, which then passes the window and the answer through memory.
+
+   This is the native *baseline*, not a replacement - `HexKernel.yana` says why.
+-}
+@inline(always) fn encodeHexBlocks(upper: Bool, input: '[U8], &space: '[U8]) -> CodecProgress:
+    let room = length(space) `shr` 1
+    let n = if length(input) < room then length(input) else room
+    if n <= 0 then return CodecProgress {read: 0, written: 0}
+
+    let source = input.items
+    let target = space.items
+    let digits = hexDigitVector(upper)
+    let width = vectorBytes
+
+    let &i = 0 :: Size
+    while i + width <= n:
+        let block = vectorAt(source + i) :: Vec(U8)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
+        let lowText = lookup(digits, block)
+        setVectorAt(target + i + i, interleaveLow(highText, lowText))
+        setVectorAt(target + i + i + width, interleaveHigh(highText, lowText))
+        i = i + width
+
+    if i < n:
+        let block = vectorPast(source + i) :: Vec(U8)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
+        let lowText = lookup(digits, block)
+        let units = truncate((n - i) + (n - i)) :: Int
+        let lanes = truncate(width) :: Int
+
+        -- The `and` changes no value - `units` is at most `2 * width - 2` - but it is a range the
+        -- backend reads: with it the masked store's count needs no clamp, which at `avx512` is a sign
+        -- test, a compare and two `cmov`s in front of the `bzhi`, and a 16-byte `hexOf` 2-3% (J240).
+        storeUpTo(target + i + i, units `and` (lanes + lanes - 1), interleaveLow(highText, lowText))
+        storeUpTo(target + i + i + width, units - lanes, interleaveHigh(highText, lowText))
+
+    return CodecProgress {read: n, written: n + n}
+
+{-
+   Each byte's high nibble for the decoder, by a word shift and the mask the low nibble's lookup uses
+   too. A byte-lane `shr` is that shift and a mask of its own, which the backend hoists to the
+   function's entry in a callee-saved register - at `avx512` a sixty-four-byte save and restore around
+   every call of the function it is inlined into, which cost `readHexBytes` 7% at sixteen bytes (J235
+   §5). The encoder keeps the byte-lane `shr` and the lookup's own modulus: written this way there,
+   a sixteen-byte `hexOf` was 8% slower. The block comes in as its words, so the one text serves the
+   sixteen-lane loop and the natural width.
+-}
+@inline(always) fn (k: Int, n: Int) hexHighNibbles(words: Vec(U16, k), low: Vec(U8, n)) -> Vec(U8, n) =
+    (bitcast(words `shr` (splat(4 :: U16) :: Vec(U16, k))) :: Vec(U8, n)) `and` low
+
+-- `hexDigitUnits`' sixteen digits of the case asked for, as a vector for `lookup`: one load. Until
+-- J235 it was computed from `iota`, which folded while there was one case and was a dozen instructions
+-- in front of every call once `upper` was a parameter.
+@inline fn hexDigitVector(upper: Bool) -> Vec(U8, 16) =
+    if upper then loadVectorAt(hexDigitUnits, 16) :: Vec(U8, 16) else loadVectorAt(hexDigitUnits, 0) :: Vec(U8, 16)
+
+{-
+   `decodeHexBlocks`, classified by **nibble tables** - `decodeBase64Blocks16`'s route
+   (Muła's) at this notation's size, where `readHexBytes`' block loop before J235 subtracted each of the
+   three runs a digit can fall in and tested each: three subtractions, three comparisons, two `or`s and
+   two selects with their adds, against two lookups, an `and` and a comparison here.
+
+   `hi` gives each high nibble a class bit - 1 the digit row (3), 2 the two letter rows (4 and 6), 4
+   every other row - and `lo` sets the bits of the classes that low nibble is *not* a digit in, so a unit
+   is a digit exactly when `lo[unit & 15] & hi[unit >> 4]` is zero. The value is the unit plus `roll` at
+   its high nibble, as a byte that wraps: `-48` for the digits, `-55` and `-87` for the two cases of
+   letters. A unit at or above 128 is in a row of class 4, which every column of `lo` refuses.
+
+   **A pair is a little-endian word and the first unit is its low byte**, so `(pair << 4) | (pair >> 8)`
+   has the byte in its low half - the first digit moved up a nibble, the second down a byte - and what
+   the shift left moves into the high half is not read: the bytes are every other lane, which is one
+   `pshufb`, and the eight of them are one quadword store. So a block writes exactly its bytes and the
+   loop wants eight bytes of room.
+-}
+let hexNibbles = [
+    -- lo: the classes each low nibble is not a digit in
+    6, 4, 4, 4, 4, 4, 4, 6, 6, 6, 7, 7, 7, 7, 7, 7,
+    -- hi: each high nibble's class
+    4, 4, 4, 1, 2, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    -- roll: what a unit of that high nibble adds to be its value
+    0, 0, 0, 208, 201, 0, 169, 0, 0, 0, 0, 0, 0, 0, 0, 0
+] :: [U8 *48]
+
+-- The sixteen-lane loop from `from` and `at` on: the tail of the natural-width one, for what is left
+-- of the run once fewer than two registers of units are.
+@inline fn decodeHexBlocks16(input: '[U8], &space: '[U8], from: Size, at: Size) -> CodecProgress:
+    let count = length(input)
+    let room = length(space)
+    if from + 16 > count || at + 8 > room then return CodecProgress {read: from, written: at}
+
+    let source = input.items
+    let target = space.items
+
+    let lo = loadVectorAt(hexNibbles, 0) :: Vec(U8, 16)
+    let hi = loadVectorAt(hexNibbles, 16) :: Vec(U8, 16)
+    let roll = loadVectorAt(hexNibbles, 32) :: Vec(U8, 16)
+    let low = splat(15 :: U8) :: Vec(U8, 16)
+    let empty = zero() :: Vec(U8, 16)
+
+    let &i = from
+    let &o = at
+
+    while i + 16 <= count && o + 8 <= room:
+        let block = vectorAt(source + i) :: Vec(U8, 16)
+        let high = hexHighNibbles(bitcast(block) :: Vec(U16, 8), low)
+        if !all((lookup(lo, block `and` low) `and` lookup(hi, high)) .== empty) then break
+
+        let pairs = bitcast(block + lookup(roll, high)) :: Vec(U16, 8)
+        let joined = (pairs `shl` (splat(4 :: U16) :: Vec(U16, 8))) `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16, 8)))
+        let packed = shuffle(bitcast(joined) :: Vec(U8, 16), [0, 2, 4, 6, 8, 10, 12, 14, 15, 15, 15, 15, 15, 15, 15, 15])
+        store(bitcast(target + o) :: %U64, lane(bitcast(packed) :: Vec(U64, 2), 0))
+
+        i = i + 16
+        o = o + 8
+
+    return CodecProgress {read: i, written: o}
+
+-- One register of units classified and turned into its pairs' words, each byte in its word's low half;
+-- `bad` is nonzero in the lane of each unit that is not a digit.
+@inline(always) fn hexJoinedPairs(block: Vec(U8), lo: Vec(U8, 16), hi: Vec(U8, 16), roll: Vec(U8, 16),
+                                  low: Vec(U8)) -> {joined: Vec(U16), bad: Vec(U8)}:
+    let high = hexHighNibbles(bitcast(block) :: Vec(U16), low)
+    let bad = lookup(lo, block `and` low) `and` lookup(hi, high)
+    let pairs = bitcast(block + lookup(roll, high)) :: Vec(U16)
+    return {joined: (pairs `shl` (splat(4 :: U16) :: Vec(U16))) `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16))), bad: bad}
+
+{-
+   `decodeHexBlocks` at the natural width: **two registers of units a turn and one of bytes**, which is
+   what makes the store a whole register at every width - `packLanes` of the two registers' words is
+   `packuswb` over each (after the `and` its truncation is), plus the quadword exchange that puts the
+   halves in order at `avx2` and `avx512`. One register a turn would leave half a register of bytes,
+   which is a `movq` at sixteen lanes and a masked or extracted store at the others. The two blocks'
+   classifications are `or`ed and tested once.
+
+   What is left after the last pair of registers - fewer than `2 * vectorBytes` units - goes to the
+   sixteen-lane loop above, which takes sixteen units at a time down to the last fifteen.
+-}
+@replaces @inline(always)
+fn decodeHexBlocks(input: '[U8], &space: '[U8]) -> CodecProgress:
+    let count = length(input)
+    let room = length(space)
+    let width = vectorBytes
+    let source = input.items
+    let target = space.items
+
+    let &i = 0 :: Size
+    let &o = 0 :: Size
+
+    if count >= width + width && room >= width:
+        let lo = loadVectorAt(hexNibbles, 0) :: Vec(U8, 16)
+        let hi = loadVectorAt(hexNibbles, 16) :: Vec(U8, 16)
+        let roll = loadVectorAt(hexNibbles, 32) :: Vec(U8, 16)
+        let low = splat(15 :: U8) :: Vec(U8)
+        let empty = zero() :: Vec(U8)
+
+        while i + width + width <= count && o + width <= room:
+            let first = hexJoinedPairs(vectorAt(source + i) :: Vec(U8), lo, hi, roll, low)
+            let second = hexJoinedPairs(vectorAt(source + i + width) :: Vec(U8), lo, hi, roll, low)
+            if !all((first.bad `or` second.bad) .== empty) then break
+
+            setVectorAt(target + o, packLanes(first.joined, second.joined) :: Vec(U8))
+
+            i = i + width + width
+            o = o + width
+
+    return decodeHexBlocks16(input, space, i, o)

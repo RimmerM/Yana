@@ -127,6 +127,49 @@ pub fn isValidUtf8(bytes: [U8]) -> Bool:
 
     return utf8ValidFrom(bytes, sequenceStartBefore(bytes, i))
 
+{-
+   `String.fromValidUtf8` natively: `isValidUtf8`'s walk, with each block stored into the new string
+   as it passes - one pass over the bytes rather than a validation and then a copy (J206).
+
+   The string is allocated at the byte count before the walk, so a refusal pays an allocation it
+   drops. The alternative - validating first and allocating only then - is the two passes this
+   exists to avoid, and a caller refusing text is on its failure path. The first three bytes and the
+   tail are `copyMemory`, since the scalar walk that checks them has no block to store.
+-}
+pub fn String.fromValidUtf8(bytes: [U8]) -> Maybe(String):
+    let count = length(bytes)
+    let width = vectorBytes
+    let head = 3 :: Size
+    if count < head + width:
+        if !utf8ValidFrom(bytes, 0) then return Nothing
+        return Just(String.fromUtf8(bytes))
+
+    let &at = 0 :: Size
+    while at < head:
+        let end = utf8SequenceEnd(bytes, at)
+        if end == at then return Nothing
+        at = end
+
+    let &out = String.ofCapacity(count)
+    let into = bitcast(out.units.run.items) :: %U8
+    copyMemory(into, bytes.items, head)
+
+    let zero = zero() :: Vec(I8)
+    let last = count - width
+    let &i = head
+
+    while i <= last:
+        let block = loadVector(bytes, i)
+        let nonAscii = or(signedBlock(bytes, i - 3) .< zero, (bitcast(block) :: Vec(I8)) .< zero)
+        if any(nonAscii) && any(utf8BlockErrors(bytes, i)) then return Nothing
+        setVectorAt(into + i, block)
+        i = i + width
+
+    if !utf8ValidFrom(bytes, sequenceStartBefore(bytes, i)) then return Nothing
+    copyMemory(into + i, bytes.items + i, count - i)
+    out.units.length = truncate(count) :: Count
+    return Just(out)
+
 pub fn isValidUtf16(units: [U16]) -> Bool = utf16ValidFrom(units, 0)
 
 {-

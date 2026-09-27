@@ -127,9 +127,10 @@ fn textOfBytes(bytes: [U8]) -> String:
 {-
    Every length from 0 to 100 against an encoder written a bit at a time, in both alphabets.
 
-   Natively the whole groups are encoded twelve bytes a turn by a vector body (`Base64.native.yana`)
-   that stops sixteen bytes short of the end and hands the rest to the scalar groups, so the lengths
-   worth trying are every one around each multiple of twelve - and the byte pattern walks every
+   Natively the whole groups are encoded three quarters of a register a turn by the kernel's vector
+   body (`Base64Kernel.native.yana`), then twelve bytes a turn by its sixteen-lane tail, which stops
+   sixteen bytes short of the end and hands the rest to the scalar groups, so the lengths worth trying
+   are every one around each multiple of twelve - and the byte pattern walks every
    six-bit window through all of its sixty-four values, which is where an offset table would be wrong.
 -}
 fn referenceBase64(bytes: [U8], url: Bool) -> String:
@@ -158,7 +159,9 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
 @test fn base64EveryLength():
     let &bad = 0
 
-    for n in 0 .. 101:
+    -- To 200: past the natural-width encoder's first block and two turns of its loop at sixty-four
+    -- lanes (48 bytes each), its sixteen-lane tail and the scalar groups (J238).
+    for n in 0 .. 201:
         let &bytes = emptyArray() :: Array(U8)
         for k in 0 .. n:
             push(bytes, truncate(k * 37 + 11 + (k / 7) * 64) :: U8)
@@ -171,8 +174,8 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
 {-
    And the reading direction at every length, which is where the block form of the reader lives.
 
-   `pushBase64Blocks` takes sixteen units - four groups, twelve bytes - at a time and abandons a
-   block holding anything that is not a unit of either alphabet, so the lengths worth walking are
+   `pushBase64Blocks` takes a register of units at a time and then sixteen - four groups, twelve
+   bytes - in its tail, and abandons a block holding anything that is not a unit of either alphabet, so the lengths worth walking are
    every one around each multiple of sixteen units, and the two endings worth having are a padded
    text (where `=` is what stops the block) and an unpadded one (where running out is). Both are
    here, in both alphabets, against the bytes that were encoded.
@@ -204,7 +207,7 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
 {-
    A unit that is not base64 in the middle of a long run, at every position of the first block.
 
-   The block form either takes sixteen units or none, so the position of the first illegal unit
+   The block form either takes a whole block of units or none, so the position of the first illegal unit
    decides how much of the text the group walk behind it is handed - and the cursor and the bytes
    have to come out the same wherever it falls. A run long enough for several blocks with the stop
    moved through the first of them is what says the two bodies agree about where a run ends.
@@ -212,9 +215,10 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
 @test fn base64StopsAtTheFirstIllegalUnit():
     let &bad = 0
 
-    for stop in 1 .. 40:
-        let &text = String.ofCapacity(80)
-        for k in 0 .. 80:
+    -- 200 units and stops through the first 140: past two of the widest blocks (64 units, J238).
+    for stop in 1 .. 140:
+        let &text = String.ofCapacity(200)
+        for k in 0 .. 200:
             text.pushUnit((if k == stop then "!" else "A") :: CodeUnit)
 
         {-
@@ -241,3 +245,55 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
             Err(_) -> (if wantBytes > 0 then bad = bad + 1)
 
     checkEqual(bad, 0)
+
+{-
+   `readBase64`'s block body (J234: the kernel's, asked for either alphabet) against what the group walk
+   must answer, over a 320-unit text of random bytes whose `+` and `/` alternate with `-` and `_` - so
+   every block holds both alphabets - with a `!` and then an `=` put at each of its first 300 units:
+   past two sixty-four-unit blocks and into the sixteen-lane tail (J238). The
+   bytes are the raw bytes of the whole groups before it and of the short group it ends, and the cursor
+   stops in front of it, or past it where it is the `=` a short group of two or three units takes.
+-}
+@test fn base64ReadingBlocksAgree():
+    let &raw = emptyArray() :: Array(U8)
+    let &state = 0x9e3779b97f4a7c15 :: U64
+    for _ in 0 .. 240:
+        state = state `xor` (state `shl` 13)
+        state = state `xor` (state `shr` 7)
+        state = state `xor` (state `shl` 17)
+        push(raw, truncate(state `shr` 56) :: U8)
+
+    let standard = base64Of(raw)
+    let &mixed = emptyArray() :: Array(U8)
+    let &swaps = 0 :: Size
+    for i in 0 .. length(standard):
+        let &unit = truncate(String.unit(standard, i)) :: U8
+        if unit == "+" || unit == "/":
+            if swaps % 2 == 1 then unit = if unit == "+" then "-" :: U8 else "_" :: U8
+            swaps += 1
+        push(mixed, unit)
+    check(swaps > 4)
+
+    let &whole = 0 :: Size
+    match readBase64(textOfBytes(mixed), whole):
+        Ok(back) -> check(itemsEqual(elements(back), elements(raw)))
+        Err(_) -> check(False)
+    checkEqual(whole, length(standard))
+
+    for stop in 0 .. 300:
+        for kind in 0 .. 2:
+            let &disturbed = copy(mixed)
+            disturbed[stop] = if kind == 0 then "!" :: U8 else "=" :: U8
+
+            let groups = stop / 4
+            let held = stop % 4
+            let wantBytes = groups * 3 + (if held < 2 then 0 else held - 1)
+            let wantAt = groups * 4 + (if held < 2 then 0 else held + kind)
+
+            let &at = 0 :: Size
+            match readBase64(textOfBytes(disturbed), at):
+                Ok(back):
+                    checkEqual(length(back), wantBytes)
+                    checkEqual(at, wantAt)
+                    check(itemsEqual(elements(back), elements(raw[0 .. wantBytes])))
+                Err(_) -> checkEqual(wantBytes, 0)
