@@ -496,7 +496,9 @@ read back so that a block that was never handed back fails.
 through it stays indirect (`FunFieldBorrow.yana`). Six adopted fixtures add 1274 more.
 
 What is still refused, each by name: a **nested** lambda and a lambda in a **generic** body - neither
-is a placement question, one being a chain of environments and the other argument zero already spent;
+is a placement question, one being a chain of environments and the other argument zero already spent
+(since C3 only in a body compiled *once*: a lambda in a specialized generic body is lifted as a generic
+sharing the body's context, and each specialization reaches its own closure type and code);
 a **consumed** capture asked for at a *borrowing* position, which is a callback being asked to own
 something; a `&` capture at an *owning* one, which is the one refusal D17 added rather than removed -
 the block outlives the frame and a loan into it would dangle, and nothing downstream catches it
@@ -3502,12 +3504,16 @@ Four things it does not do, each refused where it is written:
   A **pointee** step costs nothing, because it is an indirection rather than a place in the bytes -
   so `Maybe(%s'U8)` composes out of two readers and gives `[.Just, *]`, the same path shape an
   external field has been interned as since milestone 3, while `Maybe(Boxed('v))` is refused.
-- **The residue must be nothing.** A derived teardown is generated per type and descends into the
-  fields the declaration owns, with no way to be told to skip a borrowed one - so the qualification is
-  admitted only where the bytes the member left behind owe nothing, to release or to duplicate.
-  `checkQualifiedShapes` is that pass, and it runs after `classifyTypes` because that is the first
-  point the answer exists. `ownershipOfOccurrence` is where it is spent: a qualified occurrence is
-  trivial, which is a constant rather than a second fold. A declared **`Copy`** is deliberately not
+- **The residue must be releasable member by member.** A derived teardown is generated per type and
+  descends into the fields the declaration owns, with no way to be told to skip a borrowed one - so a
+  qualified value is never handed to it. Until J187 that meant the residue had to be nothing;
+  since P15 what is left is folded by `residueOwnership` (`Result(String, '[U8])` owes its error and
+  moves) and released by `convert.cpp`'s `emitResidueDrop`, which tests the tag and drops each
+  surviving owned member at its own type - ordinary drops, so no tier below learns a second teardown
+  for one logical type. What `checkQualifiedShapes` still refuses is a record with an **authored**
+  teardown, which takes the whole value, and a **boxed** survivor, whose box only the type's own
+  walk hands back; it runs after `classifyTypes` because that is the first point the answer exists.
+  `Residue.yana`, `TryCarrier.Source.yana` and `Reject.Residue.yana` are the fixtures. A declared **`Copy`** is deliberately not
   counted, and the division is between what the compiler inserts and what a use site asks for: a
   partial teardown has no site to blame and has to be refused where it is written, while an authored
   `copy` is a call, and the call is a position like any other. That is the next bullet.
@@ -3552,16 +3558,22 @@ teardown - and leaked it silently. Interning the set in the builder rather than 
 missing ones in the analysis keeps places something only the builder makes, and keeps the sealed body
 the analysis reads exactly the body the verifier checked.
 
-### Drop flags are built and dormant
+### Drop flags
 
-`Elaboration::flags`, `FlagStep`, the `Maybe` state and the conditional arm in `emitDrop` are all
-implemented per §6.7, and **nothing in this language subset reaches them**. The argument is short: a
-drop sinks to the earliest point on each path at which the value is dead, so a value moved on one arm
-of an `if` is released on the *other* arm, before the join, and is never `Maybe` at a drop point; and
-a value that is still live after a conditional move is already a diagnostic. A `drop.maybe` line in a
-MIR golden is therefore news. It is built now rather than later because the machinery is what makes
-the `Maybe` state mean something, and a lattice with an unreachable element is easier to keep honest
-than one that has to be added back.
+`Elaboration::flags`, `FlagStep`, the `Maybe` state and the conditional arm in `emitDrop` are
+implemented per §6.7. This section used to say nothing reached them, on the argument that a value
+moved on one arm of an `if` dies on the other arm before the join, and a value still live after a
+conditional move is a diagnostic. Both halves hold for a *whole* value and neither holds for a
+**member**: `if c: consume(r.x)` followed by a read of `r.y` leaves `r` `Maybe` and live, and a
+`break` landing, a `?` exit and a traversal's leave path (a join of every `return` in the region)
+reach the same shape. Nothing exercised it until R1, and it was wrong twice over: a take wrote only
+the flag of the path it named, so `r` was released whole after `r.x` had been handed over.
+
+What holds since J227: a flag says whether its path is there, and every transition writes the flags
+of every flagged path it changes (subtree, ancestors, a sum's other constructors); and a `Maybe`
+path some member of which the body takes or writes on its own (`splitBelow`) is released member by
+member, a sum's members behind a tag test (`DropStep::guarded`). `ownership/MaybeMembers.yana` and
+`lens/LeaveJoin.yana` are the fixtures.
 
 ### Continuations, and what a lens call is
 
@@ -4355,8 +4367,10 @@ and `resolveAlternative` see a list and never ask where it came from.
 hand-over, an exclusive one, an owned reason both bound and discarded. `<- R`, the wrapper turned
 round, arrived 2026-09-15 and is the section above plus `Resume.yana`; the two channels compose
 without either knowing about the other, which `Resume.yana`'s `guarded` is the worked example of.
-Not implemented: a failure type the signature is generic in, since `declareOutcome` builds a
-concrete record.
+A failure type the signature is generic in - a class's `error`, a generic traversal's `e` - is
+`Outcome(exit, e)` like any generic record, and the SSA call site reads the wrapper at the call's own
+substituted `reason` rather than off the callee (J186, `Skipping.Generic.yana` and
+`iter/Failing.Generic.yana`).
 
 ### What the continuation's parameter is rooted in
 

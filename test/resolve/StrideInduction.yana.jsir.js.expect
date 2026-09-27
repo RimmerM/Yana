@@ -16,11 +16,11 @@ function main() {
   var v5 = [];
   var p0 = 0;
   while (p0 < 6) {
-    var v106 = Math.imul(p0, 10);
-    var v110 = v5.length;
-    var v112 = v110 + 1;
-    v5[v110] = { a: p0, b: 0, c: 0, d: 0, e: v106, f: 0 };
-    v5.length = v112 & 1073741823;
+    var v99 = Math.imul(p0, 10);
+    var v103 = v5.length;
+    var v105 = v103 + 1;
+    v5[v103] = { a: p0, b: 0, c: 0, d: 0, e: v99, f: 0 };
+    v5.length = v105 & 1073741823;
     p0 = p0 + 1 | 0;
   }
   if (strided(v5, v5.length, 0, 2) !== 66) return -1;
@@ -29,8 +29,8 @@ function main() {
   var p2 = 0;
   while (p1 < 6) {
     if (p1 >>> 0 >= v33) throw $t;
-    var v88 = v5[p1 | 0];
-    p2 = (p2 + v88.a | 0) + v88.e | 0;
+    var v86 = v5[p1];
+    p2 = (p2 + v86.a | 0) + v86.e | 0;
     p1 = p1 + 2 | 0;
   }
   if (p2 !== 66) return -2;
@@ -41,4 +41,4 @@ function main() {
 var $t = "yana: a runtime check failed";
 
 // a typed array's growth - see Implementation-Containers.md, section 14
-main();
+(globalThis.process ?? {}).exitCode = main();

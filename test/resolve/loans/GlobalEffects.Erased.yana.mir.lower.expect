@@ -76,36 +76,21 @@ main$<complex>(): I32 {
   }
 
   b_42 {
-    jmp join
+    call_complex teardown(fun), %v_10
+    jmp b_43
   }
 
   b_41 {
-    jmp join
-  }
-
-  join {
-    %v_43 = phi [b_42, 0], [b_41, %v_39]: I64
-    %v_44 = cmp_neq %v_43, 0: I32
-    je %v_44, b_45, b_46
-  }
-
-  b_46 {
+    %v_44 = loads %v_38, 4: I32
     call_complex teardown(fun), %v_10
-    jmp b_47
+    %v_45 = add %v_37, %v_44: I32
+    %v_46 = add %v_45, 10: I32
+    jmp b_43
   }
 
-  b_45 {
-    %v_48 = bitcast %v_43: Ptr
-    %v_49 = loads %v_48, 4: I32
-    call_complex teardown(fun), %v_10
-    %v_50 = add %v_37, %v_49: I32
-    %v_51 = add %v_50, 10: I32
-    jmp b_47
-  }
-
-  b_47 {
-    %v_52 = phi [b_46, %v_37], [b_45, %v_51]: I32
-    ret %v_52
+  b_43 {
+    %v_47 = phi [b_42, %v_37], [b_41, %v_46]: I32
+    ret %v_47
   }
 }
 

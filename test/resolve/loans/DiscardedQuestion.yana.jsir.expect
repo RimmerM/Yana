@@ -1,0 +1,375 @@
+fn Feed.drop(one %r5) -> omitted
+  var $0: %r5
+  block0(%0: %r5):
+    %6: %r0 = const 1
+    %7: %r0 = load global released: %r0
+    %8: %r0 = binary.add %7, %6
+    %9: %r0 = coerce %8
+    store global released: %r0, %9
+    %10: %r5 = alias %0
+    %11: %r4 = load property %10.bytes: %r4
+    call Array(a).reclaim(U8) %11
+    return
+
+fn Feed.next(one %r5) -> one %r9
+  block0(%0: %r5):
+    %1: %r0 = load property %0.at: %r0
+    %2: %r4 = load property %0.bytes: %r4
+    %3: %r2 = load property %2.items: %r2
+    %4: %r4 = alias %2
+    %5: %r3 = load property %4.length: %r3
+    %6: %r0 = convert %5
+    %8: %r0 = convert %1
+    %9: %r10 = binary.ge %8, %6
+    branch %9 -> block2 -> block1
+  block1:
+    %10: %r0 = const 1
+    %11: %r0 = binary.add %1, %10
+    %12: %r0 = coerce %11
+    store property %0.at: %r0, %12
+    %13: %r0 = const 1
+    %14: %r0 = binary.sub %12, %13
+    %15: %r0 = coerce %14
+    %17: %r0 = convert %15
+    %18: %r0 = convert %12
+    %19: %r0 = const 0
+    %20: %r10 = binary.lt %17, %19
+    %21: %r0 = const 0
+    %22: %r0 = select %20, %21, %17
+    %23: %r10 = binary.gt %22, %6
+    %24: %r0 = select %23, %6, %22
+    %25: %r10 = binary.lt %18, %24
+    %26: %r0 = select %25, %24, %18
+    %27: %r10 = binary.gt %26, %6
+    %28: %r0 = select %27, %6, %26
+    %29: %r0 = binary.sub %28, %24
+    %30: %r0 = coerce %29
+    %31: %r7 = materialize %r8 %3, %30, %24
+    %32: %r1 = const 1
+    %33: %r0 = const 0
+    %34: %r9 = object %s2 %32, %33, %31
+    return %34
+  block2:
+    %35: %r0 = alias %1
+    %36: %r1 = const 0
+    %37: %r2 = array
+    %38: %r0 = const 0
+    %39: %r0 = const 0
+    %40: %r7 = object %s3 %37, %38, %39
+    %41: %r9 = object %s2 %36, %35, %40
+    return %41
+
+fn main() -> one %r0
+  var $0: %r11
+  var $1: %r11
+  var $2: %r11
+  var $3: %r9
+  var $4: %r13
+  var $5: %r12
+  var $6: %r4
+  var $7: %r5
+  var $8: %r13
+  var $9: %r9
+  var $10: %r13
+  var $11: %r9
+  var $12: %r13
+  var $13: %r12
+  var $14: %r4
+  var $15: %r12
+  var $16: %r4
+  var $17: %r9
+  var $18: %r13
+  var $19: %r12
+  var $20: %r4
+  var $21: %r1
+  var $22: %r0
+  var $23: %r0
+  var $24: %r1
+  var $25: %r0
+  var $26: %r0
+  var $27: %r1
+  var $28: %r0
+  var $29: %r4
+  var $30: %r1
+  var $31: %r0
+  var $32: %r4
+  var $33: %r1
+  var $34: %r0
+  var $35: %r4
+  var $36: %r1
+  var $37: %r0
+  var $38: %r4
+  block0:
+    %32: %r0 = const 0
+    %51: %r1 = const 1
+    %52: %r1 = const 2
+    %53: %r1 = const 3
+    %54: %r2 = host host.array %51, %52, %53
+    %55: %r3 = const 3
+    %56: %r4 = object %s1 %54, %55
+    %57: %r0 = const 0
+    %58: %r5 = object %s0 %56, %57
+    %37: %r5 = alias %58
+    %59: %r9 = call Feed.next %37
+    %60: %r9 = alias %59
+    %61: %r1 = load property %60.$tag: %r1
+    %62: %r1 = const 0
+    %63: %r10 = binary.eq %61, %62
+    branch %63 -> block12 -> block10
+  block1:
+    %95: %r0 = load var $22: %r0
+    %96: %r0 = alias %95
+    %97: %r0 = const 7
+    %98: %r10 = binary.eq %96, %97
+    %99: %r10 = unary.not %98
+    %100: %r0 = const 1
+    %101: %r0 = select %99, %100, %32
+    %102: %r1 = const 1
+    %103: %r1 = const 2
+    %104: %r1 = const 3
+    %105: %r2 = host host.array %102, %103, %104
+    %106: %r3 = const 3
+    %107: %r4 = object %s1 %105, %106
+    %108: %r0 = const 0
+    %109: %r5 = object %s0 %107, %108
+    %110: %r5 = alias %109
+    call Feed.drop %110
+    %145: %r1 = const 5
+    %146: %r2 = host host.array %145
+    %147: %r3 = const 1
+    %148: %r4 = object %s1 %146, %147
+    %149: %r0 = const 0
+    %150: %r5 = object %s0 %148, %149
+    %118: %r5 = alias %150
+    %151: %r9 = call Feed.next %118
+    %152: %r9 = alias %151
+    %153: %r1 = load property %152.$tag: %r1
+    %154: %r1 = const 0
+    %155: %r10 = binary.eq %153, %154
+    branch %155 -> block18 -> block13
+  block2:
+    %220: %r10 = const 0
+    jump -> block3(%220)
+  block3(%0: %r10):
+    %222: %r10 = unary.not %0
+    %223: %r0 = const 4
+    %224: %r0 = binary.add %101, %223
+    %225: %r0 = coerce %224
+    %226: %r0 = select %222, %225, %101
+    %227: %r1 = const 9
+    %228: %r2 = host host.array %227
+    %229: %r3 = const 1
+    %230: %r4 = object %s1 %228, %229
+    %231: %r0 = const 0
+    %232: %r5 = object %s0 %230, %231
+    %27: %r5 = alias %232
+    %246: %r9 = call Feed.next %27
+    %247: %r9 = alias %246
+    %248: %r1 = load property %247.$tag: %r1
+    %249: %r1 = const 0
+    %250: %r10 = binary.eq %248, %249
+    branch %250 -> block22 -> block20
+  block4:
+    %216: %r0 = load var $25: %r0
+    %217: %r0 = alias %216
+    %218: %r0 = const 1
+    %219: %r10 = binary.eq %217, %218
+    branch %219 -> block5 -> block2
+  block5:
+    %221: %r10 = const 1
+    jump -> block3(%221)
+  block6:
+    %290: %r10 = const 0
+    jump -> block7(%290)
+  block7(%1: %r10):
+    %292: %r10 = unary.not %1
+    %293: %r0 = const 8
+    %294: %r0 = binary.add %226, %293
+    %295: %r0 = coerce %294
+    %296: %r0 = select %292, %295, %226
+    %297: %r0 = load global released: %r0
+    %298: %r0 = const 4
+    %299: %r10 = binary.ne %297, %298
+    %300: %r0 = const 16
+    %301: %r0 = binary.add %296, %300
+    %302: %r0 = coerce %301
+    %303: %r0 = select %299, %302, %296
+    return %303
+  block8:
+    %285: %r11 = alias %11
+    %286: %r0 = load property %285.Err: %r0
+    %287: %r0 = alias %286
+    %288: %r0 = const 8
+    %289: %r10 = binary.eq %287, %288
+    branch %289 -> block9 -> block6
+  block9:
+    %291: %r10 = const 1
+    jump -> block7(%291)
+  block10:
+    %64: %r9 = alias %59
+    %65: %r7 = load property %64.Ok: %r7
+    %66: %r2 = split %65 #0 of %r8
+    %67: %r0 = split %65 #1 of %r8
+    %68: %r0 = split %65 #2 of %r8
+    jump -> block11(%66, %67, %68)
+  block11(%2: %r2, %3: %r0, %4: %r0):
+    %69: %r0 = const 7
+    call Feed.drop %37
+    %70: %r0 = alias %69
+    store var $22: %r0, %70
+    jump -> block1
+  block12:
+    call Feed.drop %37
+    %74: %r9 = alias %59
+    %75: %r0 = load property %74.Err: %r0
+    %76: %r0 = alias %75
+    %82: %r1 = const 1
+    %83: %r2 = array
+    %84: %r3 = const 0
+    %85: %r4 = object %s1 %83, %84
+    %86: %r13 = object %s6 %82, %85, %76
+    %87: %r13 = alias %86
+    %88: %r0 = load property %87.Exit: %r0
+    %89: %r0 = alias %88
+    %90: %r13 = alias %86
+    type.drop %90
+    store var $22: %r0, %89
+    jump -> block1
+  block13:
+    %156: %r9 = alias %151
+    %157: %r7 = load property %156.Ok: %r7
+    %158: %r2 = split %157 #0 of %r8
+    %159: %r0 = split %157 #1 of %r8
+    %160: %r0 = split %157 #2 of %r8
+    jump -> block14(%158, %159, %160)
+  block14(%5: %r2, %6: %r0, %7: %r0):
+    %161: %r9 = call Feed.next %118
+    %162: %r9 = alias %161
+    %163: %r1 = load property %162.$tag: %r1
+    %164: %r1 = const 0
+    %165: %r10 = binary.eq %163, %164
+    branch %165 -> block17 -> block15
+  block15:
+    %166: %r9 = alias %161
+    %167: %r7 = load property %166.Ok: %r7
+    %168: %r2 = split %167 #0 of %r8
+    %169: %r0 = split %167 #1 of %r8
+    %170: %r0 = split %167 #2 of %r8
+    jump -> block16(%168, %169, %170)
+  block16(%8: %r2, %9: %r0, %10: %r0):
+    call Feed.drop %118
+    jump -> block2
+  block17:
+    call Feed.drop %118
+    %175: %r9 = alias %161
+    %176: %r0 = load property %175.Err: %r0
+    %177: %r0 = alias %176
+    %183: %r1 = const 1
+    %184: %r2 = array
+    %185: %r3 = const 0
+    %186: %r4 = object %s1 %184, %185
+    %187: %r13 = object %s6 %183, %186, %177
+    %188: %r13 = alias %187
+    %189: %r0 = load property %188.Exit: %r0
+    %190: %r0 = alias %189
+    %191: %r13 = alias %187
+    type.drop %191
+    store var $25: %r0, %190
+    jump -> block4
+  block18:
+    call Feed.drop %118
+    %195: %r9 = alias %151
+    %196: %r0 = load property %195.Err: %r0
+    %197: %r0 = alias %196
+    %203: %r1 = const 1
+    %204: %r2 = array
+    %205: %r3 = const 0
+    %206: %r4 = object %s1 %204, %205
+    %207: %r13 = object %s6 %203, %206, %197
+    %208: %r13 = alias %207
+    %209: %r0 = load property %208.Exit: %r0
+    %210: %r0 = alias %209
+    %211: %r13 = alias %207
+    type.drop %211
+    store var $25: %r0, %210
+    jump -> block4
+  block19(%11: %r11):
+    call Feed.drop %27
+    %281: %r11 = alias %11
+    %282: %r1 = load property %281.$tag: %r1
+    %283: %r1 = const 0
+    %284: %r10 = binary.eq %282, %283
+    branch %284 -> block8 -> block6
+  block20:
+    %251: %r9 = alias %246
+    %252: %r7 = load property %251.Ok: %r7
+    %253: %r2 = split %252 #0 of %r8
+    %254: %r0 = split %252 #1 of %r8
+    %255: %r0 = split %252 #2 of %r8
+    jump -> block21(%253, %254, %255)
+  block21(%12: %r2, %13: %r0, %14: %r0):
+    %256: %r0 = const 8
+    %257: %r0 = alias %256
+    %258: %r1 = const 0
+    %259: %r0 = const 0
+    %260: %r11 = object %s5 %258, %257, %259
+    jump -> block19(%260)
+  block22:
+    %261: %r9 = alias %246
+    %262: %r0 = load property %261.Err: %r0
+    %263: %r0 = alias %262
+    %269: %r1 = const 1
+    %270: %r2 = array
+    %271: %r3 = const 0
+    %272: %r4 = object %s1 %270, %271
+    %273: %r13 = object %s6 %269, %272, %263
+    %274: %r13 = alias %273
+    %275: %r0 = load property %274.Exit: %r0
+    %276: %r0 = alias %275
+    %277: %r13 = alias %273
+    type.drop %277
+    %278: %r1 = const 0
+    %279: %r0 = const 0
+    %280: %r11 = object %s5 %278, %276, %279
+    jump -> block19(%280)
+
+fn Array(a).reclaim(U8)(one %r4) -> omitted
+  var $0: %r4
+  block0(%0: %r4):
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 175 adopted 3 sunk 3 numbered 4 decided 0 unboxed 0 updated 0 split 6 promoted 24 folded 0
+
+shape %s0 object Feed {bytes: %r4, at: %r0}
+shape %s1 object Array {items: %r2, length: %r3}
+shape %s2 object Result {$tag: %r1 tag, Err: %r0, Ok: %r7}
+shape %s3 object ArrayView {items: %r2, length: %r0, offset: %r0}
+shape %s4 object Result {$tag: %r1 tag, Err: %r0, Ok: %r4}
+shape %s5 object Result {$tag: %r1 tag, Err: %r0, Ok: %r0}
+shape %s6 object Outcome {$tag: %r1 tag, Proceed: %r4, Exit: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = array Uint8Array of %r1
+rep %r3 = number unsigned 30
+rep %r4 = object %s1
+rep %r5 = object %s0
+rep %r6 = void
+rep %r7 = object %s3
+rep %r8 = parts (%r2, %r0, %r0) as %r7
+rep %r9 = object %s2
+rep %r10 = number bool
+rep %r11 = object %s5
+rep %r12 = object %s4
+rep %r13 = object %s6
+fn (one %r13) -> omitted
+  block0(%0: %r13):
+    %1: %r1 = load property %0.$tag: %r1
+    switch %1 case 0 -> block2 else -> block1
+  block1:
+    return
+  block2:
+    %2: %r4 = load property %0.Proceed: %r4
+    call Array(a).reclaim(U8) %2
+    jump -> block1
+

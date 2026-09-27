@@ -1,0 +1,44 @@
+{-
+   What `iter/Stepping.Lent.yana` accepts is a loan taken *through* the object's exclusive loan of
+   its source; these are the uses of that source, or of the object, that the item's loan still meets.
+-}
+
+data Src {bytes: [U8], at: Size}
+
+iter fn blocks(&src: Src) -> '[U8]:
+    while src.at < length(src.bytes):
+        let start = src.at
+        src.at = start + 2
+        yield src.bytes[start..start + 2]
+
+-- Writing the lent source while the object that holds it is still stepped.
+fn writesSource() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4] :: [U8], at: 0}
+    let &it = blocks(s)
+    let &sum = 0 :: I32
+    while it.next() is Just(x):
+        s.at = 0
+        sum = sum + (x[0] :: I32)
+    return sum
+
+-- Stepping again while the previous item is still in use.
+fn stepsUnderItem() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4] :: [U8], at: 0}
+    let &it = blocks(s)
+    let &sum = 0 :: I32
+    while it.next() is Just(x):
+        let y = it.next()
+        sum = sum + (x[0] :: I32)
+    return sum
+
+-- Reading the lent source directly while the item borrowed through it is live.
+fn readsSource() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4] :: [U8], at: 0}
+    let &it = blocks(s)
+    let &sum = 0 :: I32
+    while it.next() is Just(x):
+        let n = truncate(s.at) :: I32
+        sum = sum + (x[0] :: I32) + n
+    return sum
+
+fn main() -> I32 = writesSource() + stepsUnderItem() + readsSource()

@@ -1,0 +1,64 @@
+{-
+   Subslices under bounds facts - `slice`'s clamps decided, so a view's length is the length the
+   caller asked for (`compiler/resolve_ssa/opt/bounds.cpp`, J191; P12's third slice in
+   `doc/inflight/Implementation-Streams.md`).
+
+   `xs[a..b]` is `lib/Core`'s `slice`, which clamps both ends into the window: four comparisons and
+   four `select`s, each reading what the one before it chose. Where the facts in scope say
+   `0 <= a <= b <= length(xs)`, every clamp picks the bound it was given and the view's length is
+   `b - a` - which is what a check on the view compares. The `.ssa.opt.expect` beside this asserts:
+
+   - `window` states the three bounds and `b - a >= 2`, and reads two elements with no check and no
+     `select` left. `from <= length(b)` is neither fact; it is `from <= to` and `to <= length(b)`
+     together, which is the one step of transitivity the relational question takes;
+   - `take` states D10's `need(bytes, at, count)` and returns `bytes[at .. at + count]`; inlined
+     into `header` with `count = 9`, the view it builds is `ArrayView(items + at, 9)` - no clamp,
+     and its length the constant. `self.at` and `length(self.bytes)` are one value each across the
+     `&&` join that `need`'s test leaves, which is `forwardMemory`'s quiet-join rule;
+   - `header` keeps no refusal arm since J192. Until then it kept three, and they were not this
+     pass's: the view reaches the caller inside a `Result`, which `take`'s two returns join and store
+     into a frame slot that `?` reads the tag and the payload back out of. `BoundsCarrier.yana` is
+     the fixture for how that join is now taken apart.
+
+   And the check that must **survive**: `signedFrom` has `from <= to <= length(b)` and `to - from >=
+   2` but nothing about `from`'s sign, so `from = -3, to = 1` passes every test, the clamp makes the
+   view `b[0..1]`, and `v[1]` is out of it. `lib/Native/Aborts.test.native.yana` runs that input
+   into the trap.
+-}
+
+data Fail = Short
+data Buf {bytes: [U8], at: Size}
+
+fn need(b: [U8], at: Size, count: Size) -> Bool =
+    length(b) >= count && (bitcast(at) :: USize) <= (bitcast(length(b) - count) :: USize)
+
+@noinline fn window(b: [U8], from: Size, to: Size) -> U8:
+    if from < 0 || from > to || to > length(b) then return 0
+    if to - from < 2 then return 0
+    let v = b[from..to]
+    return v[0] + v[1]
+
+@noinline fn signedFrom(b: [U8], from: Size, to: Size) -> U8:
+    if from > to || to > length(b) then return 0
+    if to - from < 2 then return 0
+    let v = b[from..to]
+    return v[0] + v[1]
+
+fn take(&self: Buf, count: Size) -> Result(Fail, '[U8]):
+    if !need(self.bytes, self.at, count) then return Err(Short)
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+@noinline fn header(&b: Buf) -> Result(Fail, U32):
+    let h = b.take(9)?
+    return Ok(readBigU32(h, 5) + (h[0] :: U32) + (h[8] :: U32))
+
+fn main() -> Int:
+    let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] :: [U8]
+    let &b = Buf {bytes: copy(bytes), at: 1}
+    let &total = (window(bytes, 2, 5) :: I64) + (signedFrom(bytes, 3, 6) :: I64)
+    if header(b) is Ok(v) then total += (v :: I64)
+    if header(b) is Ok(v) then total += 1000000
+    print("{total} {b.at}")
+    return 0

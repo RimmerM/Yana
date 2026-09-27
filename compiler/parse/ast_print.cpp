@@ -367,6 +367,10 @@ private:
             stream.writeString(" <inclusive>"_v);
         }
 
+        if(f->propagate != kNullLocation) {
+            stream.writeString(" <propagate>"_v);
+        }
+
         makeLevel();
         toString(f->pat, false);
         toString(f->from, false);

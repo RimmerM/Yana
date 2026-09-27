@@ -31,10 +31,10 @@ function main() {
   var v97 = new Uint32Array([0, 0]);
   var v102 = opaqueU32(305419896);
   v97[0] = v102;
-  var v122 = $swap32(v97[0]) >>> 0 === 2018915346 ? 512 : 0;
-  var v127 = $swap32(opaqueU32(305419896)) >>> 0;
-  v97[1] = v127;
-  return v94 + (v122 + (v97[1] === 2018915346 ? 1024 : 0)) + 2048 + ((swapVia_U32(opaqueU32(305419896)) === 2018915346 ? 4096 : 0) + (swapVia_U64(opaqueU64(1n)) === 72057594037927936n ? 8192 : 0));
+  var v117 = $swap32(v102) >>> 0 === 2018915346 ? 512 : 0;
+  var v121 = $swap32(opaqueU32(305419896)) >>> 0;
+  v97[1] = v121;
+  return v94 + (v117 + (v121 === 2018915346 ? 1024 : 0)) + 2048 + ((swapVia_U32(opaqueU32(305419896)) === 2018915346 ? 4096 : 0) + (swapVia_U64(opaqueU64(1n)) === 72057594037927936n ? 8192 : 0));
 }
 
 function swapVia_U32(value) {
@@ -56,4 +56,4 @@ function $swap32(v) {
 function $swap64(v) {
   return (v & 255n) << 56n | (v >> 8n & 255n) << 48n | (v >> 16n & 255n) << 40n | (v >> 24n & 255n) << 32n | v >> 8n & 4278190080n | v >> 24n & 16711680n | v >> 40n & 65280n | v >> 56n & 255n;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

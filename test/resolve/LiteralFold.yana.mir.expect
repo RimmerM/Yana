@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *5] = "hello"
+let string'188: [CodeUnit *5] = "hello"
 
 fn litLen(n: Size [shared call]) -> Size {
   local s: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (s) take %0
   %2: String [shared call] = read borrow.shared (s) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}

@@ -24,7 +24,7 @@ data erased.lambda.env {sep: 0'Array(I32)} shape1
 
 data ownedOnly.lambda.env {xs: 0'Array(I32)} shape2
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
 fn bump(v: I32 [unique call], n: I32 [shared call]) -> I32 {
 bb0:
@@ -608,7 +608,7 @@ bb0:
   %99: I32 = const 7
   %100: I32 = call bit borrow.shared %97 borrow.shared %98 borrow.shared %99
   %101: I32 = add inspect %96 inspect %100
-  %102: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %102: String = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   write.init borrow.unique (local7) take %102
   %104: String [shared slot 0] = read borrow.shared (local7) loan6
   %105: String [shared slot 0 view] = call.derivation view(String) borrow.shared %104 roots{6}

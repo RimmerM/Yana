@@ -1465,6 +1465,8 @@ namespace {
  * With no containment there is nothing to reason from: two addresses one of which has no root of
  * this body's may name the same bytes, and the permissive answer is the only sound one.
  */
+bool namesOnlyParameters(OptContext& opt, Value* address);
+
 bool addressMayReach(OptContext& opt, const Contained& contained, Use address, Value& allocation) {
     if(!address.isSet()) return true;
 
@@ -1473,7 +1475,72 @@ bool addressMayReach(OptContext& opt, const Contained& contained, Use address, V
     if(root) return root == &allocation;
 
     // A borrow handed over an edge roots nowhere and still names the allocation - `addressMayName`.
-    return !contained[allocation] || addressMayName(opt, value, allocation);
+    if(contained[allocation]) return addressMayName(opt, value, allocation);
+
+    /*
+     * **A parameter's storage is older than every allocation of this body**, contained or not - K4.
+     * An address that is nothing but names of an entry argument (fields, `Guaranteed` loads,
+     * `represent`, edges back to one) is inside storage the caller made before this activation
+     * began, so it is not an allocation the body makes. Containment is not the question: a slot whose
+     * borrow was copied into a second carrier (`LimitedInput.take`'s `Ok(run)` of the first
+     * `take`'s payload, J203's G1) escapes, and without this `self.left -= count` between the two
+     * was a write to it. A pointer *loaded* out of the parameter's storage ends the chain at a load
+     * that is not a name, and stays permissive.
+     */
+    return !namesOnlyParameters(opt, value);
+}
+
+// Whether every chain of names behind `address` ends at an argument of the body's entry block.
+bool namesOnlyParameters(OptContext& opt, Value* address) {
+    SmallArray<Value*, 8> pending;
+    SmallArray<Value*, 8> seen;
+    pending.push(address);
+
+    while(pending.size()) {
+        auto at = pending.pop().unwrap();
+        while(at && at->definer) {
+            auto next = addressStep(opt, at);
+            if(!next) return false;
+            at = next;
+        }
+
+        if(!at || !at->block) return false;
+
+        auto block = opt.base[at->block];
+        if(block == opt.base[opt.body->entry]) continue;
+
+        auto known = false;
+        for(auto visited: seen) known = known || visited == at;
+        if(known) continue;
+        if(seen.size() >= 32) return false;
+        seen.push(at);
+
+        Size position = 0;
+        while(position < block->argumentCount()) {
+            if(opt.base[block->argumentAt(opt.base, position)] == at) break;
+            position++;
+        }
+
+        auto found = false;
+        for(auto predecessor: block->incoming(opt.base)) {
+            auto terminator = opt.base[predecessor]->terminator(opt.base);
+            if(!terminator) return false;
+
+            forEachEdge(opt.base, *terminator, [&](Edge& edge) {
+                if(opt.base[edge.target] != block || position >= edge.arguments.size()) return;
+
+                auto used = edge.arguments.get(opt.base, position);
+                if(used.isSet()) {
+                    pending.push(opt.base[used.value()]);
+                    found = true;
+                }
+            });
+        }
+
+        if(!found) return false;
+    }
+
+    return true;
 }
 
 } // namespace

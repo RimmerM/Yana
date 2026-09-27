@@ -1,0 +1,641 @@
+module ResolveTest
+
+data CopyFailure(ie, oe) = InputFailed {InputFailed: ie} | OutputFailed {OutputFailed: oe} drop derived reclaim derived
+
+data CopyFailure(Infallible, OutputFull) = InputFailed {InputFailed: Infallible} | OutputFailed {OutputFailed: OutputFull} of CopyFailure
+
+data CopyFailure(Injected, Infallible) = InputFailed {InputFailed: Injected} | OutputFailed {OutputFailed: Infallible} of CopyFailure
+
+data CopyFailure(Injected, Injected) = InputFailed {InputFailed: Injected} | OutputFailed {OutputFailed: Injected} of CopyFailure
+
+fn upper(byte: U8 [shared call]) -> U8 {
+bb0:
+  %0: U8 = read copy.trivial (byte)
+  %1: U8 = const 97
+  %2: Bool = ge inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %11: U8 = read copy.trivial (byte)
+  jump -> bb2(take %11)
+
+bb2(%12: U8):
+  return take %12
+
+bb3:
+  %4: U8 = read copy.trivial (byte)
+  %5: U8 = const 122
+  %6: Bool = le inspect %4 inspect %5
+  branch inspect %6 -> bb4 -> bb1
+
+bb4:
+  %8: U8 = read copy.trivial (byte)
+  %9: U8 = const 32
+  %10: U8 = sub inspect %8 inspect %9
+  jump -> bb2(take %10)
+}
+
+fn transformCopy(input: i [unique call], output: o [unique call]) -> Result(CopyFailure(ie, oe), {}) {
+  form specialized
+  slot #0 type i
+  slot #1 type ie
+  slot #2 type o
+  slot #3 type oe
+  slot #4 class BlockInput(i, U8, ie)
+  slot #5 class WindowOutput(o, U8, oe)
+  local block: Array(U8) [shared slot 0 view]
+  local & at: Size
+  local & window: OutputWindow(U8) [unique call owner]
+  local & n: Size
+  local local6: U8 [shared slot 0]
+  local & local7: U8 [unique slot 0 owner]
+  local e: oe
+  local e: ie
+  local local10: Result(oe, {}) object10
+  local e: oe object10
+
+bb0:
+  %0: i [unique slot 0] = read borrow.unique (input) loan0
+  lens.try blocks(i, U8, ie) borrow.unique %0 -> bb3 -> bb2
+
+bb1:
+  %67: o [unique call] = read borrow.unique (output) loan10
+  %68: Result(oe, {}) = call finish(o, U8, oe) borrow.unique %67
+  write.init borrow.unique (local10) take %68
+  %70: U8 = read copy.trivial (local10.#)
+  %71: U8 = const 1
+  %72: Bool = eq inspect %70 inspect %71
+  branch inspect %72 -> bb15 -> bb14
+
+bb2(%1: ie):
+  write.init borrow.unique (e) take %1
+  %63: ie = read take (e)
+  %64: CopyFailure(ie, oe) = aggregate.InputFailed take %63
+  %65: Result(CopyFailure(ie, oe), {}) = aggregate.Err take %64
+  return take %65
+
+bb3(%2: Array(U8) [shared slot 0 view]) handover(Array(U8) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (block) borrow.shared %2
+  %5: Size = const 0
+  write.init borrow.unique (at) take %5
+  jump -> bb4
+
+bb4 handover(Array(U8) [shared slot 0 view]) many:
+  %8: Size = read copy.trivial (at)
+  %9: Array(U8) [shared slot 0 view] = read borrow.shared (block) loan1 roots{0}
+  %10: Size = call length(Array(U8)) borrow.shared %9
+  %11: Bool = lt inspect %8 inspect %10
+  branch inspect %11 -> bb6 -> bb5
+
+bb5 handover(Array(U8) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb6 handover(Array(U8) [shared slot 0 view]) many:
+  %13: o [unique call] = read borrow.unique (output) loan2
+  %14: Size = const 1
+  %15: Size = const 64
+  lens.try withWindow(o, U8, oe) borrow.unique %13 borrow.shared %14 borrow.shared %15 -> bb9 -> bb8
+
+bb7 handover(Array(U8) [shared slot 0 view]) many:
+  jump -> bb4
+
+bb8(%16: oe) handover(Array(U8) [shared slot 0 view]) many:
+  write.init borrow.unique (e) take %16
+  %56: oe = read take (e)
+  %57: CopyFailure(ie, oe) = aggregate.OutputFailed take %56
+  %58: Result(CopyFailure(ie, oe), {}) = aggregate.Err take %57
+  return take %58
+
+bb9(%17: OutputWindow(U8) [unique call owner]) handover(OutputWindow(U8) [unique call owner]) at.most.once -> bb7:
+  write.init borrow.unique (window) borrow.unique %17
+  %20: Size = const 0
+  write.init borrow.unique (n) take %20
+  jump -> bb10
+
+bb10 handover(OutputWindow(U8) [unique call owner]) at.most.once:
+  %23: Size = read copy.trivial (n)
+  %24: Array(U8) [shared slot 0 view] = read borrow.shared (window.space) loan3 roots{2}
+  %25: Size = call length(Array(U8)) borrow.shared %24
+  %26: Bool = lt inspect %23 inspect %25
+  branch inspect %26 -> bb12 -> bb11
+
+bb11 handover(OutputWindow(U8) [unique call owner]) at.most.once:
+  %51: OutputWindow(U8) [unique call owner] = read borrow.unique (window) loan9 roots{2} roots.0{2}
+  %52: Size = read copy.trivial (n)
+  %53: {} = call commit(U8) borrow.unique %51 borrow.shared %52
+  jump -> bb7
+
+bb12 handover(OutputWindow(U8) [unique call owner]) at.most.once:
+  %28: Array(U8) [shared slot 0 view] = read borrow.shared (block) loan4 roots{0}
+  %29: Size = read copy.trivial (at)
+  %30: Size = const 1
+  %31: Bool = call need(U8) borrow.shared %28 borrow.shared %29 borrow.shared %30
+  branch inspect %31 -> bb13 -> bb11
+
+bb13 handover(OutputWindow(U8) [unique call owner]) at.most.once:
+  %33: Size = read copy.trivial (n)
+  %34: Size = read copy.trivial (at)
+  %35: Array(U8) [shared slot 0 view] = read borrow.shared (block) loan5 roots{0}
+  %36: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %35 borrow.shared %34 roots{0, 5}
+  write.init borrow.unique (local6) borrow.shared %36
+  %38: U8 = read copy.trivial (local6)
+  %39: U8 = call upper borrow.shared %38
+  %40: Array(U8) [unique slot 0 view] = read borrow.unique (window.space) loan6 roots{2}
+  %41: U8 [unique slot 0 owner] = call.subscript getMut(Array(U8), Size, U8) borrow.unique %40 borrow.shared %33 roots{2, 6}
+  write.init borrow.unique (local7) borrow.unique %41
+  write.assign borrow.unique (local7) take %39
+  %44: Size [unique call] = read borrow.unique (n) loan7
+  %45: Size = const 1
+  %46: {} = call +=(Size) borrow.unique %44 borrow.shared %45
+  %47: Size [unique call] = read borrow.unique (at) loan8
+  %48: Size = const 1
+  %49: {} = call +=(Size) borrow.unique %47 borrow.shared %48
+  jump -> bb10
+
+bb14:
+  %74: oe = read take (local10.Err)
+  write.init borrow.unique (e) take %74
+  %76: oe = read take (e)
+  %77: CopyFailure(ie, oe) = aggregate.OutputFailed take %76
+  %78: Result(CopyFailure(ie, oe), {}) = aggregate.Err take %77
+  return take %78
+
+bb15:
+  drop (local10)
+  %80: {} = const {}
+  %81: Result(CopyFailure(ie, oe), {}) = aggregate.Ok take {}
+  return take %81
+}
+
+fn fixedShout(values: Array(U8) [shared slot 0 view], store: Array(U8) [unique slot 0 view]) -> Size {
+  local & input: SliceBlocks [owned here shape2 .0=shared slot 0 view]
+  local & output: FixedWindows [owned here shape6 .0=unique slot 0 view]
+  local local4: Result(CopyFailure(Infallible, OutputFull), {})
+
+bb0:
+  %0: Array(U8) [shared slot 0 view] = read borrow.shared (values) loan0
+  %1: SliceBlocks [owned here shape2 .0=shared slot 0 view] = call sliceBlocks borrow.shared %0 roots.0{0}
+  write.init borrow.unique (input) take %1
+  %3: Array(U8) [unique slot 0 view] = read borrow.unique (store) loan1
+  %4: FixedWindows [owned here shape6 .0=unique slot 0 view] = call fixedWindows borrow.unique %3 roots.0{1}
+  write.init borrow.unique (output) take %4
+  %6: SliceBlocks [unique call shape2 .0=shared slot 0 view] = read borrow.unique (input) loan2 roots.0{0}
+  %7: FixedWindows [unique call shape6 .0=unique slot 0 view] = read borrow.unique (output) loan3 roots.0{1}
+  %8: Result(CopyFailure(Infallible, OutputFull), {}) = call transformCopy(SliceBlocks, Infallible, FixedWindows, OutputFull) borrow.unique %6 borrow.unique %7
+  write.init borrow.unique (local4) take %8
+  %10: U8 = read copy.trivial (local4.#)
+  %11: U8 = const 1
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: Size = const -1
+  return take %17
+
+bb3:
+  %14: Size = read copy.trivial (output.used)
+  return take %14
+}
+
+fn checksum(bytes: Array(U8) [shared call view]) -> Size {
+  local & total: Size
+  local & local2: Size
+  local i: Size
+  local local4: U8 [shared slot 0]
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (total) take %0
+  %2: Array(U8) [shared call view] = read borrow.shared (bytes) loan0
+  %3: Size = call length(Array(U8)) borrow.shared %2
+  %4: Size = const 0
+  %5: Size = const 1
+  write.init borrow.unique (local2) take %4
+  jump -> bb1(take %3, take %5)
+
+bb1(%6: Size, %7: Size):
+  %14: Size = read copy.trivial (local2)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: Size, %9: Size):
+  %35: Size = read copy.trivial (local2)
+  %36: Size = add inspect %35 inspect %9
+  write.assign borrow.unique (local2) take %36
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: Size, %11: Size):
+  %39: Size = read copy.trivial (total)
+  return take %39
+
+bb4(%16: Size, %17: Size):
+  %19: Size = read copy.trivial (local2)
+  write.init borrow.unique (i) take %19
+  %21: Size = read copy.trivial (total)
+  %22: Size = const 31
+  %23: Size = mul inspect %21 inspect %22
+  %24: Size = read copy.trivial (i)
+  %25: Array(U8) [shared call view] = read borrow.shared (bytes) loan1
+  %26: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %25 borrow.shared %24 roots{1}
+  write.init borrow.unique (local4) borrow.shared %26
+  %28: U8 = read copy.trivial (local4)
+  %29: Size = convert inspect %28
+  %30: Size = add inspect %23 inspect %29
+  %31: Size = const 1000003
+  %32: Size = rem inspect %30 inspect %31
+  write.assign borrow.unique (total) take %32
+  jump -> bb2(take %16, take %17)
+}
+
+fn main() -> I32 {
+  local & local0: Array(U8) object1
+  local text: Array(U8) object1
+  local & local2: Array(U8) object5
+  local & store: Array(U8) object5
+  local written: Size
+  local & local5: Array(U8) object10
+  local & small: Array(U8) object10
+  local full: Size
+  local & local8: Array(U8) object15
+  local & grown: Array(U8) object15
+  local & local10: Array(Size)
+  local & streamed: Input(ScriptedSource, Injected)
+  local & appended: ArrayWindows [owned here shape7 .0=unique slot 0 owner]
+  local local13: Result(CopyFailure(Injected, Infallible), {})
+  local & answer: Size
+  local & sink: ScriptedSink
+  local & local16: Array(U8) object32
+  local & scratch: Array(U8) object32
+  local & local18: Array(Size)
+  local & again: Input(ScriptedSource, Injected)
+  local & staged: SinkWindows(ScriptedSink, Injected) [owned here shape8 .0=unique slot 0 .1=unique slot 0 view]
+  local local21: Result(CopyFailure(Injected, Injected), {})
+  flag (sink) = gone
+
+bb0:
+  %0: U8 = const 119
+  %1: U8 = const 105
+  %2: U8 = const 110
+  %3: U8 = const 100
+  %4: U8 = const 111
+  %5: U8 = const 119
+  %6: U8 = const 115
+  %7: U8 = const 32
+  %8: U8 = const 97
+  %9: U8 = const 110
+  %10: U8 = const 100
+  %11: U8 = const 32
+  %12: U8 = const 98
+  %13: U8 = const 108
+  %14: U8 = const 111
+  %15: U8 = const 99
+  %16: U8 = const 107
+  %17: U8 = const 115
+  %18: %U8 = run.slots U8 *18
+  %19: Size = bitcast inspect %18
+  %20: Size = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  %22: {} = call checkCondition borrow.shared %21
+  %23: @bits(30) U32 = const 18
+  %24: @bits(2) U32 = const 1
+  %25: Run(U8) = aggregate.Run take %18 take %23 take %24
+  %26: @bits(30) U32 = const 18
+  %27: Array(U8) = aggregate.Array take %25 take %26
+  write.init borrow.unique (local0) take %27
+  %29: Size = const 0
+  write.init borrow.unique ([%%18][0]) take %0
+  %31: Size = const 1
+  write.init borrow.unique ([%%18][1]) take %1
+  %33: Size = const 2
+  write.init borrow.unique ([%%18][2]) take %2
+  %35: Size = const 3
+  write.init borrow.unique ([%%18][3]) take %3
+  %37: Size = const 4
+  write.init borrow.unique ([%%18][4]) take %4
+  %39: Size = const 5
+  write.init borrow.unique ([%%18][5]) take %5
+  %41: Size = const 6
+  write.init borrow.unique ([%%18][6]) take %6
+  %43: Size = const 7
+  write.init borrow.unique ([%%18][7]) take %7
+  %45: Size = const 8
+  write.init borrow.unique ([%%18][8]) take %8
+  %47: Size = const 9
+  write.init borrow.unique ([%%18][9]) take %9
+  %49: Size = const 10
+  write.init borrow.unique ([%%18][10]) take %10
+  %51: Size = const 11
+  write.init borrow.unique ([%%18][11]) take %11
+  %53: Size = const 12
+  write.init borrow.unique ([%%18][12]) take %12
+  %55: Size = const 13
+  write.init borrow.unique ([%%18][13]) take %13
+  %57: Size = const 14
+  write.init borrow.unique ([%%18][14]) take %14
+  %59: Size = const 15
+  write.init borrow.unique ([%%18][15]) take %15
+  %61: Size = const 16
+  write.init borrow.unique ([%%18][16]) take %16
+  %63: Size = const 17
+  write.init borrow.unique ([%%18][17]) take %17
+  %65: Array(U8) = read take (local0)
+  write.init borrow.unique (text) take %65
+  %67: U8 = const 0
+  %68: U8 = const 0
+  %69: U8 = const 0
+  %70: U8 = const 0
+  %71: U8 = const 0
+  %72: U8 = const 0
+  %73: U8 = const 0
+  %74: U8 = const 0
+  %75: U8 = const 0
+  %76: U8 = const 0
+  %77: U8 = const 0
+  %78: U8 = const 0
+  %79: U8 = const 0
+  %80: U8 = const 0
+  %81: U8 = const 0
+  %82: U8 = const 0
+  %83: U8 = const 0
+  %84: U8 = const 0
+  %85: U8 = const 0
+  %86: U8 = const 0
+  %87: %U8 = run.slots U8 *20
+  %88: Size = bitcast inspect %87
+  %89: Size = const 0
+  %90: Bool = eq inspect %88 inspect %89
+  %91: {} = call checkCondition borrow.shared %90
+  %92: @bits(30) U32 = const 20
+  %93: @bits(2) U32 = const 1
+  %94: Run(U8) = aggregate.Run take %87 take %92 take %93
+  %95: @bits(30) U32 = const 20
+  %96: Array(U8) = aggregate.Array take %94 take %95
+  write.init borrow.unique (local2) take %96
+  %98: Size = const 0
+  write.init borrow.unique ([%%87][0]) take %67
+  %100: Size = const 1
+  write.init borrow.unique ([%%87][1]) take %68
+  %102: Size = const 2
+  write.init borrow.unique ([%%87][2]) take %69
+  %104: Size = const 3
+  write.init borrow.unique ([%%87][3]) take %70
+  %106: Size = const 4
+  write.init borrow.unique ([%%87][4]) take %71
+  %108: Size = const 5
+  write.init borrow.unique ([%%87][5]) take %72
+  %110: Size = const 6
+  write.init borrow.unique ([%%87][6]) take %73
+  %112: Size = const 7
+  write.init borrow.unique ([%%87][7]) take %74
+  %114: Size = const 8
+  write.init borrow.unique ([%%87][8]) take %75
+  %116: Size = const 9
+  write.init borrow.unique ([%%87][9]) take %76
+  %118: Size = const 10
+  write.init borrow.unique ([%%87][10]) take %77
+  %120: Size = const 11
+  write.init borrow.unique ([%%87][11]) take %78
+  %122: Size = const 12
+  write.init borrow.unique ([%%87][12]) take %79
+  %124: Size = const 13
+  write.init borrow.unique ([%%87][13]) take %80
+  %126: Size = const 14
+  write.init borrow.unique ([%%87][14]) take %81
+  %128: Size = const 15
+  write.init borrow.unique ([%%87][15]) take %82
+  %130: Size = const 16
+  write.init borrow.unique ([%%87][16]) take %83
+  %132: Size = const 17
+  write.init borrow.unique ([%%87][17]) take %84
+  %134: Size = const 18
+  write.init borrow.unique ([%%87][18]) take %85
+  %136: Size = const 19
+  write.init borrow.unique ([%%87][19]) take %86
+  %138: Array(U8) = read take (local2)
+  write.init borrow.unique (store) take %138
+  %140: Array(U8) [shared slot 0] = read borrow.shared (text) loan0
+  %141: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %140 roots{0}
+  %142: Array(U8) [unique slot 0] = read borrow.unique (store) loan1
+  %143: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %142 roots{1}
+  %144: Size = call fixedShout borrow.shared %141 borrow.unique %143
+  drop (store)
+  write.init borrow.unique (written) take %144
+  %146: U8 = const 0
+  %147: U8 = const 0
+  %148: U8 = const 0
+  %149: U8 = const 0
+  %150: %U8 = run.slots U8 *4
+  %151: Size = bitcast inspect %150
+  %152: Size = const 0
+  %153: Bool = eq inspect %151 inspect %152
+  %154: {} = call checkCondition borrow.shared %153
+  %155: @bits(30) U32 = const 4
+  %156: @bits(2) U32 = const 1
+  %157: Run(U8) = aggregate.Run take %150 take %155 take %156
+  %158: @bits(30) U32 = const 4
+  %159: Array(U8) = aggregate.Array take %157 take %158
+  write.init borrow.unique (local5) take %159
+  %161: Size = const 0
+  write.init borrow.unique ([%%150][0]) take %146
+  %163: Size = const 1
+  write.init borrow.unique ([%%150][1]) take %147
+  %165: Size = const 2
+  write.init borrow.unique ([%%150][2]) take %148
+  %167: Size = const 3
+  write.init borrow.unique ([%%150][3]) take %149
+  %169: Array(U8) = read take (local5)
+  write.init borrow.unique (small) take %169
+  %171: Array(U8) [shared slot 0] = read borrow.shared (text) loan2
+  %172: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %171 roots{2}
+  %173: Array(U8) [unique slot 0] = read borrow.unique (small) loan3
+  %174: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %173 roots{3}
+  %175: Size = call fixedShout borrow.shared %172 borrow.unique %174
+  drop (small)
+  write.init borrow.unique (full) take %175
+  %177: Size = const 0
+  %178: %U8 = bitcast inspect %177
+  %179: @bits(30) U32 = const 0
+  %180: @bits(2) U32 = const 1
+  %181: Run(U8) = aggregate.Run take %178 take %179 take %180
+  %182: @bits(30) U32 = const 0
+  %183: Array(U8) = aggregate.Array take %181 take %182
+  write.init borrow.unique (local8) take %183
+  %185: Array(U8) = read take (local8)
+  write.init borrow.unique (grown) take %185
+  %187: Array(U8) [shared call] = read borrow.shared (text) loan4
+  %188: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %187 roots{4}
+  %189: Array(U8) = call copy(Array(U8)) borrow.shared %188
+  %190: Size = const 1
+  %191: Size = const 2
+  %192: Size = const 5
+  %193: %Size = run.slots Size *3
+  %194: Size = bitcast inspect %193
+  %195: Size = const 0
+  %196: Bool = eq inspect %194 inspect %195
+  %197: {} = call checkCondition borrow.shared %196
+  %198: @bits(30) U32 = const 3
+  %199: @bits(2) U32 = const 1
+  %200: Run(Size) = aggregate.Run take %193 take %198 take %199
+  %201: @bits(30) U32 = const 3
+  %202: Array(Size) = aggregate.Array take %200 take %201
+  write.init borrow.unique (local10) take %202
+  %204: Size = const 0
+  write.init borrow.unique ([%%193][0]) take %190
+  %206: Size = const 1
+  write.init borrow.unique ([%%193][1]) take %191
+  %208: Size = const 2
+  write.init borrow.unique ([%%193][2]) take %192
+  %210: Array(Size) = read take (local10)
+  %211: ScriptedSource = call fragments take %189 take %210
+  %212: Size = const 3
+  %213: Input(ScriptedSource, Injected) = call Input.over(ScriptedSource, Injected) take %211 borrow.shared %212
+  write.init borrow.unique (streamed) take %213
+  %215: Array(U8) [unique slot 0] = read borrow.unique (grown) loan5
+  %216: ArrayWindows [owned here shape7 .0=unique slot 0 owner] = call arrayWindows borrow.unique %215 roots.0{5}
+  write.init borrow.unique (appended) take %216
+  %218: Input(ScriptedSource, Injected) [unique call] = read borrow.unique (streamed) loan6
+  %219: ArrayWindows [unique call shape7 .0=unique slot 0 owner] = read borrow.unique (appended) loan7 roots.0{5}
+  %220: Result(CopyFailure(Injected, Infallible), {}) = call transformCopy(Input(ScriptedSource, Injected), Injected, ArrayWindows, Infallible) borrow.unique %218 borrow.unique %219
+  drop (streamed)
+  write.init borrow.unique (local13) take %220
+  %222: U8 = read copy.trivial (local13.#)
+  %223: U8 = const 1
+  %224: Bool = eq inspect %222 inspect %223
+  branch inspect %224 -> bb3 -> bb1
+
+bb1:
+  drop (grown)
+  %229: Size = const 0
+  jump -> bb2(take %229)
+
+bb2(%230: Size):
+  write.init borrow.unique (answer) take %230
+  %234: Size = const -1
+  %235: ScriptedSink = call failingSink borrow.shared %234
+  write.init borrow.unique (sink) take %235
+  flag (sink) = held
+  %237: U8 = const 0
+  %238: U8 = const 0
+  %239: U8 = const 0
+  %240: U8 = const 0
+  %241: U8 = const 0
+  %242: %U8 = run.slots U8 *5
+  %243: Size = bitcast inspect %242
+  %244: Size = const 0
+  %245: Bool = eq inspect %243 inspect %244
+  %246: {} = call checkCondition borrow.shared %245
+  %247: @bits(30) U32 = const 5
+  %248: @bits(2) U32 = const 1
+  %249: Run(U8) = aggregate.Run take %242 take %247 take %248
+  %250: @bits(30) U32 = const 5
+  %251: Array(U8) = aggregate.Array take %249 take %250
+  write.init borrow.unique (local16) take %251
+  %253: Size = const 0
+  write.init borrow.unique ([%%242][0]) take %237
+  %255: Size = const 1
+  write.init borrow.unique ([%%242][1]) take %238
+  %257: Size = const 2
+  write.init borrow.unique ([%%242][2]) take %239
+  %259: Size = const 3
+  write.init borrow.unique ([%%242][3]) take %240
+  %261: Size = const 4
+  write.init borrow.unique ([%%242][4]) take %241
+  %263: Array(U8) = read take (local16)
+  write.init borrow.unique (scratch) take %263
+  %265: Array(U8) [shared call] = read borrow.shared (text) loan9
+  %266: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %265 roots{9}
+  %267: Array(U8) = call copy(Array(U8)) borrow.shared %266
+  drop (text)
+  %268: Size = const 4
+  %269: Size = const 1
+  %270: %Size = run.slots Size *2
+  %271: Size = bitcast inspect %270
+  %272: Size = const 0
+  %273: Bool = eq inspect %271 inspect %272
+  %274: {} = call checkCondition borrow.shared %273
+  %275: @bits(30) U32 = const 2
+  %276: @bits(2) U32 = const 1
+  %277: Run(Size) = aggregate.Run take %270 take %275 take %276
+  %278: @bits(30) U32 = const 2
+  %279: Array(Size) = aggregate.Array take %277 take %278
+  write.init borrow.unique (local18) take %279
+  %281: Size = const 0
+  write.init borrow.unique ([%%270][0]) take %268
+  %283: Size = const 1
+  write.init borrow.unique ([%%270][1]) take %269
+  %285: Array(Size) = read take (local18)
+  %286: ScriptedSource = call fragments take %267 take %285
+  %287: Size = const 2
+  %288: Input(ScriptedSource, Injected) = call Input.over(ScriptedSource, Injected) take %286 borrow.shared %287
+  write.init borrow.unique (again) take %288
+  %290: ScriptedSink [unique slot 0] = read borrow.unique (sink) loan10
+  %291: Array(U8) [unique slot 0] = read borrow.unique (scratch) loan11
+  %292: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %291 roots{11}
+  %293: Size = const 0
+  %294: SinkWindows(ScriptedSink, Injected) [owned here shape8 .0=unique slot 0 .1=unique slot 0 view] = call sinkWindows(ScriptedSink, Injected) borrow.unique %290 borrow.unique %292 borrow.shared %293 roots.0{10, 11} roots.1{10, 11}
+  write.init borrow.unique (staged) take %294
+  %296: Input(ScriptedSource, Injected) [unique call] = read borrow.unique (again) loan12
+  %297: SinkWindows(ScriptedSink, Injected) [unique call shape8 .0=unique slot 0 .1=unique slot 0 view] = read borrow.unique (staged) loan13 roots.0{10, 11} roots.1{10, 11}
+  %298: Result(CopyFailure(Injected, Injected), {}) = call transformCopy(Input(ScriptedSource, Injected), Injected, SinkWindows(ScriptedSink, Injected), Injected) borrow.unique %296 borrow.unique %297
+  drop (scratch)
+  drop (again)
+  write.init borrow.unique (local21) take %298
+  %300: U8 = read copy.trivial (local21.#)
+  %301: U8 = const 1
+  %302: Bool = eq inspect %300 inspect %301
+  branch inspect %302 -> bb6 -> bb4
+
+bb3:
+  %226: Array(U8) [shared call] = read borrow.shared (grown) loan8
+  %227: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %226 roots{8}
+  %228: Size = call checksum borrow.shared %227
+  drop (grown)
+  jump -> bb2(take %228)
+
+bb4:
+  drop.maybe (sink)
+  jump -> bb5
+  flag (sink) = gone
+
+bb5:
+  %315: Size = read copy.trivial (answer)
+  %316: Size = const 100
+  %317: Size = mul inspect %315 inspect %316
+  %318: Size = read copy.trivial (written)
+  %319: Size = add inspect %317 inspect %318
+  %320: Size = const 10
+  %321: Size = mul inspect %319 inspect %320
+  %322: Size = read copy.trivial (full)
+  %323: Size = add inspect %321 inspect %322
+  %324: Size = const 1
+  %325: Size = add inspect %323 inspect %324
+  %326: I32 = convert inspect %325
+  return take %326
+
+bb6:
+  %304: Array(U8) [shared call] = read borrow.shared (sink.bytes) loan14
+  %305: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %304 roots{14}
+  %306: Size = call checksum borrow.shared %305
+  drop (sink)
+  %307: Size = read copy.trivial (answer)
+  flag (sink) = gone
+  %308: Bool = eq inspect %306 inspect %307
+  branch inspect %308 -> bb7 -> bb4
+
+bb7:
+  %310: Size [unique call] = read borrow.unique (answer) loan15
+  %311: Size = const 1
+  %312: {} = call +=(Size) borrow.unique %310 borrow.shared %311
+  jump -> bb5
+}
+
+fn transformCopy(Input(ScriptedSource, Injected), Injected, ArrayWindows, Infallible)(input: Input(ScriptedSource, Injected) [unique call], output: ArrayWindows [unique call]) -> Result(CopyFailure(Injected, Infallible), {}) = <transformCopy at Input(ScriptedSource, Injected), Injected, ArrayWindows, Infallible>
+
+fn transformCopy(Input(ScriptedSource, Injected), Injected, SinkWindows(ScriptedSink, Injected), Injected)(input: Input(ScriptedSource, Injected) [unique call], output: SinkWindows(ScriptedSink, Injected) [unique call]) -> Result(CopyFailure(Injected, Injected), {}) = <transformCopy at Input(ScriptedSource, Injected), Injected, SinkWindows(ScriptedSink, Injected), Injected>
+
+fn transformCopy(SliceBlocks, Infallible, FixedWindows, OutputFull)(input: SliceBlocks [unique call], output: FixedWindows [unique call]) -> Result(CopyFailure(Infallible, OutputFull), {}) = <transformCopy at SliceBlocks, Infallible, FixedWindows, OutputFull>
+
+entry main

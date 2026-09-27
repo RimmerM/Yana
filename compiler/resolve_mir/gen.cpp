@@ -1,5 +1,6 @@
 #include "gen.h"
 #include "own.h"
+#include "specialize.h"
 
 namespace mir {
 
@@ -437,6 +438,10 @@ bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> cont
                 return false;
             }
 
+            // A lambda's environment declaration is written in its enclosing body's context, and
+            // is what a value of it has there - see `substituteType`.
+            if(!record.instanceOf && record.gen) return record.gen == context;
+
             for(auto argument: record.arguments.contents(base)) {
                 if(mentionsContext(base, argument, context)) return true;
             }
@@ -523,12 +528,81 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
     }
 }
 
-bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type) {
+/*
+ * Whether every variable this type mentions is one of `owner`'s - the walk `isConcreteType` makes,
+ * asked about *whose* variables rather than about whether there are any.
+ *
+ * The distinction is the whole of D13's precondition. A type carrying the asking body's own `a` is
+ * a shape that is settled for every specialization; one carrying an *inference* variable - a callee
+ * parameter nothing has bound yet, which is what a half-resolved call site is full of - is a shape
+ * that is not settled at all, and answering from the table there decides a question the argument
+ * walk was still in the middle of.
+ */
+bool variablesFrom(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> owner) {
+    if(!type) return true;
+
+    switch(base[type]->kind) {
+        case Type::Variable:
+            return owner && ((VariableType*)base[type])->owner == owner;
+        case Type::Pointer:
+            return variablesFrom(base, ((PointerType*)base[type])->to, owner);
+        /*
+         * A **quantified count is a variable like any other** here, where `isConcreteType` treats it
+         * as an absence. That is the difference the two questions are asking: a body compiled once
+         * cannot lay `[a *n]` out, which is what that function is about, and `[a *n]` is still one
+         * shape for every `n` a specialization supplies, which is what this one is about.
+         * `instance (n: Int) Contiguous([a *n], a)` is the head that matches it.
+         */
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            return variablesFrom(base, array.element, owner) && variablesFrom(base, array.count, owner);
+        }
+        case Type::Vector: {
+            auto& vector = *(VectorType*)base[type];
+            return variablesFrom(base, vector.lane, owner) && variablesFrom(base, vector.count, owner);
+        }
+        case Type::Atomic:
+            return variablesFrom(base, ((AtomicType*)base[type])->content, owner);
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
+
+            // A tuple is its fields (`mentionsContext`), and a lambda's environment declaration is
+            // written in its enclosing body's context (`substituteType`) - C3's closure types.
+            if(record.tuple) {
+                for(auto field: record.fields.contents(base)) {
+                    if(!variablesFrom(base, field.occurrence.type, owner)) return false;
+                }
+                return true;
+            }
+
+            if(!record.instanceOf && record.gen) return owner && record.gen == owner;
+
+            for(auto argument: record.arguments.contents(base)) {
+                if(!variablesFrom(base, argument, owner)) return false;
+            }
+            return true;
+        }
+        case Type::Fun: {
+            auto& fun = *(FunType*)base[type];
+            for(auto param: fun.params.contents(base)) {
+                if(!variablesFrom(base, param.occurrence.type, owner)) return false;
+            }
+            return variablesFrom(base, fun.result.type, owner);
+        }
+        default:
+            return true;
+    }
+}
+
+bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> rigid) {
     if(!type || base[type]->kind != Type::Fun) return false;
 
     auto& fun = *(FunType*)base[type];
     for(auto param: fun.params.contents(base)) {
-        if(!isConcreteType(base, param.occurrence.type)) return false;
+        if(!isConcreteType(base, param.occurrence.type) &&
+           !(rigid && variablesFrom(base, param.occurrence.type, rigid))) {
+            return false;
+        }
     }
 
     // The result is the half that may be open, so what is asked about it is nothing at all. A
@@ -571,7 +645,11 @@ DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> fu
     auto base = *program.decl;
     auto& declared = *base[function];
 
-    if(isGeneric(base, declared.gen) || declared.lens || declared.iterator) return nullptr;
+    // A lambda lifted in a generic body (C3) is generic in that body's context and still has a
+    // type: the one it was written with, in those variables, which a specialization substitutes.
+    if((isGeneric(base, declared.gen) && !declared.environment) || declared.lens || declared.iterator) {
+        return nullptr;
+    }
 
     /*
      * A lifted lambda's **environment** is argument zero and is not one of the type's positions.
@@ -719,12 +797,21 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
         case Type::Atomic:
             markVariables(base, owner, ((AtomicType&)written).content, into);
             return;
-        case Type::Record:
-            for(auto argument: ((RecordType&)written).arguments.contents(base)) {
+        case Type::Record: {
+            // A lambda's environment declaration mentions every variable of its context - see
+            // `substituteType`.
+            auto& record = (RecordType&)written;
+            if(!record.instanceOf && record.gen == owner && owner) {
+                for(Size i = 0; i < into.size(); i++) into[i] = true;
+                return;
+            }
+
+            for(auto argument: record.arguments.contents(base)) {
                 markVariables(base, owner, argument, into);
             }
 
             return;
+        }
         default:
             return;
     }
@@ -1046,7 +1133,8 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
  * be made for. Every other caller records the mint, and the resolver drains what it recorded.
  */
 DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurrence& handover,
-                               DeclPtr<Type> resume, LocationId source, bool record) {
+                               DeclPtr<Type> resume, LocationId source, bool record,
+                               DeclPtr<Type> failure) {
     auto base = *program.decl;
     auto resumed = resume ? resume : program.types.unit;
 
@@ -1076,7 +1164,23 @@ DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurre
 
     auto step = program.types.funType(base, params, 2, owned(pointer));
     auto window = handover.contract.form() == AccessForm::View;
-    auto type = program.types.iterType(base, handover, resumed, sent, step, window);
+
+    /*
+     * `Outcome(exit, E)` for a failing protocol - the `$failure` member's own type, instantiated the
+     * way `mintIterSite` instantiates it, so the address a failed step answers points at a value of
+     * exactly this type whichever record is behind the pair.
+     */
+    DeclPtr<Type> failed = nullptr;
+
+    if(failure) {
+        DeclPtr<Type> arguments[2] = { program.types.exitCode(), failure };
+        failed = instantiateRecord(context, program, program.roles.record(intrinsic::Known::outcome),
+                                   arguments, 2, source);
+        if(!failed) return nullptr;
+    }
+
+    auto type = program.types.iterType(base, handover, resumed, sent, step, window, failure, failed);
+    ((IterType*)base[type])->lends = objectLends(base, handover);
 
     if(!record) return type;
 
@@ -1102,6 +1206,62 @@ DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurre
 
     program.erasedIters.push(Program::ErasedIter { type, handover, resumed, source, true });
     return type;
+}
+
+/*
+ * An `openSite` record under a substitution for the body that built it - P16: the site type minted
+ * at the producer's arguments substituted, which is a record of its own rather than an instantiation
+ * of this one (`RecordType::openSite` says why).
+ *
+ * The first time through, the resolver mints it (`Program::IterObjects::siteAt`) - the reachability
+ * walk is what specializes the body, so that is where a new argument list is first seen, on the
+ * terms `objectMaker` already mints from. Every later ask, including the conversion's after the
+ * resolver is gone, is answered from `Program::openSites`.
+ */
+static DeclPtr<Type> openSiteAt(Context& context, Program& program, DeclPtr<Type> type,
+                                const Substitution& with) {
+    auto base = *program.decl;
+    auto& record = *(RecordType*)base[type];
+    auto& open = *base[record.producer];
+
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    for(auto argument: open.typeArguments.contents(base)) {
+        auto substituted = substituteType(context, program, argument, with);
+        if(!isConcreteType(base, substituted)) return type;
+        arguments.push(substituted);
+    }
+
+    for(auto& known: program.openSites) {
+        if(known.open != type || known.count != arguments.size()) continue;
+
+        auto same = true;
+        for(U32 i = 0; i < known.count && same; i++) {
+            same = program.openSiteArguments[known.first + i] == arguments[i];
+        }
+
+        if(same) return known.concrete;
+    }
+
+    if(!program.iterObjects) {
+        context.diagnostics.error(
+            "internal: an object built in a generic body is needed at an argument list nothing minted it at"_v,
+            record.source);
+        return type;
+    }
+
+    auto concrete = program.iterObjects->siteAt(open.specializes, arguments.pointer(),
+                                                arguments.size(), record.source);
+    if(!concrete) return type;
+
+    Program::OpenSite made;
+    made.open = type;
+    made.concrete = concrete;
+    made.first = U32(program.openSiteArguments.size());
+    made.count = U32(arguments.size());
+    for(auto argument: arguments) program.openSiteArguments.push(argument);
+    program.openSites.push(made);
+
+    return concrete;
 }
 
 DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> type,
@@ -1247,10 +1407,16 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
 
             auto handover = substituteOccurrence(context, program, iterated.handover, with);
             auto resume = substituteType(context, program, iterated.resume, with);
+            auto failure = iterated.failure
+                ? substituteType(context, program, iterated.failure, with) : nullptr;
 
-            if(handover == iterated.handover && resume == iterated.resume) return type;
+            if(handover == iterated.handover && resume == iterated.resume &&
+               failure == iterated.failure) {
+                return type;
+            }
 
-            return erasedIterTypeOf(context, program, handover, resume, kNullLocation, true);
+            return erasedIterTypeOf(context, program, handover, resume, kNullLocation, true,
+                                    failure);
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];
@@ -1277,9 +1443,25 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
                 return tupleType(context, program, fields.pointer(), fields.size(), kNullLocation);
             }
 
-            // A concrete record has nothing to substitute, and neither does a generic declaration
-            // reached as a type - the second cannot occur, since a declaration is only ever named
-            // through an application.
+            /*
+             * A generic declaration reached as a type is a **lambda's environment** (C3) and nothing
+             * else: a written `data` is only ever named through an application, and a lambda lifted
+             * in a generic body shares that body's context, so a value of its record *is* the
+             * declaration there. A substitution for that context is the application, made here.
+             * Partial ones leave it alone, for the variable arm's reason.
+             */
+            if(!record.instanceOf && record.gen && record.gen == with.owner) {
+                for(Size i = 0; i < with.count; i++) {
+                    if(!with.arguments[i]) return type;
+                }
+
+                if(record.openSite) return openSiteAt(context, program, type, with);
+
+                return instantiateRecord(context, program, DeclPtr<RecordType>(type),
+                                         (DeclPtr<Type>*)with.arguments, with.count, record.source);
+            }
+
+            // A concrete record has nothing to substitute.
             if(!record.instanceOf) return type;
 
             SmallArray<DeclPtr<Type>, 4> arguments;
@@ -1466,6 +1648,25 @@ static void fillInstantiation(Context& context, Program& program, RecordType& re
      */
     for(auto constructor: written.cons.contents(base)) record.cons.push(program.decl, constructor);
     record.layout = written.layout;
+
+    /*
+     * A **lambda's environment** is a site type at every argument list - C3, a lambda written in a
+     * generic body. The code it names is the lifted function *specialized at these arguments*, on
+     * `producer`'s terms: what a call through `f.lambda.env(I32)` runs is `f.lambda(I32)`, and
+     * `callTarget` reads it off the type without knowing it was ever generic. An argument list that
+     * still holds a variable - a site value reaching another generic body's signature - names the
+     * generic, and the specialization that substitutes it reaches this again with a concrete one.
+     */
+    if(written.lambda) {
+        auto concrete = true;
+        for(auto argument: arguments) concrete = concrete && isConcreteType(base, argument);
+
+        record.lambda = concrete
+            ? specializeFunction(context, program, written.lambda, arguments.pointer(),
+                                 arguments.size(), record.source)
+            : written.lambda;
+        record.lambdaShape = substituteType(context, program, written.lambdaShape, with);
+    }
 
     record.originSlots = written.originSlots;
 

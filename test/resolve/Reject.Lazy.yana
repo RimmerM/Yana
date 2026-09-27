@@ -108,19 +108,8 @@ instance Combine(Mask):
     fn merge(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
     fn either(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
 
--- A thunk inside a generic body would have to be specialized alongside its caller, for the reason
--- a lambda there would. Only where the callee can be seen through - `&&` on a Bool - does no thunk
--- exist to specialize.
-fn (Eq(a)) inGeneric(x: a, y: a) -> Int = once(x == y, 1)
-
--- The same rule reached through inference rather than through a written thunk. `b` occurs only in
--- the deferred position, so what decides it is the closure the argument is resolved into - and a
--- closure inside a generic body is exactly what the rule above refuses. So this says that, once,
--- rather than saying nothing decided `b`: the thing that would have decided it is the thing that
--- cannot be built here.
-fn (Truth(a), Truth(b)) userAnd(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
-
-fn (Truth(a)) callsUserAnd(x: a, y: Bool) -> Bool = userAnd(x, y)
+-- A thunk inside a generic body is specialized alongside its caller since C3, as a lambda there is -
+-- `generic/LambdaGeneric.yana` runs both the written and the inferred shapes that were here.
 
 -- Since J135, which enforces these in the new stage; they were `Reject.Lazy.Legacy.yana`.
 -- A `@lazy` parameter handed into another deferred argument inside an expression is a capture,

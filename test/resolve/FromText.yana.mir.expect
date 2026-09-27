@@ -2,11 +2,11 @@ module ResolveTest
 
 data Separators {field: CodeUnit = 44, line: Char = Char(10)}
 
-let string'142: [CodeUnit *1] = "x"
+let string'188: [CodeUnit *1] = "x"
 
-let string'143: [CodeUnit *5] = "a,b,c"
+let string'189: [CodeUnit *5] = "a,b,c"
 
-let string'144: [CodeUnit *1] = "x"
+let string'190: [CodeUnit *1] = "x"
 
 fn classify(unit: CodeUnit [shared call]) -> I32 {
 bb0:
@@ -123,7 +123,7 @@ fn convert() -> a {
   local local0: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   write.init borrow.unique (local0) take %0
   %2: String [shared slot 0] = read borrow.shared (local0) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
@@ -312,7 +312,7 @@ bb24:
   %123: I32 = add inspect %118 inspect %122
   write.assign borrow.unique (score) take %123
   %125: I32 = read copy.trivial (score)
-  %126: String = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %126: String = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (local7) take %126
   %128: String [shared slot 0] = read borrow.shared (local7) loan0
   %129: String [shared slot 0 view] = call.derivation view(String) borrow.shared %128 roots{0}
@@ -360,7 +360,7 @@ bb28:
 bb29:
   %144: String [shared call] = read borrow.shared (text) loan1
   %145: String [shared slot 0 view] = call.derivation view(String) borrow.shared %144 roots{1}
-  %146: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %146: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   write.init borrow.unique (local10) take %146
   %148: String [shared slot 0] = read borrow.shared (local10) loan2
   %149: String [shared slot 0 view] = call.derivation view(String) borrow.shared %148 roots{2}

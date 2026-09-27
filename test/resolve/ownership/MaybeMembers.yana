@@ -1,0 +1,164 @@
+{-
+   A value whole on some paths into a point and taken apart on others - review R1.
+
+   Before, the drop placed at such a join released the value *whole* under its own flag, and nothing
+   cleared that flag when a member was handed over: `consume(r.x)` on one branch and the drop of `r`
+   after the join released `x` a second time. A member released on its own read a flag the whole
+   value's write never set, so the other shape leaked. Now every transition writes the flag of every
+   path it changes, and a value whose members can be moved apart is released member by member, each
+   under its own flag - a sum's members behind a test of its tag, since where the sum is whole nothing
+   proved which constructor it holds.
+
+   Every case appends digits to `trace` in the order things ran - a `Guard`'s id when it is dropped,
+   7 for a read, 8 for a hand-over - so a member dropped twice, never, or early changes the number.
+-}
+
+let &trace = 0 :: I64
+
+fn note(n: I64):
+    trace = trace * 10 + n
+
+data Guard {id: I64}
+
+instance Drop(Guard):
+    fn drop(->self: Guard):
+        note(self.id)
+
+fn consume(->x: Guard):
+    note(8)
+
+fn peek(g: Guard):
+    note(7)
+
+data Rec {x: Guard, y: Guard}
+
+fn consumeRec(->r: Rec):
+    note(8)
+
+-- A local's field handed over on one branch; the other field read after the join.
+fn local(c: Bool, n: I64):
+    let r = Rec {x: Guard {id: n}, y: Guard {id: n + 1}}
+    if c:
+        consume(r.x)
+    peek(r.y)
+
+-- The same through an owned parameter, whose members arrive owned.
+fn parameter(->r: Rec, c: Bool):
+    if c:
+        consume(r.x)
+    peek(r.y)
+
+-- Handed over and then `break` - J197's landing, which meets the loop's own exit.
+fn landing(n: I32, base: I64):
+    let r = Rec {x: Guard {id: base}, y: Guard {id: base + 1}}
+    for i in 0..n:
+        if i == 1:
+            consume(r.x)
+            break
+    peek(r.y)
+
+-- Whole on one path, taken apart on a second, untouched on a third.
+fn three(k: I32, base: I64):
+    let r = Rec {x: Guard {id: base}, y: Guard {id: base + 1}}
+    for i in 0..1:
+        if k == 0:
+            consumeRec(r)
+            break
+        if k == 1:
+            consume(r.x)
+            break
+    note(7)
+
+-- Two levels deep.
+data Outer {inner: Rec, z: Guard}
+
+fn deep(c: Bool, base: I64):
+    let o = Outer {inner: Rec {x: Guard {id: base}, y: Guard {id: base + 1}}, z: Guard {id: base + 2}}
+    if c:
+        consume(o.inner.x)
+    peek(o.inner.y)
+    peek(o.z)
+
+-- A `?` exit after the branch.
+fn pick(fail: Bool) -> Maybe(I32) = if fail then Nothing else Just(7)
+
+fn question(c: Bool, fail: Bool, base: I64) -> Maybe(I32):
+    let r = Rec {x: Guard {id: base}, y: Guard {id: base + 1}}
+    if c:
+        consume(r.x)
+    let v = pick(fail)?
+    peek(r.y)
+    return Just(v)
+
+-- A sum's payload handed over on one branch: the members are released behind a test of the tag.
+data Sum = A {g: Guard, h: Guard} | B(Guard)
+
+fn sum(n: I32, ->s: Sum):
+    for i in 0..n:
+        if i == 1:
+            match s:
+                A {g: ->x, h: _} -> consume(x)
+                B(k) -> peek(k)
+            break
+    note(7)
+
+-- An authored `Drop` finishing a member it consumed on one path only (K5).
+data Flagged {x: Guard, y: Guard, flag: Bool}
+
+instance Drop(Flagged):
+    fn drop(->self: Flagged):
+        if self.flag:
+            consume(self.x)
+        peek(self.y)
+
+let &failures = 0 :: I32
+
+-- Held to the trace the case should leave, which is then cleared; a failure is counted and the last
+-- one named.
+fn expect(case: I32, want: I64):
+    if trace != want then failures = failures / 100 * 100 + 100 + case
+    trace = 0
+
+fn main() -> I32:
+    local(True, 1)
+    expect(1, 1872)
+    local(False, 3)
+    expect(2, 734)
+    parameter(Rec {x: Guard {id: 1}, y: Guard {id: 2}}, True)
+    expect(3, 1872)
+    parameter(Rec {x: Guard {id: 3}, y: Guard {id: 4}}, False)
+    expect(4, 734)
+    landing(2, 1)
+    expect(5, 1872)
+    landing(0, 3)
+    expect(6, 734)
+    three(0, 1)
+    expect(7, 1287)
+    three(1, 3)
+    expect(8, 4387)
+    three(2, 5)
+    expect(9, 567)
+    deep(True, 1)
+    expect(10, 187723)
+    deep(False, 4)
+    expect(11, 77456)
+    let q1 = question(True, True, 1)
+    expect(12, 182)
+    let q2 = question(True, False, 3)
+    expect(13, 3874)
+    let q3 = question(False, True, 5)
+    expect(14, 56)
+    let q4 = question(False, False, 1)
+    expect(15, 712)
+    sum(2, A {g: Guard {id: 1}, h: Guard {id: 2}})
+    expect(16, 2187)
+    sum(0, A {g: Guard {id: 3}, h: Guard {id: 4}})
+    expect(17, 347)
+    sum(2, B(Guard {id: 5}))
+    expect(18, 757)
+    sum(0, B(Guard {id: 6}))
+    expect(19, 67)
+    let f1 = Flagged {x: Guard {id: 1}, y: Guard {id: 2}, flag: True}
+    let f2 = Flagged {x: Guard {id: 3}, y: Guard {id: 4}, flag: False}
+    expect(20, 1872734)
+    return failures

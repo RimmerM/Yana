@@ -1,0 +1,500 @@
+module ResolveTest
+
+let & trace: I64 = 0
+
+let string'188: [CodeUnit *2] = "ab"
+
+let string'189: [CodeUnit *1] = "a"
+
+let string'190: [CodeUnit *1] = "b"
+
+fn note(n: I64 [shared call]) -> {} {
+bb0(%0: I64 trivial):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: %I64 address = global.addr trace
+  %3: I64 trivial = load inspect %2
+  %4: I64 trivial = const 10
+  %5: I64 trivial = mul inspect %3 inspect %4
+  %6: I64 trivial = load inspect %1
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: %I64 address = global.addr trace
+  store inspect %8 consume %7
+  return
+}
+
+fn Note.drop(value: Note) -> {} {
+bb0(%0: Note owned):
+  %1: %Note address = alloc frame Note
+  store inspect %1 consume %0
+  %2: %I64 address = field.addr .n inspect %1
+  %3: I64 trivial = load inspect %2
+  call note borrow %3
+  return
+}
+
+fn consume(n: Note) -> I64 {
+bb0(%0: Note owned):
+  %1: %Note address = alloc frame Note
+  store inspect %1 consume %0
+  %2: %I64 address = field.addr .n inspect %1
+  %3: I64 trivial = load inspect %2
+  drop Note inspect %1
+  return consume %3
+}
+
+fn named(s: String) -> I64 {
+bb0(%0: String owned):
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  store inspect %2 consume %0
+  %4: String [shared call] guaranteed from{%2} = load inspect %2
+  jump -> bb4
+
+bb1:
+  %32: I64 trivial = const 0
+  jump -> bb2(consume %32)
+
+bb2(%1: I64 trivial):
+  return consume %1
+
+bb3:
+  %33: I64 trivial = const 2
+  jump -> bb2(consume %33)
+
+bb4:
+  %6: %Array(CodeUnit) address = field.addr .units inspect %4
+  %7: %Run(CodeUnit) address = field.addr .run inspect %6
+  %8: %%CodeUnit address = field.addr .items inspect %7
+  %9: %CodeUnit trivial = load inspect %8
+  %10: %Array(CodeUnit) address = field.addr .units inspect %4
+  %11: %@bits(30) U32 address = field.addr .length inspect %10
+  %12: @bits(30) U32 trivial = load inspect %11
+  %13: I32 trivial = convert inspect %12
+  %14: Size trivial = convert inspect %13
+  %15: StringView trivial = aggregate.StringView consume %9 consume %14
+  %16: String [shared slot 0 view] guaranteed = represent inspect %15
+  jump -> bb5(borrow %16)
+
+bb5(%5: String [shared slot 0 view] guaranteed from{%2}):
+  %17: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
+  store inspect %3 consume %17
+  %18: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  jump -> bb6
+
+bb6:
+  %20: %Array(CodeUnit) address = field.addr .units inspect %18
+  %21: %Run(CodeUnit) address = field.addr .run inspect %20
+  %22: %%CodeUnit address = field.addr .items inspect %21
+  %23: %CodeUnit trivial = load inspect %22
+  %24: %Array(CodeUnit) address = field.addr .units inspect %18
+  %25: %@bits(30) U32 address = field.addr .length inspect %24
+  %26: @bits(30) U32 trivial = load inspect %25
+  %27: I32 trivial = convert inspect %26
+  %28: Size trivial = convert inspect %27
+  %29: StringView trivial = aggregate.StringView consume %23 consume %28
+  %30: String [shared slot 0 view] guaranteed = represent inspect %29
+  jump -> bb7(borrow %30)
+
+bb7(%19: String [shared slot 0 view] guaranteed from{%3}):
+  %31: Bool trivial = call String.== borrow %5 borrow %19
+  drop String inspect %2
+  drop String inspect %3
+  branch inspect %31 -> bb3 -> bb1
+}
+
+fn Pair.drop(value: Pair) -> {} {
+bb0(%0: Pair owned):
+  %1: %Pair address = alloc frame Pair
+  store inspect %1 consume %0
+  %2: I64 trivial = const 1
+  call note borrow %2
+  %3: %Note address = field.addr .first inspect %1
+  drop Note inspect %3
+  %4: %Note address = field.addr .second inspect %1
+  drop Note inspect %4
+  return
+}
+
+fn Taking.drop(value: Taking) -> {} {
+bb0(%0: Taking owned):
+  %1: %Taking address = alloc frame Taking
+  %2: %I64 address = alloc frame I64
+  store inspect %1 consume %0
+  %3: %Note address = field.addr .taken inspect %1
+  %4: Note owned = load inspect %3
+  %5: I64 trivial = call consume consume %4
+  store inspect %2 consume %5
+  %6: I64 trivial = load inspect %2
+  %7: %String address = field.addr .name inspect %1
+  %8: String owned = load inspect %7
+  %9: I64 trivial = call named consume %8
+  %10: I64 trivial = add inspect %6 inspect %9
+  call note borrow %10
+  %11: %Note address = field.addr .kept inspect %1
+  drop Note inspect %11
+  return
+}
+
+fn Choosy.drop(value: Choosy) -> {} {
+bb0(%0: Choosy owned):
+  %1: %Choosy address = alloc frame Choosy
+  %2: %I64 address = alloc frame I64
+  store inspect %1 consume %0
+  %3: %Bool address = field.addr .early inspect %1
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I64 trivial = const 8
+  call note borrow %5
+  %6: %Note address = field.addr .member inspect %1
+  drop Note inspect %6
+  return
+
+bb3:
+  %7: %Note address = field.addr .member inspect %1
+  %8: Note owned = load inspect %7
+  %9: I64 trivial = call consume consume %8
+  store inspect %2 consume %9
+  %10: I64 trivial = load inspect %2
+  call note borrow %10
+  return
+}
+
+fn Shape.drop(value: Shape) -> {} {
+bb0(%0: Shape owned):
+  %1: %Shape address = alloc frame Shape
+  store inspect %1 consume %0
+  %2: I64 trivial = const 5
+  call note borrow %2
+  %3: %U8 address = field.addr .# inspect %1
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb1 -> bb2
+
+bb1 cleanup:
+  %7: %Note address = field.addr .at inspect %1
+  drop Note inspect %7
+  jump -> bb2
+
+bb2:
+  %8: %U8 address = field.addr .# inspect %1
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb4
+
+bb3 cleanup:
+  %12: %Note address = field.addr .from inspect %1
+  drop Note inspect %12
+  %13: %Note address = field.addr .to inspect %1
+  drop Note inspect %13
+  jump -> bb4
+
+bb4:
+  return
+}
+
+fn Holder(a).drop(value: Holder(a)) -> {} = <no body>
+
+fn pair() -> {} {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: I64 trivial = const 2
+  %2: Note owned = aggregate.Note consume %1
+  %3: I64 trivial = const 3
+  %4: Note owned = aggregate.Note consume %3
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
+  store inspect %0 consume %5
+  drop Pair inspect %0
+  return
+}
+
+fn taking() -> {} {
+bb0:
+  %0: %Taking address = alloc frame Taking
+  %1: I64 trivial = const 6
+  %2: Note owned = aggregate.Note consume %1
+  %3: I64 trivial = const 3
+  %4: Note owned = aggregate.Note consume %3
+  %5: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  %7: String owned = call String.++ consume %5 consume %6
+  %8: Taking owned = aggregate.Taking consume %2 consume %4 consume %7
+  store inspect %0 consume %8
+  drop Taking inspect %0
+  return
+}
+
+fn early() -> {} {
+bb0:
+  %0: %Choosy address = alloc frame Choosy
+  %1: Bool trivial = const True
+  %2: I64 trivial = const 7
+  %3: Note owned = aggregate.Note consume %2
+  %4: Choosy owned = aggregate.Choosy consume %1 consume %3
+  store inspect %0 consume %4
+  drop Choosy inspect %0
+  return
+}
+
+fn late() -> {} {
+bb0:
+  %0: %Choosy address = alloc frame Choosy
+  %1: Bool trivial = const False
+  %2: I64 trivial = const 9
+  %3: Note owned = aggregate.Note consume %2
+  %4: Choosy owned = aggregate.Choosy consume %1 consume %3
+  store inspect %0 consume %4
+  drop Choosy inspect %0
+  return
+}
+
+fn dot() -> {} {
+bb0:
+  %0: %Shape address = alloc frame Shape
+  %1: I64 trivial = const 1
+  %2: Note owned = aggregate.Note consume %1
+  %3: Shape owned = aggregate.Dot consume %2
+  store inspect %0 consume %3
+  drop Shape inspect %0
+  return
+}
+
+fn line() -> {} {
+bb0:
+  %0: %Shape address = alloc frame Shape
+  %1: I64 trivial = const 2
+  %2: Note owned = aggregate.Note consume %1
+  %3: I64 trivial = const 3
+  %4: Note owned = aggregate.Note consume %3
+  %5: Shape owned = aggregate.Line consume %2 consume %4
+  store inspect %0 consume %5
+  drop Shape inspect %0
+  return
+}
+
+fn empty'2() -> {} {
+bb0:
+  %0: %Shape address = alloc frame Shape
+  %1: Shape owned = aggregate.Empty
+  store inspect %0 consume %1
+  drop Shape inspect %0
+  return
+}
+
+fn holder() -> {} {
+bb0:
+  %0: %Holder(Note) address = alloc frame Holder(Note)
+  %1: I64 trivial = const 6
+  %2: Note owned = aggregate.Note consume %1
+  %3: Holder(Note) owned = aggregate.Holder consume %2
+  store inspect %0 consume %3
+  drop Holder(Note) inspect %0
+  return
+}
+
+fn wrapper() -> {} {
+bb0:
+  %0: %Wrapper address = alloc frame Wrapper
+  %1: I64 trivial = const 2
+  %2: Note owned = aggregate.Note consume %1
+  %3: I64 trivial = const 3
+  %4: Note owned = aggregate.Note consume %3
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
+  %6: I64 trivial = const 9
+  %7: Note owned = aggregate.Note consume %6
+  %8: Wrapper owned = aggregate.Wrapper consume %5 consume %7
+  store inspect %0 consume %8
+  drop Wrapper inspect %0
+  return
+}
+
+fn run(f: () -> {} [shared call]) -> I64 {
+bb0(%0: () -> {} [shared call] guaranteed):
+  %1: I64 trivial = const 0
+  %2: %I64 address = global.addr trace
+  store inspect %2 consume %1
+  %3: () -> {} [shared call] guaranteed from{%0} = load inspect %0
+  call [value #0] inspect %3
+  %4: %I64 address = global.addr trace
+  %5: I64 trivial = load inspect %4
+  return consume %5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %1: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %2: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %3: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %4: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %5: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %6: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %7: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %8: %() -> {} address = alloc frame () -> {} [owned here shape8 .0=unique call]
+  %9: () -> {} [owned here shape8 .0=unique call] affine = fun.value pair
+  store inspect %0 consume %9
+  %10: () -> {} [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %11: I64 trivial = call run borrow %10
+  %12: I64 trivial = const 123
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: () -> {} [owned here shape8 .0=unique call] affine = fun.value taking
+  store inspect %1 consume %14
+  %15: () -> {} [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %16: I64 trivial = call run borrow %15
+  %17: I64 trivial = const 356
+  %18: Bool trivial = ne inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %19: I32 trivial = const 1
+  return consume %19
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: () -> {} [owned here shape8 .0=unique call] affine = fun.value early
+  store inspect %2 consume %20
+  %21: () -> {} [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
+  %22: I64 trivial = call run borrow %21
+  %23: I64 trivial = const 77
+  %24: Bool trivial = ne inspect %22 inspect %23
+  branch inspect %24 -> bb9 -> bb7
+
+bb6:
+  %25: I32 trivial = const 2
+  return consume %25
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %26: () -> {} [owned here shape8 .0=unique call] affine = fun.value late
+  store inspect %3 consume %26
+  %27: () -> {} [shared call shape8 .0=unique call] guaranteed from{%3} = load inspect %3
+  %28: I64 trivial = call run borrow %27
+  %29: I64 trivial = const 89
+  %30: Bool trivial = ne inspect %28 inspect %29
+  branch inspect %30 -> bb12 -> bb10
+
+bb9:
+  %31: I32 trivial = const 3
+  return consume %31
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %32: () -> {} [owned here shape8 .0=unique call] affine = fun.value dot
+  store inspect %4 consume %32
+  %33: () -> {} [shared call shape8 .0=unique call] guaranteed from{%4} = load inspect %4
+  %34: I64 trivial = call run borrow %33
+  %35: I64 trivial = const 51
+  %36: Bool trivial = ne inspect %34 inspect %35
+  branch inspect %36 -> bb15 -> bb13
+
+bb12:
+  %37: I32 trivial = const 4
+  return consume %37
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %38: () -> {} [owned here shape8 .0=unique call] affine = fun.value line
+  store inspect %5 consume %38
+  %39: () -> {} [shared call shape8 .0=unique call] guaranteed from{%5} = load inspect %5
+  %40: I64 trivial = call run borrow %39
+  %41: I64 trivial = const 523
+  %42: Bool trivial = ne inspect %40 inspect %41
+  branch inspect %42 -> bb18 -> bb16
+
+bb15:
+  %43: I32 trivial = const 5
+  return consume %43
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %44: () -> {} [owned here shape8 .0=unique call] affine = fun.value empty'2
+  store inspect %6 consume %44
+  %45: () -> {} [shared call shape8 .0=unique call] guaranteed from{%6} = load inspect %6
+  %46: I64 trivial = call run borrow %45
+  %47: I64 trivial = const 5
+  %48: Bool trivial = ne inspect %46 inspect %47
+  branch inspect %48 -> bb21 -> bb19
+
+bb18:
+  %49: I32 trivial = const 6
+  return consume %49
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %50: () -> {} [owned here shape8 .0=unique call] affine = fun.value holder
+  store inspect %7 consume %50
+  %51: () -> {} [shared call shape8 .0=unique call] guaranteed from{%7} = load inspect %7
+  %52: I64 trivial = call run borrow %51
+  %53: I64 trivial = const 46
+  %54: Bool trivial = ne inspect %52 inspect %53
+  branch inspect %54 -> bb24 -> bb22
+
+bb21:
+  %55: I32 trivial = const 7
+  return consume %55
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %56: () -> {} [owned here shape8 .0=unique call] affine = fun.value wrapper
+  store inspect %8 consume %56
+  %57: () -> {} [shared call shape8 .0=unique call] guaranteed from{%8} = load inspect %8
+  %58: I64 trivial = call run borrow %57
+  %59: I64 trivial = const 1239
+  %60: Bool trivial = ne inspect %58 inspect %59
+  branch inspect %60 -> bb27 -> bb25
+
+bb24:
+  %61: I32 trivial = const 8
+  return consume %61
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %62: I32 trivial = const 0
+  return consume %62
+
+bb27:
+  %63: I32 trivial = const 9
+  return consume %63
+}
+
+fn Holder(a).drop(Note)(value: Holder(Note)) -> {} {
+bb0(%0: Holder(Note) owned):
+  %1: %Holder(Note) address = alloc frame Holder(Note)
+  store inspect %1 consume %0
+  %2: I64 trivial = const 4
+  call note borrow %2
+  %3: %Note address = field.addr .item inspect %1
+  drop Note inspect %3
+  return
+}
+
+entry main

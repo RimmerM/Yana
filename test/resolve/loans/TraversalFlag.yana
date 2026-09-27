@@ -1,0 +1,52 @@
+{-
+   A conditional move out of an outer local inside a traversal's region, then `break` - J185.
+
+   The local is moved on the `break` path and still held where the traversal runs out, so its
+   teardown at the region's destination is behind a drop flag that the continuation writes. The
+   flag is the caller's frame slot, captured by the continuation as a local is; it was an internal
+   error ("a drop flag inside a continuation has no storage the nest shares").
+
+   `lent` is the other half: a `&` argument of the traversal is live for the whole region, so the
+   record it lends is released at the destination rather than on the `break` path inside the region.
+-}
+
+let &trace = 0 :: I32
+
+data Note {id: I32}
+
+instance Drop(Note):
+    fn drop(->value: Note):
+        trace = trace * 10 + value.id
+
+fn take(->n: Note) -> I32 = n.id * 100
+
+fn moved(stop: I32) -> I32:
+    let xs = [1, 2, 3] :: [I32]
+    let note = Note {id: 7}
+    let &got = 0 :: I32
+    for x in items(xs):
+        if x == stop:
+            got = take(note)
+            break
+    return got
+
+data Src {bytes: [U8], at: Size}
+
+iter fn blocks(&src: Src) -> '[U8]:
+    while src.at < length(src.bytes):
+        let start = src.at
+        src.at = start + 2
+        yield src.bytes[start..start + 2]
+
+fn lent() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4, 5, 6] :: [U8], at: 0}
+    let &sum = 0 :: I32
+    for x in blocks(s):
+        sum = sum + (x[0] :: I32)
+        if sum > 3 then break
+    return sum
+
+fn main() -> I32:
+    let a = moved(2)
+    let b = moved(9)
+    return a * 10000 + b + trace * 10 + lent()

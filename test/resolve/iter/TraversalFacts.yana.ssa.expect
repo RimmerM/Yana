@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *6] = "banana"
+let string'188: [CodeUnit *6] = "banana"
 
-let string'143: [CodeUnit *5] = "a
+let string'189: [CodeUnit *5] = "a
 b
 c"
 
-let string'144: [CodeUnit *1] = "x"
+let string'190: [CodeUnit *1] = "x"
 
 fn countA(text: String [shared call view]) -> I32 {
 bb0(%0: String [shared call view] guaranteed):
@@ -374,7 +374,7 @@ bb0:
   store inspect %27 consume %12
   %28: Array(I32) owned = load inspect %0
   store inspect %1 consume %28
-  %29: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 6, ownsHeap: 0}, length: 6}}
+  %29: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 6, ownsHeap: 0}, length: 6}}
   store inspect %2 consume %29
   %30: String [shared slot 0] guaranteed from{%2} = load inspect %2
   jump -> bb1
@@ -443,7 +443,7 @@ bb2(%31: String [shared slot 0 view] guaranteed from{%2}):
   %80: I32 trivial = call nested borrow %79
   drop [Array(I32) *2] inspect %5
   %81: I32 trivial = add inspect %47 inspect %80
-  %82: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %82: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %6 consume %82
   %83: String [shared slot 0] guaranteed from{%6} = load inspect %6
   jump -> bb3
@@ -468,7 +468,7 @@ bb4(%84: String [shared slot 0 view] guaranteed from{%6}):
   %97: I32 trivial = add inspect %81 inspect %96
   store inspect %7 consume %97
   %98: I32 [unique call] guaranteed from{%7} = load inspect %7
-  %99: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %99: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %100: I32 trivial = const 4
   %101: Size trivial = const 1
   %102: Map(String, I32) owned = call newMap(String, I32) borrow %101

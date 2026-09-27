@@ -1,0 +1,228 @@
+module ResolveTest
+
+data around(I32).Lens {$index: I32, $slot: {}}
+
+data one.Iter {$index: I32, $slot: I32, $around: around(I32).Lens} drop authored
+
+data counted.Iter {$index: I32, $slot: I32, n: I32, : I32, : I32, : I32, $around: around(I32).Lens} drop authored
+
+instance Drop(one.Iter): one$drop
+
+instance Iterate(one.Iter, I32, {}): one$next, one$resume
+
+instance Drop(counted.Iter): counted$drop
+
+instance Iterate(counted.Iter, I32, {}): counted$next, counted$resume
+
+let & trace: I32 = 0
+
+lens fn around($body: (->{}) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  %6: {} = const {}
+  %7: (->{}) -> $r [shared call] = read borrow.shared ($body) loan0
+  %8: $r = call inspect %7 take {}
+  write.init borrow.unique ($yielded) take %8
+  %10: I32 = read copy.trivial (global trace)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = const 2
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (global trace) take %14
+  %16: $r = read take ($yielded)
+  return take %16
+}
+
+lens fn one($body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local local2: {}
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  lens.call around(I32) -> bb2
+
+bb1:
+  %14: I32 = read copy.trivial ($yielded)
+  return take %14
+
+bb2(%2: {}) handover({}) -> bb1:
+  write.init borrow.unique (local2) take {}
+  %5: I32 = const 7
+  %6: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %7: I32 = call inspect %6 borrow.shared %5
+  %8: I32 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  write.assign borrow.unique ($yielded) take %7
+  branch inspect %9 -> bb3 -> bb4
+
+bb3 handover({}):
+  jump -> bb1
+
+bb4 handover({}):
+  jump -> bb1
+}
+
+lens fn counted(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+  local local5: {}
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %38: I32 = read copy.trivial (local3)
+  %39: I32 = add inspect %38 inspect %8
+  write.assign borrow.unique (local3) take %39
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %42: I32 = read copy.trivial ($yielded)
+  return take %42
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  lens.call around(I32) -> bb6
+
+bb5:
+  %32: I32 = read copy.trivial ($yielded)
+  %33: I32 = const 0
+  %34: Bool = eq inspect %32 inspect %33
+  branch inspect %34 -> bb9 -> bb10
+
+bb6(%20: {}) handover({}) -> bb5:
+  write.init borrow.unique (local5) take {}
+  %23: I32 = read copy.trivial (i)
+  %24: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %25: I32 = call inspect %24 borrow.shared %23
+  %26: I32 = const 0
+  %27: Bool = eq inspect %25 inspect %26
+  write.assign borrow.unique ($yielded) take %25
+  branch inspect %27 -> bb7 -> bb8
+
+bb7 handover({}):
+  jump -> bb5
+
+bb8 handover({}):
+  jump -> bb5
+
+bb9:
+  jump -> bb2(take %15, take %16)
+
+bb10:
+  jump -> bb3(take %15, take %16)
+}
+
+fn main() -> I32 {
+  local & sum: I32
+  local & it: one.Iter
+  local x: I32
+  local & more: counted.Iter
+  local x: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: one.Iter = call one$new
+  write.init borrow.unique (it) take %2
+  jump -> bb1
+
+bb1:
+  %5: one.Iter [unique call] = read borrow.unique (it) loan0
+  %6: I32 = const 0
+  %7: Bool = const False
+  %8: Bool = call one$step borrow.unique %5 take %6 take %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %17: I32 = const 3
+  %18: counted.Iter = call counted$new take %17
+  write.init borrow.unique (more) take %18
+  jump -> bb4
+
+bb3:
+  %10: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %10
+  %12: I32 = read copy.trivial (sum)
+  %13: I32 = read copy.trivial (x)
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (sum) take %14
+  jump -> bb1
+
+bb4:
+  %21: counted.Iter [unique call] = read borrow.unique (more) loan1
+  %22: I32 = const 0
+  %23: Bool = const False
+  %24: Bool = call counted$step borrow.unique %21 take %22 take %23
+  branch inspect %24 -> bb6 -> bb5
+
+bb5:
+  drop (more)
+  %35: I32 = read copy.trivial (global trace)
+  %36: I32 = read copy.trivial (sum)
+  %37: I32 = add inspect %35 inspect %36
+  return take %37
+
+bb6:
+  %26: I32 = read copy.trivial (more.$slot)
+  write.init borrow.unique (x) take %26
+  %28: I32 = read copy.trivial (sum)
+  %29: I32 = read copy.trivial (x)
+  %30: I32 = const 10
+  %31: I32 = mul inspect %29 inspect %30
+  %32: I32 = add inspect %28 inspect %31
+  write.assign borrow.unique (sum) take %32
+  jump -> bb4
+}
+
+lens fn around(I32)($body: (->{}) -> I32 [shared call]) -> I32 = <around at I32>
+
+fn around(I32)$new() -> around(I32).Lens = <no body>
+
+fn around(I32)$step($self: around(I32).Lens [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn one$new() -> one.Iter = <no body>
+
+fn one$step($self: one.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn one$drop($self: one.Iter) -> {} = <no body>
+
+fn one$next($self: one.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn one$resume($self: one.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counted$new(n: I32) -> counted.Iter = <no body>
+
+fn counted$step($self: counted.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn counted$drop($self: counted.Iter) -> {} = <no body>
+
+fn counted$next($self: counted.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counted$resume($self: counted.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

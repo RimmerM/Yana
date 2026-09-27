@@ -53,47 +53,33 @@ fn main() -> one %r0
     %35: %r0 = call note %34
     %37: %r0 = const 5
     %38: %r0 = call note %37
-    %40: %r0 = const 0
     jump -> block1
   block1:
     %44: %r1 = alias %31
-    store element %44[%40]: %r0, %38
-    %46: %r0 = const 0
-    jump -> block2
-  block2:
-    %50: %r1 = alias %31
-    %51: %r0 = load element %50[%46]: %r0
-    %52: %r0 = const 10
-    %53: %r0 = binary.mul %51, %52
-    %54: %r0 = coerce %53
-    jump -> block3
-  block3:
-    %60: %r1 = alias %31
-    %62: %r0 = const 1
-    %63: %r0 = load element %60[%62]: %r0
+    %45: %r0 = const 0
+    store element %44[%45]: %r0, %38
+    %47: %r0 = const 10
+    %48: %r0 = binary.mul %38, %47
+    %49: %r0 = coerce %48
+    %51: %r0 = const 1
+    %52: %r0 = load element %44[%51]: %r0
     %33: %r3 = object %s0 %31, %32
-    %64: %r3 = alias %33
-    call Array(a).reclaim(I32) %64
-    %65: %r0 = binary.add %54, %63
-    %66: %r0 = coerce %65
-    %67: %r0 = binary.add %66, %35
+    %53: %r3 = alias %33
+    call Array(a).reclaim(I32) %53
+    %54: %r0 = binary.add %49, %52
+    %55: %r0 = coerce %54
+    %56: %r0 = binary.add %55, %35
+    %57: %r0 = coerce %56
+    %58: %r0 = binary.add %28, %57
+    %59: %r0 = coerce %58
+    %63: %r0 = const 56
+    %64: %r0 = binary.add %59, %63
+    %65: %r0 = coerce %64
+    %66: %r0 = load global log: %r0
+    %67: %r0 = binary.add %65, %66
     %68: %r0 = coerce %67
-    %69: %r0 = binary.add %28, %68
-    %70: %r0 = coerce %69
-    %74: %r0 = const 56
-    %75: %r0 = binary.add %70, %74
-    %76: %r0 = coerce %75
-    %77: %r0 = load global log: %r0
-    %78: %r0 = binary.add %76, %77
-    %79: %r0 = coerce %78
-    return %79
-  block4:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block6:
+    return %68
+  block2:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -102,7 +88,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 1 numbered 0 decided 3 unboxed 0 updated 0 split 0 promoted 1 folded 11
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 1 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 3
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Pair {a: %r0, b: %r0}

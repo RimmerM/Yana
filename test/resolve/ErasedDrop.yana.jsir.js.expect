@@ -39,12 +39,11 @@ function main() {
   live = 1n;
   Holder_drop({ items: { items: new Int32Array([1, 2, 3]), length: 3 }, tag: 11n });
   if (live !== 0n) return -11;
-  var v81 = ["ab", "cd", "ef"];
+  var v79 = ["ab", "cd", "ef"];
   var p2 = 0;
   var p3 = "";
   while (p2 < 3) {
-    if (p2 >>> 0 >= 3) throw $t;
-    p3 = p3 + v81[p2 | 0];
+    p3 = p3 + v79[p2 | 0];
     p2 = p2 + 1 | 0;
   }
   if (p3 === "abcdef" ^ 1) return -8;
@@ -84,7 +83,6 @@ function growJsArray_Counted(self, wanted) {
   var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
-var $t = "yana: a runtime check failed";
 
 // a typed array's growth - see Implementation-Containers.md, section 14
 function $grow(a, n) {
@@ -92,4 +90,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

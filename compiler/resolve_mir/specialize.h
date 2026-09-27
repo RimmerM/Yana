@@ -39,6 +39,17 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
                                      DeclPtr<Type>* args, Size count, LocationId source);
 
 /*
+ * The function a `fun.value` node names, read under the substitution of the body holding it.
+ *
+ * The node's own callee everywhere but one place: a **lambda lifted in a generic body** (C3) is
+ * generic in that body's own context, so the value a specialization of the body builds is the
+ * lambda's specialization at the same arguments. Asked by every walk that turns the node into
+ * something - reachability, which makes the specialization, and the conversion, which names it.
+ */
+DeclPtr<Function> funValueTarget(Context& context, Program& program, Function& enclosing,
+                                 DeclPtr<Function> callee, LocationId source);
+
+/*
  * The substitution a function's body is read under - empty for everything but a specialization.
  *
  * The pointer is into the function's own `typeArguments`, so it is valid as long as the declaration

@@ -1,0 +1,178 @@
+{-
+   A failing `iter fn` whose failure type is a variable of its signature - Implementation-Streams.md's
+   P14, and the codec core's shape (§3.4): a driver generic in a `BlockInput` and a `WindowOutput`,
+   each failing with its own class variable, consumed by `for ... | e -> ...:` with a `withWindow`
+   block inside it.
+
+   The failure is `Outcome(exit, E)` at the variable, and what makes a class member's variable
+   workable is that the call site reads the wrapper at the failure *it* substituted (`NodeLensCall`'s
+   `reason`) rather than off the class's declaration, which names `error`. Every call is
+   specialized, so each specialization answers the concrete record its instance names.
+
+     - `BlockInput(i -> unit, error)` fails with a scalar in one instance and a `String` in another,
+       so a skip's reason owes a teardown in one specialization and nothing in the other.
+     - `readAll` is a free generic `iter fn` over `Source(s -> e)`: the variable is the function's
+       own, bound by its constraint rather than by a class head.
+     - `countAll` takes the trailing `| reason:` arm, which discards what it bound.
+     - `encode` wraps both sides' failures in `DriveFailure(ie, oe)`, a generic record of two.
+-}
+
+class BlockInput(i -> unit, error):
+    iter fn blocks(&input: i) -> ('[unit] | error)
+
+data OutputWindow(unit) {space: &'[unit], used: Size}
+
+fn commit(&window: OutputWindow(unit), count: Size):
+    window.used += count
+
+class WindowOutput(o -> unit, error):
+    lens fn withWindow(&output: o, minimum: Size, preferred: Size) -> (&OutputWindow(unit) | error)
+
+data InFail = InBroken
+data OutFail = OutFull
+
+-- Blocks of `size` out of one array, failing with a scalar once `failAt` is reached.
+data SliceBlocks {bytes: [U8], size: Size, failAt: Size}
+
+instance BlockInput(SliceBlocks, U8, InFail):
+    iter fn blocks(&input: SliceBlocks) -> ('[U8] | InFail):
+        let &at = 0 :: Size
+        while at < length(input.bytes):
+            if at >= input.failAt then return InBroken
+            let end = if at + input.size < length(input.bytes) then at + input.size else length(input.bytes)
+            yield input.bytes[at..end]
+            at = end
+
+-- The same blocks, failing with a message that owns its bytes.
+data NamedBlocks {bytes: [U8], size: Size, failAt: Size}
+
+instance BlockInput(NamedBlocks, U8, String):
+    iter fn blocks(&input: NamedBlocks) -> ('[U8] | String):
+        let &at = 0 :: Size
+        while at < length(input.bytes):
+            if at >= input.failAt then return "broken at {at}"
+            let end = if at + input.size < length(input.bytes) then at + input.size else length(input.bytes)
+            yield input.bytes[at..end]
+            at = end
+
+data FixedWindows {storage: [U8], used: Size}
+
+instance WindowOutput(FixedWindows, U8, OutFail):
+    lens fn withWindow(&output: FixedWindows, minimum: Size, preferred: Size) -> (&OutputWindow(U8) | OutFail):
+        let room = length(output.storage) - output.used
+        if room < minimum then return OutFull
+        let take = if room < preferred then room else preferred
+        let start = output.used
+        let &w = OutputWindow {space: output.storage.sliceMut(start, start + take), used: 0}
+        yield w
+        output.used = start + w.used
+
+data DriveFailure(ie, oe) = InputFailed(ie) | OutputFailed(oe)
+
+-- Each input byte plus one, through windows of at most three.
+fn (BlockInput(i, U8, ie), WindowOutput(o, U8, oe)) encode(&input: i, &output: o) -> Result(DriveFailure(ie, oe), Size):
+    let &total = 0 :: Size
+    for block in input.blocks() | e -> return Err(InputFailed(e)):
+        let &at = 0 :: Size
+        while at < length(block):
+            let w = output.withWindow(1, 3) | e -> return Err(OutputFailed(e)) in:
+                let &n = 0 :: Size
+                while n < length(w.space) && at < length(block):
+                    w.space[n] = block[at] + 1
+                    n += 1
+                    at += 1
+                total += n
+                w.commit(n)
+    return Ok(total)
+
+-- The trailing arm, whose reason is bound and then dropped unread.
+fn (BlockInput(i, U8, e)) countAll(&input: i) -> Size:
+    let &n = 0 :: Size
+    for block in input.blocks():
+        n += length(block)
+    | reason:
+        n += 1000
+    return n
+
+class Source(s -> e):
+    fn readSome(&self: s, &into: [U8]) -> Result(e, Size)
+
+data Chunks {bytes: [U8], at: Size, step: Size, failAt: Size}
+
+instance Source(Chunks, String):
+    fn readSome(&self: Chunks, &into: [U8]) -> Result(String, Size):
+        if self.at >= self.failAt then return Err("read failed at {self.at}")
+        let &n = 0 :: Size
+        while n < self.step && n < length(into) && self.at < length(self.bytes):
+            into[n] = self.bytes[self.at]
+            n += 1
+            self.at += 1
+        return Ok(n)
+
+-- A free generic traversal failing with its constraint's variable, handing over its own buffer.
+iter fn (Source(s, e)) readAll(&src: s) -> ([U8] | e):
+    let &buffer = [0, 0, 0, 0] :: [U8]
+    let &going = True
+    while going:
+        let Ok(n) = src.readSome(buffer) | Err(->e) -> return e
+        if n == 0 then going = False
+        else yield buffer[0..n]
+
+fn (Source(s, e)) sum(&src: s) -> Result(e, Size):
+    let &total = 0 :: Size
+    for bytes in readAll(src) | e -> return Err(e):
+        for i in 0..length(bytes):
+            total += (bytes[i] :: Size)
+    return Ok(total)
+
+fn encodeScore(r: Result(DriveFailure(InFail, OutFail), Size)) -> I32 = match r:
+    Ok(n) -> truncate(n)
+    Err(InputFailed(InBroken)) -> 100
+    Err(OutputFailed(OutFull)) -> 200
+
+fn namedScore(r: Result(DriveFailure(String, OutFail), Size)) -> I32 = match r:
+    Ok(n) -> truncate(n)
+    Err(InputFailed(message)) -> truncate(length(message)) * 1000
+    Err(OutputFailed(OutFull)) -> 200
+
+fn sumScore(r: Result(String, Size)) -> I32 = match r:
+    Ok(n) -> truncate(n)
+    Err(message) -> truncate(length(message)) * 10000
+
+fn zeros(n: Size) -> [U8]:
+    let &xs = [] :: [U8]
+    for i in 0..n:
+        push(xs, 0)
+    return xs
+
+fn main() -> I32:
+    let input = [1, 2, 3, 4, 5, 6, 7] :: [U8]
+
+    let &a = SliceBlocks {bytes: copy(input), size: 4, failAt: 100}
+    let &oa = FixedWindows {storage: zeros(16), used: 0}
+    let ea = encodeScore(encode(a, oa)) + (oa.storage[6] :: I32)    -- 7 + 8
+
+    let &b = SliceBlocks {bytes: copy(input), size: 4, failAt: 4}
+    let &ob = FixedWindows {storage: zeros(16), used: 0}
+    let eb = encodeScore(encode(b, ob))                              -- 100
+
+    let &c = SliceBlocks {bytes: copy(input), size: 4, failAt: 100}
+    let &oc = FixedWindows {storage: zeros(5), used: 0}
+    let ec = encodeScore(encode(c, oc))                              -- 200
+
+    -- "broken at 4" is eleven bytes.
+    let &d = NamedBlocks {bytes: copy(input), size: 4, failAt: 4}
+    let &od = FixedWindows {storage: zeros(16), used: 0}
+    let ed = namedScore(encode(d, od))                               -- 11000
+
+    let &e = NamedBlocks {bytes: copy(input), size: 3, failAt: 5}
+    let &f = SliceBlocks {bytes: copy(input), size: 3, failAt: 100}
+    let counted = (truncate(countAll(e) + countAll(f)) :: I32)      -- 1006 + 7
+
+    -- 28, then "read failed at 6" - sixteen bytes.
+    let &g = Chunks {bytes: copy(input), at: 0, step: 3, failAt: 100}
+    let &h = Chunks {bytes: copy(input), at: 0, step: 3, failAt: 5}
+    let summed = sumScore(sum(g)) + sumScore(sum(h))                 -- 28 + 160000
+
+    -- 15 + 100 + 200 + 11000 + 1013 + 160028 = 172356
+    return ea + eb + ec + ed + counted + summed

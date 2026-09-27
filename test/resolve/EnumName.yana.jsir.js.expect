@@ -21,7 +21,7 @@ function colourOfName(s) {
 }
 
 function main() {
-  var p1, p2;
+  var s3, p0;
   if ("Green" === "Green" ^ 1) return 1;
   if ("FromEnd" === "FromEnd" ^ 1) return 2;
   if (colourOfName("Blue") === null) return 3;
@@ -29,30 +29,19 @@ function main() {
   if (!(colourOfName("Bleu") === null)) return 5;
   if ("Low" === "Low" ^ 1) return 6;
   B0: {
-    if ("High" === "Low") {
-      p1 = 0;
-    } else {
-      if ("High" === "High") {
-        p1 = 1;
-        break B0;
-      }
-      p1 = null;
+    if ("High" !== "Low") {
+      if ("High" === "High") break B0;
+      return 7;
     }
   }
-  if (p1 === null) return 7;
   B1: {
-    if ("Red" === "Low") {
-      p2 = 0;
-    } else {
-      if ("Red" === "High") {
-        p2 = 1;
-        break B1;
-      }
-      p2 = null;
+    if ("Red" !== "Low") {
+      if ("Red" === "High") break B1;
+      s3 = colourOfName("Red");
+      p0 = !(s3 === null) ? 10 + (s3 | 0) | 0 : 9;
+      return p0;
     }
   }
-  if (!(p2 === null)) return 8;
-  var s5 = colourOfName("Red");
-  return !(s5 === null) ? 10 + (s5 | 0) | 0 : 9;
+  return 8;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

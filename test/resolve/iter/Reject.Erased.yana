@@ -20,14 +20,29 @@ fn produced(n: Int) -> iter(Int):
     yield n
 
 {-
-   §6.6's first gap - an object's step would need a terminal failure on it.
+   §6.6's first gap, built for the erased type since C1c (`iter/Failing.ErasedType.yana`). The
+   failure is part of the protocol, so what is left to refuse is a mismatch: a failing object where
+   `iter(T)` was written, one that cannot fail where `iter(T | E)` was, a failure nobody handles, and
+   an alternative on a protocol with nothing to hand it.
 
    Written in a **body** rather than on a signature, and only because a fixture holds a list: a
    refusal in a `fn` header stops the declaration pass, and then none of the body refusals below it
-   is reached to be listed. The message is the same in both positions.
+   is reached to be listed.
 -}
+iter fn failingUpTo(n: Int) -> (Int | Int):
+    yield n
+    return 0
+
 fn channel(n: Int) -> Int:
-    let &it = upTo(n) :: iter(Int | Int)
+    let &lost = failingUpTo(n) :: iter(Int)
+    let &invented = upTo(n) :: iter(Int | Int)
+    let &held = failingUpTo(n) :: iter(Int | Int)
+    for x in held:
+        print("{x}")
+    let &plain = upTo(n) :: iter(Int)
+    for x in plain:
+        print("{x}")
+    | reason -> print("never")
     return 0
 
 -- The type is interned on the protocol it steps, so a body compiled once cannot write one at a

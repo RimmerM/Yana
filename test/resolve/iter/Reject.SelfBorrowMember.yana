@@ -1,0 +1,68 @@
+{-
+   §6.1's self-borrow **inside an owned value** - C0, found in J188 and refused since K5.
+
+   `Reject.Borrow.yana` refuses a binding whose value *is* a borrow of the producer's own storage.
+   These are the same borrow one level down: `w` owns a `Win` whose `space` borrows `buf`, and `w` is
+   kept across a `yield`. It used to be accepted - `w` became a member of the record and `buf` did
+   not, so after the hand-over `w.space` pointed into a step frame that had returned, and had `buf`
+   been a member too, moving the object would have left the pointer on the old bytes.
+
+   Refused where the value is written, standalone and as a lens region nested in an object's
+   producer. `@heap` on the lender is the way out (`selfBorrowHeap` below compiles), and so is lending
+   a parameter, which is `LensRegion.Record.yana`'s `scratchWindow`.
+-}
+
+data Win {space: &'[U8], used: Size}
+
+iter fn standalone(n: I32) -> I32:
+    let &buf = [0] :: [U8 *4]
+    let &w = Win {space: buf.sliceMut(0, 2), used: 0}
+    yield n
+    w.space[0] = 7
+    yield n + (w.space[0] :: I32)
+
+-- What the lens keeps is not what it hands over, which is the shape the hand-over rule does not see.
+lens fn scratch(count: Size) -> Size:
+    let &bytes = [0] :: [U8 *4]
+    let &win = Win {space: bytes.sliceMut(0, count), used: 0}
+    yield count
+    win.space[0] = 1
+
+iter fn nested(n: I32) -> I32:
+    let k = scratch(2) in:
+        yield n + truncate(k)
+
+iter fn selfBorrowHeap(n: I32) -> I32:
+    let @heap &buf = [0] :: [U8 *4]
+    let &w = Win {space: buf.sliceMut(0, 2), used: 0}
+    yield n
+    w.space[0] = 7
+    yield n + (w.space[0] :: I32)
+
+-- The fixed array inside a record, reached through a call: the exemption for a call is a
+-- heap-backed container's, asked of the place read (`b.bytes`), not of the root's type (the review
+-- of J210 - `Buf` is not itself a fixed array, and this was accepted).
+data Buf {bytes: [U8 *4], tag: Size}
+
+iter fn inRecord(n: I32) -> I32:
+    let &b = Buf {bytes: [0] :: [U8 *4], tag: 1}
+    let &w = Win {space: b.bytes.sliceMut(0, 2), used: 0}
+    w.space[0] = 7
+    yield n
+    yield n + (w.space[0] :: I32)
+
+fn main() -> I32:
+    let &a = standalone(1)
+    let &b = nested(2)
+    let &c = selfBorrowHeap(3)
+    let &d = inRecord(4)
+    let &sum = 0 :: I32
+    while a.next() is Just(x):
+        sum += x
+    while b.next() is Just(x):
+        sum += x
+    while c.next() is Just(x):
+        sum += x
+    while d.next() is Just(x):
+        sum += x
+    return sum

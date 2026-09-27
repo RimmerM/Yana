@@ -3,90 +3,77 @@ fn main() -> one %r3
     %5: %r3 = const 0
     %6: %r3 = const 0
     %7: %r3 = const 2
-    %8: %r7 = const 2
-    %9: %r1 = const 1
-    %10: %r0 = const 255n
-    %11: %r0 = const 0n
+    %8: %r1 = const 1
+    %9: %r0 = const 255n
+    %10: %r0 = const 0n
+    %11: %r3 = const 1
     %12: %r3 = const 1
-    %13: %r3 = const 1
     jump -> block1(%5, %6)
   block1(%0: %r3, %1: %r3):
-    %15: %r8 = binary.lt %1, %7
-    branch %15 -> block3 -> block2
+    %13: %r7 = binary.lt %1, %7
+    branch %13 -> block3 -> block2
   block2:
-    %16: %r6 = load global tree: %r6
-    %17: %r1 = load property %16.$tag: %r1
-    %18: %r1 = const 1
-    %19: %r8 = binary.eq %17, %18
-    branch %19 -> block16 -> block15
+    %14: %r6 = load global tree: %r6
+    %15: %r1 = load property %14.$tag: %r1
+    %16: %r1 = const 1
+    %17: %r7 = binary.eq %15, %16
+    branch %17 -> block12 -> block11
   block3:
-    %28: %r3 = convert %1
-    %29: %r7 = convert %28
-    %30: %r8 = binary.ge %29, %8
-    branch %30 -> block13 -> block4
+    %26: %r3 = convert %1
+    %27: %r5 = load global table: %r5
+    %28: %r4 = load element %27[%26]: %r4
+    %29: %r2 = load property %28.a: %r2
+    %30: %r2 = const null
+    %31: %r8 = binary.eq %29, %30
+    %32: %r1 = const 1
+    %33: %r1 = const 0
+    %34: %r1 = select %31, %33, %32
+    %35: %r7 = binary.eq %34, %8
+    branch %35 -> block5 -> block4
   block4:
-    %31: %r5 = load global table: %r5
-    %32: %r4 = load element %31[%28]: %r4
-    %33: %r2 = load property %32.a: %r2
-    %34: %r2 = const null
-    %35: %r9 = binary.eq %33, %34
-    %36: %r1 = const 1
-    %37: %r1 = const 0
-    %38: %r1 = select %35, %37, %36
-    %39: %r8 = binary.eq %38, %9
-    branch %39 -> block6 -> block5
-  block5:
-    jump -> block10(%0)
-  block6:
-    %40: %r5 = load global table: %r5
-    %41: %r4 = load element %40[%28]: %r4
-    %42: %r2 = load property %41.a: %r2
-    %43: %r0 = load property %41.a: %r0
-    %44: %r0 = binary.and %43, %10
-    %45: %r0 = coerce %44
-    %46: %r8 = binary.eq %45, %11
-    branch %46 -> block8 -> block7
-  block7:
     jump -> block9(%0)
-  block8:
-    %47: %r3 = binary.add %0, %12
-    %48: %r3 = coerce %47
-    jump -> block9(%48)
-  block9(%2: %r3):
-    jump -> block10(%2)
-  block10(%3: %r3):
-    jump -> block11
-  block11:
-    %50: %r5 = load global table: %r5
-    %51: %r4 = load element %50[%28]: %r4
-    %52: %r3 = load property %51.b: %r3
-    %53: %r3 = binary.add %3, %52
-    %54: %r3 = coerce %53
-    %55: %r3 = binary.add %1, %13
-    %56: %r3 = coerce %55
-    jump -> block1(%54, %56)
-  block12:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block13:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block14(%4: %r3):
-    %23: %r3 = const 100
-    %24: %r3 = binary.mul %4, %23
+  block5:
+    %36: %r5 = load global table: %r5
+    %37: %r4 = load element %36[%26]: %r4
+    %38: %r2 = load property %37.a: %r2
+    %39: %r0 = load property %37.a: %r0
+    %40: %r0 = binary.and %39, %9
+    %41: %r0 = coerce %40
+    %42: %r7 = binary.eq %41, %10
+    branch %42 -> block7 -> block6
+  block6:
+    jump -> block8(%0)
+  block7:
+    %43: %r3 = binary.add %0, %11
+    %44: %r3 = coerce %43
+    jump -> block8(%44)
+  block8(%2: %r3):
+    jump -> block9(%2)
+  block9(%3: %r3):
+    %45: %r5 = load global table: %r5
+    %46: %r4 = load element %45[%26]: %r4
+    %47: %r3 = load property %46.b: %r3
+    %48: %r3 = binary.add %3, %47
+    %49: %r3 = coerce %48
+    %50: %r3 = binary.add %1, %12
+    %51: %r3 = coerce %50
+    jump -> block1(%49, %51)
+  block10(%4: %r3):
+    %21: %r3 = const 100
+    %22: %r3 = binary.mul %4, %21
+    %23: %r3 = coerce %22
+    %24: %r3 = binary.add %0, %23
     %25: %r3 = coerce %24
-    %26: %r3 = binary.add %0, %25
-    %27: %r3 = coerce %26
-    return %27
-  block15:
-    %20: %r3 = const 7
-    jump -> block14(%20)
-  block16:
-    %21: %r6 = load global tree: %r6
-    %22: %r3 = load property %21.mark: %r3
-    jump -> block14(%22)
+    return %25
+  block11:
+    %18: %r3 = const 7
+    jump -> block10(%18)
+  block12:
+    %19: %r6 = load global tree: %r6
+    %20: %r3 = load property %19.mark: %r3
+    jump -> block10(%20)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 0 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 shape %s0 object P {a: %r2, b: %r3}
 shape %s1 object Branch {$tag: %r1 tag, left: %r6, right: %r6, mark: %r3}
@@ -98,7 +85,5 @@ rep %r3 = number signed 32
 rep %r4 = object %s0
 rep %r5 = array Array of %r4
 rep %r6 = object %s1
-rep %r7 = number unsigned 32
-rep %r8 = number bool
-rep %r9 = boolean
-rep %r10 = void
+rep %r7 = number bool
+rep %r8 = boolean

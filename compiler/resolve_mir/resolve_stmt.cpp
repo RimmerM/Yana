@@ -618,6 +618,27 @@ NamedCall Resolver::namedCallee(ast::Expr& expression, NamedCallSite* site) {
     // the one caller that needs the question asked one step earlier than a declaration.
     if(site) *site = NamedCallSite { name, arity, dotted };
 
+    /*
+     * `input.within(n)` where the receiver's type declares `lens fn Input.within` - the dot call's
+     * namespaced reading (`findDotOverloads`), asked first as it is there.
+     *
+     * Only for a receiver whose type can be read **without resolving it** - a local, or a field path
+     * from one (`receiverTypeOf`) - because the name has to decide before the receiver is emitted.
+     * Any other receiver keeps the bare reading, which is what a traversal written on a call result
+     * reaches today; the namespaced function is still what the ordinary call path finds for it, so
+     * the difference is only whether it is recognized as a lens here.
+     */
+    if(dotted) {
+        if(auto qualified = namespacedName(context, program, receiverTypeOf(dotted->target), name)) {
+            if(auto found = mir::findFunction(context, program, here(), qualified, arity,
+                                              expression.source, false)) {
+                if(site) site->name = qualified;
+                recordCallee(dotted->field.source, found);
+                return NamedCall { decl()[found], dotted };
+            }
+        }
+    }
+
     // A probe rather than a decision - the caller is asking whether this name is a lens, and the
     // ordinary call path reports if it is not. `report` is false for that reason: an ambiguity has
     // to be said once, where the call is resolved, rather than here and there.
@@ -627,6 +648,33 @@ NamedCall Resolver::namedCallee(ast::Expr& expression, NamedCallSite* site) {
     recordCallee(dotted ? dotted->field.source : application.callee.source, found);
 
     return NamedCall { decl()[found], dotted };
+}
+
+/*
+ * The type of a receiver read off its declarations, and null for anything that would have to be
+ * resolved to know it - see `namedCallee`. A local names its occurrence; a field path asks the
+ * same walk a projection does (`fieldNamed`), so a field the projection would not reach is not
+ * reached here either.
+ */
+DeclPtr<Type> Resolver::receiverTypeOf(ast::Expr& receiver) {
+    if(receiver.kind == ast::Expr::Var) {
+        auto local = findLocal(receiver.var);
+        return local ? local->occurrence.type : nullptr;
+    }
+
+    if(receiver.kind != ast::Expr::Field) return nullptr;
+
+    auto& path = *parse[receiver.field];
+    if(path.field.kind != ast::Expr::Var) return nullptr;
+
+    auto inner = receiverTypeOf(path.target);
+    if(!inner) return nullptr;
+
+    DeclPtr<Type> record;
+    auto index = fieldNamed(owned(inner), path.field.var, record);
+    if(index == kNoField) return nullptr;
+
+    return ((RecordType*)decl()[record])->fields.get(decl(), index).occurrence.type;
 }
 
 // See the declaration. R5 over the iterators of one name, and the ordinary lookup where the filter
@@ -695,7 +743,12 @@ NamedCall Resolver::iteratorCallee(Builder& builder, ast::Expr& expression,
  * call path, and `checkCallable` refuses it there.
  */
 NamedCall Resolver::lensCallee(ast::Expr& expression) {
-    auto callee = namedCallee(expression);
+    // `let w = f(...)? in:` - the call under a `?` is still the lens call; `resolveLensCall` reads
+    // the `?` as the propagated failure (C4), exactly as a `for` header's.
+    auto called = &expression;
+    if(called->kind == ast::Expr::Try) called = parse[called->tryValue];
+
+    auto callee = namedCallee(*called);
     return callee && callee->lens && !callee->iterator ? callee : NamedCall();
 }
 
@@ -1224,9 +1277,17 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
 
     auto named = binding.pat.kind == ast::Pat::Var;
 
+    // `f(...)?` - the failure propagated rather than handled, `lensCallee`'s peel.
+    auto propagate = kNullLocation;
+    auto called = &call;
+    if(call.kind == ast::Expr::Try) {
+        propagate = call.source;
+        called = parse[call.tryValue];
+    }
+
     // A pattern over what was handed across is bound inside the continuation, as a `for`'s is: the
     // hand-over is the continuation's storage, and `bindIrrefutable` takes it apart through it.
-    return handoverCall(builder, call, callee, Continuation::Once,
+    return handoverCall(builder, *called, callee, Continuation::Once,
                         named ? binding.pat.var : StringId(), binding.pat.source, binding.alts,
                         [&](ContinuationId, Block&, Local& bound) {
         if(!named && binding.pat.kind != ast::Pat::Any) {
@@ -1237,7 +1298,7 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
         }
 
         resolveExtent(builder, extent);
-    });
+    }, nullptr, false, propagate);
 }
 
 /*
@@ -1359,7 +1420,8 @@ template<class F>
 bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                             Continuation::Multiplicity multiplicity, StringId name,
                             LocationId nameSource, ast::ParseList<ast::Alt> alternatives,
-                            F&& inside, OverloadChoice* chosen, bool reyield) {
+                            F&& inside, OverloadChoice* chosen, bool reyield,
+                            LocationId propagate) {
     auto& written = *parse[call.app];
     auto source = call.source;
     auto& callee = *called.function;
@@ -1378,7 +1440,22 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
     }
 
     const ArgMap& map = chosen ? chosen->map : own;
-    if(!checkAlternatives(callee, alternatives, source)) return false;
+
+    // `for x in f(...)?:` answers the failure channel instead of an alternative - where it goes is
+    // the enclosing function's return edge, decided here so a refusal comes before any code does.
+    TryShape leaving;
+    if(propagate != kNullLocation) {
+        if(!callee.failure) {
+            context.diagnostics.error(
+                "%@ cannot fail, so there is no failure for `?` to propagate - drop the `?`"_v,
+                propagate, context.findName(callee.name));
+            return false;
+        }
+
+        if(!propagationShape(true, alternatives, propagate, leaving)) return false;
+    } else if(!checkAlternatives(callee, alternatives, source)) {
+        return false;
+    }
 
     /*
      * `xs.items()` - the receiver, resolved here because here is where the caller's block is.
@@ -1689,8 +1766,16 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
      */
     if(skipped) {
         builder.setBlock(*skipped);
-        auto alternative = alternatives.get(parse, 0);
-        resolveAlternative(builder, alternative, *reason);
+
+        // Or the `?`'s return, which is the same exit `x?` takes and converts the same one `Widen`
+        // step - J204.
+        if(propagate != kNullLocation) {
+            emitCarrierExit(builder, *reason, leaving, propagate);
+        } else {
+            auto alternative = alternatives.get(parse, 0);
+            resolveAlternative(builder, alternative, *reason);
+        }
+
         if(!builder.isTerminated()) builder.addJump(source, *join, nullptr, 0);
     }
 
@@ -2481,6 +2566,22 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     }
 
     /*
+     * A **`&` window parameter** is not assigned as a whole: collections.md's table gives `&xs: [a]`
+     * "elements mutable, extent fixed", and the window is somebody else's elements, so a new one
+     * would either be dropped into the caller's owner (`v = copy(w)` released the caller's array and
+     * wrote an owner where a descriptor was - the review of J201's bounds facts, whose
+     * `readOnlyField` rests on the extent not moving) or re-point a descriptor the caller never sees
+     * (`v = v[0..1]`, an internal error). An element write is the parameter's whole capability;
+     * `&xs: Array(a)` is the spelling that may resize or replace.
+     */
+    if(windowParameterAssigned(builder, *place)) {
+        context.diagnostics.error(
+            "this is a `&` window parameter - its elements may be written, but its extent is fixed and belongs to the caller, so it cannot be assigned. Write its elements (`v[i] = ...`), or take `&v: Array(...)` to replace the whole array"_v,
+            written.target.source);
+        return;
+    }
+
+    /*
      * An **assignment into existing storage** keeps what an `iter fn` call answers - §2.1's third
      * row, and the one of the four positions whose destination already has a type: `it = lex(s)`
      * over a `let &it = lex(s)` is the same record written a second time.
@@ -2496,6 +2597,11 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     value = coerce(builder, *value, place->occurrence.type, written.value.source,
                    "an assigned value"_v);
     if(!value) return;
+
+    if(!checkOwnedFill(*value, place->occurrence.type, storageAccess(builder, *place),
+                       written.value.source)) {
+        return;
+    }
 
     // Storage that already exists says what may be in it, and a closure carries more than a plain
     // `(I32) -> I32` local was declared to hold - `checkCarriedOrigins`. A `let` of the same value
@@ -2619,8 +2725,9 @@ Loop::~Loop() { resolver.loops = outer; }
  *
  * The exception is the edge that leaves a continuation region, which is not an edge at all under
  * the CPS lowering: the block on the far side belongs to another function once the region is
- * outlined, so leaving is a row of the exit signal and there are two of them - falling out, and
- * `return`. That is the one refusal here, and it names what it waits for.
+ * outlined, so leaving is a row of the exit signal. It is still built as the edge here - the rows
+ * are the conversion's, numbered by the block the edge reaches - and only what a row cannot carry is
+ * refused.
  */
 void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
     auto leaving = expr.kind == ast::Expr::Break;
@@ -2648,10 +2755,58 @@ void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
 
     auto& loop = *loops;
 
+    /*
+     * An exit written inside a lens call's block, for a loop outside the call - K2.
+     *
+     * Built as what it does: the lens call returns, and control is then in the region the call was
+     * made in, at a block that takes the loop's exit from there. So the exit is a chain of edges,
+     * one per lens region between the `break` and its loop, each leaving one region for a **landing**
+     * block of its parent; the last landing is in the loop's own region and takes the loop's
+     * ordinary edge, carry and all. Only lens regions can lie between, since a `for` over an
+     * `iter fn` is itself a loop frame and would be the innermost one.
+     *
+     * One region per edge rather than one edge to the loop's block, and the difference is where the
+     * analyses place things. A value the lens call borrowed - its argument temporaries - is lent to
+     * the lens until it returns, so its drop belongs after the call and in the call's own region,
+     * which is exactly a landing; an edge straight to the loop's block would put it wherever the
+     * loop is, which for a `for` over an `iter fn` is a scope with no storage for it. And the
+     * carried values - a counted `for`'s bound, a held object's unit `Proceed` - are values of the
+     * loop's region, which only a block of that region can supply: the region's floor (`heldFloor`)
+     * keeps its blocks from naming them, so they are still what the lens call was made with.
+     *
+     * The conversion makes each leaving edge a row of the exit signal named after its landing
+     * (`convertEdge`), returned by the lens after its cleanup and dispatched by the call site. A
+     * `continue v` is the one exit whose value is made inside the region, and it is refused by name.
+     */
     if(loop.region != builder.region()) {
-        unsupported(expr.source, leaving ? "`break` out of a lens call"_v
-                                         : "`continue` out of a lens call"_v);
-        builder.addUnreachable(expr.source);
+        if(!leaving && expr.continueValue) {
+            unsupported(expr.source, "`continue` carrying a value out of a lens call"_v);
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        releaseHeld(builder, loop.heldAtEntry, expr.source);
+
+        auto written = builder.currentBlock();
+        auto inside = builder.region();
+
+        while(builder.region() != loop.region) {
+            auto parent = builder.body.region(builder.base(), builder.region())->parent;
+            auto from = builder.switchRegion(parent);
+            auto landing = builder.addBlock(StringId());
+
+            builder.restoreRegion(from);
+            builder.addJump(expr.source, *landing, nullptr, 0);
+
+            builder.switchRegion(parent);
+            builder.setBlock(*landing);
+        }
+
+        exitLoop(builder, expr, loop, leaving);
+
+        // Back where the exit was written, which is terminated: the walk carries on from there.
+        builder.restoreRegion(inside);
+        builder.setBlock(*written);
         return;
     }
 
@@ -2670,6 +2825,12 @@ void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
     }
 
     releaseHeld(builder, loop.heldAtEntry, expr.source);
+    exitLoop(builder, expr, loop, leaving);
+}
+
+// The edge a bare `break` or `continue` takes, from the block being built - the exit's own block,
+// or the last landing of one written inside a lens call's block (`resolveExit`).
+void Resolver::exitLoop(Builder& builder, ast::Expr& expr, Loop& loop, bool leaving) {
 
     /*
      * The loop that *is* a continuation region - `for x in items(xs)`.
@@ -2880,8 +3041,9 @@ bool Resolver::resumeExit(Builder& builder, ast::Expr& expr, Loop& loop) {
  * Outermost and not innermost, which is the whole of what a departure is: `break` leaves the loop
  * the author wrote it in, and a consumer that has left leaves *every* loop the `yield` was inside,
  * because a loop whose hand-over has nowhere to go has nothing left to do. Bounded by the region
- * because a loop outside one is another function's block under the CPS lowering - the same bound
- * `resolveExit` refuses across.
+ * because a loop outside one is another function's block under the CPS lowering - and a departure
+ * leaves one region at a time (`resumeDeparture`), as a `break` written in a lens call's block does
+ * through its landings (`resolveExit`).
  */
 static Loop* outermostLoopIn(Loop* loops, ContinuationId region) {
     Loop* found = nullptr;
@@ -3141,6 +3303,13 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
             context.diagnostics.error(
                 "%@ is a lens, so it hands over once and a `for` has no second element to ask for - write `let x = %@(...) in:` for the one it hands over"_v,
                 loop.from.source, name, name);
+        } else if(loop.propagate != kNullLocation) {
+            // `for x in make(n)?:` - the parser peels a trailing `?` as the traversal's failure
+            // channel, which a function answering `Maybe(iter(T))` does not have. The review of
+            // J220 found the plain message below misleading there: the `?` was meant for the call.
+            context.diagnostics.error(
+                "%@ is not an `iter fn`, so the `?` after it here is read as a traversal's failure propagated from the loop - to unwrap what %@ answers first, bind it: `let it = %@(...)?` and then `for x in it:`"_v,
+                loop.from.source, name, name, name);
         } else {
             context.diagnostics.error(
                 "%@ is not an `iter fn`, so a `for` loop has nothing to be the body of"_v,
@@ -3186,7 +3355,7 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
         }
 
         resolveStatement(builder, loop.body);
-    }, chosen ? &chosen : nullptr, reyields);
+    }, chosen ? &chosen : nullptr, reyields, loop.propagate);
 }
 
 /*
@@ -3681,6 +3850,19 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    /*
+     * A value at a function that answers nothing - `return check(...)` in a unit `@test` (J193).
+     * The verifier caught it as an internal error, since nothing here asked; a unit function leaves
+     * with a bare `return`, and the value's effects are a statement before it.
+     */
+    if(decl()[function.result.type]->kind == Type::Unit) {
+        context.diagnostics.error(
+            "this function answers nothing, so `return` takes no value - make it a statement and `return` after it"_v,
+            expr.source);
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
     // The result's own interior shape travels with it - `-> Maybe('v)` is a construction whose
     // payload position is a reference, and the expression filling it is the only thing that can be
     // told so. Null for every result whose value owns what is inside it.
@@ -3822,6 +4004,79 @@ bool Resolver::checkResultContract(Node& value, LocationId source) {
 }
 
 /*
+ * A **borrowed value at an owning position** - `Run {bytes: store[0..used]}`, `consume(xs[a..b])`,
+ * `owner = view[1..]` - where the value is a call's result (a subwindow is `slice`'s) rather than a
+ * place.
+ *
+ * `readPlace` refuses a *named* borrow handed over ("cannot be handed over, because this function
+ * borrows it"), and `checkResultContract` a borrowed result at an owned `return`; nothing asked the
+ * same of a field, an argument or an assignment, so the loan reached the SSA verifier as "aggregate
+ * consumes a guaranteed value" (J200). ownership.md's implicit copy is `TrivialCopy`'s alone, and an
+ * owning array is not one, so this is a refusal and not a copy: the author writes `copy(...)`, which
+ * is what says an allocation happens here.
+ *
+ * **Tracked** rather than trivial: a borrowed `Size` at an owned field is copied by the read and
+ * needs nothing, and a function value, which may not be duplicated, is the same refusal.
+ */
+bool Resolver::checkOwnedFill(Node& value, DeclPtr<Type> expected, Access access, LocationId source) {
+    if(access != Access::Owned) return true;
+
+    auto& occurrence = valueOccurrence(value);
+    if(occurrence.contract.isOwned() || !isTracked(decl(), expected)) return true;
+
+    context.diagnostics.error(
+        "this position owns its %@, and this value is borrowed - `copy` it to make one this position can own"_v,
+        source, typeText(context, decl(), expected));
+    return false;
+}
+
+/*
+ * What an assignment's **storage** is, for `checkOwnedFill` - the place's own ownership rather than
+ * the access it was reached with.
+ *
+ * `b.bytes = view[1..]` through `&b: Box` reaches the field under the parameter's unique borrow,
+ * and asking that access answered "borrowed, so anything fits" - but the field owns its array, the
+ * write releases the old one and keeps the new, and a borrow stored there reached the SSA verifier as
+ * "store consumes a guaranteed value" (the review of J201). So a field answers its own declared
+ * contract (`fieldContract`, which a qualified shape may make a borrow), and a borrowed parameter
+ * answers owned: `&p: Point` is the caller's storage, and `p = q` replaces what the caller owns. A
+ * local keeps its own occurrence, which is what it was declared as.
+ */
+Access Resolver::storageAccess(Builder& builder, Place& place) {
+    auto base = builder.base();
+    auto access = place.occurrence.contract.access();
+
+    if(place.kind == Place::Local) {
+        auto local = builder.body.local(base, LocalId(place.payload));
+        if(local->parameter != Local::kNotAParameter) return Access::Owned;
+        return access;
+    }
+
+    if(place.kind == Place::Field && place.parent) {
+        auto& parent = *base[place.parent];
+        if(decl()[parent.occurrence.type]->kind != Type::Record) return access;
+
+        auto& record = *(RecordType*)decl()[parent.occurrence.type];
+        auto field = record.field(decl(), U16(place.payload));
+        if(fieldContract(decl(), parent.occurrence.shape, field).isOwned()) return Access::Owned;
+    }
+
+    return access;
+}
+
+// A parameter declared `&` over a window, assigned as a whole - see the assignment, where it is
+// refused.
+bool Resolver::windowParameterAssigned(Builder& builder, Place& place) {
+    if(place.kind != Place::Local) return false;
+
+    auto local = builder.body.local(builder.base(), LocalId(place.payload));
+    if(local->parameter == Local::kNotAParameter) return false;
+
+    auto contract = place.occurrence.contract;
+    return !contract.isOwned() && contract.form() == AccessForm::View;
+}
+
+/*
  * A value that refers to somebody's storage, filling a position that does not say whose.
  *
  * `own.cpp` refuses the *declared* form of this - `data Outer {inner: Reader}`, "which refers to
@@ -3900,6 +4155,16 @@ bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, Loca
      * directly at an owned position is heap-placed and carries no mark at all.
      */
     if(carried == program.shapes.noEnvironment()) return true;
+
+    // An erased iterator object held in this frame is the same pair and the same refusal, and only
+    // the advice differs: an object is placed by the position it is converted at, so what moves it
+    // off the frame is building it there (`adaptIterValue`, which refuses one that borrows).
+    if(decl()[occurrence.type]->kind == Type::Iter) {
+        context.diagnostics.error(
+            "%@ is an object this frame holds, and %@ has no origin to say whose - build the object at the position that takes it, so its record can be placed where the value goes"_v,
+            source, typeText(context, decl(), occurrence.type), what);
+        return false;
+    }
 
     context.diagnostics.error(
         "%@ refers to storage this frame owns, and %@ has no origin to say whose - write the lambda at the position that takes it, so its environment can be placed where the value goes"_v,

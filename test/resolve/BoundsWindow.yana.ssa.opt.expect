@@ -1,0 +1,533 @@
+module ResolveTest
+
+fn prefixed(frame: LimitedInput(SliceSource, Infallible) [unique call]) -> Result(ReadFailure(Infallible), I64) {
+bb0(%0: LimitedInput(SliceSource, Infallible) [unique call] guaranteed):
+  %3: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view]
+  %4: %Outcome(Array(U8), ReadFailure(Infallible)) address = alloc frame Outcome(Array(U8), ReadFailure(Infallible))
+  %7: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view]
+  %8: %Outcome(Array(U8), ReadFailure(Infallible)) address = alloc frame Outcome(Array(U8), ReadFailure(Infallible))
+  %9: LimitedInput(SliceSource, Infallible) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: Size trivial = const 2
+  %15: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view]
+  %16: %Outcome(Array(U8), ReadFailure(Infallible)) address = alloc frame Outcome(Array(U8), ReadFailure(Infallible))
+  %17: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %19: %Size address = field.addr .left inspect %9
+  %20: Size trivial = load inspect %19
+  %21: Bool trivial = gt inspect %10 inspect %20
+  branch inspect %21 -> bb15 -> bb13
+
+bb2(%1: Array(U8) [shared slot 0 view] guaranteed):
+  %127: Array(U8) [shared slot 0 view] guaranteed from{%0, %1, %3} = load inspect %1
+  %305: %%U8 address = field.addr .items inspect %127
+  %306: %U8 trivial = load inspect %305
+  %320: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %321: %%U8 address = field.addr .items inspect %320
+  store inspect %321 consume %306
+  %322: %Size address = field.addr .length inspect %320
+  store inspect %322 consume %10
+  %624: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %625: %%U8 address = field.addr .items inspect %624
+  store inspect %625 consume %306
+  %626: %Size address = field.addr .length inspect %624
+  store inspect %626 consume %10
+  %579: Size trivial = const 0
+  %329: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %306 inspect %579
+  %330: %U16 [owned here shape11 .*=shared slot 0] trivial = bitcast inspect %329
+  %331: U16 trivial = load inspect %330
+  %637: %Endian address = global.addr Target.byteOrder
+  %638: %U8 address = field.addr .# inspect %637
+  %639: U8 trivial = load inspect %638
+  %640: U8 trivial = const 1
+  %641: Bool trivial = eq inspect %639 inspect %640
+  %642: U16 trivial = byteswap inspect %331
+  %643: U16 trivial = select inspect %641 inspect %331 inspect %642
+  %130: Size trivial = convert inspect %643
+  %463: %U8 [owned here shape11 .*=shared slot 0] trivial = represent inspect %306
+  %146: Size trivial = metric stride U8
+  %148: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %463 inspect %146
+  %149: U8 [shared slot 0] guaranteed = load inspect %148
+  %150: U8 trivial = load inspect %149
+  %151: I64 trivial = convert inspect %150
+  %152: LimitedInput(SliceSource, Infallible) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %158: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view]
+  %159: %Outcome(Array(U8), ReadFailure(Infallible)) address = alloc frame Outcome(Array(U8), ReadFailure(Infallible))
+  %160: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %162: %Size address = field.addr .left inspect %152
+  %164: Bool trivial = gt inspect %130 inspect %644
+  branch inspect %164 -> bb50 -> bb48
+
+bb3:
+  %268: %ReadFailure(Infallible) address = field.addr .Err inspect %3
+  %269: ReadFailure(Infallible) trivial = copy inspect %268
+  %270: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %269
+  %335: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %336: %Array(U8) address = alloc frame Array(U8)
+  store inspect %335 consume %270
+  %343: Outcome(Array(U8), ReadFailure(Infallible)) owned = aggregate.Exit consume %269
+  store inspect %4 consume %343
+  %276: %ReadFailure(Infallible) address = field.addr .Exit inspect %4
+  %277: ReadFailure(Infallible) trivial = copy inspect %276
+  drop Outcome(Array(U8), ReadFailure(Infallible)) inspect %4
+  %348: Result(ReadFailure(Infallible), I64) trivial = aggregate.Err consume %277
+  return consume %348
+
+bb7(%2: Array(U8) [shared slot 0 view] guaranteed):
+  %282: I64 trivial = convert inspect %130
+  %283: I64 trivial = const 1000
+  %284: I64 trivial = mul inspect %282 inspect %283
+  %286: I64 trivial = add inspect %284 inspect %151
+  %291: I64 trivial = convert inspect %556
+  %292: I64 trivial = add inspect %286 inspect %291
+  %293: Result(ReadFailure(Infallible), I64) trivial = aggregate.Ok consume %292
+  return consume %293
+
+bb8:
+  %294: %ReadFailure(Infallible) address = field.addr .Err inspect %7
+  %295: ReadFailure(Infallible) trivial = copy inspect %294
+  %296: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %295
+  %351: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %352: %Array(U8) address = alloc frame Array(U8)
+  store inspect %351 consume %296
+  %359: Outcome(Array(U8), ReadFailure(Infallible)) owned = aggregate.Exit consume %295
+  store inspect %8 consume %359
+  %302: %ReadFailure(Infallible) address = field.addr .Exit inspect %8
+  %303: ReadFailure(Infallible) trivial = copy inspect %302
+  drop Outcome(Array(U8), ReadFailure(Infallible)) inspect %8
+  %364: Result(ReadFailure(Infallible), I64) trivial = aggregate.Err consume %303
+  return consume %364
+
+bb13:
+  %22: %Input(SliceSource, Infallible) address = field.addr .parent inspect %9
+  %23: %Input(SliceSource, Infallible) address = load inspect %22
+  %24: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%9} = load inspect %23
+  %26: Bool trivial = const True
+  %33: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %393: Size trivial = const 0
+  %431: U8 trivial = const 1
+  %436: {} trivial = const {}
+  %605: Size trivial = const 0
+  jump -> bb28
+
+bb15:
+  %91: Size trivial = const 0
+  %92: Bool trivial = eq inspect %20 inspect %91
+  branch inspect %92 -> bb18 -> bb16
+
+bb16:
+  %93: ReadFailure(Infallible) trivial = aggregate.CutShort
+  jump -> bb17(consume %93)
+
+bb17(%12: ReadFailure(Infallible) trivial):
+  %94: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %12
+  store inspect %3 consume %94
+  jump -> bb3
+
+bb18:
+  %95: ReadFailure(Infallible) trivial = aggregate.Ended
+  jump -> bb17(consume %95)
+
+bb20(%13: Array(U8) [shared slot 0 view] guaranteed):
+  %99: Size [unique slot 0] guaranteed from{%9} = load inspect %19
+  %365: Size trivial = load inspect %99
+  %644: Size trivial = sub inspect %365 inspect %10
+  store inspect %99 consume %644
+  %101: Array(U8) [shared slot 0 view] guaranteed from{%9, %13, %15} = load inspect %13
+  %102: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Ok borrow %101
+  store inspect %3 consume %102
+  %125: %Array(U8) address = field.addr .Ok inspect %3
+  %126: Array(U8) [shared slot 0 view] guaranteed from{%0, %3} = load inspect %125
+  jump -> bb2(borrow %126)
+
+bb28:
+  %40: %Array(U8) address = field.addr .buffer inspect %24
+  %41: Array(U8) [shared slot 0] guaranteed from{%24} = load inspect %40
+  %43: %Size address = field.addr .end inspect %24
+  %44: Size trivial = load inspect %43
+  %383: %Run(U8) address = field.addr .run inspect %41
+  %384: %%U8 address = field.addr .items inspect %383
+  %385: %U8 trivial = load inspect %384
+  %386: %@bits(30) U32 address = field.addr .length inspect %41
+  %387: @bits(30) U32 trivial = load inspect %386
+  %388: Size trivial = convert inspect %387
+  %389: ArrayView(U8) trivial = aggregate.ArrayView consume %385 consume %388
+  %399: Bool trivial = lt inspect %44 inspect %393
+  %400: Size trivial = select inspect %399 inspect %393 inspect %44
+  %401: Bool trivial = gt inspect %400 inspect %388
+  %402: Size trivial = select inspect %401 inspect %388 inspect %400
+  %407: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %385 inspect %605
+  %409: ArrayView(U8) trivial = aggregate.ArrayView consume %407 consume %402
+  %48: %Size address = field.addr .begin inspect %24
+  %49: Size trivial = load inspect %48
+  %582: %U8 trivial = represent inspect %407
+  %413: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %414: %%U8 address = field.addr .items inspect %413
+  store inspect %414 consume %582
+  %415: %Size address = field.addr .length inspect %413
+  store inspect %415 consume %402
+  %419: Bool trivial = ge inspect %402 inspect %10
+  %422: USize trivial = bitcast inspect %49
+  %423: Size trivial = sub inspect %402 inspect %10
+  %424: USize trivial = bitcast inspect %423
+  %425: Bool trivial = le inspect %422 inspect %424
+  %606: Bool trivial = and inspect %419 inspect %425
+  branch inspect %606 -> bb33 -> bb31
+
+bb31:
+  %52: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%24} = load inspect %24
+  %56: Result(ReadFailure(Infallible), {}) trivial = call Input.fill(SliceSource, Infallible) borrow %52 borrow %10 borrow %10 borrow %26
+  %428: %Result(ReadFailure(Infallible), {}) address = alloc frame Result(ReadFailure(Infallible), {})
+  store inspect %428 consume %56
+  %429: %U8 address = field.addr .# inspect %428
+  %430: U8 trivial = load inspect %429
+  %432: Bool trivial = eq inspect %430 inspect %431
+  branch inspect %432 -> bb109 -> bb108
+
+bb33:
+  %65: Size [unique slot 0] guaranteed from{%24} = load inspect %48
+  %645: Size trivial = add inspect %49 inspect %10
+  store inspect %65 consume %645
+  %454: Size trivial = metric stride U8
+  %455: Size trivial = mul inspect %49 inspect %454
+  %456: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %582 inspect %455
+  %458: ArrayView(U8) trivial = aggregate.ArrayView consume %456 consume %10
+  %459: Array(U8) [shared slot 0 view] guaranteed = represent inspect %458
+  %73: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Ok borrow %459
+  store inspect %15 consume %73
+  %96: %Array(U8) address = field.addr .Ok inspect %15
+  %97: Array(U8) [shared slot 0 view] guaranteed from{%9, %15} = load inspect %96
+  jump -> bb20(borrow %97)
+
+bb48:
+  %165: %Input(SliceSource, Infallible) address = field.addr .parent inspect %152
+  %166: %Input(SliceSource, Infallible) address = load inspect %165
+  %167: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%152} = load inspect %166
+  %169: Bool trivial = const True
+  %176: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %492: Size trivial = const 0
+  %530: U8 trivial = const 1
+  %535: {} trivial = const {}
+  %610: Size trivial = const 0
+  jump -> bb63
+
+bb50:
+  %234: Size trivial = const 0
+  %235: Bool trivial = eq inspect %644 inspect %234
+  branch inspect %235 -> bb53 -> bb51
+
+bb51:
+  %236: ReadFailure(Infallible) trivial = aggregate.CutShort
+  jump -> bb52(consume %236)
+
+bb52(%155: ReadFailure(Infallible) trivial):
+  %237: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %155
+  store inspect %7 consume %237
+  jump -> bb8
+
+bb53:
+  %238: ReadFailure(Infallible) trivial = aggregate.Ended
+  jump -> bb52(consume %238)
+
+bb55(%156: Array(U8) [shared slot 0 view] guaranteed):
+  %242: Size [unique slot 0] guaranteed from{%152} = load inspect %162
+  %464: Size trivial = load inspect %242
+  %651: Size trivial = sub inspect %464 inspect %130
+  store inspect %242 consume %651
+  %244: Array(U8) [shared slot 0 view] guaranteed from{%152, %156, %158} = load inspect %156
+  %245: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Ok borrow %244
+  store inspect %7 consume %245
+  %279: %Array(U8) address = field.addr .Ok inspect %7
+  %280: Array(U8) [shared slot 0 view] guaranteed from{%0, %7} = load inspect %279
+  jump -> bb7(borrow %280)
+
+bb63:
+  %183: %Array(U8) address = field.addr .buffer inspect %167
+  %184: Array(U8) [shared slot 0] guaranteed from{%167} = load inspect %183
+  %186: %Size address = field.addr .end inspect %167
+  %187: Size trivial = load inspect %186
+  %482: %Run(U8) address = field.addr .run inspect %184
+  %483: %%U8 address = field.addr .items inspect %482
+  %484: %U8 trivial = load inspect %483
+  %485: %@bits(30) U32 address = field.addr .length inspect %184
+  %486: @bits(30) U32 trivial = load inspect %485
+  %487: Size trivial = convert inspect %486
+  %488: ArrayView(U8) trivial = aggregate.ArrayView consume %484 consume %487
+  %498: Bool trivial = lt inspect %187 inspect %492
+  %499: Size trivial = select inspect %498 inspect %492 inspect %187
+  %500: Bool trivial = gt inspect %499 inspect %487
+  %501: Size trivial = select inspect %500 inspect %487 inspect %499
+  %506: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %484 inspect %610
+  %508: ArrayView(U8) trivial = aggregate.ArrayView consume %506 consume %501
+  %191: %Size address = field.addr .begin inspect %167
+  %192: Size trivial = load inspect %191
+  %585: %U8 trivial = represent inspect %506
+  %512: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %513: %%U8 address = field.addr .items inspect %512
+  store inspect %513 consume %585
+  %514: %Size address = field.addr .length inspect %512
+  store inspect %514 consume %501
+  %518: Bool trivial = ge inspect %501 inspect %130
+  %521: USize trivial = bitcast inspect %192
+  %522: Size trivial = sub inspect %501 inspect %130
+  %523: USize trivial = bitcast inspect %522
+  %524: Bool trivial = le inspect %521 inspect %523
+  %611: Bool trivial = and inspect %518 inspect %524
+  branch inspect %611 -> bb68 -> bb66
+
+bb66:
+  %195: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%167} = load inspect %167
+  %199: Result(ReadFailure(Infallible), {}) trivial = call Input.fill(SliceSource, Infallible) borrow %195 borrow %130 borrow %130 borrow %169
+  %527: %Result(ReadFailure(Infallible), {}) address = alloc frame Result(ReadFailure(Infallible), {})
+  store inspect %527 consume %199
+  %528: %U8 address = field.addr .# inspect %527
+  %529: U8 trivial = load inspect %528
+  %531: Bool trivial = eq inspect %529 inspect %530
+  branch inspect %531 -> bb132 -> bb131
+
+bb68:
+  %208: Size [unique slot 0] guaranteed from{%167} = load inspect %191
+  %652: Size trivial = add inspect %192 inspect %130
+  store inspect %208 consume %652
+  %539: Size trivial = const 0
+  %540: Bool trivial = lt inspect %192 inspect %539
+  %541: Size trivial = const 0
+  %542: Size trivial = select inspect %540 inspect %541 inspect %192
+  %545: Bool trivial = gt inspect %542 inspect %501
+  %546: Size trivial = select inspect %545 inspect %501 inspect %542
+  %547: Bool trivial = lt inspect %652 inspect %546
+  %548: Size trivial = select inspect %547 inspect %546 inspect %652
+  %549: Bool trivial = gt inspect %548 inspect %501
+  %550: Size trivial = select inspect %549 inspect %501 inspect %548
+  %553: Size trivial = metric stride U8
+  %554: Size trivial = mul inspect %546 inspect %553
+  %555: %U8 [owned here shape11 .*=shared slot 0] trivial = add inspect %585 inspect %554
+  %556: Size trivial = sub inspect %550 inspect %546
+  %557: ArrayView(U8) trivial = aggregate.ArrayView consume %555 consume %556
+  %558: Array(U8) [shared slot 0 view] guaranteed = represent inspect %557
+  %216: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Ok borrow %558
+  store inspect %158 consume %216
+  %239: %Array(U8) address = field.addr .Ok inspect %158
+  %240: Array(U8) [shared slot 0 view] guaranteed from{%152, %158} = load inspect %239
+  jump -> bb55(borrow %240)
+
+bb108:
+  %433: %ReadFailure(Infallible) address = field.addr .Err inspect %428
+  %434: ReadFailure(Infallible) trivial = load inspect %433
+  %435: Outcome({}, ReadFailure(Infallible)) trivial = aggregate.Exit consume %434
+  %460: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %434
+  store inspect %33 consume %460
+  %84: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %434
+  store inspect %15 consume %84
+  %105: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %434
+  %369: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %370: %Array(U8) address = alloc frame Array(U8)
+  store inspect %369 consume %105
+  %377: Outcome(Array(U8), ReadFailure(Infallible)) owned = aggregate.Exit consume %434
+  store inspect %16 consume %377
+  %382: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %434
+  store inspect %17 consume %382
+  %120: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %434
+  store inspect %3 consume %120
+  jump -> bb3
+
+bb109:
+  %437: Outcome({}, ReadFailure(Infallible)) trivial = aggregate.Proceed consume %436
+  jump -> bb28
+
+bb131:
+  %532: %ReadFailure(Infallible) address = field.addr .Err inspect %527
+  %533: ReadFailure(Infallible) trivial = load inspect %532
+  %534: Outcome({}, ReadFailure(Infallible)) trivial = aggregate.Exit consume %533
+  %559: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %533
+  store inspect %176 consume %559
+  %227: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %533
+  store inspect %158 consume %227
+  %248: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %533
+  %468: %Result(ReadFailure(Infallible), Array(U8)) address = alloc frame Result(ReadFailure(Infallible), Array(U8))
+  %469: %Array(U8) address = alloc frame Array(U8)
+  store inspect %468 consume %248
+  %476: Outcome(Array(U8), ReadFailure(Infallible)) owned = aggregate.Exit consume %533
+  store inspect %159 consume %476
+  %481: Result(ReadFailure(Infallible), Array(U8)) owned = aggregate.Err consume %533
+  store inspect %160 consume %481
+  %263: Result(ReadFailure(Infallible), Array(U8)) [owned here shape9 .1=shared slot 0 view] trivial = aggregate.Err consume %533
+  store inspect %7 consume %263
+  jump -> bb8
+
+bb132:
+  %536: Outcome({}, ReadFailure(Infallible)) trivial = aggregate.Proceed consume %535
+  jump -> bb63
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Array(U8) address = alloc frame Array(U8)
+  %2: %Input(SliceSource, Infallible) address = alloc frame Input(SliceSource, Infallible)
+  %4: %LimitedInput(SliceSource, Infallible) address = alloc frame LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0]
+  %5: %Result(ReadFailure(Infallible), I64) address = alloc frame Result(ReadFailure(Infallible), I64)
+  %7: %LimitedInput(SliceSource, Infallible) address = alloc frame LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0]
+  %8: %Result(ReadFailure(Infallible), I64) address = alloc frame Result(ReadFailure(Infallible), I64)
+  %10: %LimitedInput(SliceSource, Infallible) address = alloc frame LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0]
+  %11: %Result(ReadFailure(Infallible), I64) address = alloc frame Result(ReadFailure(Infallible), I64)
+  %12: U8 trivial = const 0
+  %13: U8 trivial = const 3
+  %14: U8 trivial = const 7
+  %15: U8 trivial = const 8
+  %16: U8 trivial = const 9
+  %17: U8 trivial = const 0
+  %18: U8 trivial = const 1
+  %19: U8 trivial = const 5
+  %20: U8 trivial = const 0
+  %21: U8 trivial = const 9
+  %22: %U8 trivial = run.slots U8 *10 frame
+  %26: @bits(30) U32 trivial = const 10
+  %166: @bits(2) U32 trivial = const 0
+  %167: Run(U8) owned = aggregate.Run consume %22 consume %26 consume %166
+  %29: @bits(30) U32 trivial = const 10
+  %30: Array(U8) owned = aggregate.Array consume %167 consume %29
+  store inspect %0 consume %30
+  %31: Size trivial = const 0
+  %32: %U8 address = element.addr inspect %22 inspect %31
+  store inspect %32 consume %12
+  %33: Size trivial = const 1
+  %34: %U8 address = element.addr inspect %22 inspect %33
+  store inspect %34 consume %13
+  %35: Size trivial = const 2
+  %36: %U8 address = element.addr inspect %22 inspect %35
+  store inspect %36 consume %14
+  %37: Size trivial = const 3
+  %38: %U8 address = element.addr inspect %22 inspect %37
+  store inspect %38 consume %15
+  %39: Size trivial = const 4
+  %40: %U8 address = element.addr inspect %22 inspect %39
+  store inspect %40 consume %16
+  %41: Size trivial = const 5
+  %42: %U8 address = element.addr inspect %22 inspect %41
+  store inspect %42 consume %17
+  %43: Size trivial = const 6
+  %44: %U8 address = element.addr inspect %22 inspect %43
+  store inspect %44 consume %18
+  %45: Size trivial = const 7
+  %46: %U8 address = element.addr inspect %22 inspect %45
+  store inspect %46 consume %19
+  %47: Size trivial = const 8
+  %48: %U8 address = element.addr inspect %22 inspect %47
+  store inspect %48 consume %20
+  %49: Size trivial = const 9
+  %50: %U8 address = element.addr inspect %22 inspect %49
+  store inspect %50 consume %21
+  %171: Size trivial = const 10
+  %113: ArrayView(U8) trivial = aggregate.ArrayView consume %22 consume %171
+  %114: Array(U8) [shared slot 0 view] guaranteed = represent inspect %113
+  %115: Array(U8) [shared slot 0 view] guaranteed = load inspect %114
+  %116: Size trivial = const 0
+  %117: SliceSource [owned here shape2 .0=shared slot 0 view] trivial = aggregate.SliceSource borrow %115 consume %116
+  %55: Size trivial = const 4
+  %118: %Array(U8) address = alloc frame Array(U8)
+  %121: Size trivial = const 0
+  %122: %U8 trivial = bitcast inspect %121
+  %123: @bits(30) U32 trivial = const 0
+  %124: @bits(2) U32 trivial = const 1
+  %125: Run(U8) owned = aggregate.Run consume %122 consume %123 consume %124
+  %126: @bits(30) U32 trivial = const 0
+  %127: Array(U8) owned = aggregate.Array consume %125 consume %126
+  store inspect %118 consume %127
+  %128: Array(U8) [unique slot 0] guaranteed from{%118} = load inspect %118
+  %129: Array(U8) [unique slot 0 view] guaranteed from{%118} = call spare borrow %128 borrow %55
+  %130: Array(U8) owned = load inspect %118
+  %131: Size trivial = const 0
+  %132: Size trivial = const 0
+  %133: Bool trivial = const False
+  %134: Size trivial = const 0
+  %135: Input(SliceSource, Infallible) owned = aggregate.Input consume %117 consume %130 consume %131 consume %132 consume %133 consume %134 consume %55
+  store inspect %2 consume %135
+  %57: I64 trivial = const 0
+  %58: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %2
+  %59: Size trivial = const 5
+  %136: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %58
+  %139: LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0] affine = aggregate.LimitedInput borrow %136 consume %59
+  store inspect %4 consume %139
+  %61: LimitedInput(SliceSource, Infallible) [unique call shape1 .0=unique slot 0] guaranteed from{%0, %2, %4} = load inspect %4
+  %62: Result(ReadFailure(Infallible), I64) trivial = call prefixed borrow %61
+  store inspect %5 consume %62
+  %63: %U8 address = field.addr .# inspect %5
+  %64: U8 trivial = load inspect %63
+  %65: U8 trivial = const 1
+  %66: Bool trivial = eq inspect %64 inspect %65
+  branch inspect %66 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2(inspect %57)
+
+bb2(%163: I64 trivial):
+  %67: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %2
+  %68: Size trivial = const 3
+  %140: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %67
+  %143: LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0] affine = aggregate.LimitedInput borrow %140 consume %68
+  store inspect %7 consume %143
+  %70: LimitedInput(SliceSource, Infallible) [unique call shape1 .0=unique slot 0] guaranteed from{%0, %2, %7} = load inspect %7
+  %71: Result(ReadFailure(Infallible), I64) trivial = call prefixed borrow %70
+  store inspect %8 consume %71
+  %72: %U8 address = field.addr .# inspect %8
+  %73: U8 trivial = load inspect %72
+  %74: U8 trivial = const 1
+  %75: Bool trivial = eq inspect %73 inspect %74
+  branch inspect %75 -> bb6 -> bb4
+
+bb3:
+  %76: %I64 address = field.addr .Ok inspect %5
+  %77: I64 trivial = load inspect %76
+  jump -> bb2(inspect %77)
+
+bb4:
+  jump -> bb5(inspect %163)
+
+bb5(%164: I64 trivial):
+  %80: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %2
+  %81: Size trivial = const 2
+  %146: Input(SliceSource, Infallible) [unique slot 0] guaranteed from{%0, %2} = load inspect %80
+  %149: LimitedInput(SliceSource, Infallible) [owned here shape1 .0=unique slot 0] affine = aggregate.LimitedInput borrow %146 consume %81
+  store inspect %10 consume %149
+  %83: LimitedInput(SliceSource, Infallible) [unique call shape1 .0=unique slot 0] guaranteed from{%0, %2, %10} = load inspect %10
+  %84: Result(ReadFailure(Infallible), I64) trivial = call prefixed borrow %83
+  %169: %Array(U8) address = field.addr .buffer inspect %2
+  %170: Array(U8) owned = load inspect %169
+  call Array(a).reclaim(U8) consume %170
+  store inspect %11 consume %84
+  %85: %U8 address = field.addr .# inspect %11
+  %86: U8 trivial = load inspect %85
+  %87: U8 trivial = const 0
+  %88: Bool trivial = eq inspect %86 inspect %87
+  branch inspect %88 -> bb9 -> bb7
+
+bb6:
+  %89: %I64 address = field.addr .Ok inspect %8
+  %90: I64 trivial = load inspect %89
+  %93: I64 trivial = const 10
+  %94: I64 trivial = mul inspect %90 inspect %93
+  %183: I64 trivial = add inspect %163 inspect %94
+  jump -> bb5(inspect %183)
+
+bb7:
+  jump -> bb8(inspect %164)
+
+bb8(%165: I64 trivial):
+  %96: I64 trivial = const 251
+  %97: I64 trivial = rem inspect %165 inspect %96
+  %98: I32 trivial = convert inspect %97
+  return consume %98
+
+bb9:
+  %99: %ReadFailure(Infallible) address = field.addr .Err inspect %11
+  %100: %U8 address = field.addr .# inspect %99
+  %101: U8 trivial = load inspect %100
+  %102: U8 trivial = const 1
+  %103: Bool trivial = eq inspect %101 inspect %102
+  branch inspect %103 -> bb10 -> bb7
+
+bb10:
+  %105: I64 trivial = const 7
+  %184: I64 trivial = add inspect %164 inspect %105
+  jump -> bb8(inspect %184)
+}
+
+entry main

@@ -109,9 +109,30 @@ struct Outline {
     Array<LocalId> captures;
     U16 resultField = kNoField;
 
+    /*
+     * And per capture, the **drop flag** it is, by move path - `kNoFlag` for a local or the result.
+     *
+     * A flag is a `Bool` in the frame of whichever scope allocated it, so one written inside a
+     * continuation and read by the caller - `drop.maybe (s)` at a `for`'s destination after a
+     * `break` path moved `s` - has to be the caller's storage, reached through the environment
+     * exactly as a captured local is. It was an internal error until J185 ("a drop flag inside a
+     * continuation has no storage the nest shares"), on the premise that nothing reached it; a
+     * conditional move out of an outer local followed by `break` reaches it. Parallel to `captures`
+     * rather than a third meaning of an invalid `LocalId`, which already means the result.
+     */
+    static constexpr U32 kNoFlag = ~U32(0);
+    Array<U32> flagOf;
+
     // Which exits the region actually has. A region with one needs no test at the call site.
     bool fallsOut = false;
     bool leaves = false;
+
+    /*
+     * The **outward rows** the continuation can answer - the landings of a `break` or `continue`
+     * written in a lens call's block for a loop outside it (`kExitOutward`). What the call site
+     * tests for besides `kExitLeave`.
+     */
+    SmallArray<U64, 2> outward;
 };
 
 // The two rows of the exit signal. Numbers rather than names below the resolver, because what a
@@ -132,6 +153,22 @@ static constexpr U64 kExitLeave = 1;
 static constexpr U64 kExitBreak = 2;
 
 /*
+ * `break` and `continue` out of a lens call's block - the rows after the three above, one per block
+ * such an exit can land on (K2).
+ *
+ * The resolver builds the exit as a chain of edges, each leaving one lens region for a *landing*
+ * block of the region the call was made in (`Resolver::resolveExit`), so a row is answered by the
+ * continuation, returned by the lens after its cleanup as it returns anything its continuation
+ * answered, and taken by the call site as a jump to that landing - which may answer the next row
+ * outwards. Numbered by the landing's own block index, a number the MIR already gives it, so the
+ * two ends agree without a table between them.
+ */
+static constexpr U64 kExitOutward = 3;
+
+static U64 outwardRow(BlockId landing) { return kExitOutward + U64(landing.index); }
+static BlockId outwardLanding(U64 row) { return BlockId(U32(row - kExitOutward)); }
+
+/*
  * The resume index a **finished** iterator object carries - `resolve_mir/resolve_object.cpp`, where
  * the same number is written for the record's other end.
  *
@@ -140,6 +177,26 @@ static constexpr U64 kExitBreak = 2;
  * producer ran out or was cancelled.
  */
 static constexpr I64 kIterFinished = 0x7fffffff;
+
+// And a failing step's - `resolve_object.cpp`'s `kIterFailed`, repeated for the same reason.
+static constexpr I64 kIterFailed = kIterFinished - 1;
+
+/*
+ * A **delegated** level that failed and has told its trampoline nothing yet - C1c, J218, and written
+ * by `f$erased.step` alone (`emitIterErasedRaw`).
+ *
+ * The trampoline reads a null answer as "this level is done" and steps the level above, which is
+ * exactly what a failure needs - it is that level's alternative that runs - so the raw shim answers
+ * null the first time and moves the index here. The level above, resumed at its `delegateResume`,
+ * asks the same pair once more, and this is what tells that second call to answer the failure rather
+ * than null. Like `kIterFailed` it is out of reach of a `yield` and falls through the dispatch, so a
+ * record left here is finished to every other reader.
+ */
+static constexpr I64 kIterFailedHeld = kIterFinished - 2;
+
+static Value* iterErasedReason(mir::Program& program, Editor& editor, Value* answer,
+                               const mir::IterType& iterated, LocationId at);
+static Value* iterAnswerTagged(mir::Program& program, Editor& editor, Value* answer, LocationId at);
 
 /*
  * What a generated caller sends a step when it is sending a **row** rather than a value.
@@ -211,6 +268,15 @@ struct Planner {
 
         for(auto held: outline.captures) if(held == local) return;
         outline.captures.push(local);
+        outline.flagOf.push(Outline::kNoFlag);
+    }
+
+    // A drop flag the region writes or tests, which lives in the frame of the function the nest
+    // is outlined from - see `Outline::flagOf`.
+    void captureFlag(Outline& outline, U32 path) {
+        for(auto held: outline.flagOf) if(held == path) return;
+        outline.captures.push(LocalId());
+        outline.flagOf.push(path);
     }
 
     // The local a place is rooted in, or nothing - a global, a raw address, a loan.
@@ -222,9 +288,15 @@ struct Planner {
         capture(outline, LocalId(place->payload));
     }
 
+    static void addOutward(Outline& outline, U64 row) {
+        for(auto held: outline.outward) if(held == row) return;
+        outline.outward.push(row);
+    }
+
     void plan(ContinuationId region) {
         Outline outline;
         outline.region = region;
+        auto own = source.region(mir, region);
 
         auto elaboration = source.elaboration ? mir[source.elaboration] : nullptr;
 
@@ -267,7 +339,15 @@ struct Planner {
 
                 mir::forEachEdge(mir, node, [&](mir::Edge& edge) {
                     if(!edge.target) return;
-                    if(mir[edge.target]->region == region) return;
+                    auto to = mir[edge.target];
+                    if(to->region == region) return;
+
+                    // Anywhere but the destination is the landing of a `break` or `continue` for
+                    // a loop outside the lens call - a row of its own (`kExitOutward`).
+                    if(to->index != own->destination) {
+                        addOutward(outline, outwardRow(to->index));
+                        return;
+                    }
 
                     outline.fallsOut = true;
                 });
@@ -285,26 +365,27 @@ struct Planner {
             }
 
             /*
-             * A **drop flag** inside a continuation, which is a hole rather than a feature and is
-             * reported rather than left silent.
+             * The **drop flags** the region writes, and the ones its conditional drops test - the
+             * caller's storage, captured (`Outline::flagOf`).
              *
-             * A flag is a `Bool` in the frame that one path writes and another reads, and the frame
-             * it is in is whichever scope allocated it - so a flag written by the caller and read by
-             * the continuation would be two slots that never meet. Closing it properly is what the
-             * result carrier already does for a returned value: one slot for the nest, captured by
-             * everything that touches it. Nothing reaches it today, because a drop sinks to the
-             * earliest dead point on each path and the `Maybe` state is dormant - which is exactly
-             * why the day it stops being dormant should be a message and not a wrong answer.
+             * A flag is a `Bool` in the frame that one path writes and another reads, so a flag
+             * written by the continuation and read by the caller has to be one slot for the nest:
+             * what the result carrier already is for a returned value.
              */
             for(U32 i = 0; i < elaboration->flags.size(); i++) {
                 auto step = elaboration->flags.get(mir, i);
                 if(step.position == mir::FlagStep::kEntry) continue;
                 if(source.block(mir, BlockId(step.block))->region != region) continue;
 
-                context.diagnostics.error(
-                    "internal: a drop flag inside a continuation has no storage the nest shares"_v,
-                    function.source);
-                break;
+                captureFlag(outline, step.path.index);
+            }
+
+            for(U32 i = 0; i < elaboration->drops.size(); i++) {
+                auto step = elaboration->drops.get(mir, i);
+                if(!step.conditional) continue;
+                if(source.block(mir, BlockId(step.block))->region != region) continue;
+
+                captureFlag(outline, step.path.index);
             }
         }
 
@@ -318,7 +399,9 @@ struct Planner {
         for(auto& child: into) {
             if(!source.encloses(mir, region, child.region)) continue;
 
-            for(auto held: child.captures) {
+            for(U32 i = 0; i < child.captures.size(); i++) {
+                auto held = child.captures[i];
+                if(child.flagOf[i] != Outline::kNoFlag) { captureFlag(outline, child.flagOf[i]); continue; }
                 if(!held.valid()) { outline.resultField = 0; continue; }
                 capture(outline, held);
             }
@@ -329,12 +412,15 @@ struct Planner {
              * could act on it. Direct children only - a grandchild's answer is already in its own
              * parent's.
              */
+            // A child's outward rows are not: each lands in this region, so the child's call
+            // site takes them as jumps.
             if(source.region(mir, child.region)->parent == region) outline.leaves |= child.leaves;
         }
 
         if(outline.resultField != Outline::kNoField) {
             outline.resultField = U16(outline.captures.size());
             outline.captures.push(LocalId());
+            outline.flagOf.push(Outline::kNoFlag);
         }
 
         build(outline);
@@ -366,10 +452,14 @@ struct Planner {
         auto recordPointer = asBase<mir::Type>(DeclPtr<mir::RecordType>(record - *program.decl));
 
         auto carried = context.addUnqualifiedName("$leaving", 8);
+        auto flagName = context.addUnqualifiedName("$flag", 5);
 
-        for(auto held: outline.captures) {
+        for(U32 c = 0; c < outline.captures.size(); c++) {
+            auto held = outline.captures[c];
+            auto isFlag = outline.flagOf[c] != Outline::kNoFlag;
+
             mir::RecordField field;
-            field.name = held.valid() ? source.local(mir, held)->name : carried;
+            field.name = held.valid() ? source.local(mir, held)->name : isFlag ? flagName : carried;
             field.source = function.source;
             field.index = U16(record->fields.size());
 
@@ -379,7 +469,8 @@ struct Planner {
              * are not one object.
              */
             auto captured = held.valid() ? substituted(source.local(mir, held)->occurrence)
-                                         : substituted(function.result);
+                          : isFlag         ? mir::owned(mir::booleanType(program))
+                                           : substituted(function.result);
 
             /*
              * And the field says **what the value is**, not only what type it has - the access form
@@ -453,9 +544,11 @@ struct Planner {
          *
          * `computeSummaries` ran over the MIR, before this declaration existed, and it does not run
          * again - so an unset fact here is read at every consumer's conservative default. That
-         * default is "may suspend", and the one consumer that acts on it declines to copy the body:
-         * an outlined continuation left unanswered is a caller's own code that its caller may never
-         * take back. Copied from the lifter rather than computed, because the two are one body.
+         * default is "may suspend", and the inliner declined to copy such a body until E5 (J220)
+         * stopped it reading the fact: an outlined continuation left unanswered was a caller's own
+         * code that its caller could never take back. Still published for `explain` and the MIR
+         * dump, and for the stackless kind that will be refused again. Copied from the lifter
+         * rather than computed, because the two are one body.
          */
         auto suspends = function.summary.suspension();
         lifted->summary.setSuspension(suspends.get(false), suspends.knowledge == mir::Knowledge::Unknown
@@ -751,6 +844,9 @@ struct Conversion {
     U32 dropCursor = 0;
     U32 flagCursor = 0;
 
+    // The MIR block being converted, which a lens call's leave path reads its steps at (K6).
+    U32 convertingBlock = 0;
+
     U32 errors = 0;
 
     /*
@@ -905,6 +1001,28 @@ struct Conversion {
 
     DeclPtr<mir::Type> substituted(DeclPtr<mir::Type> type) {
         return mir::substituteType(context, program, type, with);
+    }
+
+    /*
+     * What a skipping call answers - `Outcome(exit, E)` - in this body's terms.
+     *
+     * Built from the call's own `reason` rather than read off the callee, because the callee's
+     * declaration is written over *its* variables: a class member's `| error` is the class's, and a
+     * generic traversal's `| e` is its own, so the declared wrapper names a type no value here has.
+     * `reason` is that failure already substituted into the enclosing body's terms (`NodeLensCall`),
+     * and substituting once more is this specialization's. The wrapper is interned, so a concrete
+     * callee answers the very record its declaration names - which is what this used to read, and
+     * what it could read only while `declareSignature` refused a failure type with variables in it.
+     */
+    mir::Occurrence skipOutcome(mir::NodeLensCall& node, LocationId source) {
+        auto failure = substituted(node.reason.type);
+        if(!failure) return mir::Occurrence {};
+
+        DeclPtr<mir::Type> arguments[2] = { program.types.exitCode(), failure };
+        auto type = mir::instantiateRecord(context, program,
+                                           program.roles.record(intrinsic::Known::outcome),
+                                           arguments, 2, source);
+        return type ? mir::owned(type) : mir::Occurrence {};
     }
 
     void report(LocationId at, StringView text) {
@@ -1645,8 +1763,34 @@ struct Conversion {
         auto address = addressOf(*place, function.source);
         if(!address) return;
 
+        /*
+         * The subject of an authored `Drop` that finishes its value, dying whole - which the analysis
+         * places only for a **sum** (`Analysis::subjectOwnsMembers`, K5).
+         *
+         * Its type's teardown is the function this body is, so what runs is the rest of it: a tag
+         * test per constructor and the members' own drops, which is `emitResidueDrop`'s expansion
+         * with nothing qualified away. That the step is on the subject is read off the place, the
+         * same way the analysis found it: the first parameter of a teardown, not projected.
+         */
+        auto subject = place->kind == mir::Place::Local &&
+                       source.local(mir, LocalId(place->payload))->parameter == 0 &&
+                       mir::ownsTeardownSubject(decl(), function);
+
+        /*
+         * A member of a sum nothing proved the constructor of - `mir::DropStep::guarded`. The sums'
+         * addresses here, beside the member's, for the reason above; their tags are read behind the
+         * flag, since a sum that is not there on some path has no tag worth reading on it.
+         */
+        SmallArray<SumGuard, 2> guards;
+        if(step.guarded && !collectGuards(*place, guards)) return;
+
+        if(subject && !step.conditional && !guards.size()) {
+            emitResidueDrop(*address, at, boxes);
+            return;
+        }
+
         if(!step.conditional) {
-            editor.addDrop(function.source, addressUse(*address), at, boxes);
+            emitGuarded(guards, 0, [&] { emitDropAt(*address, at, boxes); });
             return;
         }
 
@@ -1692,11 +1836,206 @@ struct Conversion {
         editor.addBranch(function.source, editor.use(*editor.resultOf(*read), UseKind::Inspect),
                          *dropBlock, *after, nullptr, 0);
 
+        // The arm's region is made current while it is filled, because a residue's teardown
+        // (`emitResidueDrop`) opens cleanup arms of its own, and they nest in whatever is current.
         editor.setBlock(*dropBlock);
-        editor.addDrop(function.source, addressUse(*address), at, boxes);
+        editor.setRegion(dropBlock->region);
+        emitGuarded(guards, 0, [&] {
+            if(subject) emitResidueDrop(*address, at, boxes);
+            else emitDropAt(*address, at, boxes);
+        });
         editor.addJump(function.source, *after, nullptr, 0);
 
         editor.setBlock(*after);
+        editor.setRegion(after->region);
+    }
+
+    // One sum a guarded step tests: its storage, its occurrence, and the tag of the constructor
+    // the member belongs to.
+    struct SumGuard {
+        Value* address;
+        mir::Occurrence at;
+        I64 value;
+    };
+
+    // Every sum on the member's way up, outermost first - the order the tests nest in.
+    bool collectGuards(mir::Place& member, SmallArray<SumGuard, 2>& guards) {
+        for(auto place = &member; place->parent; place = mir[place->parent]) {
+            auto parent = mir[place->parent];
+            if(place->kind != mir::Place::Field) continue;
+            if(!mir::isSumRecord(decl(), parent->occurrence.type)) continue;
+
+            auto at = substituted(parent->occurrence);
+            auto& record = *(mir::RecordType*)decl()[at.type];
+            auto index = record.constructorOf(decl(), U16(place->payload));
+
+            auto address = addressOf(*parent, function.source);
+            if(!address) return false;
+
+            for(auto constructor: record.cons.contents(decl())) {
+                if(constructor.index != index) continue;
+                guards.push(SumGuard { address, at, constructor.value });
+            }
+        }
+
+        for(Size i = 0, j = guards.size(); i + 1 < j; i++, j--) {
+            auto held = guards[i];
+            guards[i] = guards[j - 1];
+            guards[j - 1] = held;
+        }
+
+        return true;
+    }
+
+    /*
+     * `body` behind a tag test per guard, each a cleanup arm - the shape `emitResidueDrop` gives a
+     * constructor's members, and the test a sum's derived teardown makes before reaching them.
+     */
+    template<class F>
+    void emitGuarded(SmallArray<SumGuard, 2>& guards, Size i, F&& body) {
+        if(i == guards.size()) {
+            body();
+            return;
+        }
+
+        auto& guard = guards[i];
+        auto source = function.source;
+        auto tagType = mir::tagTypeOf(decl(), program.types, guard.at.type);
+        if(!tagType) {
+            report(source, "internal: a guarded drop's sum has no discriminant"_v);
+            return;
+        }
+
+        auto held = mir::owned(tagType);
+        auto slot = editor.addFieldAddress(source, addressUse(*guard.address), guard.at.type,
+                                           InstFieldAddress::kDiscriminant, guard.at.shape);
+        auto tag = editor.addLoad(source, addressUse(*editor.resultOf(*slot)), held,
+                                  conventionFor(held));
+        auto value = editor.addConst(source, mir::intConstant(tagType, guard.value));
+
+        auto truth = mir::owned(mir::booleanType(program));
+        auto is = editor.addBinary(source, BinaryOp::Eq,
+                                   editor.use(*editor.resultOf(*tag), UseKind::Inspect),
+                                   editor.use(*editor.resultOf(*value), UseKind::Inspect),
+                                   truth, conventionFor(truth));
+
+        auto arm = editor.enterRegion(ssa::Continuation::Cleanup, ssa::Continuation::AtMostOnce);
+        auto dropBlock = editor.addBlock(StringId());
+        editor.leaveRegion();
+
+        auto after = editor.addBlock(StringId());
+        editor.rejoinRegion(arm, *after);
+
+        editor.addBranch(source, editor.use(*editor.resultOf(*is), UseKind::Inspect),
+                         *dropBlock, *after, nullptr, 0);
+
+        editor.setBlock(*dropBlock);
+        editor.setRegion(dropBlock->region);
+        emitGuarded(guards, i + 1, body);
+        editor.addJump(source, *after, nullptr, 0);
+
+        editor.setBlock(*after);
+        editor.setRegion(after->region);
+    }
+
+    // The teardown of one value in storage - the type's own, or the residue's where a qualified
+    // type argument took a member away.
+    void emitDropAt(Value& address, const mir::Occurrence& at, bool boxes) {
+        if(mir::qualifiesInterior(decl(), at)) {
+            emitResidueDrop(address, at, boxes);
+            return;
+        }
+
+        editor.addDrop(function.source, addressUse(address), at, boxes);
+    }
+
+    /*
+     * The teardown of a value whose qualified type argument took a member away and left one that
+     * owes something - `Result(String, '[U8])`, P15 (J187).
+     *
+     * **Expanded here, into drops of the surviving members at their own types**, rather than a
+     * teardown per shape in every tier that builds one: the derived teardown of `Result(String,
+     * [U8])` would free the view, and teaching the native walk, the descriptor, the JavaScript release
+     * and the optimizer's expansion that one logical type has two teardowns is a change to each of
+     * them for a position this tier can already reach with the instructions it has. What goes down
+     * is a tag test and ordinary drops, which every later pass understands already. `own.cpp`'s
+     * `residualObligation` is where the shapes this cannot serve are refused.
+     *
+     * A single-constructor record is its members in order. A **sum** tests the tag once per
+     * constructor that owes anything, each drop behind its own test as a cleanup arm - the shape a
+     * conditional drop above already has, so nothing downstream meets a new one. Most carriers have
+     * exactly one such constructor (the error), so this is one test and one branch.
+     */
+    void emitResidueDrop(Value& address, const mir::Occurrence& at, bool boxes) {
+        auto& record = *(mir::RecordType*)decl()[at.type];
+        auto source = function.source;
+
+        auto owes = [&](const mir::RecordField& field) {
+            if(mir::fieldPosition(decl(), at.shape, field.index)) return false;
+            if(!mir::ownsField(field)) return false;
+            return mir::hasTeardown(decl(), field.occurrence.type);
+        };
+
+        auto dropMembers = [&](U16 first, U16 count) {
+            for(U16 i = first; i < first + count; i++) {
+                auto field = record.field(decl(), i);
+                if(!owes(field)) continue;
+
+                auto member = editor.addFieldAddress(source, addressUse(address), at.type,
+                                                     field.index, at.shape);
+                editor.addDrop(source, addressUse(*editor.resultOf(*member)),
+                               mir::owned(field.occurrence.type), boxes);
+            }
+        };
+
+        if(record.layout == mir::RecordLayout::Single) {
+            dropMembers(0, U16(record.fields.size()));
+            return;
+        }
+
+        auto tagType = mir::tagTypeOf(decl(), program.types, at.type);
+        if(!tagType) {
+            report(source, "internal: a qualified sum's teardown found no discriminant"_v);
+            return;
+        }
+
+        for(auto constructor: record.cons.contents(decl())) {
+            auto owing = false;
+            for(U16 i = 0; i < constructor.count; i++) {
+                if(owes(record.field(decl(), U16(constructor.first + i)))) owing = true;
+            }
+
+            if(!owing) continue;
+
+            auto held = mir::owned(tagType);
+            auto slot = editor.addFieldAddress(source, addressUse(address), at.type,
+                                               InstFieldAddress::kDiscriminant, at.shape);
+            auto tag = editor.addLoad(source, addressUse(*editor.resultOf(*slot)), held,
+                                      conventionFor(held));
+            auto value = editor.addConst(source, mir::intConstant(tagType, constructor.value));
+
+            auto truth = mir::owned(mir::booleanType(program));
+            auto is = editor.addBinary(source, BinaryOp::Eq,
+                                       editor.use(*editor.resultOf(*tag), UseKind::Inspect),
+                                       editor.use(*editor.resultOf(*value), UseKind::Inspect),
+                                       truth, conventionFor(truth));
+
+            auto arm = editor.enterRegion(ssa::Continuation::Cleanup, ssa::Continuation::AtMostOnce);
+            auto dropBlock = editor.addBlock(StringId());
+            editor.leaveRegion();
+
+            auto after = editor.addBlock(StringId());
+            editor.rejoinRegion(arm, *after);
+
+            editor.addBranch(source, editor.use(*editor.resultOf(*is), UseKind::Inspect),
+                             *dropBlock, *after, nullptr, 0);
+
+            editor.setBlock(*dropBlock);
+            dropMembers(constructor.first, constructor.count);
+            editor.addJump(source, *after, nullptr, 0);
+
+            editor.setBlock(*after);
+        }
     }
 
     // Every step the analysis scheduled before this node. Both lists are sorted, so each is a cursor
@@ -1733,6 +2072,17 @@ struct Conversion {
 
             flagCursor++;
             emitFlag(step);
+        }
+    }
+
+    // The steps at `(block, position)` passed over without emitting any - see the block loop.
+    void skipSteps(U32 block, U32 position) {
+        if(!elaboration) return;
+
+        while(dropCursor < elaboration->drops.size()) {
+            auto step = elaboration->drops.get(mir, dropCursor);
+            if(step.block != block || step.position != position) break;
+            dropCursor++;
         }
     }
 
@@ -1884,16 +2234,33 @@ struct Conversion {
          * `break` - which is what a departure out of the outer object emits where the region holds a
          * loop, since `emitDeparture` leaves the loops the `yield` was written in - ends the child,
          * so the child is cancelled and control resumes at the region's destination exactly as the
-         * caller of an outlined continuation resumes there. A `break` written *inside* a lens region
-         * is refused one tier up ("`break` out of a lens call"), so what reaches here for a `Once`
-         * region is the fall-out arm.
+         * caller of an outlined continuation resumes there. The **landing** of a `break` or
+         * `continue` written in a lens call's block (`Resolver::resolveExit`) would be the same
+         * cancellation followed by a jump to the landing, and is refused below.
          */
         if(stepping && to->region != emitting) {
             auto region = source.region(mir, emitting);
+            auto landing = region && to->index != region->destination &&
+                           to->region == region->parent &&
+                           region->multiplicity != mir::Continuation::Many;
 
-            if(!region || to->index != region->destination || written.arguments.size()) {
+            if(!region || (to->index != region->destination && !landing) ||
+               written.arguments.size()) {
                 report(node.source,
                        "internal: an edge leaves an embedded region for somewhere other than where it rejoins"_v);
+                return;
+            }
+
+            /*
+             * Refused by name, and only in this form: the landing reads the loop's carried values,
+             * and on the path that resumes inside the lens region those were defined by an earlier
+             * step - which the spill plan (`planSpillReach`, `LiveAcross`) does not yet see, so the
+             * step read a value of another activation. The continuation-passing form of the same
+             * producer is built.
+             */
+            if(landing) {
+                report(node.source,
+                       "the compiler does not implement `break` or `continue` out of a lens call in an `iter fn` built as an object yet"_v);
                 return;
             }
 
@@ -1918,20 +2285,20 @@ struct Conversion {
             /*
              * The one edge that may leave, held to what the region declared.
              *
-             * Falling out is the exit that goes to `destination`; `break` and `continue` are edges to
-             * a block further out and are rows in the switch this does not have yet - they are
-             * refused in the resolver by name, so an edge here that is not the destination means the
-             * two have come apart rather than that the program is unusual.
+             * Falling out is the exit that goes to `destination`, and `break` out of a `for` body
+             * is the row beside it. Anywhere else is the landing of a `break` or `continue` for a
+             * loop outside a lens call - the MIR verifier's `checkEdgeRegion` holds it to a block
+             * of the region the call was made in - and is the outward row naming it.
              */
             auto declared = outlining ? source.region(mir, scope)->destination : BlockId();
 
-            if(to->index != declared || written.arguments.size()) {
+            if(!outlining || written.arguments.size()) {
                 report(node.source,
                        "internal: an edge leaves a continuation for somewhere other than where it rejoins"_v);
                 return;
             }
 
-            emitExit(node.source, exit);
+            emitExit(node.source, to->index == declared ? exit : outwardRow(to->index));
             return;
         }
 
@@ -2161,8 +2528,7 @@ struct Conversion {
      *
      * Null having reported, on the same terms as every other internal check here.
      */
-    Value* convertSkip(mir::NodeLensCall& node, mir::Function& callee, mir::Continuation& region,
-                       Value& wrapped) {
+    Value* convertSkip(mir::NodeLensCall& node, mir::Continuation& region, Value& wrapped) {
         if(!region.otherwise.valid()) {
             report(node.source, "internal: a lens.try has no block to skip to"_v);
             return nullptr;
@@ -2191,7 +2557,10 @@ struct Conversion {
         auto storage = base()[slot];
         editor.addStore(node.source, addressUse(*storage), editor.use(wrapped, UseKind::Consume));
 
-        auto& record = *(mir::RecordType*)decl()[callee.result.type];
+        auto outcome = skipOutcome(node, node.source);
+        if(!outcome.type) return nullptr;
+
+        auto& record = *(mir::RecordType*)decl()[outcome.type];
 
         // One projection, three times: the tag and one field of each arm. A lambda rather than three
         // spellings of the same two instructions, because what differs between them is the index and
@@ -2200,7 +2569,7 @@ struct Conversion {
             if(auto unit = unitValue(node.source, held)) return unit;
 
             auto address = editor.addFieldAddress(node.source, addressUse(*storage),
-                                                  callee.result.type, field, callee.result.shape);
+                                                  outcome.type, field, outcome.shape);
             return editor.resultOf(
                 *editor.addLoad(node.source, addressUse(*editor.resultOf(*address)), held,
                                 conventionFor(held)));
@@ -2214,7 +2583,7 @@ struct Conversion {
          * it is asked for rather than assumed, and the constant beside it is built at the same width
          * so that the comparison is one type.
          */
-        auto tagType = mir::tagTypeOf(decl(), program.types, callee.result.type);
+        auto tagType = mir::tagTypeOf(decl(), program.types, outcome.type);
         if(!tagType) {
             report(node.source, "internal: a lens.try's result carries no discriminant"_v);
             return nullptr;
@@ -2285,7 +2654,15 @@ struct Conversion {
             auto held = plan->captures[i];
             Value* address = nullptr;
 
-            if(held.valid()) {
+            if(plan->flagOf[i] != Outline::kNoFlag) {
+                auto path = plan->flagOf[i];
+                if(path >= flags.size() || !flags[path]) {
+                    report(node.source, "internal: a continuation captures a drop flag with no storage"_v);
+                    return;
+                }
+
+                address = base()[flags[path]];
+            } else if(held.valid()) {
                 if(held.index >= slots.size() || !slots[held.index]) {
                     report(node.source, "internal: a continuation captures a local with no storage"_v);
                     return;
@@ -2379,12 +2756,12 @@ struct Conversion {
          *
          * A transparent lens's declared result is `$r`, a *variable* the call site bound to the
          * exit code (`handoverCall`), so its declaration is not the type that comes back here. A
-         * skipping lens's is the record `declareOutcome` built, which is concrete by
-         * `declareSignature`'s rule and therefore is - so reading the declaration is right for one
-         * of them and the binding this file already makes is right for the other.
+         * skipping lens's is `Outcome(exit, E)` at the failure the call site substituted -
+         * `skipOutcome`, since `E` may be a variable of the callee's own signature.
          */
-        auto answered = node.kind == mir::Node::LensTry ? mir::owned(callee.result.type)
+        auto answered = node.kind == mir::Node::LensTry ? skipOutcome(node, node.source)
                                                         : mir::owned(program.types.exitCode());
+        if(!answered.type) return;
         auto call = editor.addCall(node.source, site, Use(), arguments.pointer(), arguments.size(),
                                    answered, conventionFor(answered), true);
 
@@ -2392,7 +2769,7 @@ struct Conversion {
         auto code = editor.resultOf(*call);
 
         if(node.kind == mir::Node::LensTry) {
-            code = convertSkip(node, callee, *region, *code);
+            code = convertSkip(node, *region, *code);
             if(!code) return;
         }
 
@@ -2403,7 +2780,7 @@ struct Conversion {
          * discriminant is dead and nothing tests it - which is every scoped-acquisition call, and is
          * what keeps the signal from costing anything where it says nothing.
          */
-        if(!plan->leaves) {
+        if(!plan->leaves && !plan->outward.size()) {
             if(!region->destination.valid()) {
                 report(node.source, "internal: a lens call falls out to nowhere"_v);
                 return;
@@ -2413,33 +2790,67 @@ struct Conversion {
             return;
         }
 
-        if(!plan->fallsOut || !region->destination.valid()) {
-            emitLeaveFromCarrier(node.source);
-            return;
-        }
-
         /*
-         * `== kExitLeave`, and deliberately not `!= kExitFallOut`.
+         * One test per row that means something *here* - `kExitLeave`, then each outward row - and
+         * falling out as what is left, deliberately not a test against `kExitFallOut`.
          *
-         * `kExitBreak` is a third row and the caller treats it as falling out: the loop is over, and
-         * where the loop was over is the destination. Testing for the one row that means something
-         * *here* is what makes adding a row below a change to the callee alone.
+         * `kExitBreak` is a row the caller treats as falling out: the loop is over, and where the
+         * loop was over is the destination. Testing for the rows that mean something here is what
+         * makes adding a row below a change to the callee alone. Where the region never falls
+         * out, the last row is what is left instead and is taken without a test.
          */
-        auto left = editor.resultOf(
-            *editor.addConst(node.source, mir::intConstant(program.types.exitCode(), kExitLeave)));
+        auto fallback = plan->fallsOut && region->destination.valid();
+        auto rows = plan->outward.size() + (plan->leaves ? 1 : 0);
 
-        auto test = mir::owned(mir::booleanType(program));
-        auto leaves = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
-                                                        editor.use(*code, UseKind::Inspect),
-                                                        editor.use(*left, UseKind::Inspect),
-                                                        test, conventionFor(test)));
+        for(Size i = 0; i < rows; i++) {
+            auto leaving = plan->leaves && i == 0;
+            auto row = leaving ? kExitLeave : plan->outward[i - (plan->leaves ? 1 : 0)];
 
-        auto leaving = editor.addBlock(StringId());
-        editor.addBranch(node.source, editor.use(*leaves, UseKind::Inspect),
-                         *leaving, *base()[blocks[region->destination.index]], nullptr, 0);
+            // An outward row lands in this scope by construction, so taking it is a jump.
+            auto take = [&] {
+                if(leaving) {
+                    /*
+                     * What the region held and a `return` inside it left owned, released now that
+                     * the callee's cleanup has run with it - placed past the call's terminator by
+                     * `walkBlock` (K6). Before the exit propagates, so an enclosing traversal's
+                     * cleanup runs after this one's storage is gone and before its own is.
+                     */
+                    emitSteps(convertingBlock, source.block(mir, BlockId(convertingBlock))->nodes.size());
+                    emitLeaveFromCarrier(node.source);
+                    return;
+                }
 
-        editor.setBlock(*leaving);
-        emitLeaveFromCarrier(node.source);
+                auto landing = base()[blocks[outwardLanding(row).index]];
+                editor.addJump(node.source, *landing, nullptr, 0);
+            };
+
+            if(!fallback && i + 1 == rows) {
+                take();
+                return;
+            }
+
+            auto constant = editor.resultOf(
+                *editor.addConst(node.source, mir::intConstant(program.types.exitCode(), row)));
+
+            auto test = mir::owned(mir::booleanType(program));
+            auto matches = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
+                                                             editor.use(*code, UseKind::Inspect),
+                                                             editor.use(*constant, UseKind::Inspect),
+                                                             test, conventionFor(test)));
+
+            auto taking = editor.addBlock(StringId());
+            auto next = i + 1 == rows ? base()[blocks[region->destination.index]]
+                                      : editor.addBlock(StringId());
+
+            editor.addBranch(node.source, editor.use(*matches, UseKind::Inspect), *taking, *next,
+                             nullptr, 0);
+
+            editor.setBlock(*taking);
+            take();
+
+            if(i + 1 == rows) return;
+            editor.setBlock(*next);
+        }
     }
 
     // The other half of `emitLeave`: an exit the continuation already parked, propagated. The
@@ -2557,6 +2968,84 @@ struct Conversion {
         auto answer = editor.addConst(at, mir::truthConstant(program, more));
         Use values[1] = { editor.use(*editor.resultOf(*answer), UseKind::Consume) };
         editor.addReturn(at, values, 1);
+    }
+
+    /*
+     * A **failing** producer's `return` - P2, J216. What it returns is `Outcome(exit, E)`, stored
+     * whole into `$failure` and its tag read back: `Exit` leaves the record at `kIterFailed` for the
+     * consumer's `f$failure` to take, and `Proceed` - ran out - is finished like any other producer.
+     *
+     * One exception, and it is the teardown: a producer entered with `$cancel` can still reach a
+     * `return e` in the statements below its loops, and nobody is asking for its failure then - the
+     * consumer left. So the failure is dropped where it lies and the record finished, which is the
+     * `for` form's reading too: an alternative does not run after a `break`.
+     */
+    bool stepFail(LocationId at, mir::NodeReturn& written) {
+        Use used;
+        if(!useOf(written.value, at, used)) return true;
+
+        auto& record = *stepping->record;
+        auto held = record.field(decl(), record.failureField).occurrence;
+        auto slot = stepField(at, record.failureField);
+        editor.addStore(at, editor.use(*slot, UseKind::Inspect), used);
+
+        auto tagType = mir::tagTypeOf(decl(), program.types, held.type);
+        if(!tagType) {
+            report(at, "internal: a failing object's `$failure` carries no discriminant"_v);
+            return true;
+        }
+
+        auto tagAddress = editor.addFieldAddress(at, editor.use(*slot, UseKind::Inspect), held.type,
+                                                 InstFieldAddress::kDiscriminant, held.shape);
+        auto tagHeld = mir::owned(tagType);
+        auto tag = editor.addLoad(at, editor.use(*editor.resultOf(*tagAddress), UseKind::Inspect),
+                                  tagHeld, conventionFor(tagHeld));
+        auto exit = editor.addConst(at, mir::intConstant(tagType, mir::kOutcomeExit));
+
+        auto test = mir::owned(mir::booleanType(program));
+        auto failed = editor.addBinary(at, BinaryOp::Eq,
+                                       editor.use(*editor.resultOf(*tag), UseKind::Inspect),
+                                       editor.use(*editor.resultOf(*exit), UseKind::Inspect),
+                                       test, conventionFor(test));
+
+        auto failing = editor.addBlock(StringId());
+        auto done = editor.addBlock(StringId());
+        editor.addBranch(at, editor.use(*editor.resultOf(*failed), UseKind::Inspect), *failing,
+                         *done, nullptr, 0);
+
+        editor.setBlock(*done);
+        editor.setRegion(done->region);
+        stepStoreIndex(at, I64(kIterFinished));
+        stepReturn(at, false);
+
+        editor.setBlock(*failing);
+        editor.setRegion(failing->region);
+
+        auto dropping = editor.addBlock(StringId());
+        auto kept = editor.addBlock(StringId());
+        editor.addBranch(at, editor.use(*stepping->cancel, UseKind::Inspect), *dropping, *kept,
+                         nullptr, 0);
+
+        editor.setBlock(*dropping);
+        editor.setRegion(dropping->region);
+
+        auto& outcome = *(mir::RecordType*)decl()[held.type];
+        auto reason = outcome.fields.get(decl(), outcome.cons.get(decl(), mir::kOutcomeExit).first);
+        if(mir::hasTeardownAt(decl(), reason.occurrence)) {
+            auto address = editor.addFieldAddress(at, editor.use(*slot, UseKind::Inspect), held.type,
+                                                  reason.index, held.shape);
+            editor.addDrop(at, editor.use(*editor.resultOf(*address), UseKind::Inspect),
+                           mir::owned(reason.occurrence.type));
+        }
+
+        stepStoreIndex(at, I64(kIterFinished));
+        stepReturn(at, false);
+
+        editor.setBlock(*kept);
+        editor.setRegion(kept->region);
+        stepStoreIndex(at, I64(kIterFailed));
+        stepReturn(at, false);
+        return true;
     }
 
     /*
@@ -2757,7 +3246,35 @@ struct Conversion {
      * arm cancels the member and carries on where the region rejoins. The item itself is dropped on
      * the floor, which is what the skipped `yield` would have done with it.
      */
-    void stepDrainBox(LocationId at, U16 field, DeclPtr<mir::Function> shim, Block& destination) {
+    /*
+     * A boxed or delegated **failing** child's answer, split - C1c, J218. A tagged answer is the
+     * child's failure: moved out of the child's record first, since releasing the box frees it, then
+     * the box released and the reason handed to the region's `otherwise` edge - the edge the inline
+     * form (C1b) and `convertSkip` hand it on. Anything else continues in the block this leaves
+     * current.
+     */
+    void stepBoxFailure(LocationId at, Value* answer, U16 field, DeclPtr<mir::Function> shim,
+                        const mir::IterType& iterated, Block& otherwise) {
+        auto failure = editor.addBlock(StringId());
+        auto rest = editor.addBlock(StringId());
+        editor.addBranch(at, editor.use(*iterAnswerTagged(program, editor, answer, at),
+                                        UseKind::Inspect), *failure, *rest, nullptr, 0);
+
+        editor.setBlock(*failure);
+        editor.setRegion(failure->region);
+
+        auto reason = iterErasedReason(program, editor, answer, iterated, at);
+        stepCancelField(at, field, shim);
+
+        Use handed = editor.use(*reason, UseKind::Consume);
+        editor.addJump(at, otherwise, &handed, 1);
+
+        editor.setBlock(*rest);
+        editor.setRegion(rest->region);
+    }
+
+    void stepDrainBox(LocationId at, U16 field, DeclPtr<mir::Function> shim, Block& destination,
+                      Block* otherwise = nullptr) {
         auto held = stepBoxType(field);
         auto& iterated = *(mir::IterType*)decl()[held];
 
@@ -2776,8 +3293,15 @@ struct Conversion {
         auto answered = mir::owned(program.types.pointerType(iterated.handover.type));
         Use arguments[2] = { next, editor.use(*editor.resultOf(*carry), UseKind::Consume) };
 
-        editor.addCall(at, through, editor.use(*self, UseKind::Inspect), arguments, 2, answered,
-                       conventionFor(answered), true);
+        auto found = editor.resultOf(*editor.addCall(at, through, editor.use(*self, UseKind::Inspect),
+                                                     arguments, 2, answered,
+                                                     conventionFor(answered), true));
+
+        // A failing child's one step may be its failure, which the alternative takes on this path
+        // too - the inline form's reading when the guard is set (C1c).
+        if(otherwise && iterated.failure) {
+            stepBoxFailure(at, found, field, shim, iterated, *otherwise);
+        }
 
         stepCancelField(at, field, shim);
         editor.addJump(at, destination, nullptr, 0);
@@ -2921,6 +3445,13 @@ struct Conversion {
             return true;
         }
 
+        // A failing child held as a box - recursive, or delegated to - answers its failure on the
+        // erased channel (C1c), and the region's `otherwise` is where it goes.
+        auto otherwise = region->otherwise.valid() ? base()[blocks[region->otherwise.index]]
+                                                   : nullptr;
+        auto boxFails = (boxed || delegates) && otherwise &&
+                        ((mir::IterType*)decl()[held])->failure;
+
         auto childType = boxed ? decl()[shim]->generatedRecord : held;
 
         if(!childType || decl()[childType]->kind != mir::Type::Record) {
@@ -3055,7 +3586,8 @@ struct Conversion {
                 }
 
                 fill(plain);
-                stepDrainBox(at, field, plain, *base()[blocks[region->destination.index]]);
+                stepDrainBox(at, field, plain, *base()[blocks[region->destination.index]],
+                             boxFails ? otherwise : nullptr);
 
                 editor.setBlock(*delegating);
                 editor.setRegion(delegating->region);
@@ -3129,6 +3661,41 @@ struct Conversion {
             editor.setRegion(resumed->region);
 
             stepStoreGuard(at);
+
+            /*
+             * A **failing** child comes back here having failed or run out, and the trampoline
+             * could not say which - it read null either way, which is what made it step this level.
+             * So the level asks its child's pair once more: `f$erased.step` answers the failure it
+             * parked (`kIterFailedHeld`) or null, and a failure goes to this region's alternative,
+             * run in this level's own step - which may `yield` (the trampoline hands the item on),
+             * fail this level too (and the level above asks the same question of it), or fall
+             * through. One extra call per level *left*, and nothing per element.
+             */
+            if(boxFails) {
+                auto& iterated = *(mir::IterType*)decl()[held];
+                auto borrow = mir::borrowed(held, mir::Access::Unique);
+                auto pair = editor.resultOf(*editor.addLoad(at, editor.use(*stepBoxPair(at, field),
+                                                                           UseKind::Inspect),
+                                                            borrow, conventionFor(borrow), false));
+
+                auto next = exitRow(program, editor, iterated.sent, kExitFallOut, at);
+                auto carry = editor.addConst(at, mir::truthConstant(program, false));
+
+                mir::CallSite through;
+                through.target = nullptr;
+                through.through = mir::CallThrough::Value;
+
+                auto answered = mir::owned(program.types.pointerType(iterated.handover.type));
+                Use asking[2] = { next, editor.use(*editor.resultOf(*carry), UseKind::Consume) };
+
+                auto found = editor.resultOf(*editor.addCall(at, through,
+                                                             editor.use(*pair, UseKind::Inspect),
+                                                             asking, 2, answered,
+                                                             conventionFor(answered), true));
+
+                stepBoxFailure(at, found, field, shim, iterated, *otherwise);
+            }
+
             stepCancelField(at, field, shim);
             editor.addJump(at, *base()[blocks[region->destination.index]], nullptr, 0);
             return true;
@@ -3137,6 +3704,32 @@ struct Conversion {
         auto advance = editor.addBlock(StringId());
         stepping->nestAdvance[node.region.index] = advance - base();
         editor.addJump(at, *advance, nullptr, 0);
+
+        /*
+         * A **lens** region's fall-out gets a block of its own - `release` - rather than the second
+         * entry to `advance` described below.
+         *
+         * The two are the same code, and J53's reading of them as one is right about what runs: the
+         * second step of a lens is its cleanup and answers `False`. What it was wrong about is the
+         * graph. With one block, `advance`'s true arm is reachable from the fall-out, so the region's
+         * entry has the resume blocks among its predecessors - and a value the producer defined before
+         * the region and spills across a `yield` inside it is then used at the entry on a path that
+         * never defined it. `planSpillReach` and `LiveAcross` walk MIR, where a `Once` region's
+         * fall-out goes to its destination and nowhere else, so they answered "the definition
+         * dominates" and the verifier said "store names N, whose definition does not dominate it"
+         * (Implementation-Streams P3, J185). Giving the SSA the graph MIR states is one block; teaching
+         * both analyses an edge no program takes would have been two, and would have spilled values a
+         * lens region never needs.
+         *
+         * `checkHandover` is what makes ignoring the answer sound: a lens hands over exactly once on
+         * every path, so the second step's answer is always `False`. A boxed region is an `iter fn`'s
+         * recursion and is never `Once`.
+         */
+        Block* release = nullptr;
+        if(region->multiplicity == mir::Continuation::Once && !boxed) {
+            release = editor.addBlock(StringId());
+            stepping->nestAdvance[node.region.index] = release - base();
+        }
 
         /*
          * One step of the member, asked for here and again at every block of the region that falls
@@ -3168,6 +3761,7 @@ struct Conversion {
         auto& destination = *base()[blocks[region->destination.index]];
         Value* found = nullptr;
         DeclPtr<mir::Type> carried = nullptr;
+        auto foundLends = false;
 
         if(boxed) {
             /*
@@ -3181,6 +3775,7 @@ struct Conversion {
              */
             auto& iterated = *(mir::IterType*)decl()[held];
             carried = iterated.handover.type;
+            foundLends = iterated.lends;
 
             auto next = exitRow(program, editor, iterated.sent, kExitFallOut, at);
             auto carry = editor.addConst(at, mir::truthConstant(program, false));
@@ -3221,8 +3816,22 @@ struct Conversion {
              */
             auto ended = editor.addBlock(StringId());
 
-            editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *obtain,
-                             *ended, nullptr, 0);
+            if(boxFails) {
+                // A failing child's answer is tested for the tag only where it was not null, so an
+                // element pays the `and` and the null test it already paid (C1c).
+                auto answeredSome = editor.addBlock(StringId());
+                editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect),
+                                 *answeredSome, *ended, nullptr, 0);
+
+                editor.setBlock(*answeredSome);
+                editor.setRegion(answeredSome->region);
+
+                stepBoxFailure(at, found, field, shim, iterated, *otherwise);
+                editor.addJump(at, *obtain, nullptr, 0);
+            } else {
+                editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *obtain,
+                                 *ended, nullptr, 0);
+            }
 
             editor.setBlock(*ended);
             editor.setRegion(ended->region);
@@ -3245,29 +3854,50 @@ struct Conversion {
             auto walking = child.producerWalk != nullptr;
             auto& childStep = *decl()[walking ? child.producerWalk : child.producerStep];
 
-            auto next = exitRow(program, editor,
-                                decl()[childStep.args.get(decl(), 1)]->occurrence.type,
-                                kExitFallOut, at);
-            auto carry = editor.addConst(at, mir::truthConstant(program, false));
+            auto callStep = [&](Value* stepped) {
+                auto next = exitRow(program, editor,
+                                    decl()[childStep.args.get(decl(), 1)]->occurrence.type,
+                                    kExitFallOut, at);
+                auto carry = editor.addConst(at, mir::truthConstant(program, false));
 
-            mir::CallSite stepping3;
-            stepping3.target = walking ? child.producerWalk : child.producerStep;
-            stepping3.through = mir::CallThrough::Declaration;
+                mir::CallSite stepping3;
+                stepping3.target = walking ? child.producerWalk : child.producerStep;
+                stepping3.through = mir::CallThrough::Declaration;
 
-            Use stepArguments[3] = {
-                editor.use(*self, UseKind::Borrow),
-                next,
-                editor.use(*editor.resultOf(*carry), UseKind::Consume),
+                Use stepArguments[3] = {
+                    editor.use(*stepped, UseKind::Borrow),
+                    next,
+                    editor.use(*editor.resultOf(*carry), UseKind::Consume),
+                };
+
+                return editor.addCall(at, stepping3, Use(), stepArguments, 3, childStep.result,
+                                      conventionFor(childStep.result), true);
             };
 
-            auto answered = editor.addCall(at, stepping3, Use(), stepArguments, 3, childStep.result,
-                                           conventionFor(childStep.result), true);
-
+            auto answered = callStep(self);
             auto more = editor.resultOf(*answered);
+
+            if(release) {
+                auto resumeAt = editor.currentBlock();
+
+                editor.setBlock(*release);
+                editor.setRegion(release->region);
+
+                auto again = editor.resultOf(*editor.addLoad(at, editor.use(*stepField(at, field),
+                                                                            UseKind::Inspect),
+                                                             borrow, conventionFor(borrow), false));
+                callStep(again);
+                editor.addJump(at, destination, nullptr, 0);
+
+                editor.setBlock(*resumeAt);
+                editor.setRegion(resumeAt->region);
+            }
 
             if(walking) {
                 found = more;
                 carried = ((mir::PointerType*)decl()[childStep.result.type])->to;
+                foundLends = decl()[child.field(decl(), 1).occurrence.type]->kind ==
+                             mir::Type::Pointer;
 
                 auto word = mir::owned(program.types.words[0]);
                 auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
@@ -3284,8 +3914,62 @@ struct Conversion {
                                                          truth, conventionFor(truth)));
             }
 
-            editor.addBranch(at, editor.use(*more, UseKind::Inspect), *obtain, destination,
-                             nullptr, 0);
+            /*
+             * A **failing** child's "no" is two answers - C1b, and `resolveObjectFor`'s `stopped`
+             * block one tier in. A failed step leaves the child's `$index` at `kIterFailed`, so the
+             * index is read where the step said no and only there; `f$failure` moves the reason out
+             * and finishes the child, and the reason is the one argument of this region's
+             * `otherwise` edge, exactly as `convertSkip` hands it in the continuation-passing form.
+             */
+            if(region->otherwise.valid() && child.producerFailure) {
+                auto stopped = editor.addBlock(StringId());
+                editor.addBranch(at, editor.use(*more, UseKind::Inspect), *obtain, *stopped,
+                                 nullptr, 0);
+
+                editor.setBlock(*stopped);
+                editor.setRegion(stopped->region);
+
+                auto again = editor.resultOf(*editor.addLoad(at, editor.use(*stepField(at, field),
+                                                                            UseKind::Inspect),
+                                                             borrow, conventionFor(borrow), false));
+                auto index = editor.resultOf(*editor.addFieldAddress(
+                    at, editor.use(*again, UseKind::Inspect), childType, 0));
+
+                auto counter = mir::owned(program.types.exitCode());
+                auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*index, UseKind::Inspect),
+                                                              counter, conventionFor(counter), false));
+                auto sentinel = editor.addConst(at, mir::intConstant(counter.type, U64(kIterFailed)));
+
+                auto truth = mir::owned(mir::booleanType(program));
+                auto failed = editor.addBinary(at, mir::BinaryOp::Eq,
+                                               editor.use(*loaded, UseKind::Inspect),
+                                               editor.use(*editor.resultOf(*sentinel), UseKind::Inspect),
+                                               truth, conventionFor(truth));
+
+                auto failure = editor.addBlock(StringId());
+                editor.addBranch(at, editor.use(*editor.resultOf(*failed), UseKind::Inspect), *failure,
+                                 destination, nullptr, 0);
+
+                editor.setBlock(*failure);
+                editor.setRegion(failure->region);
+
+                auto& take = *decl()[child.producerFailure];
+                mir::CallSite taking;
+                taking.target = child.producerFailure;
+                taking.through = mir::CallThrough::Declaration;
+
+                Use childSelf[1] = { editor.use(*again, UseKind::Borrow) };
+                auto unit = decl()[take.result.type]->kind == mir::Type::Unit;
+                auto called = editor.addCall(at, taking, Use(), childSelf, 1, take.result,
+                                             conventionFor(take.result), !unit);
+                auto reason = unit ? unitValue(at, take.result) : editor.resultOf(*called);
+
+                auto handed = editor.use(*reason, UseKind::Consume);
+                editor.addJump(at, *base()[blocks[region->otherwise.index]], &handed, 1);
+            } else {
+                editor.addBranch(at, editor.use(*more, UseKind::Inspect), *obtain, destination,
+                                 nullptr, 0);
+            }
         }
 
         editor.setBlock(*obtain);
@@ -3299,7 +3983,7 @@ struct Conversion {
         }
 
         auto position = base()[entry.argumentAt(base(), 0)]->occurrence;
-        auto item = found ? stepBoxItem(at, found, position, carried)
+        auto item = found ? stepBoxItem(at, found, position, carried, foundLends)
                           : stepNestItem(at, field, child, position);
         if(!item) return true;
 
@@ -3328,10 +4012,18 @@ struct Conversion {
      * gives a concrete nest's item and is what the outer producer's own liveness is computed over.
      */
     Value* stepBoxItem(LocationId at, Value* found, const mir::Occurrence& position,
-                       DeclPtr<mir::Type> carriedType) {
+                       DeclPtr<mir::Type> carriedType, bool lends) {
         if(!found) {
             report(at, "internal: a boxed region's member hands over nothing"_v);
             return nullptr;
+        }
+
+        // What was answered is the child's slot, and a lending slot holds the value's address
+        // (`iterSlotAddress`).
+        if(lends) {
+            auto through = mir::owned(found->occurrence.type);
+            found = editor.resultOf(*editor.addLoad(at, editor.use(*found, UseKind::Inspect),
+                                                    through, conventionFor(through), false));
         }
 
         if(referenceValued(position)) {
@@ -3418,9 +4110,14 @@ struct Conversion {
                                                         position, conventionFor(position)));
             }
 
+            // A lens handing over `{}` - `withLock(m):`, the common lens - has a slot of no bytes,
+            // which is the value itself rather than a load (`unitValue`).
             carried = mir::owned(item.type);
-            value = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
-                                                    carried, conventionFor(carried), false));
+            value = unitValue(at, carried);
+            if(!value) {
+                value = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
+                                                        carried, conventionFor(carried), false));
+            }
         }
 
         if(!value) {
@@ -3558,8 +4255,16 @@ struct Conversion {
                 // `stepReleaseHeld`, which is a branch this returns from in the join.
                 stepReleaseHeld(node.source);
 
-                auto slot = stepField(node.source, 1);
-                editor.addStore(node.source, editor.use(*slot, UseKind::Inspect), handed);
+                /*
+                 * Not where the slot has no bytes: a `{}` hand-over is read back as the constant
+                 * (`stepNestItem`), and a store of it is a write of nothing that the lowering has no
+                 * width for and JSIR no value for (J185, a `lens fn` handing over `{}` inside an
+                 * object).
+                 */
+                if(decl()[slotType]->kind != mir::Type::Unit) {
+                    auto slot = stepField(node.source, 1);
+                    editor.addStore(node.source, editor.use(*slot, UseKind::Inspect), handed);
+                }
 
                 if(stepping->record->heldField) stepStoreHeld(node.source, true);
             }
@@ -3624,6 +4329,11 @@ struct Conversion {
             stepReleaseHeld(node.source);
             stepCancelNests(node.source);
             stepReleaseRuns(node.source);
+
+            auto& written = (mir::NodeReturn&)node;
+            if(stepping->record->failureField && written.hasValue) {
+                return stepFail(node.source, written);
+            }
 
             stepStoreIndex(node.source, I64(kIterFinished));
             stepReturn(node.source, false);
@@ -4047,7 +4757,11 @@ struct Conversion {
                     return;
                 }
 
-                auto inst = editor.addFunValue(node.source, written.callee,
+                // The lambda's specialization where it was lifted in a generic body - the one
+                // reachability made, under the same substitution (`funValueTarget`).
+                auto callee = mir::funValueTarget(context, program, function, written.callee,
+                                                  node.source);
+                auto inst = editor.addFunValue(node.source, callee,
                                                written.capturing ? &environment : nullptr, result,
                                                conventionFor(result));
 
@@ -4452,6 +5166,12 @@ struct Conversion {
                 auto valueLeads = site.siteCall ||
                                   site.through == mir::CallThrough::CallWitness;
 
+                auto& named = *decl()[written.callee];
+                auto opensSite = !written.callsValue() && site.target != written.callee &&
+                                 named.generated == mir::Function::Generated::IterNew &&
+                                 named.generatedRecord &&
+                                 ((mir::RecordType*)decl()[named.generatedRecord])->openSite;
+
                 if(valueLeads && target.isSet()) {
                     arguments.push(target);
                     position = 1;
@@ -4498,6 +5218,21 @@ struct Conversion {
                     if(held && !(derivation && position == 0) &&
                        !adaptUseToView(used, *held, node.source)) {
                         return;
+                    }
+
+                    /*
+                     * A constructor of an object a generic body built at its own variables (P16),
+                     * which the node names in the body's terms and `callTarget` replaced with the
+                     * record minted here. The body's record borrows a capture whose type was a
+                     * variable, and this one may hold the same argument **by value** - a trivially
+                     * copyable one is copied into the record (`IterCaptureKind::Value`). The value
+                     * is already loaded above; handing it over is the copy, on the terms an embedded
+                     * region's capture is adapted to `g$new` (`convertStepNest`).
+                     */
+                    if(opensSite && held && held->contract.isOwned() &&
+                       used.kind() == UseKind::Borrow &&
+                       !referenceValued(base()[used.value()]->occurrence)) {
+                        used = editor.use(*base()[used.value()], UseKind::Consume);
                     }
 
                     arguments.push(used);
@@ -5186,9 +5921,9 @@ struct Conversion {
             auto last = mir[block->nodes.get(mir, block->nodes.size() - 1)];
             if(last->kind != mir::Node::LensTry) continue;
 
-            // Concrete by `declareSignature`'s rule about the failure type, so there is nothing to
-            // substitute: the wrapper's two fields are the exit code and a type of no variables.
-            auto held = mir::owned(decl()[((mir::NodeLensCall*)last)->callee]->result.type);
+            // At the call's own failure type in this specialization's terms - `skipOutcome`.
+            auto held = skipOutcome(*(mir::NodeLensCall*)last, last->source);
+            if(!held.type) continue;
             outcomes[last->id.index] = editor.resultOf(
                 *editor.addAlloc(last->source, held, mir::StorageClass::Frame)) - base();
         }
@@ -5208,6 +5943,13 @@ struct Conversion {
                 auto held = mir::owned(mir::booleanType(program));
                 auto alloc = editor.addAlloc(function.source, held, mir::StorageClass::Frame);
                 flags.push(editor.resultOf(*alloc) - base());
+            }
+
+            // A continuation's flags are its caller's, where the planner captured them - see
+            // `Outline::flagOf`. The frame slot above is then simply unused.
+            for(U32 i = 0; outlining && i < outlining->captures.size(); i++) {
+                auto path = outlining->flagOf[i];
+                if(path != Outline::kNoFlag && path < flags.size()) flags[path] = captured[i];
             }
         }
 
@@ -5253,8 +5995,10 @@ struct Conversion {
                 auto step = elaboration->flags.get(mir, flagCursor);
                 if(step.position != mir::FlagStep::kEntry) break;
 
+                // Not in a continuation, whose flags are the caller's and already hold the state
+                // the region was entered in.
                 flagCursor++;
-                emitFlag(step);
+                if(!outlining) emitFlag(step);
             }
         }
 
@@ -5279,6 +6023,8 @@ struct Conversion {
             if(stepping) stepSpillsOnEntry(i);
 
             auto count = block->nodes.size();
+            convertingBlock = i;
+
             for(U32 n = 0; n < count; n++) {
                 // The teardowns first: a drop is placed *before* the node that made it due - the
                 // `return` that ends the scope, the assignment that replaces the value, the first
@@ -5295,6 +6041,10 @@ struct Conversion {
                 // that forgets.
                 if(produced[node.id.index]) attachLoan(node, *base()[produced[node.id.index]]);
             }
+
+            // A lens call's leave-path steps sit past its terminator, and `convertLensCall` has
+            // emitted them on that path - or had no such path to put them on.
+            skipSteps(i, count);
         }
 
         // The dispatch, last: the blocks a `yield` resumes at are made while the body is converted,
@@ -5995,32 +6745,28 @@ static bool emitIterDrop(Context& context, mir::Program& program, SsaArena& aren
 // The tail both steppers end with - see the definition, below the first of them.
 static bool answerItem(Context& context, mir::Program& program, Editor& editor,
                        mir::Function& function, Value* slot, DeclPtr<mir::Type> stored, bool window,
-                       Block& nothing, LocationId at);
+                       Block& nothing, LocationId at, Value* failing = nullptr,
+                       bool stepRows = false);
 
 /*
- * Where a record's item is - the slot's address, or what is in it where the producer lends.
+ * Where a record's item is - **the slot's address**, whatever the slot holds.
  *
  * The one line `f$erased`, `f$erased.step` and `f$walk` share and the one thing erasure changes
  * about a step: a pair carries no record for the consumer to read a field out of, so what comes back
  * has to be the address the field would have been read at. A window slot holds the descriptor rather
  * than the owner, so the bitcast to the result's own type covers both and lowers to nothing.
+ *
+ * A **lending** slot holds the value's address, and the answer is still the slot's rather than the
+ * value's: the consumer loads it (`iter(T)$item`, `stepBoxItem`, a delegating `f$item`). Answering
+ * the value's own address saved that load and made the channel unsound - an `&U8` item is at any
+ * byte, and bit zero is what tells an item from `&$failure | 1` and from a delegating level's tagged
+ * link. A slot is laid out at least two-aligned (`membersOf`), so the slot's address never has it.
  */
 static Value* iterSlotAddress(mir::Program& program, Editor& editor, mir::Function& function,
                               Value* self, LocationId at) {
     auto decl = *program.decl;
-    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
-
-    auto item = record.field(decl, 1).occurrence;
-    auto lends = decl[item.type]->kind == mir::Type::Pointer;
-
     auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
                                                         function.generatedRecord, 1));
-
-    if(lends) {
-        auto through = mir::owned(item.type);
-        slot = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), through,
-                                               conventionFor(decl, through), false));
-    }
 
     return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
                                             editor.use(*slot, UseKind::Inspect), function.result,
@@ -6037,6 +6783,211 @@ static Value* iterNoItem(mir::Program& program, Editor& editor, mir::Function& f
     return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
                                             editor.use(*editor.resultOf(*zero), UseKind::Inspect),
                                             function.result, conventionFor(decl, function.result)));
+}
+
+/*
+ * The failure an erased step answered, moved out - C1c, J218. `answer` is `&$failure | 1`: untagged
+ * by a subtract, since the tag was set by an `or` on a word that had it clear, and read as the
+ * `Outcome(exit, E)` every record behind an `iter(T | E)` holds. The shim finished the record before
+ * it answered, which is what hands the `Exit` payload over in place (`f$failure`'s contract).
+ *
+ * **Why bit zero is free** - two halves. The failure's address has it clear because an
+ * `Outcome(exit, E)` holds the `I32` exit code in its `Proceed` arm, so it is at least four-aligned
+ * whatever `E` is (`{}` and a one-byte `E` included, which `iter/Failing.ErasedType.yana` runs). And
+ * no *item* answer has it set because an item answer is a slot's address and a slot is at least
+ * two-aligned (`iterSlotAddress`, `membersOf`) - the half J218 did not state, and an odd lent `&U8`
+ * read as a failure until it held (`iter/Failing.ErasedOddItem.yana`).
+ */
+static Value* iterErasedReason(mir::Program& program, Editor& editor, Value* answer,
+                               const mir::IterType& iterated, LocationId at) {
+    auto decl = *program.decl;
+    auto word = mir::owned(program.types.words[0]);
+
+    auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                   editor.use(*answer, UseKind::Inspect), word,
+                                                   conventionFor(decl, word)));
+    auto one = editor.addConst(at, mir::intConstant(word.type, 1));
+    auto bare = editor.addBinary(at, mir::BinaryOp::Sub, editor.use(*number, UseKind::Inspect),
+                                 editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                 conventionFor(decl, word));
+
+    auto held = mir::borrowed(iterated.failed, mir::Access::Unique);
+    auto outcomeAt = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                      editor.use(*editor.resultOf(*bare),
+                                                                 UseKind::Inspect),
+                                                      held, conventionFor(decl, held)));
+
+    auto& outcome = *(mir::RecordType*)decl[iterated.failed];
+    auto reason = outcome.fields.get(decl, outcome.cons.get(decl, mir::kOutcomeExit).first);
+    auto taken = mir::owned(reason.occurrence.type);
+
+    // A `{}` failure is its one value and never a load - `unitValue`'s rule, which a zero-byte load
+    // is what `lower/inst.cpp` asserts against.
+    if(decl[taken.type]->kind == mir::Type::Unit) {
+        return editor.resultOf(*editor.addConst(at, mir::unitConstant(taken.type)));
+    }
+
+    auto address = editor.addFieldAddress(at, editor.use(*outcomeAt, UseKind::Inspect),
+                                          iterated.failed, reason.index);
+    auto payload = editor.use(*editor.resultOf(*address), UseKind::Inspect);
+
+    /*
+     * A payload that lives in storage is **relocated into the frame**, not left where it is (K7): a
+     * load of one is its address, so the reason would go on naming the record's bytes - and every
+     * caller releases the record before the reason is consumed. `stepBoxFailure` frees the box on
+     * the next line, and a consumer owning a heap-boxed object drops it right after
+     * `iter(T | E)$failure`, which is where J220's reason read as zero once the call was inlined.
+     *
+     * A trivially copyable payload is a `Copy` out of the loaded address - the conversion's own
+     * answer for a relocation out of an `Address` place (`copies` in the `Read` row). A store and a
+     * load through a frame slot was tried first and is not enough: `forwardMemory` hands a `Trivial`
+     * value straight through the slot, which is the alias again. One with a teardown (a `Tag`
+     * reason) has no `Copy`, and is the `Owned` handover `forwardMemory` declines, so the slot is
+     * where it lives. A register-sized payload is a real load and needs nothing.
+     */
+    auto aggregate = holdsAggregate(decl, taken.type);
+
+    if(aggregate && mir::isTriviallyCopyableAt(decl, taken)) {
+        return editor.resultOf(*editor.addCopy(at, payload, taken, conventionFor(decl, taken)));
+    }
+
+    auto loaded = editor.resultOf(*editor.addLoad(at, payload, taken, conventionFor(decl, taken),
+                                                  false));
+    if(!aggregate) return loaded;
+
+    auto slot = editor.resultOf(*editor.addAlloc(at, taken, mir::StorageClass::Frame));
+    editor.addStore(at, editor.use(*slot, UseKind::Inspect), editor.use(*loaded, UseKind::Consume));
+
+    return editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), taken,
+                                           conventionFor(decl, taken), false));
+}
+
+// Whether an erased answer carries the failure tag - the `and` a consumer of `iter(T | E)` pays per
+// element, and nothing on a protocol that cannot fail because nobody asks.
+static Value* iterAnswerTagged(mir::Program& program, Editor& editor, Value* answer, LocationId at) {
+    auto decl = *program.decl;
+    auto word = mir::owned(program.types.words[0]);
+
+    auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                   editor.use(*answer, UseKind::Inspect), word,
+                                                   conventionFor(decl, word)));
+    auto one = editor.addConst(at, mir::intConstant(word.type, 1));
+    auto tag = editor.addBinary(at, mir::BinaryOp::And, editor.use(*number, UseKind::Inspect),
+                                editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                conventionFor(decl, word));
+
+    auto zero = editor.addConst(at, mir::intConstant(word.type, 0));
+    auto truth = mir::owned(mir::booleanType(program));
+    return editor.resultOf(*editor.addBinary(at, mir::BinaryOp::Ne,
+                                             editor.use(*editor.resultOf(*tag), UseKind::Inspect),
+                                             editor.use(*editor.resultOf(*zero), UseKind::Inspect),
+                                             truth, conventionFor(decl, truth)));
+}
+
+/*
+ * A failing record's "no" said on the erased channel - C1c, J218. Emitted where the step answered
+ * no, so an element costs nothing for it; the index says which no it was.
+ *
+ * `f$erased` (`raw` false): `kIterFailed` finishes the record and answers `&$failure | 1`, handing
+ * the payload over in place; anything else answers null.
+ *
+ * `f$erased.step` (`raw` true) answers **null** at `kIterFailed` and parks the record at
+ * `kIterFailedHeld`, because its caller is a trampoline, whose one reading of a tagged answer is "a
+ * child was entered" and whose reading of null - pop this level, step the one above - is exactly what
+ * a failure needs. The level above then asks the same pair again from its `delegateResume`, and that
+ * second call finds `kIterFailedHeld` and answers the tagged failure to the one caller who expects it.
+ */
+static void iterAnswerFailed(mir::Program& program, Editor& editor, mir::Function& function,
+                             Value* self, bool raw, LocationId at) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+
+    auto counter = mir::owned(program.types.exitCode());
+    auto index = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                         function.generatedRecord, 0));
+    auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*index, UseKind::Inspect), counter,
+                                                  conventionFor(decl, counter), false));
+
+    auto truth = mir::owned(mir::booleanType(program));
+    auto is = [&](I64 value) {
+        auto constant = editor.addConst(at, mir::intConstant(counter.type, U64(value)));
+        return editor.resultOf(*editor.addBinary(at, mir::BinaryOp::Eq,
+                                                 editor.use(*loaded, UseKind::Inspect),
+                                                 editor.use(*editor.resultOf(*constant),
+                                                            UseKind::Inspect),
+                                                 truth, conventionFor(decl, truth)));
+    };
+
+    auto store = [&](I64 value) {
+        auto constant = editor.addConst(at, mir::intConstant(counter.type, U64(value)));
+        auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                            function.generatedRecord, 0));
+        editor.addStore(at, editor.use(*slot, UseKind::Inspect),
+                        editor.use(*editor.resultOf(*constant), UseKind::Consume));
+    };
+
+    auto answerNull = [&]() {
+        Use none[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
+        editor.addReturn(at, none, 1);
+    };
+
+    auto answerTagged = [&]() {
+        store(kIterFinished);
+
+        auto word = mir::owned(program.types.words[0]);
+        auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                            function.generatedRecord,
+                                                            record.failureField));
+        auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                       editor.use(*slot, UseKind::Inspect), word,
+                                                       conventionFor(decl, word)));
+        auto one = editor.addConst(at, mir::intConstant(word.type, 1));
+        auto tagged = editor.addBinary(at, mir::BinaryOp::Or, editor.use(*number, UseKind::Inspect),
+                                       editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                       conventionFor(decl, word));
+        auto answer = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                       editor.use(*editor.resultOf(*tagged),
+                                                                  UseKind::Inspect),
+                                                       function.result,
+                                                       conventionFor(decl, function.result)));
+        Use answered[1] = { editor.use(*answer, UseKind::Consume) };
+        editor.addReturn(at, answered, 1);
+    };
+
+    auto failed = editor.addBlock(StringId());
+    auto other = editor.addBlock(StringId());
+    editor.addBranch(at, editor.use(*is(kIterFailed), UseKind::Inspect), *failed, *other, nullptr, 0);
+
+    editor.setBlock(*failed);
+    editor.setRegion(failed->region);
+
+    if(raw) {
+        store(kIterFailedHeld);
+        answerNull();
+    } else {
+        answerTagged();
+    }
+
+    editor.setBlock(*other);
+    editor.setRegion(other->region);
+
+    if(!raw) {
+        answerNull();
+        return;
+    }
+
+    auto held = editor.addBlock(StringId());
+    auto none = editor.addBlock(StringId());
+    editor.addBranch(at, editor.use(*is(kIterFailedHeld), UseKind::Inspect), *held, *none, nullptr,
+                     0);
+
+    editor.setBlock(*held);
+    editor.setRegion(held->region);
+    answerTagged();
+
+    editor.setBlock(*none);
+    editor.setRegion(none->region);
+    answerNull();
 }
 
 // One word of a record, loaded and stored - `$down` and `$inner`, which are the two delegation adds.
@@ -6249,6 +7200,14 @@ static bool emitIterErasedRaw(Context& context, mir::Program& program, SsaArena&
 
     editor.setBlock(*nothing);
     editor.setRegion(nothing->region);
+
+    // A failing level answers null to the trampoline first and its failure to its parent after -
+    // `iterAnswerFailed`, where the two calls are argued.
+    if(record.failureField) {
+        iterAnswerFailed(program, editor, function, self, true, at);
+        editor.seal();
+        return true;
+    }
 
     Use answerNone[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
     editor.addReturn(at, answerNone, 1);
@@ -6547,8 +7506,8 @@ static bool emitIterWalk(Context& context, mir::Program& program, SsaArena& aren
     editor.setBlock(*alive);
     editor.setRegion(alive->region);
 
-    // The third row - `f$erased.step`'s tagged link, which is the one thing an item's address cannot
-    // be. The tag is cleared by subtracting it rather than masking, because it was set by an `or` on
+    // The third row - `f$erased.step`'s tagged link, which is the one thing an item answer cannot
+    // be, since it is a slot's address and a slot is two-aligned (`iterSlotAddress`). The tag is cleared by subtracting it rather than masking, because it was set by an `or` on
     // a word that had it clear.
     auto one = editor.addConst(at, mir::intConstant(word.type, 1));
     auto tag = editor.addBinary(at, mir::BinaryOp::And, editor.use(*number, UseKind::Inspect),
@@ -6689,8 +7648,38 @@ static bool emitIterErasedStep(Context& context, mir::Program& program, SsaArena
 
         auto answered = editor.addCall(at, through, Use(), walking, 3, walk.result,
                                        conventionFor(decl, walk.result), true);
+        auto found = editor.resultOf(*answered);
 
-        Use forwarded[1] = { editor.use(*editor.resultOf(*answered), UseKind::Consume) };
+        /*
+         * A failing root's "no" is two answers here as everywhere else, and the trampoline answers
+         * only null for both - the failure is still in this record's `$failure`, where the root's own
+         * step (or a level's alternative, composed up the chain) left it.
+         */
+        if(record.failureField) {
+            auto word = mir::owned(program.types.words[0]);
+            auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                           editor.use(*found, UseKind::Inspect),
+                                                           word, conventionFor(decl, word)));
+
+            auto item = editor.addBlock(StringId());
+            auto none = editor.addBlock(StringId());
+            editor.addBranch(at, editor.use(*iterNonZero(program, editor, number, at),
+                                            UseKind::Inspect), *item, *none, nullptr, 0);
+
+            editor.setBlock(*item);
+            editor.setRegion(item->region);
+
+            Use forwarded[1] = { editor.use(*found, UseKind::Consume) };
+            editor.addReturn(at, forwarded, 1);
+
+            editor.setBlock(*none);
+            editor.setRegion(none->region);
+            iterAnswerFailed(program, editor, function, self, false, at);
+            editor.seal();
+            return true;
+        }
+
+        Use forwarded[1] = { editor.use(*found, UseKind::Consume) };
         editor.addReturn(at, forwarded, 1);
         editor.seal();
         return true;
@@ -6731,6 +7720,12 @@ static bool emitIterErasedStep(Context& context, mir::Program& program, SsaArena
 
     editor.setBlock(*nothing);
     editor.setRegion(nothing->region);
+
+    if(record.failureField) {
+        iterAnswerFailed(program, editor, function, self, false, at);
+        editor.seal();
+        return true;
+    }
 
     Use answerNone[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
     editor.addReturn(at, answerNone, 1);
@@ -6841,6 +7836,34 @@ static bool emitErasedStepper(Context& context, mir::Program& program, SsaArena&
     editor.setRegion(just->region);
 
     /*
+     * `iter(T | E)`'s third row - C1c, J218. A tagged answer is the failure, handed over as
+     * `Failed(e)`; the shim finished the record before answering, so the next call answers `Done`
+     * exactly as `f$next`'s `f$failure` arranges one tier in.
+     */
+    if(iterated.failure) {
+        auto failure = editor.addBlock(StringId());
+        auto item = editor.addBlock(StringId());
+        editor.addBranch(at, editor.use(*iterAnswerTagged(program, editor, found, at),
+                                        UseKind::Inspect), *failure, *item, nullptr, 0);
+
+        editor.setBlock(*failure);
+        editor.setRegion(failure->region);
+
+        auto reason = iterErasedReason(program, editor, found, iterated, at);
+        auto rows = mir::iterStepRows(decl, function.result.type);
+        auto held = function.result;
+
+        Use carried[1] = { editor.use(*reason, UseKind::Consume) };
+        auto failedAnswer = editor.addAggregate(at, rows.failed, carried, 1, held,
+                                                conventionFor(decl, held));
+        Use answerFailed[1] = { editor.use(*editor.resultOf(*failedAnswer), UseKind::Consume) };
+        editor.addReturn(at, answerFailed, 1);
+
+        editor.setBlock(*item);
+        editor.setRegion(item->region);
+    }
+
+    /*
      * And what is **at** that address for a window hand-over: the descriptor's two words, not the
      * container - `iter(T)$item` reads the same slot the same way, and `emitIterStepper` has the
      * record's own field to read it off. Loading `Array(a)` here instead would be loading an owning
@@ -6852,8 +7875,15 @@ static bool emitErasedStepper(Context& context, mir::Program& program, SsaArena&
         if(auto view = mir::viewRecordOf(context, program, iterated.handover)) stored = view;
     }
 
+    // A lending slot holds the value's address, and the answer is the slot's (`iterSlotAddress`).
+    if(iterated.lends) {
+        auto through = mir::owned(found->occurrence.type);
+        found = editor.resultOf(*editor.addLoad(at, editor.use(*found, UseKind::Inspect), through,
+                                                conventionFor(decl, through), false));
+    }
+
     return answerItem(context, program, editor, function, found, stored, iterated.window, *nothing,
-                      at);
+                      at, nullptr, iterated.failure != nullptr);
 }
 
 static bool emitIterStepper(Context& context, mir::Program& program, SsaArena& arena,
@@ -7006,7 +8036,7 @@ static bool emitIterStepper(Context& context, mir::Program& program, SsaArena& a
         auto& protocol = *(mir::IterType*)decl[iterated.field(decl, 0).occurrence.type];
 
         return answerItem(context, program, editor, function, found, protocol.handover.type,
-                          protocol.window, *nothing, at);
+                          protocol.window, *nothing, at, record.failureField ? self : nullptr);
     }
 
     mir::CallSite site;
@@ -7050,7 +8080,7 @@ static bool emitIterStepper(Context& context, mir::Program& program, SsaArena& a
     }
 
     return answerItem(context, program, editor, function, slot, item.type, record.slotWindow,
-                      *nothing, at);
+                      *nothing, at, record.failureField ? self : nullptr);
 }
 
 /*
@@ -7064,7 +8094,7 @@ static bool emitIterStepper(Context& context, mir::Program& program, SsaArena& a
  */
 static bool answerItem(Context& context, mir::Program& program, Editor& editor,
                        mir::Function& function, Value* slot, DeclPtr<mir::Type> stored, bool window,
-                       Block& nothing, LocationId at) {
+                       Block& nothing, LocationId at, Value* failing, bool stepRows) {
     auto decl = *program.decl;
     auto& answered = *(mir::RecordType*)decl[function.result.type];
 
@@ -7081,6 +8111,15 @@ static bool answerItem(Context& context, mir::Program& program, Editor& editor,
     for(auto constructor: answered.cons.contents(decl)) {
         if(constructor.count) someIndex = constructor.index;
         else noneIndex = constructor.index;
+    }
+
+    // `IterStep` carries two things, so its rows are read off the declaration (C1b).
+    // `stepRows` is the erased form's: the answer is `IterStep`, and the failure was taken off the
+    // tagged address before this tail, so `nothing` is `Done` alone.
+    auto rows = mir::iterStepRows(decl, function.result.type);
+    if(failing || stepRows) {
+        someIndex = rows.yield;
+        noneIndex = rows.done;
     }
 
     /*
@@ -7104,6 +8143,58 @@ static bool answerItem(Context& context, mir::Program& program, Editor& editor,
 
         editor.setBlock(nothing);
         editor.setRegion(nothing.region);
+
+        /*
+         * A **failing** object's "no" is two answers, told apart by the index the step left - the
+         * reading `resolveObjectFor`'s `stopped` block makes, here once per call (C1b). `f$failure`
+         * moves the failure out and finishes the record, so `Failed(e)` hands it over exactly once
+         * and the next call answers `Done`.
+         */
+        if(failing) {
+            auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+            auto index = editor.resultOf(*editor.addFieldAddress(
+                at, editor.use(*failing, UseKind::Inspect), function.generatedRecord, 0));
+
+            auto counter = mir::owned(program.types.exitCode());
+            auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*index, UseKind::Inspect),
+                                                          counter, conventionFor(decl, counter),
+                                                          false));
+            auto sentinel = editor.addConst(at, mir::intConstant(counter.type, U64(kIterFailed)));
+
+            auto truth = mir::owned(mir::booleanType(program));
+            auto failed = editor.addBinary(at, mir::BinaryOp::Eq, editor.use(*loaded, UseKind::Inspect),
+                                           editor.use(*editor.resultOf(*sentinel), UseKind::Inspect),
+                                           truth, conventionFor(decl, truth));
+
+            auto failure = editor.addBlock(StringId());
+            auto done = editor.addBlock(StringId());
+            editor.addBranch(at, editor.use(*editor.resultOf(*failed), UseKind::Inspect), *failure,
+                             *done, nullptr, 0);
+
+            editor.setBlock(*failure);
+            editor.setRegion(failure->region);
+
+            auto& take = *decl[record.producerFailure];
+            mir::CallSite site;
+            site.target = record.producerFailure;
+            site.through = mir::CallThrough::Declaration;
+
+            Use self[1] = { editor.use(*failing, UseKind::Borrow) };
+            auto unit = decl[take.result.type]->kind == mir::Type::Unit;
+            auto called = editor.addCall(at, site, Use(), self, 1, take.result,
+                                         conventionFor(decl, take.result), !unit);
+            auto reason = unit ? editor.resultOf(*editor.addConst(at, mir::unitConstant(take.result.type)))
+                               : editor.resultOf(*called);
+
+            Use carriedFailure[1] = { editor.use(*reason, UseKind::Consume) };
+            auto answer = editor.addAggregate(at, rows.failed, carriedFailure, 1, held,
+                                              conventionFor(decl, held));
+            Use answerFailed[1] = { editor.use(*editor.resultOf(*answer), UseKind::Consume) };
+            editor.addReturn(at, answerFailed, 1);
+
+            editor.setBlock(*done);
+            editor.setRegion(done->region);
+        }
 
         auto none = editor.addAggregate(at, noneIndex, nullptr, 0, held, conventionFor(decl, held));
         Use answerNone[1] = { editor.use(*editor.resultOf(*none), UseKind::Consume) };
@@ -7212,6 +8303,14 @@ static bool convertGenerated(Context& context, mir::Program& program, Converted&
 
             auto address = (*into.arena)[entry->argumentAt(*into.arena, 1)];
 
+            // The answer is a slot's address, and a lending slot holds the value's (`iterSlotAddress`).
+            if(decl[record.field(decl, 1).occurrence.type]->kind == mir::Type::Pointer) {
+                auto through = mir::owned(address->occurrence.type);
+                address = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
+                                                          through, conventionFor(decl, through),
+                                                          false));
+            }
+
             Use where[1] = { editor.use(*address, UseKind::Consume) };
             editor.addReturn(at, where, 1);
             editor.seal();
@@ -7280,6 +8379,61 @@ static bool convertGenerated(Context& context, mir::Program& program, Converted&
         return true;
     }
 
+    /*
+     * `f$failure` - the `Exit` arm of `$failure` moved out, and `$index` finished beside it (P2,
+     * J216). Called only where the index read `kIterFailed`, so the field holds an `Exit`.
+     */
+    if(function.generated == mir::Function::Generated::IterFailure) {
+        auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+        auto at = function.source;
+
+        Editor editor(context, program, into.arena, function);
+        auto entry = editor.currentBlock();
+
+        auto& declared = *decl[function.args.get(decl, 0)];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+
+        auto self = (*into.arena)[entry->argumentAt(*into.arena, 0)];
+        auto fieldAt = [&](U16 index) {
+            return editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                           function.generatedRecord, index));
+        };
+
+        auto held = record.field(decl, record.failureField).occurrence;
+        auto& outcome = *(mir::RecordType*)decl[held.type];
+        auto reason = outcome.fields.get(decl, outcome.cons.get(decl, mir::kOutcomeExit).first);
+
+        auto slot = fieldAt(record.failureField);
+        auto taken = mir::owned(reason.occurrence.type);
+
+        // A `{}` failure is its one value rather than a load of zero bytes (C1c found it: nothing
+        // had failed with `{}` before).
+        Inst* loaded = nullptr;
+        if(decl[taken.type]->kind == mir::Type::Unit) {
+            loaded = editor.addConst(at, mir::unitConstant(taken.type));
+        } else {
+            auto address = editor.addFieldAddress(at, editor.use(*slot, UseKind::Inspect), held.type,
+                                                  reason.index, held.shape);
+            loaded = editor.addLoad(at, editor.use(*editor.resultOf(*address), UseKind::Inspect),
+                                    taken, conventionFor(decl, taken), false);
+        }
+
+        auto finished = editor.addConst(at, mir::intConstant(program.types.exitCode(),
+                                                             U64(kIterFinished)));
+        editor.addStore(at, editor.use(*fieldAt(0), UseKind::Inspect),
+                        editor.use(*editor.resultOf(*finished), UseKind::Consume));
+
+        if(decl[taken.type]->kind == mir::Type::Unit) {
+            editor.addReturn(at, nullptr, 0);
+        } else {
+            Use answer[1] = { editor.use(*editor.resultOf(*loaded), UseKind::Consume) };
+            editor.addReturn(at, answer, 1);
+        }
+
+        editor.seal();
+        return true;
+    }
+
     if(function.generated == mir::Function::Generated::IterNext) {
         return emitIterStepper(context, program, into.arena, function, false);
     }
@@ -7325,6 +8479,36 @@ static bool convertGenerated(Context& context, mir::Program& program, Converted&
      * words rather than an address, so what is at the pointer is loaded and restated as the view it
      * is. `emitIterStepper`'s window branch reads the same slot the same way.
      */
+    // `iter(T | E)$failure` - the tagged answer untagged and its `Exit` payload moved out (C1c).
+    if(function.generated == mir::Function::Generated::IterErasedFailure) {
+        auto& iterated = *(mir::IterType*)decl[function.generatedRecord];
+        auto at = function.source;
+
+        Editor editor(context, program, into.arena, function);
+        auto entry = editor.currentBlock();
+
+        // `$self` is the loan that keeps the object alive to here, and is not read.
+        for(auto argumentPointer: function.args.contents(decl)) {
+            auto& declared = *decl[argumentPointer];
+            editor.addBlockArgument(*entry, declared.occurrence,
+                                    conventionFor(decl, declared.occurrence));
+        }
+
+        auto answer = (*into.arena)[entry->argumentAt(*into.arena, 1)];
+        auto reason = iterErasedReason(program, editor, answer, iterated, at);
+
+        // A `{}` result is returned as no values at all, as every unit-returning body is.
+        if(decl[function.result.type]->kind == mir::Type::Unit) {
+            editor.addReturn(at, nullptr, 0);
+        } else {
+            Use answered[1] = { editor.use(*reason, UseKind::Consume) };
+            editor.addReturn(at, answered, 1);
+        }
+
+        editor.seal();
+        return true;
+    }
+
     if(function.generated == mir::Function::Generated::IterErasedItem) {
         auto& iterated = *(mir::IterType*)decl[function.generatedRecord];
         auto at = function.source;
@@ -7340,6 +8524,13 @@ static bool convertGenerated(Context& context, mir::Program& program, Converted&
 
         auto address = (*into.arena)[entry->argumentAt(*into.arena, 1)];
         auto found = address;
+
+        // A lending slot holds the value's address, and the answer is the slot's (`iterSlotAddress`).
+        if(iterated.lends) {
+            auto through = mir::owned(address->occurrence.type);
+            found = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
+                                                    through, conventionFor(decl, through), false));
+        }
 
         if(iterated.window) {
             auto view = mir::viewRecordOf(context, program, function.result);

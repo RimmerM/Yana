@@ -32,13 +32,13 @@ data captureInts.lambda.env {b: Box}
 
 data captureString.lambda.env {b: 0'Named} shape2
 
-let string'142: [CodeUnit *1] = "a"
+let string'188: [CodeUnit *1] = "a"
 
-let string'143: [CodeUnit *2] = "bc"
+let string'189: [CodeUnit *2] = "bc"
 
-let string'144: [CodeUnit *3] = "abc"
+let string'190: [CodeUnit *3] = "abc"
 
-let string'145: [CodeUnit *3] = "abc"
+let string'191: [CodeUnit *3] = "abc"
 
 fn lent(b: Box [shared call], k: I32 [shared call]) -> I32 {
   local w: W
@@ -268,8 +268,8 @@ bb0:
   %23: Array(I32) [unique call] = read borrow.unique (w.xs) loan0
   %24: I32 = const 36
   %25: {} = call push(I32) borrow.unique %23 take %24
-  %26: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
-  %27: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %26: String = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
+  %27: String = const String {units: Array {run: Run {items: &string'189, capacity: 2, ownsHeap: 0}, length: 2}}
   %28: %String = run.slots String *2
   %29: Size = bitcast inspect %28
   %30: Size = const 0
@@ -400,7 +400,7 @@ fn captureString() -> I32 {
 bb0:
   %0: I32 = const 2
   %1: I32 = const 27
-  %2: String = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'190, capacity: 3, ownsHeap: 0}, length: 3}}
   %3: Named = aggregate.Named take %0 take %1 take %2
   write.init borrow.unique (b) take %3
   %5: Named [shared slot 0] = read borrow.shared (b) loan0
@@ -463,7 +463,7 @@ bb0:
   %24: I32 [unique call] = read borrow.unique (r) loan2
   %25: I32 = const 2
   %26: I32 = const 30
-  %27: String = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %27: String = const String {units: Array {run: Run {items: &string'191, capacity: 3, ownsHeap: 0}, length: 3}}
   %28: Named = aggregate.Named take %25 take %26 take %27
   %29: I32 = const 7
   %30: I32 = call overObject take %28 borrow.shared %29

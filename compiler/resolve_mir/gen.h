@@ -543,7 +543,8 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
  * would be a blanket instance over a class whose whole job is to say which step to call.
  */
 DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurrence& handover,
-                               DeclPtr<Type> resume, LocationId source, bool record);
+                               DeclPtr<Type> resume, LocationId source, bool record,
+                               DeclPtr<Type> failure = nullptr);
 
 // The same for a whole occurrence. The contract and the interior shape are qualification rather than
 // structure and pass through unchanged - what a value is borrowed *as* does not depend on what its
@@ -589,7 +590,16 @@ bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> cont
  * on the parameter is what is asked. One level, deliberately - `((r) -> I32) -> I32` would need the
  * value's own parameter to be decided by a value it has not been handed.
  */
-bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type);
+bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> rigid = nullptr);
+
+/*
+ * Whether every variable this type mentions is one of `owner`'s - the walk `isConcreteType` makes,
+ * asked about *whose* variables rather than about whether there are any. A type in the enclosing
+ * body's own variables is settled for every specialization; one holding an inference variable is
+ * not. `rigid` above is the same question: a parameter in the enclosing body's variables is a
+ * closed position there (C3, a lambda in a generic body).
+ */
+bool variablesFrom(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> owner);
 
 /*
  * The position's shape with what the value decided written into it - `isOpenFunPosition`.

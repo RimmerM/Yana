@@ -10,9 +10,9 @@ instance Iterate(fresh.Iter, %I32, {}): fresh$next, fresh$resume
 
 instance Iterate(pointers.Iter, %I32, {}): pointers$next, pointers$resume
 
-let string'142: [CodeUnit *5] = "alpha"
+let string'188: [CodeUnit *5] = "alpha"
 
-let string'143: [CodeUnit *4] = "beta"
+let string'189: [CodeUnit *4] = "beta"
 
 lens fn fresh(n: I32 [shared call], $body: (%I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -184,9 +184,9 @@ fn stringKeys() -> I32 {
   local e: Entry(String, I32) [owned here shape15 .0=shared slot 1 view .1=shared slot 1]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 5, ownsHeap: 0}, length: 5}}
   %1: I32 = const 10
-  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %2: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   %3: I32 = const 20
   %4: Size = const 2
   %5: Map(String, I32) = call newMap(String, I32) borrow.shared %4

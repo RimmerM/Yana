@@ -56,28 +56,22 @@ fn main() -> one %r0
     %51: %r3 = const 1
     %52: %r3 = binary.eq %43, %51
     %53: %r3 = unary.not %52
-    branch %53 -> block5 -> block2
+    branch %53 -> block3 -> block2
   block1(%0: %r0):
-    %63: %r0 = binary.add %36, %0
-    %64: %r0 = coerce %63
-    return %64
+    %61: %r0 = binary.add %36, %0
+    %62: %r0 = coerce %61
+    return %62
   block2:
     %54: %r3 = const 0
     %55: %r3 = binary.eq %50, %54
     %56: %r3 = unary.not %55
-    branch %56 -> block4 -> block3
+    %57: %r0 = const 0
+    %58: %r0 = const 9
+    %59: %r0 = select %56, %57, %58
+    jump -> block1(%59)
   block3:
-    %57: %r3 = binary.eq %43, %50
-    %58: %r0 = const 0
-    %59: %r0 = const 9
-    %60: %r0 = select %57, %58, %59
+    %60: %r0 = const 0
     jump -> block1(%60)
-  block4:
-    %61: %r0 = const 0
-    jump -> block1(%61)
-  block5:
-    %62: %r0 = const 0
-    jump -> block1(%62)
 
 optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 

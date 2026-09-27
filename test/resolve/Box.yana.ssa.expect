@@ -99,6 +99,7 @@ bb0:
   %10: throughLens.cont.env affine = aggregate.throughLens.cont.env borrow %8 borrow %9
   %11: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value throughLens.cont borrow %10
   %12: I32 trivial = call levelIn(I32) borrow %7 borrow %11
+  drop Config inspect %0
   %13: I32 trivial = load inspect %1
   return consume %13
 }
@@ -172,7 +173,6 @@ bb0(%0: throughLens.cont.env [unique call] guaranteed, %1: I32 trivial):
   %8: %Diagnostics address = field.addr .cold inspect %3
   %9: %I32 address = field.addr .count inspect %8
   %10: I32 trivial = load inspect %9
-  drop Config inspect %3
   %11: I32 trivial = add inspect %7 inspect %10
   store inspect %5 consume %11
   %12: I32 trivial = const 1

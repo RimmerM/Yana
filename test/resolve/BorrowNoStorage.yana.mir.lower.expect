@@ -1,13 +1,13 @@
-@string'142 = [97, 110, 110]
-@string'143 = [98, 111, 98]
-@string'144 = [99, 121]
-@string'145 = [98, 111, 98]
-@string'146 = [98, 111, 98]
+@string'188 = [97, 110, 110]
+@string'189 = [98, 111, 98]
+@string'190 = [99, 121]
+@string'191 = [98, 111, 98]
+@string'192 = [98, 111, 98]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'142}
-@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'143}
-@constant$2 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0] {ptr 0: @string'144}
-@constant$3 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'145}
+@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'188}
+@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'189}
+@constant$2 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0] {ptr 0: @string'190}
+@constant$3 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'191}
 
 eachOf<complex>(%xs: Ptr, %$body: Ptr): I32 {
   b_0 {
@@ -28,10 +28,23 @@ eachOf<complex>(%xs: Ptr, %$body: Ptr): I32 {
   }
 
   b_8 {
-    %v_13 = add %xs, 8: Ptr
-    %v_14 = loads %v_13, 8: I64
-    %v_15 = cmp_ge %v_4, %v_14: I32
-    je %v_15, b_16, b_17
+    %v_13 = load %xs, 8: Ptr
+    %v_14 = shl %v_4, 4: I64
+    %v_15 = add %v_13, %v_14: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = add %v_15, 12: Ptr
+    %v_18 = load %v_17, 4: I32
+    %v_19 = sext %v_18: I64
+    %v_20 = alloca 16, 8: Ptr
+    store %v_20, %v_16, 8
+    %v_21 = add %v_20, 8: Ptr
+    store %v_21, %v_19, 8
+    %v_22 = load %$body, 8: Ptr
+    %v_23 = add %$body, 8: Ptr
+    %v_24 = load %v_23, 8: Ptr
+    %v_12 = call_complex %v_22, %v_24, %v_20: I32
+    %v_25 = cmp_eq %v_12, 0: I32
+    je %v_25, b_5, b_11
   }
 
   b_5 {
@@ -41,31 +54,6 @@ eachOf<complex>(%xs: Ptr, %$body: Ptr): I32 {
 
   b_11 {
     jmp b_9
-  }
-
-  b_17 {
-    %v_18 = load %xs, 8: Ptr
-    %v_19 = shl %v_4, 4: I64
-    %v_20 = add %v_18, %v_19: Ptr
-    %v_21 = load %v_20, 8: Ptr
-    %v_22 = add %v_20, 12: Ptr
-    %v_23 = load %v_22, 4: I32
-    %v_24 = sext %v_23: I64
-    %v_25 = alloca 16, 8: Ptr
-    store %v_25, %v_21, 8
-    %v_26 = add %v_25, 8: Ptr
-    store %v_26, %v_24, 8
-    %v_27 = load %$body, 8: Ptr
-    %v_28 = add %$body, 8: Ptr
-    %v_29 = load %v_28, 8: Ptr
-    %v_12 = call_complex %v_27, %v_29, %v_25: I32
-    %v_30 = cmp_eq %v_12, 0: I32
-    je %v_30, b_5, b_11
-  }
-
-  b_16 {
-    %v_31 = syscall 60, 134: I64
-    unreachable 
   }
 }
 
@@ -85,7 +73,7 @@ main<complex>(): I32 {
     %v_7 = add %v_6, 8: Ptr
     store %v_7, %v_5, 8
     %v_8 = alloca 16, 8: Ptr
-    store %v_8, @string'146, 8
+    store %v_8, @string'192, 8
     %v_9 = add %v_8, 8: Ptr
     store %v_9, 3, 8
     %v_10 = alloca 4, 4: Ptr
@@ -193,31 +181,31 @@ countIn.cont<complex>(%countIn.cont.env: Ptr, %$handed: Ptr): I32 {
 
 String.reclaim<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 

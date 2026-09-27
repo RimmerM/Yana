@@ -15,11 +15,12 @@
    generic's `form` is revised to `erased` where it is reported, so the dump and the diagnostic agree
    about what was decided.
 
-   Thirty-three instantiations because the ceiling is thirty-two, and the ceiling is thirty-two
-   because the largest program in this corpus reaches six. A budget with no erased form under it can
-   only refuse, so it is set where it cannot fire on a program that did nothing unusual - which is
-   also why this fixture has to be the size it is. Ten scalar types at three nesting depths, and
-   three more at a fourth, is the cheapest way to write thirty-three distinct argument lists down.
+   A hundred and twenty-nine instantiations because the ceiling is a hundred and twenty-eight - K1,
+   four times the 32 that `test/base`, the whole library's suite compiled as one program, reached
+   when the ceiling was 32. A budget with no erased form under it can only refuse, so it is set where
+   it cannot fire on a program that did nothing unusual - which is also why this fixture has to be
+   the size it is. Ten scalar types, the hundred ordered pairs of them, and ten and nine more inside
+   one and two `B`s, is a cheap way to write a hundred and twenty-nine distinct argument lists down.
 -}
 
 data B(a) {v: a}
@@ -31,14 +32,134 @@ data B(a) {v: a}
 fn (a) counted(->x: a) -> I32 = 1
 
 fn main() -> I32:
-    return counted(0 :: I8) + counted(0 :: I16) + counted(0 :: I32) +
-        counted(0 :: I64) + counted(0 :: U8) + counted(0 :: U16) +
-        counted(0 :: U32) + counted(0 :: U64) + counted(0.0 :: F32) +
-        counted(0.0 :: F64) + counted(B {v: 0 :: I8}) + counted(B {v: 0 :: I16}) +
-        counted(B {v: 0 :: I32}) + counted(B {v: 0 :: I64}) + counted(B {v: 0 :: U8}) +
-        counted(B {v: 0 :: U16}) + counted(B {v: 0 :: U32}) + counted(B {v: 0 :: U64}) +
-        counted(B {v: 0.0 :: F32}) + counted(B {v: 0.0 :: F64}) + counted(B {v: B {v: 0 :: I8}}) +
-        counted(B {v: B {v: 0 :: I16}}) + counted(B {v: B {v: 0 :: I32}}) + counted(B {v: B {v: 0 :: I64}}) +
-        counted(B {v: B {v: 0 :: U8}}) + counted(B {v: B {v: 0 :: U16}}) + counted(B {v: B {v: 0 :: U32}}) +
-        counted(B {v: B {v: 0 :: U64}}) + counted(B {v: B {v: 0.0 :: F32}}) + counted(B {v: B {v: 0.0 :: F64}}) +
-        counted(B {v: B {v: B {v: 0 :: I8}}}) + counted(B {v: B {v: B {v: 0 :: I16}}}) + counted(B {v: B {v: B {v: 0 :: I32}}})
+    let &s = 0
+    s += counted(0 :: I8)
+    s += counted(0 :: I16)
+    s += counted(0 :: I32)
+    s += counted(0 :: I64)
+    s += counted(0 :: U8)
+    s += counted(0 :: U16)
+    s += counted(0 :: U32)
+    s += counted(0 :: U64)
+    s += counted(0.0 :: F32)
+    s += counted(0.0 :: F64)
+    s += counted({0 :: I8, 0 :: I8})
+    s += counted({0 :: I8, 0 :: I16})
+    s += counted({0 :: I8, 0 :: I32})
+    s += counted({0 :: I8, 0 :: I64})
+    s += counted({0 :: I8, 0 :: U8})
+    s += counted({0 :: I8, 0 :: U16})
+    s += counted({0 :: I8, 0 :: U32})
+    s += counted({0 :: I8, 0 :: U64})
+    s += counted({0 :: I8, 0.0 :: F32})
+    s += counted({0 :: I8, 0.0 :: F64})
+    s += counted({0 :: I16, 0 :: I8})
+    s += counted({0 :: I16, 0 :: I16})
+    s += counted({0 :: I16, 0 :: I32})
+    s += counted({0 :: I16, 0 :: I64})
+    s += counted({0 :: I16, 0 :: U8})
+    s += counted({0 :: I16, 0 :: U16})
+    s += counted({0 :: I16, 0 :: U32})
+    s += counted({0 :: I16, 0 :: U64})
+    s += counted({0 :: I16, 0.0 :: F32})
+    s += counted({0 :: I16, 0.0 :: F64})
+    s += counted({0 :: I32, 0 :: I8})
+    s += counted({0 :: I32, 0 :: I16})
+    s += counted({0 :: I32, 0 :: I32})
+    s += counted({0 :: I32, 0 :: I64})
+    s += counted({0 :: I32, 0 :: U8})
+    s += counted({0 :: I32, 0 :: U16})
+    s += counted({0 :: I32, 0 :: U32})
+    s += counted({0 :: I32, 0 :: U64})
+    s += counted({0 :: I32, 0.0 :: F32})
+    s += counted({0 :: I32, 0.0 :: F64})
+    s += counted({0 :: I64, 0 :: I8})
+    s += counted({0 :: I64, 0 :: I16})
+    s += counted({0 :: I64, 0 :: I32})
+    s += counted({0 :: I64, 0 :: I64})
+    s += counted({0 :: I64, 0 :: U8})
+    s += counted({0 :: I64, 0 :: U16})
+    s += counted({0 :: I64, 0 :: U32})
+    s += counted({0 :: I64, 0 :: U64})
+    s += counted({0 :: I64, 0.0 :: F32})
+    s += counted({0 :: I64, 0.0 :: F64})
+    s += counted({0 :: U8, 0 :: I8})
+    s += counted({0 :: U8, 0 :: I16})
+    s += counted({0 :: U8, 0 :: I32})
+    s += counted({0 :: U8, 0 :: I64})
+    s += counted({0 :: U8, 0 :: U8})
+    s += counted({0 :: U8, 0 :: U16})
+    s += counted({0 :: U8, 0 :: U32})
+    s += counted({0 :: U8, 0 :: U64})
+    s += counted({0 :: U8, 0.0 :: F32})
+    s += counted({0 :: U8, 0.0 :: F64})
+    s += counted({0 :: U16, 0 :: I8})
+    s += counted({0 :: U16, 0 :: I16})
+    s += counted({0 :: U16, 0 :: I32})
+    s += counted({0 :: U16, 0 :: I64})
+    s += counted({0 :: U16, 0 :: U8})
+    s += counted({0 :: U16, 0 :: U16})
+    s += counted({0 :: U16, 0 :: U32})
+    s += counted({0 :: U16, 0 :: U64})
+    s += counted({0 :: U16, 0.0 :: F32})
+    s += counted({0 :: U16, 0.0 :: F64})
+    s += counted({0 :: U32, 0 :: I8})
+    s += counted({0 :: U32, 0 :: I16})
+    s += counted({0 :: U32, 0 :: I32})
+    s += counted({0 :: U32, 0 :: I64})
+    s += counted({0 :: U32, 0 :: U8})
+    s += counted({0 :: U32, 0 :: U16})
+    s += counted({0 :: U32, 0 :: U32})
+    s += counted({0 :: U32, 0 :: U64})
+    s += counted({0 :: U32, 0.0 :: F32})
+    s += counted({0 :: U32, 0.0 :: F64})
+    s += counted({0 :: U64, 0 :: I8})
+    s += counted({0 :: U64, 0 :: I16})
+    s += counted({0 :: U64, 0 :: I32})
+    s += counted({0 :: U64, 0 :: I64})
+    s += counted({0 :: U64, 0 :: U8})
+    s += counted({0 :: U64, 0 :: U16})
+    s += counted({0 :: U64, 0 :: U32})
+    s += counted({0 :: U64, 0 :: U64})
+    s += counted({0 :: U64, 0.0 :: F32})
+    s += counted({0 :: U64, 0.0 :: F64})
+    s += counted({0.0 :: F32, 0 :: I8})
+    s += counted({0.0 :: F32, 0 :: I16})
+    s += counted({0.0 :: F32, 0 :: I32})
+    s += counted({0.0 :: F32, 0 :: I64})
+    s += counted({0.0 :: F32, 0 :: U8})
+    s += counted({0.0 :: F32, 0 :: U16})
+    s += counted({0.0 :: F32, 0 :: U32})
+    s += counted({0.0 :: F32, 0 :: U64})
+    s += counted({0.0 :: F32, 0.0 :: F32})
+    s += counted({0.0 :: F32, 0.0 :: F64})
+    s += counted({0.0 :: F64, 0 :: I8})
+    s += counted({0.0 :: F64, 0 :: I16})
+    s += counted({0.0 :: F64, 0 :: I32})
+    s += counted({0.0 :: F64, 0 :: I64})
+    s += counted({0.0 :: F64, 0 :: U8})
+    s += counted({0.0 :: F64, 0 :: U16})
+    s += counted({0.0 :: F64, 0 :: U32})
+    s += counted({0.0 :: F64, 0 :: U64})
+    s += counted({0.0 :: F64, 0.0 :: F32})
+    s += counted({0.0 :: F64, 0.0 :: F64})
+    s += counted(B {v: 0 :: I8})
+    s += counted(B {v: 0 :: I16})
+    s += counted(B {v: 0 :: I32})
+    s += counted(B {v: 0 :: I64})
+    s += counted(B {v: 0 :: U8})
+    s += counted(B {v: 0 :: U16})
+    s += counted(B {v: 0 :: U32})
+    s += counted(B {v: 0 :: U64})
+    s += counted(B {v: 0.0 :: F32})
+    s += counted(B {v: 0.0 :: F64})
+    s += counted(B {v: B {v: 0 :: I8}})
+    s += counted(B {v: B {v: 0 :: I16}})
+    s += counted(B {v: B {v: 0 :: I32}})
+    s += counted(B {v: B {v: 0 :: I64}})
+    s += counted(B {v: B {v: 0 :: U8}})
+    s += counted(B {v: B {v: 0 :: U16}})
+    s += counted(B {v: B {v: 0 :: U32}})
+    s += counted(B {v: B {v: 0 :: U64}})
+    s += counted(B {v: B {v: 0.0 :: F32}})
+    return s

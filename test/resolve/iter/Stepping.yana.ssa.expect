@@ -2,11 +2,11 @@ module ResolveTest
 
 let & trace: Size = 0
 
-let string'142: [CodeUnit *1] = "w"
+let string'188: [CodeUnit *1] = "w"
 
-let string'143: [CodeUnit *0] = ""
+let string'189: [CodeUnit *0] = ""
 
-let string'144: [CodeUnit *1] = "."
+let string'190: [CodeUnit *1] = "."
 
 iter evens.Iter of evens {
   $index: I32
@@ -431,9 +431,9 @@ bb38:
   branch inspect %134 -> bb40 -> bb39
 
 bb39:
-  %135: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %135: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %20 consume %135
-  %136: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %136: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %21 consume %136
   %137: String [shared call] guaranteed from{%20} = load inspect %20
   jump -> bb52
@@ -475,7 +475,7 @@ bb43:
   %167: String owned = load inspect %21
   %168: String owned = load inspect %23
   %169: String owned = call String.++ consume %167 consume %168
-  %170: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %170: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %171: String owned = call String.++ consume %169 consume %170
   store inspect %21 consume %171
   jump -> bb41
@@ -1611,14 +1611,12 @@ bb0(%0: main.cont.env [unique call] guaranteed, %1: Size trivial):
   %3: %Size address = load inspect %2
   %4: %Size address = alloc frame Size [shared call]
   %5: %Bool address = alloc frame Bool
-  %6: Bool trivial = const False
-  store inspect %5 consume %6
   store inspect %4 borrow %1
-  %7: Size [unique call] guaranteed from{%3} = load inspect %3
-  %8: Size trivial = load inspect %4
-  call +=(Size) borrow %7 borrow %8
-  %9: I32 trivial = const 0
-  return consume %9
+  %6: Size [unique call] guaranteed from{%3} = load inspect %3
+  %7: Size trivial = load inspect %4
+  call +=(Size) borrow %6 borrow %7
+  %8: I32 trivial = const 0
+  return consume %8
 }
 
 entry main

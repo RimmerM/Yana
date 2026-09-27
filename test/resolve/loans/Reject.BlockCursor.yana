@@ -1,0 +1,28 @@
+{-
+   `Stream.readBlockCursor`'s runs are loans of the cursor - Analysis-Streams-Iter §1.4, stated by the
+   loan checker over the library's own declarations (J219).
+
+   - `staleRun`: a run kept across the next step of its own cursor, which may refill the buffer the
+     run points into;
+   - `inputAround`: the input read while a cursor over it is still stepped, which holds it exclusively.
+
+   A run of one cursor across a step of *another* over an independent input is accepted - that is
+   `equalBlocks`, run by `lib/Stream/Cursor.test.native.yana`.
+-}
+
+import Stream
+
+fn staleRun(&input: Input(SliceSource, Infallible)) -> U8:
+    let &c = readBlockCursor(input)
+    let IterStep.Yield(first) = c.next() | return 0
+    let IterStep.Yield(second) = c.next() | return 0
+    return first[0] + second[0]
+
+fn inputAround(&input: Input(SliceSource, Infallible)) -> U8:
+    let &c = readBlockCursor(input)
+    let IterStep.Yield(first) = c.next() | return 0
+    let Ok(other) = input.take(1) | return 0
+    let IterStep.Yield(second) = c.next() | return 0
+    return first[0] + other[0] + second[0]
+
+fn main() -> Int = 0

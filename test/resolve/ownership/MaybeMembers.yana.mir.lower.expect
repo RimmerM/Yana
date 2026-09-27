@@ -1,0 +1,430 @@
+mut @trace = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @failures = [0, 0, 0, 0]
+
+Guard.drop<complex>(%v_0: I64) {
+  b_1 {
+    %v_2 = loads @trace, 8: I64
+    %v_3 = imul %v_2, 10: I64
+    %v_4 = add %v_3, %v_0: I64
+    store @trace, %v_4, 8
+    ret 
+  }
+}
+
+sum'2<complex>(%n: I32, %v_0: I32, %v_1: I64, %v_2: I64) {
+  b_3 {
+    %v_4 = alloca 24, 8: Ptr
+    store %v_4, %v_0, 1
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = add %v_4, 16: Ptr
+    store %v_6, %v_2, 8
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_3, 0], [b_9, %v_10]: I32
+    %v_11 = cmp_ilt %v_8, %n: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_7, 1], [b_15, 0]: I32
+    %v_16 = add %v_4, 8: Ptr
+    je %v_14, b_17, b_18
+  }
+
+  b_12 {
+    %v_19 = cmp_eq %v_8, 1: I32
+    je %v_19, b_20, b_9
+  }
+
+  b_9 {
+    %v_10 = add %v_8, 1: I32
+    jmp b_7
+  }
+
+  b_20 {
+    %v_21 = load %v_4, 1: I32
+    %v_22 = cmp_eq %v_21, 0: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    %v_25 = loads @trace, 8: I64
+    %v_26 = imul %v_25, 10: I64
+    %v_27 = add %v_26, 7: I64
+    store @trace, %v_27, 8
+    call_complex teardown(Sum), %v_4
+    jmp b_15
+  }
+
+  b_15 {
+    jmp b_13
+  }
+
+  b_23 {
+    %v_28 = load %v_6, 8: I64
+    call_complex Guard.drop, %v_28
+    %v_29 = load %v_5, 8: I64
+    call_complex Guard.drop, %v_29
+    %v_30 = loads @trace, 8: I64
+    %v_31 = imul %v_30, 10: I64
+    %v_32 = add %v_31, 8: I64
+    store @trace, %v_32, 8
+    jmp b_15
+  }
+
+  b_17 {
+    %v_33 = load %v_4, 1: I32
+    %v_34 = cmp_eq %v_33, 0: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_18 {
+    %v_37 = add %v_4, 16: Ptr
+    je %v_14, b_38, b_39
+  }
+
+  b_35 {
+    %v_40 = load %v_16, 8: I64
+    call_complex Guard.drop, %v_40
+    jmp b_36
+  }
+
+  b_36 {
+    jmp b_18
+  }
+
+  b_38 {
+    %v_41 = load %v_4, 1: I32
+    %v_42 = cmp_eq %v_41, 0: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_39 {
+    %v_45 = add %v_4, 8: Ptr
+    je %v_14, b_46, b_47
+  }
+
+  b_43 {
+    %v_48 = load %v_37, 8: I64
+    call_complex Guard.drop, %v_48
+    jmp b_44
+  }
+
+  b_44 {
+    jmp b_39
+  }
+
+  b_46 {
+    %v_49 = load %v_4, 1: I32
+    %v_50 = cmp_eq %v_49, 1: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_47 {
+    %v_53 = loads @trace, 8: I64
+    %v_54 = imul %v_53, 10: I64
+    %v_55 = add %v_54, 7: I64
+    store @trace, %v_55, 8
+    ret 
+  }
+
+  b_51 {
+    %v_56 = load %v_45, 8: I64
+    call_complex Guard.drop, %v_56
+    jmp b_52
+  }
+
+  b_52 {
+    jmp b_47
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @trace, 8: I64
+    %v_2 = imul %v_1, 10: I64
+    %v_3 = add %v_2, 1: I64
+    %v_4 = imul %v_3, 10: I64
+    %v_5 = add %v_4, 8: I64
+    %v_6 = imul %v_5, 10: I64
+    %v_7 = add %v_6, 7: I64
+    store @trace, %v_7, 8
+    %v_8 = imul %v_7, 10: I64
+    %v_9 = add %v_8, 2: I64
+    store @trace, %v_9, 8
+    %v_10 = cmp_neq %v_9, 1872: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = loads @failures, 4: I32
+    %v_14 = imulhi %v_13, 1374389535: I32
+    %v_15 = sar %v_14, 5: I32
+    %v_16 = shr %v_15, 31: I32
+    %v_17 = add %v_15, %v_16: I32
+    %v_18 = imul %v_17, 100: I32
+    %v_19 = add %v_18, 101: I32
+    store @failures, %v_19, 4
+    jmp b_12
+  }
+
+  b_12 {
+    store @trace, 0, 8
+    store @trace, 7, 8
+    store @trace, 73, 8
+    store @trace, 734, 8
+    store @trace, 0, 8
+    store @trace, 187, 8
+    store @trace, 1872, 8
+    store @trace, 0, 8
+    store @trace, 7, 8
+    store @trace, 73, 8
+    store @trace, 734, 8
+    store @trace, 0, 8
+    %v_20 = imm 1: I64
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = phi [b_12, 0], [b_23, %v_24]: I32
+    %v_25 = cmp_ilt %v_22, 2: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_26 {
+    %v_28 = cmp_eq %v_22, 1: I32
+    je %v_28, b_29, b_23
+  }
+
+  b_23 {
+    %v_24 = add %v_22, 1: I32
+    jmp b_21
+  }
+
+  b_29 {
+    %v_30 = loads @trace, 8: I64
+    %v_31 = imul %v_30, 10: I64
+    %v_32 = add %v_31, %v_20: I64
+    %v_33 = imul %v_32, 10: I64
+    %v_34 = add %v_33, 8: I64
+    store @trace, %v_34, 8
+    jmp b_27
+  }
+
+  b_27 {
+    %v_35 = phi [b_21, 1], [b_29, 0]: I32
+    %v_36 = loads @trace, 8: I64
+    %v_37 = imul %v_36, 10: I64
+    %v_38 = add %v_37, 7: I64
+    store @trace, %v_38, 8
+    je %v_35, b_39, b_40
+  }
+
+  b_39 {
+    %v_41 = imul %v_38, 10: I64
+    %v_42 = add %v_41, %v_20: I64
+    store @trace, %v_42, 8
+    jmp b_40
+  }
+
+  b_40 {
+    %v_43 = loads @trace, 8: I64
+    %v_44 = imul %v_43, 10: I64
+    %v_45 = add %v_44, 2: I64
+    store @trace, %v_45, 8
+    %v_46 = cmp_neq %v_45, 1872: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_47 {
+    %v_49 = loads @failures, 4: I32
+    %v_50 = imulhi %v_49, 1374389535: I32
+    %v_51 = sar %v_50, 5: I32
+    %v_52 = shr %v_51, 31: I32
+    %v_53 = add %v_51, %v_52: I32
+    %v_54 = imul %v_53, 100: I32
+    %v_55 = add %v_54, 105: I32
+    store @failures, %v_55, 4
+    jmp b_48
+  }
+
+  b_48 {
+    store @trace, 0, 8
+    store @trace, 7, 8
+    store @trace, 73, 8
+    store @trace, 734, 8
+    store @trace, 0, 8
+    store @trace, 1, 8
+    store @trace, 128, 8
+    store @trace, 1287, 8
+    store @trace, 0, 8
+    store @trace, 4, 8
+    store @trace, 438, 8
+    store @trace, 4387, 8
+    store @trace, 0, 8
+    store @trace, 5, 8
+    store @trace, 56, 8
+    store @trace, 567, 8
+    store @trace, 0, 8
+    store @trace, 1877, 8
+    store @trace, 18772, 8
+    store @trace, 187723, 8
+    store @trace, 0, 8
+    store @trace, 77, 8
+    store @trace, 774, 8
+    store @trace, 7745, 8
+    store @trace, 77456, 8
+    store @trace, 0, 8
+    store @trace, 18, 8
+    store @trace, 182, 8
+    store @trace, 0, 8
+    store @trace, 38, 8
+    store @trace, 387, 8
+    store @trace, 3874, 8
+    store @trace, 0, 8
+    store @trace, 5, 8
+    store @trace, 56, 8
+    store @trace, 0, 8
+    store @trace, 7, 8
+    store @trace, 71, 8
+    store @trace, 712, 8
+    store @trace, 0, 8
+    call_complex sum'2, 2, 0, 1, 2
+    %v_56 = loads @trace, 8: I64
+    %v_57 = cmp_neq %v_56, 2187: I32
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    %v_60 = loads @failures, 4: I32
+    %v_61 = imulhi %v_60, 1374389535: I32
+    %v_62 = sar %v_61, 5: I32
+    %v_63 = shr %v_62, 31: I32
+    %v_64 = add %v_62, %v_63: I32
+    %v_65 = imul %v_64, 100: I32
+    %v_66 = add %v_65, 116: I32
+    store @failures, %v_66, 4
+    jmp b_59
+  }
+
+  b_59 {
+    store @trace, 0, 8
+    call_complex Guard.drop, 3
+    call_complex Guard.drop, 4
+    %v_67 = loads @trace, 8: I64
+    %v_68 = imul %v_67, 10: I64
+    %v_69 = add %v_68, 7: I64
+    store @trace, %v_69, 8
+    %v_70 = cmp_neq %v_69, 347: I32
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    %v_73 = loads @failures, 4: I32
+    %v_74 = imulhi %v_73, 1374389535: I32
+    %v_75 = sar %v_74, 5: I32
+    %v_76 = shr %v_75, 31: I32
+    %v_77 = add %v_75, %v_76: I32
+    %v_78 = imul %v_77, 100: I32
+    %v_79 = add %v_78, 117: I32
+    store @failures, %v_79, 4
+    jmp b_72
+  }
+
+  b_72 {
+    store @trace, 0, 8
+    call_complex sum'2, 2, 1, 5, 0
+    %v_80 = loads @trace, 8: I64
+    %v_81 = cmp_neq %v_80, 757: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    %v_84 = loads @failures, 4: I32
+    %v_85 = imulhi %v_84, 1374389535: I32
+    %v_86 = sar %v_85, 5: I32
+    %v_87 = shr %v_86, 31: I32
+    %v_88 = add %v_86, %v_87: I32
+    %v_89 = imul %v_88, 100: I32
+    %v_90 = add %v_89, 118: I32
+    store @failures, %v_90, 4
+    jmp b_83
+  }
+
+  b_83 {
+    store @trace, 0, 8
+    call_complex Guard.drop, 6
+    %v_91 = loads @trace, 8: I64
+    %v_92 = imul %v_91, 10: I64
+    %v_93 = add %v_92, 7: I64
+    store @trace, %v_93, 8
+    %v_94 = cmp_neq %v_93, 67: I32
+    je %v_94, b_95, b_96
+  }
+
+  b_95 {
+    %v_97 = loads @failures, 4: I32
+    %v_98 = imulhi %v_97, 1374389535: I32
+    %v_99 = sar %v_98, 5: I32
+    %v_100 = shr %v_99, 31: I32
+    %v_101 = add %v_99, %v_100: I32
+    %v_102 = imul %v_101, 100: I32
+    %v_103 = add %v_102, 119: I32
+    store @failures, %v_103, 4
+    jmp b_96
+  }
+
+  b_96 {
+    store @trace, 0, 8
+    store @trace, 187, 8
+    store @trace, 1872, 8
+    store @trace, 18727, 8
+    store @trace, 187273, 8
+    store @trace, 1872734, 8
+    store @trace, 0, 8
+    %v_104 = loads @failures, 4: I32
+    ret %v_104
+  }
+}
+
+teardown(Sum)<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = load %v_0, 1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    ret 
+  }
+
+  b_4 {
+    %v_7 = add %v_0, 8: Ptr
+    %v_8 = load %v_7, 8: I64
+    call_complex Guard.drop, %v_8
+    %v_9 = add %v_0, 16: Ptr
+    %v_10 = load %v_9, 8: I64
+    call_complex Guard.drop, %v_10
+    jmp b_6
+  }
+
+  b_5 {
+    %v_11 = cmp_eq %v_2, 1: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = add %v_0, 8: Ptr
+    %v_15 = load %v_14, 8: I64
+    call_complex Guard.drop, %v_15
+    jmp b_6
+  }
+
+  b_13 {
+    jmp b_6
+  }
+}
+

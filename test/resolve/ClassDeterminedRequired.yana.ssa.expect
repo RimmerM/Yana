@@ -1,0 +1,114 @@
+module ResolveTest
+
+fn next'3(self: r [unique slot 0]) -> Result(e, I32) = <no body>
+
+fn take(self: r [unique slot 0], count: I32 [shared call]) -> Result(e, I32) = <no body>
+
+fn Counter.next(self: Counter [unique slot 0]) -> Result({}, I32) {
+bb0(%0: Counter [unique slot 0] guaranteed):
+  %1: %I32 address = field.addr .at inspect %0
+  %2: I32 [unique slot 0] guaranteed from{%0} = load inspect %1
+  %3: I32 trivial = const 1
+  call +=(I32) borrow %2 borrow %3
+  %4: %I32 address = field.addr .at inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: Result({}, I32) trivial = aggregate.Ok consume %5
+  return consume %6
+}
+
+fn Counter.take(self: Counter [unique slot 0], count: I32 [shared call]) -> Result({}, I32) {
+bb0(%0: Counter [unique slot 0] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = field.addr .at inspect %0
+  %4: I32 [unique slot 0] guaranteed from{%0} = load inspect %3
+  %5: I32 trivial = load inspect %2
+  call +=(I32) borrow %4 borrow %5
+  %6: %I32 address = field.addr .at inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: Result({}, I32) trivial = aggregate.Ok consume %7
+  return consume %8
+}
+
+fn sum'2(reader: r [unique call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %Counter address = alloc frame Counter
+  %1: I32 trivial = const 3
+  %2: Counter trivial = aggregate.Counter consume %1
+  store inspect %0 consume %2
+  %3: Counter [unique call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call sum'2(Counter, {}) borrow %3
+  return consume %4
+}
+
+fn sum'2(Counter, {})(reader: Counter [unique call]) -> I32 {
+bb0(%0: Counter [unique call] guaranteed):
+  %1: %Result({}, I32) address = alloc frame Result({}, I32)
+  %2: %I32 address = alloc frame I32
+  %3: %Result({}, I32) address = alloc frame Result({}, I32)
+  %4: %I32 address = alloc frame I32
+  %5: %Result({}, I32) address = alloc frame Result({}, I32)
+  %6: %I32 address = alloc frame I32
+  %7: Counter [unique slot 0] guaranteed from{%0} = load inspect %0
+  %8: Result({}, I32) trivial = call Counter.next borrow %7
+  store inspect %1 consume %8
+  %9: %U8 address = field.addr .# inspect %1
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb2 -> bb1
+
+bb1:
+  %13: I32 trivial = const 0
+  return consume %13
+
+bb2:
+  %14: %I32 address = field.addr .Ok inspect %1
+  %15: I32 trivial = load inspect %14
+  store inspect %2 consume %15
+  %16: Counter [unique slot 0] guaranteed from{%0} = load inspect %0
+  %17: I32 trivial = const 2
+  %18: Result({}, I32) trivial = call Counter.take borrow %16 borrow %17
+  store inspect %3 consume %18
+  %19: %U8 address = field.addr .# inspect %3
+  %20: U8 trivial = load inspect %19
+  %21: U8 trivial = const 1
+  %22: Bool trivial = eq inspect %20 inspect %21
+  branch inspect %22 -> bb4 -> bb3
+
+bb3:
+  %23: I32 trivial = const 0
+  return consume %23
+
+bb4:
+  %24: %I32 address = field.addr .Ok inspect %3
+  %25: I32 trivial = load inspect %24
+  store inspect %4 consume %25
+  %26: Counter [unique slot 0] guaranteed from{%0} = load inspect %0
+  %27: Result({}, I32) trivial = call Counter.next borrow %26
+  store inspect %5 consume %27
+  %28: %U8 address = field.addr .# inspect %5
+  %29: U8 trivial = load inspect %28
+  %30: U8 trivial = const 1
+  %31: Bool trivial = eq inspect %29 inspect %30
+  branch inspect %31 -> bb6 -> bb5
+
+bb5:
+  %32: I32 trivial = const 0
+  return consume %32
+
+bb6:
+  %33: %I32 address = field.addr .Ok inspect %5
+  %34: I32 trivial = load inspect %33
+  store inspect %6 consume %34
+  %35: I32 trivial = load inspect %2
+  %36: I32 trivial = load inspect %4
+  %37: I32 trivial = add inspect %35 inspect %36
+  %38: I32 trivial = load inspect %6
+  %39: I32 trivial = add inspect %37 inspect %38
+  return consume %39
+}
+
+entry main

@@ -8,12 +8,12 @@ function main() {
   var p0 = 0;
   L0: for (;;) {
     if (p0 >>> 0 >= 3) break L0;
-    var v19 = v4[p0 | 0];
-    if (v19 < 8) {
+    var v17 = v4[p0];
+    if (v17 < 8) {
       p0 = p0 + 1 | 0;
       continue L0;
     }
-    return v19 - 8 | 0;
+    return v17 - 8 | 0;
   }
   checkFailed();
 }
@@ -22,4 +22,4 @@ function checkFailed() {
   throw $t;
 }
 var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -1,0 +1,867 @@
+module ResolveTest
+
+data Code {value: I32, spare: I64}
+
+data Tag {id: I32} drop authored
+
+data Holder {source: iter(I32), label: I32} drop derived reclaim derived
+
+data upTo.Iter {$index: I32, $slot: I32, n: I32, failAt: I32, : I32, : I32, : I32, $failure: Outcome(I32, Code)}
+
+data tagged.Iter {$index: I32, $slot: I32, n: I32, failAt: I32, : I32, : I32, : I32, $failure: Outcome(I32, Tag)} drop authored
+
+instance Drop(Tag): Tag.drop
+
+instance IterateFailing(upTo.Iter, I32, Code, {}): upTo$next, upTo$resume
+
+instance Drop(tagged.Iter): tagged$drop
+
+instance IterateFailing(tagged.Iter, I32, Tag, {}): tagged$next, tagged$resume
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+fn note(digit: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = const 10
+  %2: I64 = mul inspect %0 inspect %1
+  %3: I64 = read copy.trivial (digit)
+  %4: I64 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+fn expect(case: I32 [shared call], want: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = read copy.trivial (want)
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I64 = const 0
+  write.assign borrow.unique (global trace) take %9
+  return
+
+bb3:
+  %4: I32 [unique call] = read borrow.unique (global failures) loan0
+  %5: I32 = read copy.trivial (case)
+  %6: {} = call +=(I32) borrow.unique %4 borrow.shared %5
+  jump -> bb2
+}
+
+fn Tag.drop(value: Tag) -> {} {
+bb0:
+  %0: I64 = const 9
+  %1: {} = call note borrow.shared %0
+  %2: I32 = read copy.trivial (value.id)
+  %3: I64 = convert inspect %2
+  %4: {} = call note borrow.shared %3
+  return
+}
+
+lens fn upTo(n: I32 [shared call], failAt: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Code) {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 1
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %47: I32 = read copy.trivial (local4)
+  %48: I32 = sub inspect %7 inspect %47
+  %49: Bool = ge inspect %48 inspect %8
+  branch inspect %49 -> bb10(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %57: I32 = read copy.trivial ($yielded)
+  %58: Outcome(I32, Code) = aggregate.Proceed take %57
+  return take %58
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = read copy.trivial (failAt)
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7(take %15, take %16) -> bb5(take %15, take %16)
+
+bb5(%23: I32, %24: I32):
+  jump -> bb6(take %23, take %24)
+
+bb6(%35: I32, %36: I32):
+  %38: I32 = read copy.trivial (i)
+  %39: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %40: I32 = call inspect %39 borrow.shared %38
+  %41: I32 = const 0
+  %42: Bool = eq inspect %40 inspect %41
+  write.assign borrow.unique ($yielded) take %40
+  branch inspect %42 -> bb8 -> bb9
+
+bb7(%25: I32, %26: I32):
+  %28: I32 = const 4
+  %29: I32 = read copy.trivial (i)
+  %30: I32 = add inspect %28 inspect %29
+  %31: I64 = const 0
+  %32: Code = aggregate.Code take %30 take %31
+  %33: Outcome(I32, Code) = aggregate.Exit take %32
+  return take %33
+
+bb8:
+  jump -> bb2(take %35, take %36)
+
+bb9:
+  jump -> bb3(take %35, take %36)
+
+bb10(%50: I32, %51: I32):
+  %53: I32 = read copy.trivial (local4)
+  %54: I32 = add inspect %53 inspect %51
+  write.assign borrow.unique (local4) take %54
+  jump -> bb1(take %50, take %51)
+}
+
+lens fn tagged(n: I32 [shared call], failAt: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Tag) {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 1
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %44: I32 = read copy.trivial (local4)
+  %45: I32 = sub inspect %7 inspect %44
+  %46: Bool = ge inspect %45 inspect %8
+  branch inspect %46 -> bb10(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %54: I32 = read copy.trivial ($yielded)
+  %55: Outcome(I32, Tag) = aggregate.Proceed take %54
+  return take %55
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = read copy.trivial (failAt)
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7(take %15, take %16) -> bb5(take %15, take %16)
+
+bb5(%23: I32, %24: I32):
+  jump -> bb6(take %23, take %24)
+
+bb6(%32: I32, %33: I32):
+  %35: I32 = read copy.trivial (i)
+  %36: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %37: I32 = call inspect %36 borrow.shared %35
+  %38: I32 = const 0
+  %39: Bool = eq inspect %37 inspect %38
+  write.assign borrow.unique ($yielded) take %37
+  branch inspect %39 -> bb8 -> bb9
+
+bb7(%25: I32, %26: I32):
+  %28: I32 = read copy.trivial (i)
+  %29: Tag = aggregate.Tag take %28
+  %30: Outcome(I32, Tag) = aggregate.Exit take %29
+  return take %30
+
+bb8:
+  jump -> bb2(take %32, take %33)
+
+bb9:
+  jump -> bb3(take %32, take %33)
+
+bb10(%47: I32, %48: I32):
+  %50: I32 = read copy.trivial (local4)
+  %51: I32 = add inspect %50 inspect %48
+  write.assign borrow.unique (local4) take %51
+  jump -> bb1(take %47, take %48)
+}
+
+fn made(n: I32 [shared call], failAt: I32 [shared call]) -> iter(I32) {
+  local local2: upTo.Iter
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (failAt)
+  %2: upTo.Iter = call upTo$new take %0 take %1
+  write.init borrow.unique (local2) take %2
+  %4: upTo.Iter = read copy.trivial (local2)
+  %5: iter(I32) = fun.value upTo$erased.heap take %4
+  return take %5
+}
+
+fn madeTag(n: I32 [shared call], failAt: I32 [shared call]) -> iter(I32) {
+  local local2: tagged.Iter
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (failAt)
+  %2: tagged.Iter = call tagged$new take %0 take %1
+  write.init borrow.unique (local2) take %2
+  %4: tagged.Iter = read take (local2)
+  %5: iter(I32) = fun.value tagged$erased.heap take %4
+  return take %5
+}
+
+fn moved(it: iter(I32)) -> I32 {
+  local & held: iter(I32) [unique call]
+  local local2: %I32
+  local x: I32 [shared slot 0]
+  local e: Code
+
+bb0:
+  %0: iter(I32) [unique call] = read borrow.unique (it) loan0
+  write.init borrow.unique (held) borrow.unique %0
+  jump -> bb1
+
+bb1:
+  %3: iter(I32) [unique call] = read borrow.unique (held) loan1 roots{0}
+  %4: I32 = const 0
+  %5: Bool = const False
+  %6: %I32 = call inspect %3 take %4 take %5
+  %7: USize = bitcast inspect %6
+  %8: USize = const 0
+  %9: Bool = ne inspect %7 inspect %8
+  write.init borrow.unique (local2) take %6
+  branch inspect %9 -> bb4 -> bb2
+
+bb2:
+  drop (it)
+  %33: I32 = const -1
+  return take %33
+
+bb3:
+  %27: iter(I32) [shared call] = read borrow.shared (held) loan3 roots{0}
+  %28: %I32 = read copy.trivial (local2)
+  %29: Code = call iter(I32 | Code)'3$failure borrow.shared %27 take %28
+  drop (it)
+  write.init borrow.unique (e) take %29
+  %31: I32 = read copy.trivial (e.value)
+  return take %31
+
+bb4:
+  %12: %I32 = read copy.trivial (local2)
+  %13: USize = bitcast inspect %12
+  %14: USize = const 1
+  %15: USize = const 0
+  %16: USize = and inspect %13 inspect %14
+  %17: Bool = eq inspect %16 inspect %15
+  branch inspect %17 -> bb5 -> bb3
+
+bb5:
+  %19: %I32 = read copy.trivial (local2)
+  %20: iter(I32) [shared slot 0] = read borrow.shared (held) loan2 roots{0}
+  %21: I32 [shared slot 0] = call iter(I32 | Code)'2$item borrow.shared %20 take %19 roots{0, 2}
+  write.init borrow.unique (x) borrow.shared %21
+  %23: I32 = read copy.trivial (x)
+  %24: I64 = convert inspect %23
+  %25: {} = call note borrow.shared %24
+  jump -> bb1
+}
+
+fn movedTag(it: iter(I32)) -> {} {
+  local & held: iter(I32) [unique call]
+  local local2: %I32
+  local x: I32 [shared slot 0]
+  local tag: Tag
+  flag (it) = held
+
+bb0:
+  %0: iter(I32) [unique call] = read borrow.unique (it) loan0
+  write.init borrow.unique (held) borrow.unique %0
+  jump -> bb1
+
+bb1:
+  %3: iter(I32) [unique call] = read borrow.unique (held) loan1 roots{0}
+  %4: I32 = const 0
+  %5: Bool = const False
+  %6: %I32 = call inspect %3 take %4 take %5
+  %7: USize = bitcast inspect %6
+  %8: USize = const 0
+  %9: Bool = ne inspect %7 inspect %8
+  write.init borrow.unique (local2) take %6
+  branch inspect %9 -> bb4 -> bb2
+
+bb2:
+  drop.maybe (it)
+  return
+  flag (it) = gone
+
+bb3:
+  %27: iter(I32) [shared call] = read borrow.shared (held) loan3 roots{0}
+  %28: %I32 = read copy.trivial (local2)
+  %29: Tag = call iter(I32 | Tag)'3$failure borrow.shared %27 take %28
+  drop (it)
+  write.init borrow.unique (tag) take %29
+  flag (it) = gone
+  %31: I64 = const 7
+  %32: {} = call note borrow.shared %31
+  %33: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %34: I64 = convert inspect %33
+  %35: {} = call note borrow.shared %34
+  jump -> bb2
+
+bb4:
+  %12: %I32 = read copy.trivial (local2)
+  %13: USize = bitcast inspect %12
+  %14: USize = const 1
+  %15: USize = const 0
+  %16: USize = and inspect %13 inspect %14
+  %17: Bool = eq inspect %16 inspect %15
+  branch inspect %17 -> bb5 -> bb3
+
+bb5:
+  %19: %I32 = read copy.trivial (local2)
+  %20: iter(I32) [shared slot 0] = read borrow.shared (held) loan2 roots{0}
+  %21: I32 [shared slot 0] = call iter(I32 | Tag)'2$item borrow.shared %20 take %19 roots{0, 2}
+  write.init borrow.unique (x) borrow.shared %21
+  %23: I32 = read copy.trivial (x)
+  %24: I64 = convert inspect %23
+  %25: {} = call note borrow.shared %24
+  jump -> bb1
+}
+
+fn returned(n: I32 [shared call], failAt: I32 [shared call]) -> I32 {
+  local & it: iter(I32)
+  local local3: %I32
+  local x: I32 [shared slot 0]
+  local e: Code
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (failAt)
+  %2: iter(I32) = call made borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (it) take %2
+  jump -> bb1
+
+bb1:
+  %5: iter(I32) [unique call] = read borrow.unique (it) loan0
+  %6: I32 = const 0
+  %7: Bool = const False
+  %8: %I32 = call inspect %5 take %6 take %7
+  %9: USize = bitcast inspect %8
+  %10: USize = const 0
+  %11: Bool = ne inspect %9 inspect %10
+  write.init borrow.unique (local3) take %8
+  branch inspect %11 -> bb4 -> bb2
+
+bb2:
+  drop (it)
+  %35: I32 = const -1
+  return take %35
+
+bb3:
+  %29: iter(I32) [shared call] = read borrow.shared (it) loan2
+  %30: %I32 = read copy.trivial (local3)
+  %31: Code = call iter(I32 | Code)'3$failure borrow.shared %29 take %30
+  drop (it)
+  write.init borrow.unique (e) take %31
+  %33: I32 = read copy.trivial (e.value)
+  return take %33
+
+bb4:
+  %14: %I32 = read copy.trivial (local3)
+  %15: USize = bitcast inspect %14
+  %16: USize = const 1
+  %17: USize = const 0
+  %18: USize = and inspect %15 inspect %16
+  %19: Bool = eq inspect %18 inspect %17
+  branch inspect %19 -> bb5 -> bb3
+
+bb5:
+  %21: %I32 = read copy.trivial (local3)
+  %22: iter(I32) [shared slot 0] = read borrow.shared (it) loan1
+  %23: I32 [shared slot 0] = call iter(I32 | Code)'2$item borrow.shared %22 take %21 roots{1}
+  write.init borrow.unique (x) borrow.shared %23
+  %25: I32 = read copy.trivial (x)
+  %26: I64 = convert inspect %25
+  %27: {} = call note borrow.shared %26
+  jump -> bb1
+}
+
+fn fromField(h: Holder) -> I32 {
+  local & held: Holder [unique call]
+  local local2: %I32
+  local x: I32 [shared slot 0]
+  local e: Code
+
+bb0:
+  %0: Holder [unique call] = read borrow.unique (h) loan0
+  write.init borrow.unique (held) borrow.unique %0
+  jump -> bb1
+
+bb1:
+  %3: iter(I32) [unique call] = read borrow.unique (held.source) loan1 roots{0}
+  %4: I32 = const 0
+  %5: Bool = const False
+  %6: %I32 = call inspect %3 take %4 take %5
+  %7: USize = bitcast inspect %6
+  %8: USize = const 0
+  %9: Bool = ne inspect %7 inspect %8
+  write.init borrow.unique (local2) take %6
+  branch inspect %9 -> bb4 -> bb2
+
+bb2:
+  drop (h)
+  %33: I32 = const -1
+  return take %33
+
+bb3:
+  %27: iter(I32) [shared call] = read borrow.shared (held.source) loan3 roots{0}
+  %28: %I32 = read copy.trivial (local2)
+  %29: Code = call iter(I32 | Code)'3$failure borrow.shared %27 take %28
+  drop (h)
+  write.init borrow.unique (e) take %29
+  %31: I32 = read copy.trivial (e.value)
+  return take %31
+
+bb4:
+  %12: %I32 = read copy.trivial (local2)
+  %13: USize = bitcast inspect %12
+  %14: USize = const 1
+  %15: USize = const 0
+  %16: USize = and inspect %13 inspect %14
+  %17: Bool = eq inspect %16 inspect %15
+  branch inspect %17 -> bb5 -> bb3
+
+bb5:
+  %19: %I32 = read copy.trivial (local2)
+  %20: iter(I32) [shared slot 0] = read borrow.shared (held.source) loan2 roots{0}
+  %21: I32 [shared slot 0] = call iter(I32 | Code)'2$item borrow.shared %20 take %19 roots{0, 2}
+  write.init borrow.unique (x) borrow.shared %21
+  %23: I32 = read copy.trivial (x)
+  %24: I64 = convert inspect %23
+  %25: {} = call note borrow.shared %24
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local local0: upTo.Iter
+  local local1: tagged.Iter
+  local & local2: Array(iter(I32)) object8
+  local & many: Array(iter(I32)) object8
+  local local4: Maybe(iter(I32)) object13
+  local & last: iter(I32) object13
+  local local6: %I32
+  local x: I32 [shared slot 0]
+  local tag: Tag
+  local local9: Maybe(iter(I32)) object19
+  local & first: iter(I32) object19
+  local local11: %I32
+  local x: I32 [shared slot 0]
+  local tag: Tag
+  local & again: iter(I32)
+  local local15: %I32
+  local x: I32 [shared slot 0]
+  local tag: Tag
+  local & stepped: iter(I32)
+  local & local19: I32
+  local i: I32
+  local local21: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  local v: I32
+  local tag: Tag [shared call]
+  flag (last) = gone
+  flag (first) = gone
+  flag (again) = gone
+
+bb0:
+  %0: I32 = const 4
+  %1: I32 = const 3
+  %2: upTo.Iter = call upTo$new take %0 take %1
+  write.init borrow.unique (local0) take %2
+  %4: upTo.Iter = read copy.trivial (local0)
+  %5: iter(I32) = fun.value upTo$erased.heap take %4
+  %6: I32 = call moved take %5
+  %7: I64 = convert inspect %6
+  %8: {} = call note borrow.shared %7
+  %9: I32 = const 1
+  %10: I64 = const 127
+  %11: {} = call expect borrow.shared %9 borrow.shared %10
+  %12: I32 = const 3
+  %13: I32 = const 2
+  %14: tagged.Iter = call tagged$new take %12 take %13
+  write.init borrow.unique (local1) take %14
+  %16: tagged.Iter = read take (local1)
+  %17: iter(I32) = fun.value tagged$erased.heap take %16
+  %18: {} = call movedTag take %17
+  %19: I32 = const 2
+  %20: I64 = const 17922
+  %21: {} = call expect borrow.shared %19 borrow.shared %20
+  %22: I32 = const 5
+  %23: I32 = const 4
+  %24: I32 = call returned borrow.shared %22 borrow.shared %23
+  %25: I64 = convert inspect %24
+  %26: {} = call note borrow.shared %25
+  %27: I32 = const 4
+  %28: I64 = const 1238
+  %29: {} = call expect borrow.shared %27 borrow.shared %28
+  %30: I32 = const 2
+  %31: I32 = const 1
+  %32: iter(I32) = call made borrow.shared %30 borrow.shared %31
+  %33: I32 = const 6
+  %34: Holder = aggregate.Holder take %32 take %33
+  %35: I32 = call fromField take %34
+  %36: I64 = convert inspect %35
+  %37: {} = call note borrow.shared %36
+  %38: I32 = const 8
+  %39: I64 = const 5
+  %40: {} = call expect borrow.shared %38 borrow.shared %39
+  %41: Size = const 0
+  %42: %iter(I32) = bitcast inspect %41
+  %43: @bits(30) U32 = const 0
+  %44: @bits(2) U32 = const 1
+  %45: Run(iter(I32)) = aggregate.Run take %42 take %43 take %44
+  %46: @bits(30) U32 = const 0
+  %47: Array(iter(I32)) = aggregate.Array take %45 take %46
+  write.init borrow.unique (local2) take %47
+  %49: Array(iter(I32)) = read take (local2)
+  write.init borrow.unique (many) take %49
+  %51: Array(iter(I32)) [unique call] = read borrow.unique (many) loan0
+  %52: I32 = const 3
+  %53: I32 = const 3
+  %54: iter(I32) = call madeTag borrow.shared %52 borrow.shared %53
+  %55: {} = call push(iter(I32)) borrow.unique %51 take %54
+  %56: Array(iter(I32)) [unique call] = read borrow.unique (many) loan1
+  %57: I32 = const 2
+  %58: I32 = const 9
+  %59: iter(I32) = call madeTag borrow.shared %57 borrow.shared %58
+  %60: {} = call push(iter(I32)) borrow.unique %56 take %59
+  %61: Array(iter(I32)) [unique call] = read borrow.unique (many) loan2
+  %62: I32 = const 1
+  %63: Maybe(iter(I32)) = call remove(iter(I32)) borrow.unique %61 borrow.shared %62
+  write.init borrow.unique (local4) take %63
+  %65: U8 = read copy.trivial (local4.#)
+  %66: U8 = const 1
+  %67: Bool = eq inspect %65 inspect %66
+  branch inspect %67 -> bb2 -> bb1
+
+bb1:
+  drop (many)
+  drop (local4)
+  %69: I32 = const 99
+  return take %69
+
+bb2:
+  %71: iter(I32) = read take (local4.Just)
+  write.init borrow.unique (last) take %71
+  flag (last) = held
+  jump -> bb3
+
+bb3:
+  %74: iter(I32) [unique call] = read borrow.unique (last) loan3
+  %75: I32 = const 0
+  %76: Bool = const False
+  %77: %I32 = call inspect %74 take %75 take %76
+  %78: USize = bitcast inspect %77
+  %79: USize = const 0
+  %80: Bool = ne inspect %78 inspect %79
+  write.init borrow.unique (local6) take %77
+  branch inspect %80 -> bb6 -> bb4
+
+bb4:
+  drop.maybe (last)
+  %108: Array(iter(I32)) [unique call] = read borrow.unique (many) loan6
+  flag (last) = gone
+  %109: I32 = const 0
+  %110: Maybe(iter(I32)) = call remove(iter(I32)) borrow.unique %108 borrow.shared %109
+  drop (many)
+  write.init borrow.unique (local9) take %110
+  %112: U8 = read copy.trivial (local9.#)
+  %113: U8 = const 1
+  %114: Bool = eq inspect %112 inspect %113
+  branch inspect %114 -> bb9 -> bb8
+
+bb5:
+  %98: iter(I32) [shared call] = read borrow.shared (last) loan5
+  %99: %I32 = read copy.trivial (local6)
+  %100: Tag = call iter(I32 | Tag)'3$failure borrow.shared %98 take %99
+  drop (last)
+  write.init borrow.unique (tag) take %100
+  flag (last) = gone
+  %102: I64 = const 7
+  %103: {} = call note borrow.shared %102
+  %104: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %105: I64 = convert inspect %104
+  %106: {} = call note borrow.shared %105
+  jump -> bb4
+
+bb6:
+  %83: %I32 = read copy.trivial (local6)
+  %84: USize = bitcast inspect %83
+  %85: USize = const 1
+  %86: USize = const 0
+  %87: USize = and inspect %84 inspect %85
+  %88: Bool = eq inspect %87 inspect %86
+  branch inspect %88 -> bb7 -> bb5
+
+bb7:
+  %90: %I32 = read copy.trivial (local6)
+  %91: iter(I32) [shared slot 0] = read borrow.shared (last) loan4
+  %92: I32 [shared slot 0] = call iter(I32 | Tag)'2$item borrow.shared %91 take %90 roots{4}
+  write.init borrow.unique (x) borrow.shared %92
+  %94: I32 = read copy.trivial (x)
+  %95: I64 = convert inspect %94
+  %96: {} = call note borrow.shared %95
+  jump -> bb3
+
+bb8:
+  drop (local9)
+  %116: I32 = const 98
+  return take %116
+
+bb9:
+  %118: iter(I32) = read take (local9.Just)
+  write.init borrow.unique (first) take %118
+  flag (first) = held
+  jump -> bb10
+
+bb10:
+  %121: iter(I32) [unique call] = read borrow.unique (first) loan7
+  %122: I32 = const 0
+  %123: Bool = const False
+  %124: %I32 = call inspect %121 take %122 take %123
+  %125: USize = bitcast inspect %124
+  %126: USize = const 0
+  %127: Bool = ne inspect %125 inspect %126
+  write.init borrow.unique (local11) take %124
+  branch inspect %127 -> bb13 -> bb11
+
+bb11:
+  drop.maybe (first)
+  %155: I32 = const 16
+  flag (first) = gone
+  %156: I64 = const 12127933
+  %157: {} = call expect borrow.shared %155 borrow.shared %156
+  %158: I32 = const 1
+  %159: I32 = const 9
+  %160: iter(I32) = call madeTag borrow.shared %158 borrow.shared %159
+  write.init borrow.unique (again) take %160
+  flag (again) = held
+  drop (again)
+  %162: I32 = const 4
+  flag (again) = gone
+  %163: I32 = const 2
+  %164: iter(I32) = call madeTag borrow.shared %162 borrow.shared %163
+  write.reinit borrow.unique (again) take %164
+  flag (again) = held
+  jump -> bb15
+
+bb12:
+  %145: iter(I32) [shared call] = read borrow.shared (first) loan9
+  %146: %I32 = read copy.trivial (local11)
+  %147: Tag = call iter(I32 | Tag)'3$failure borrow.shared %145 take %146
+  drop (first)
+  write.init borrow.unique (tag) take %147
+  flag (first) = gone
+  %149: I64 = const 7
+  %150: {} = call note borrow.shared %149
+  %151: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %152: I64 = convert inspect %151
+  %153: {} = call note borrow.shared %152
+  jump -> bb11
+
+bb13:
+  %130: %I32 = read copy.trivial (local11)
+  %131: USize = bitcast inspect %130
+  %132: USize = const 1
+  %133: USize = const 0
+  %134: USize = and inspect %131 inspect %132
+  %135: Bool = eq inspect %134 inspect %133
+  branch inspect %135 -> bb14 -> bb12
+
+bb14:
+  %137: %I32 = read copy.trivial (local11)
+  %138: iter(I32) [shared slot 0] = read borrow.shared (first) loan8
+  %139: I32 [shared slot 0] = call iter(I32 | Tag)'2$item borrow.shared %138 take %137 roots{8}
+  write.init borrow.unique (x) borrow.shared %139
+  %141: I32 = read copy.trivial (x)
+  %142: I64 = convert inspect %141
+  %143: {} = call note borrow.shared %142
+  jump -> bb10
+
+bb15:
+  %167: iter(I32) [unique call] = read borrow.unique (again) loan10
+  %168: I32 = const 0
+  %169: Bool = const False
+  %170: %I32 = call inspect %167 take %168 take %169
+  %171: USize = bitcast inspect %170
+  %172: USize = const 0
+  %173: Bool = ne inspect %171 inspect %172
+  write.init borrow.unique (local15) take %170
+  branch inspect %173 -> bb18 -> bb16
+
+bb16:
+  drop.maybe (again)
+  %201: I32 = const 32
+  flag (again) = gone
+  %202: I64 = const 17922
+  %203: {} = call expect borrow.shared %201 borrow.shared %202
+  %204: I32 = const 2
+  %205: I32 = const 2
+  %206: iter(I32) = call madeTag borrow.shared %204 borrow.shared %205
+  write.init borrow.unique (stepped) take %206
+  %208: I32 = const 0
+  %209: I32 = const 3
+  %210: I32 = const 1
+  write.init borrow.unique (local19) take %208
+  jump -> bb20(take %209, take %210)
+
+bb17:
+  %191: iter(I32) [shared call] = read borrow.shared (again) loan12
+  %192: %I32 = read copy.trivial (local15)
+  %193: Tag = call iter(I32 | Tag)'3$failure borrow.shared %191 take %192
+  drop (again)
+  write.init borrow.unique (tag) take %193
+  flag (again) = gone
+  %195: I64 = const 7
+  %196: {} = call note borrow.shared %195
+  %197: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %198: I64 = convert inspect %197
+  %199: {} = call note borrow.shared %198
+  jump -> bb16
+
+bb18:
+  %176: %I32 = read copy.trivial (local15)
+  %177: USize = bitcast inspect %176
+  %178: USize = const 1
+  %179: USize = const 0
+  %180: USize = and inspect %177 inspect %178
+  %181: Bool = eq inspect %180 inspect %179
+  branch inspect %181 -> bb19 -> bb17
+
+bb19:
+  %183: %I32 = read copy.trivial (local15)
+  %184: iter(I32) [shared slot 0] = read borrow.shared (again) loan11
+  %185: I32 [shared slot 0] = call iter(I32 | Tag)'2$item borrow.shared %184 take %183 roots{11}
+  write.init borrow.unique (x) borrow.shared %185
+  %187: I32 = read copy.trivial (x)
+  %188: I64 = convert inspect %187
+  %189: {} = call note borrow.shared %188
+  jump -> bb15
+
+bb20(%211: I32, %212: I32):
+  %219: I32 = read copy.trivial (local19)
+  %220: Bool = lt inspect %219 inspect %211
+  branch inspect %220 -> bb23(take %211, take %212) -> bb22(take %211, take %212)
+
+bb21(%213: I32, %214: I32):
+  %265: I32 = read copy.trivial (local19)
+  %266: I32 = add inspect %265 inspect %214
+  write.assign borrow.unique (local19) take %266
+  jump -> bb20(take %213, take %214)
+
+bb22(%215: I32, %216: I32):
+  drop (stepped)
+  %269: I32 = const 64
+  %270: I64 = const 179220
+  %271: {} = call expect borrow.shared %269 borrow.shared %270
+  %272: I32 = read copy.trivial (global failures)
+  return take %272
+
+bb23(%221: I32, %222: I32):
+  %224: I32 = read copy.trivial (local19)
+  write.init borrow.unique (i) take %224
+  %226: iter(I32) [unique slot 0] = read borrow.unique (stepped) loan13
+  %227: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = call iter(I32 | Tag)$next borrow.unique %226 roots.0{13}
+  write.init borrow.unique (local21) take %227
+  %233: U8 = read copy.trivial (local21.#)
+  %234: U8 = const 0
+  %235: Bool = eq inspect %233 inspect %234
+  branch inspect %235 -> bb27(take %221, take %222) -> bb24(take %221, take %222)
+
+bb24(%229: I32, %230: I32):
+  %244: U8 = read copy.trivial (local21.#)
+  %245: U8 = const 1
+  %246: Bool = eq inspect %244 inspect %245
+  branch inspect %246 -> bb28(take %229, take %230) -> bb25(take %229, take %230)
+
+bb25(%231: I32, %232: I32):
+  %252: Tag [shared call] = read borrow.shared (local21.Failed) loan14
+  write.init borrow.unique (tag) borrow.shared %252
+  %254: I64 = const 7
+  %255: {} = call note borrow.shared %254
+  %256: I32 = read copy.trivial (tag.id)
+  drop (local21)
+  %257: I64 = convert inspect %256
+  %258: {} = call note borrow.shared %257
+  jump -> bb26(take %231, take %232)
+
+bb26(%259: I32, %260: I32):
+  jump -> bb21(take %259, take %260)
+
+bb27(%236: I32, %237: I32):
+  %239: I32 = read copy.trivial (local21.Yield)
+  drop (local21)
+  write.init borrow.unique (v) take %239
+  %241: I32 = read copy.trivial (v)
+  %242: I64 = convert inspect %241
+  %243: {} = call note borrow.shared %242
+  jump -> bb26(take %236, take %237)
+
+bb28(%247: I32, %248: I32):
+  drop (local21)
+  %250: I64 = const 0
+  %251: {} = call note borrow.shared %250
+  jump -> bb26(take %247, take %248)
+}
+
+fn upTo$new(n: I32, failAt: I32) -> upTo.Iter = <no body>
+
+fn upTo$step($self: upTo.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn upTo$failure($self: upTo.Iter [unique call]) -> Code = <no body>
+
+fn upTo$next($self: upTo.Iter [unique slot 0]) -> IterStep(Code, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn upTo$resume($self: upTo.Iter [unique slot 0], $v: {}) -> IterStep(Code, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn upTo$erased.heap($env: upTo.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 = <no body>
+
+fn tagged$new(n: I32, failAt: I32) -> tagged.Iter = <no body>
+
+fn tagged$step($self: tagged.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn tagged$drop($self: tagged.Iter) -> {} = <no body>
+
+fn tagged$failure($self: tagged.Iter [unique call]) -> Tag = <no body>
+
+fn tagged$next($self: tagged.Iter [unique slot 0]) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn tagged$resume($self: tagged.Iter [unique slot 0], $v: {}) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn tagged$erased.heap($env: tagged.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 = <no body>
+
+entry main

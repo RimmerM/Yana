@@ -6,33 +6,33 @@ data Both {left: Maybe(Point), right: Maybe(I32)}
 
 data Named {text: Maybe(String), rank: Maybe(I32)} reclaim derived
 
-let string'142: [CodeUnit *0] = ""
+let string'188: [CodeUnit *0] = ""
 
-let string'143: [CodeUnit *2] = "ab"
+let string'189: [CodeUnit *2] = "ab"
 
-let string'144: [CodeUnit *1] = "a"
+let string'190: [CodeUnit *1] = "a"
 
-let string'145: [CodeUnit *1] = "b"
+let string'191: [CodeUnit *1] = "b"
 
-let string'146: [CodeUnit *2] = "ab"
+let string'192: [CodeUnit *2] = "ab"
 
-let string'147: [CodeUnit *0] = ""
+let string'193: [CodeUnit *0] = ""
 
-let string'148: [CodeUnit *0] = ""
+let string'194: [CodeUnit *0] = ""
 
-let string'149: [CodeUnit *0] = ""
+let string'195: [CodeUnit *0] = ""
 
-let string'150: [CodeUnit *2] = "ab"
+let string'196: [CodeUnit *2] = "ab"
 
-let string'151: [CodeUnit *2] = "ab"
+let string'197: [CodeUnit *2] = "ab"
 
-let string'152: [CodeUnit *1] = "z"
+let string'198: [CodeUnit *1] = "z"
 
-let string'153: [CodeUnit *0] = ""
+let string'199: [CodeUnit *0] = ""
 
-let string'154: [CodeUnit *1] = "z"
+let string'200: [CodeUnit *1] = "z"
 
-let string'155: [CodeUnit *1] = "z"
+let string'201: [CodeUnit *1] = "z"
 
 fn pointOr(m: Maybe(Point) [shared call], fallback: I32 [shared call]) -> I32 {
   local p: Point
@@ -245,7 +245,7 @@ fn codeOf(s: String [shared call view]) -> I32 {
 
 bb0:
   %0: String [shared call view] = read borrow.shared (s) loan0
-  %1: String = const String {units: Array {run: Run {items: &string'142, capacity: 0, ownsHeap: 0}, length: 0}}
+  %1: String = const String {units: Array {run: Run {items: &string'188, capacity: 0, ownsHeap: 0}, length: 0}}
   write.init borrow.unique (local1) take %1
   %3: String [shared slot 0] = read borrow.shared (local1) loan1
   %4: String [shared slot 0 view] = call.derivation view(String) borrow.shared %3 roots{1}
@@ -255,7 +255,7 @@ bb0:
 
 bb1:
   %8: String [shared call view] = read borrow.shared (s) loan2
-  %9: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %9: String = const String {units: Array {run: Run {items: &string'189, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local2) take %9
   %11: String [shared slot 0] = read borrow.shared (local2) loan3
   %12: String [shared slot 0 view] = call.derivation view(String) borrow.shared %11 roots{3}
@@ -345,9 +345,9 @@ bb1:
   jump -> bb2
 
 bb2:
-  %7: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %7: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %8: String = call opaqueText take %7
-  %9: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %9: String = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   %10: String = call ++(String) take %8 take %9
   %11: Maybe(String) = aggregate.Just take %10
   return take %11
@@ -413,7 +413,7 @@ fn textFold() -> I32 {
   local absent: I32
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'146, capacity: 2, ownsHeap: 0}, length: 2}}
+  %0: String = const String {units: Array {run: Run {items: &string'192, capacity: 2, ownsHeap: 0}, length: 2}}
   %1: Maybe(String) = aggregate.Just take %0
   write.init borrow.unique (local0) take %1
   %3: Maybe(String) [shared call] = read borrow.shared (local0) loan0
@@ -421,7 +421,7 @@ bb0:
   %5: I32 = call textOr borrow.shared %3 borrow.shared %4
   drop (local0)
   write.init borrow.unique (some) take %5
-  %7: String = const String {units: Array {run: Run {items: &string'147, capacity: 0, ownsHeap: 0}, length: 0}}
+  %7: String = const String {units: Array {run: Run {items: &string'193, capacity: 0, ownsHeap: 0}, length: 0}}
   %8: Maybe(String) = aggregate.Just take %7
   write.init borrow.unique (local2) take %8
   %10: Maybe(String) [shared call] = read borrow.shared (local2) loan1
@@ -429,7 +429,7 @@ bb0:
   %12: I32 = call textOr borrow.shared %10 borrow.shared %11
   drop (local2)
   write.init borrow.unique (empty) take %12
-  %14: String = const String {units: Array {run: Run {items: &string'148, capacity: 0, ownsHeap: 0}, length: 0}}
+  %14: String = const String {units: Array {run: Run {items: &string'194, capacity: 0, ownsHeap: 0}, length: 0}}
   %15: String = call opaqueText take %14
   %16: Maybe(String) = aggregate.Just take %15
   write.init borrow.unique (local4) take %16
@@ -507,7 +507,7 @@ bb0:
   %9: I32 = call textDepth borrow.shared %8
   drop (local2)
   write.init borrow.unique (middle) take %9
-  %11: String = const String {units: Array {run: Run {items: &string'149, capacity: 0, ownsHeap: 0}, length: 0}}
+  %11: String = const String {units: Array {run: Run {items: &string'195, capacity: 0, ownsHeap: 0}, length: 0}}
   %12: Maybe(String) = aggregate.Just take %11
   %13: Maybe(Maybe(String)) = aggregate.Just take %12
   write.init borrow.unique (local4) take %13
@@ -532,7 +532,7 @@ fn namedFold() -> I32 {
   local local1: Named
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'150, capacity: 2, ownsHeap: 0}, length: 2}}
+  %0: String = const String {units: Array {run: Run {items: &string'196, capacity: 2, ownsHeap: 0}, length: 2}}
   %1: Maybe(String) = aggregate.Just take %0
   %2: Maybe(I32) = aggregate.Nothing
   %3: Named = aggregate.Named take %1 take %2
@@ -563,9 +563,9 @@ fn genericFold() -> I32 {
   local none: I32
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'151, capacity: 2, ownsHeap: 0}, length: 2}}
+  %0: String = const String {units: Array {run: Run {items: &string'197, capacity: 2, ownsHeap: 0}, length: 2}}
   %1: Maybe(String) = aggregate.Just take %0
-  %2: String = const String {units: Array {run: Run {items: &string'152, capacity: 1, ownsHeap: 0}, length: 1}}
+  %2: String = const String {units: Array {run: Run {items: &string'198, capacity: 1, ownsHeap: 0}, length: 1}}
   %3: String = call passThrough(String) take %1 take %2
   write.init borrow.unique (local0) take %3
   %5: String [shared slot 0] = read borrow.shared (local0) loan0
@@ -573,9 +573,9 @@ bb0:
   %7: I32 = call codeOf borrow.shared %6
   drop (local0)
   write.init borrow.unique (some) take %7
-  %9: String = const String {units: Array {run: Run {items: &string'153, capacity: 0, ownsHeap: 0}, length: 0}}
+  %9: String = const String {units: Array {run: Run {items: &string'199, capacity: 0, ownsHeap: 0}, length: 0}}
   %10: Maybe(String) = aggregate.Just take %9
-  %11: String = const String {units: Array {run: Run {items: &string'154, capacity: 1, ownsHeap: 0}, length: 1}}
+  %11: String = const String {units: Array {run: Run {items: &string'200, capacity: 1, ownsHeap: 0}, length: 1}}
   %12: String = call passThrough(String) take %10 take %11
   write.init borrow.unique (local2) take %12
   %14: String [shared slot 0] = read borrow.shared (local2) loan1
@@ -584,7 +584,7 @@ bb0:
   drop (local2)
   write.init borrow.unique (empty) take %16
   %18: Maybe(String) = aggregate.Nothing
-  %19: String = const String {units: Array {run: Run {items: &string'155, capacity: 1, ownsHeap: 0}, length: 1}}
+  %19: String = const String {units: Array {run: Run {items: &string'201, capacity: 1, ownsHeap: 0}, length: 1}}
   %20: String = call passThrough(String) take %18 take %19
   write.init borrow.unique (local4) take %20
   %22: String [shared slot 0] = read borrow.shared (local4) loan2

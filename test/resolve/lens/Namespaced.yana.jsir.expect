@@ -1,0 +1,79 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r2
+  var $2: %r1
+  block0:
+    %7: %r0 = const 5
+    %8: %r0 = const 0
+    %9: %r1 = object %s0 %7, %8
+    %10: %r0 = const 2
+    %11: %r1 = alias %9
+    %12: %r0 = const 1
+    %13: %r0 = load property %11.entered: %r0
+    %14: %r0 = binary.add %13, %12
+    %15: %r0 = coerce %14
+    store property %11.entered: %r0, %15
+    %16: %r1 = alias %9
+    %17: %r0 = load property %16.value: %r0
+    %18: %r0 = load global log: %r0
+    %19: %r0 = binary.add %18, %17
+    %20: %r0 = coerce %19
+    store global log: %r0, %20
+    %21: %r1 = alias %9
+    %22: %r0 = binary.add %17, %10
+    %23: %r0 = coerce %22
+    store property %21.value: %r0, %23
+    %24: %r1 = alias %9
+    %25: %r0 = const 11
+    %26: %r0 = binary.add %13, %25
+    %27: %r0 = coerce %26
+    store property %24.entered: %r0, %27
+    %28: %r0 = const 1
+    %29: %r0 = binary.add %20, %28
+    %30: %r0 = coerce %29
+    store global log: %r0, %30
+    %31: %r1 = alias %9
+    %32: %r0 = const 111
+    %33: %r0 = binary.add %13, %32
+    %34: %r0 = coerce %33
+    store property %31.entered: %r0, %34
+    %35: %r1 = alias %9
+    %36: %r1 = alias %35
+    %39: %r0 = const 3
+    %40: %r1 = alias %36
+    %41: %r0 = const 1
+    %42: %r0 = load property %40.entered: %r0
+    %43: %r0 = binary.add %42, %41
+    %44: %r0 = coerce %43
+    store property %40.entered: %r0, %44
+    %45: %r1 = alias %36
+    %46: %r0 = load property %45.value: %r0
+    %47: %r0 = binary.add %30, %46
+    %48: %r0 = coerce %47
+    store global log: %r0, %48
+    %49: %r1 = alias %36
+    %50: %r0 = binary.add %46, %39
+    %51: %r0 = coerce %50
+    store property %49.value: %r0, %51
+    %52: %r0 = const 1000
+    %53: %r0 = binary.add %48, %52
+    %54: %r0 = coerce %53
+    store global log: %r0, %54
+    %55: %r0 = const 1002
+    %56: %r0 = binary.add %48, %55
+    %57: %r0 = coerce %56
+    store global log: %r0, %57
+    %58: %r0 = binary.add %57, %51
+    %59: %r0 = coerce %58
+    %60: %r0 = binary.add %59, %44
+    %61: %r0 = coerce %60
+    return %61
+
+optimizer clones 1 aliased 1 forwarded 0 removed 13 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 9 folded 0
+
+shape %s0 object Counter {value: %r0, entered: %r0}
+shape %s1 object Holder {counter: %r1}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1

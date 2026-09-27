@@ -48,11 +48,15 @@ fn viaLocal() -> Int:
     let written = writeThrough(buf)
     return written + sum(buf)
 
--- And the subscript, which reaches `getMut` because the parameter is `&`.
+-- And the subscript, which reaches `getMut` because the parameter is `&`. `xs` is read once the
+-- region is over: `bumpOne` holds `&xs[0]` for as long as its continuation runs, so a read of `xs`
+-- inside it is refused (J185).
 fn subscriptArgument() -> Int:
     let &xs = [1, 2, 3] :: [Int]
-    let z = bumpOne(xs[0])
-    return z + sum(xs)
+    let &got = 0
+    let z = bumpOne(xs[0]) in:
+        got = z
+    return got + sum(xs)
 
 fn main() -> Int:
     let xs = [1, 2, 3, 4] :: @inline(4) @capacity(4) [Int]

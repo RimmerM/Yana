@@ -273,6 +273,11 @@ StringId Lexer::parseStringLiteral() {
     return context.addUnqualifiedName(buffer, chars.size());
 }
 
+// A space, a tab or a line end - what separates a `?:` suffix from the block after it.
+static bool isLayoutSpace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
 void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allowKeywords) {
     bool sym1 = (m - p >= 2) && isSymbol(p[1]);
     bool sym2 = (m - p >= 3) && isSymbol(p[2]);
@@ -338,6 +343,24 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             // leaves the function. A run rule that made them the same token sequence would make
             // the commoner of the two the one nobody can write.
             token.type = Token::opQuestionDot;
+        } else if(*p == '?' && p[1] == ':' && p > text && !isLayoutSpace(p[-1]) &&
+                  (m - p == 2 || isLayoutSpace(p[2]))) {
+            /*
+             * `f()?:` - the `?` suffix ending a header, and the `:` opening the block after it.
+             *
+             * `?:` is an ordinary symbol run otherwise, and a program may define it
+             * (`test/resolve/Fixity.yana`), so the two are told apart by spacing: glued to its
+             * operand and followed by a space or a line end is the suffix, which is how `?` is
+             * always written, while an infix `a ?: b` has a space before it and `fn ?:(` and
+             * `(?:)` have none after. Splitting in the parser instead would have to know which
+             * positions may open a block - a `for`, `while` and `if` header, a `match` pivot, a
+             * `let ... in` - where this is one rule in the one place the run is measured.
+             *
+             * Only the `?` is consumed; the `:` is lexed next as the reserved colon.
+             */
+            token.type = Token::opQuestion;
+            p++;
+            return;
         } else if(*p == '<' && p[1] == '-') {
             // This is the reserved arrow-left operator.
             token.type = Token::opArrowL;

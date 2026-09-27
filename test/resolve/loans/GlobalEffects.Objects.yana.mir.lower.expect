@@ -87,79 +87,71 @@ main$<complex>(): I32 {
     %v_60 = add %gArr, 12: Ptr
     %v_61 = load %v_60, 4: I32
     %v_62 = cast %v_61: I64
-    %v_63 = imm 0: I64
-    %v_64 = cmp_igt %v_63, %v_62: I32
-    %v_65 = select %v_64, %v_62, %v_63: I64
-    %v_66 = cmp_ilt %v_58, %v_65: I32
-    %v_67 = select %v_66, %v_65, %v_58: I64
-    %v_68 = cmp_igt %v_67, %v_62: I32
-    %v_69 = select %v_68, %v_62, %v_67: I64
-    %v_70 = shl %v_65, 2: I64
-    %v_71 = add %v_59, %v_70: Ptr
-    %v_72 = sub %v_69, %v_65: I64
-    jmp b_73
+    %v_63 = cmp_igt %v_58, %v_62: I32
+    %v_64 = select %v_63, %v_62, %v_58: I64
+    jmp b_65
   }
 
-  b_74 {
-    %v_75 = cmp_ilt %v_76, 3: I32
-    je %v_75, b_73, b_77
+  b_66 {
+    %v_67 = cmp_ilt %v_68, 3: I32
+    je %v_67, b_65, b_69
   }
 
-  b_77 {
-    %v_78 = cmp_eq %v_72, 0: I32
-    je %v_78, b_4, b_79
+  b_69 {
+    %v_70 = cmp_eq %v_64, 0: I32
+    je %v_70, b_4, b_71
   }
 
-  b_79 {
-    %v_80 = loads %v_71, 4: I32
-    %v_81 = add %v_80, %v_82: I32
-    %v_83 = add %v_57, %v_81: I32
-    ret %v_83
+  b_71 {
+    %v_72 = loads %v_59, 4: I32
+    %v_73 = add %v_72, %v_74: I32
+    %v_75 = add %v_57, %v_73: I32
+    ret %v_75
   }
 
-  b_73 {
-    %v_84 = phi [b_74, %v_76], [b_55, 0]: I32
-    %v_85 = phi [b_74, %v_82], [b_55, 0]: I32
-    %v_82 = add %v_85, 6: I32
-    %v_76 = add %v_84, 1: I32
-    jmp b_74
+  b_65 {
+    %v_76 = phi [b_66, %v_68], [b_55, 0]: I32
+    %v_77 = phi [b_66, %v_74], [b_55, 0]: I32
+    %v_74 = add %v_77, 6: I32
+    %v_68 = add %v_76, 1: I32
+    jmp b_66
   }
 
   b_52 {
-    je %v_43, b_53, b_86
+    je %v_43, b_53, b_78
   }
 
-  b_86 {
+  b_78 {
     store %v_50, %v_28, 4
-    jmp b_87
+    jmp b_79
   }
 
   b_51 {
-    %v_88 = add %v_44, %v_48: I32
-    store %v_50, %v_88, 4
-    jmp b_87
+    %v_80 = add %v_44, %v_48: I32
+    store %v_50, %v_80, 4
+    jmp b_79
   }
 
-  b_87 {
-    %v_47 = phi [b_86, 3], [b_51, %v_46]: I32
-    %v_49 = phi [b_86, 1], [b_51, %v_48]: I32
-    %v_45 = phi [b_86, %v_28], [b_51, %v_88]: I32
-    %v_89 = cmp_ilt %v_45, %v_47: I32
-    je %v_89, b_41, b_90
+  b_79 {
+    %v_47 = phi [b_78, 3], [b_51, %v_46]: I32
+    %v_49 = phi [b_78, 1], [b_51, %v_48]: I32
+    %v_45 = phi [b_78, %v_28], [b_51, %v_80]: I32
+    %v_81 = cmp_ilt %v_45, %v_47: I32
+    je %v_81, b_41, b_82
   }
 
-  b_90 {
+  b_82 {
     store %v_10, 2147483647, 4
     jmp b_53
   }
 
   b_41 {
-    %v_91 = add %v_10, 4: Ptr
-    store %v_91, %v_37, 4
-    %v_92 = add %v_10, 16: Ptr
-    store %v_92, %v_47, 4
-    %v_93 = add %v_10, 20: Ptr
-    store %v_93, %v_49, 4
+    %v_83 = add %v_10, 4: Ptr
+    store %v_83, %v_37, 4
+    %v_84 = add %v_10, 16: Ptr
+    store %v_84, %v_47, 4
+    %v_85 = add %v_10, 20: Ptr
+    store %v_85, %v_49, 4
     store %v_10, %v_29, 4
     %v_42 = add %v_40, %v_37: I32
     jmp b_38

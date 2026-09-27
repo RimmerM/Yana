@@ -1,0 +1,27 @@
+{-
+   A lambda inside a generic `iter fn` consumed as an **object** - C3's lifting reached through the
+   producer's step rather than through an inlined traversal (`generic/LambdaGeneric.yana` is that).
+
+   The step is the producer's MIR body converted a second time, under the *specialization's*
+   substitution, so the lambda it builds is `doubled.lambda(I32)` in one object and
+   `doubled.lambda(String)` in the other - one record type and one body each, as in any other
+   specialized body. Native only: an object holding a borrowed callback meets the JSIR gap for a
+   reference stored into a pointer field (P8), which is independent of the lambda.
+-}
+
+iter fn (a) doubled(xs: [a], f: (a) -> a) -> a:
+    for x in items(xs):
+        let g = (v: a) -> f(v)
+        yield g(x)
+
+-- 60 from the numbers and 4 from the two words' lengths.
+fn main() -> Int:
+    let &total = 0
+    let &numbers = doubled([10, 20], (n: Int) -> n * 2)
+    for v in numbers:
+        total += v
+
+    let &words = doubled(["a", "b"], (s: String) -> "{s}!")
+    for w in words:
+        total += (truncate(length(w)) :: Int)
+    return total

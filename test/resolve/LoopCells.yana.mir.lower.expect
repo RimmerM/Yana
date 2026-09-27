@@ -109,53 +109,50 @@ aliased<complex>(%box: Ptr): I32 {
 
   b_1 {
     %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
-    %v_5 = add %box, 12: Ptr
-    %v_6 = load %v_5, 4: I32
-    %v_7 = cast %v_6: I64
-    %v_8 = sext %v_7: I32
-    %v_9 = cmp_ilt %v_2, %v_8: I32
-    je %v_9, b_10, b_11
+    %v_5 = load %box, 8: Ptr
+    %v_6 = add %box, 12: Ptr
+    %v_7 = load %v_6, 4: I32
+    %v_8 = cast %v_7: I64
+    %v_9 = sext %v_8: I32
+    %v_10 = cmp_ilt %v_2, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    %v_13 = add %box, 16: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = cmp_eq %v_8, 0: I32
+    je %v_15, b_16, b_17
   }
 
   b_11 {
-    %v_12 = add %box, 16: Ptr
-    %v_13 = loads %v_12, 4: I32
-    %v_14 = load %box, 8: Ptr
-    %v_15 = cast %v_6: I64
-    %v_16 = cmp_eq %v_15, 0: I32
-    je %v_16, b_17, b_18
-  }
-
-  b_10 {
-    %v_19 = load %box, 8: Ptr
-    %v_20 = cast %v_6: I64
-    %v_21 = sext %v_2: I64
-    %v_22 = cmp_ge %v_21, %v_20: I32
-    je %v_22, b_17, b_3
-  }
-
-  b_18 {
-    %v_23 = loads %v_14, 4: I32
-    %v_24 = add %v_13, %v_23: I32
-    ret %v_24
+    %v_18 = sext %v_2: I64
+    %v_19 = cmp_ge %v_18, %v_8: I32
+    je %v_19, b_16, b_3
   }
 
   b_17 {
-    %v_25 = syscall 60, 134: I64
+    %v_20 = loads %v_5, 4: I32
+    %v_21 = add %v_14, %v_20: I32
+    ret %v_21
+  }
+
+  b_16 {
+    %v_22 = syscall 60, 134: I64
     unreachable 
   }
 
   b_3 {
-    %v_26 = shl %v_21, 2: I64
-    %v_27 = add %v_19, %v_26: Ptr
-    %v_28 = loads %v_27, 4: I32
-    %v_29 = add %box, 16: Ptr
-    %v_30 = loads %v_29, 4: I32
-    %v_31 = add %v_28, %v_30: I32
-    store %v_27, %v_31, 4
-    %v_32 = loads %v_29, 4: I32
-    %v_33 = add %v_32, 1: I32
-    store %v_29, %v_33, 4
+    %v_23 = shl %v_18, 2: I64
+    %v_24 = add %v_5, %v_23: Ptr
+    %v_25 = loads %v_24, 4: I32
+    %v_26 = add %box, 16: Ptr
+    %v_27 = loads %v_26, 4: I32
+    %v_28 = add %v_25, %v_27: I32
+    store %v_24, %v_28, 4
+    %v_29 = loads %v_26, 4: I32
+    %v_30 = add %v_29, 1: I32
+    store %v_26, %v_30, 4
     %v_4 = add %v_2, 1: I32
     jmp b_1
   }
@@ -296,31 +293,31 @@ main<complex>(): I32 {
 
 Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 

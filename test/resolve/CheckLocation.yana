@@ -19,7 +19,9 @@
    over. It used to come out of a global the program had just written, and both stages learned to
    read that write - the shipping stage folded the whole program to `ret 0`, and the rewritten one
    left a check whose condition it had already answered (J168). This stage does not evaluate a
-   loop at compile time, so the walk's counter stays a value, and so do both subscripts it feeds.
+   loop at compile time, so the walk's counter stays a value. Only the loop's own subscript keeps
+   its check since J189: the second one, `reachable`'s, re-tests the index the loop's check has just
+   passed, and `opt/bounds.cpp` answers it from that arm.
 -}
 
 fn reachable(xs: [Int], at: Size) -> Int = xs[at]

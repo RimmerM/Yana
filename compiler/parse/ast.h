@@ -819,6 +819,15 @@ struct ForExpr {
      */
     ParseList<Alt> alts;
 
+    /*
+     * `for x in f(...)?:` - the `?` written on the traversal, which is its failure propagated from
+     * the enclosing function rather than a `?` on what the call returns: a traversal's call is not a
+     * value a carrier can be read off. Where the `?` is, or null; mutually exclusive with `alts`.
+     * The suffix belongs to the `for` source (Analysis-External-Iterators.md §2.3), so the parser
+     * peels it and `from` is the traversal itself.
+     */
+    LocationId propagate = kNullLocation;
+
     bool reverse;
     bool inclusive;
 };

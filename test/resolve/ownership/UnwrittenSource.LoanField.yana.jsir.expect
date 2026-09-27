@@ -12,25 +12,23 @@ fn total(parts %r3, one %r0) -> one %r0
     %12: %r0 = coerce %11
     %13: %r0 = const 1
     %14: %r4 = const 1
-    %15: %r4 = alias %6
-    %16: %r5 = binary.ge %14, %15
-    branch %16 -> block4 -> block3
+    %15: %r5 = binary.ge %14, %6
+    branch %15 -> block4 -> block3
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
   block3:
-    %17: %r1 = alias %0
-    %18: %r0 = binary.add %2, %13
-    %19: %r0 = coerce %18
-    %20: %r0 = load element %17[%19]: %r0
-    %21: %r0 = const 10
-    %22: %r0 = binary.mul %20, %21
+    %16: %r0 = binary.add %2, %13
+    %17: %r0 = coerce %16
+    %18: %r0 = load element %8[%17]: %r0
+    %19: %r0 = const 10
+    %20: %r0 = binary.mul %18, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = binary.add %12, %21
     %23: %r0 = coerce %22
-    %24: %r0 = binary.add %12, %23
+    %24: %r0 = binary.add %23, %3
     %25: %r0 = coerce %24
-    %26: %r0 = binary.add %25, %3
-    %27: %r0 = coerce %26
-    return %27
+    return %25
   block4:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -65,78 +63,78 @@ fn main() -> one %r0
     %42: %r7 = clone %41
     %43: %r7 = alias %42
     %44: %r1 = alias %43
-    %45: %r0 = const 2
-    %47: %r0 = const 0
-    %48: %r1 = alias %44
-    %50: %r9 = alias %36
-    %51: %r0 = const 0
-    %52: %r0 = const 7
-    %53: %r7 = load cell %50: %r7
-    %54: %r7 = load cell %50: %r7
-    store element %54[%51]: %r0, %52
-    %55: %r0 = const 1
-    %56: %r0 = call total %48, %45, %47, %55
-    %57: %r0 = const 1
-    %58: %r0 = const 2
-    %59: %r7 = array %57, %58
-    %60: %r7 = alias %59
-    %62: %r7 = alias %60
-    %65: %r7 = alias %62
-    %66: %r7 = clone %65
-    %67: %r7 = alias %66
-    %68: %r1 = alias %67
-    %69: %r0 = const 2
-    %71: %r0 = const 0
-    %72: %r1 = alias %68
-    %73: %r0 = const 0
-    %74: %r0 = const 7
-    %75: %r7 = alias %60
-    %76: %r7 = alias %75
-    store element %76[%73]: %r0, %74
-    %77: %r0 = const 1
-    %78: %r0 = call total %72, %69, %71, %77
+    %47: %r1 = alias %44
+    %48: %r0 = const 2
+    %49: %r0 = const 0
+    %51: %r9 = alias %36
+    %52: %r0 = const 0
+    %53: %r0 = const 7
+    %54: %r7 = load cell %51: %r7
+    %55: %r7 = load cell %51: %r7
+    store element %55[%52]: %r0, %53
+    %56: %r0 = const 1
+    %57: %r0 = call total %47, %48, %49, %56
+    %58: %r0 = const 1
+    %59: %r0 = const 2
+    %60: %r7 = array %58, %59
+    %61: %r7 = alias %60
+    %63: %r7 = alias %61
+    %66: %r7 = alias %63
+    %67: %r7 = clone %66
+    %68: %r7 = alias %67
+    %69: %r1 = alias %68
+    %72: %r1 = alias %69
+    %73: %r0 = const 2
+    %74: %r0 = const 0
+    %75: %r0 = const 0
+    %76: %r0 = const 7
+    %77: %r7 = alias %61
+    %78: %r7 = alias %77
+    store element %78[%75]: %r0, %76
     %79: %r0 = const 1
-    %80: %r0 = const 2
-    %81: %r7 = array %79, %80
-    %82: %r7 = alias %81
-    %84: %r7 = alias %82
-    %85: %r7 = clone %84
-    %86: %r7 = alias %85
-    %87: %r1 = alias %86
-    %88: %r0 = const 2
-    %90: %r0 = const 0
-    %91: %r1 = alias %87
-    %92: %r0 = const 0
-    %93: %r0 = const 7
-    %95: %r7 = alias %82
-    store element %95[%92]: %r0, %93
-    %96: %r0 = const 1
-    %97: %r0 = call total %91, %88, %90, %96
-    %98: %r0 = const 1
-    %99: %r0 = const 2
-    %100: %r0 = const 3
-    %101: %r14 = array %98, %99, %100
+    %80: %r0 = call total %72, %73, %74, %79
+    %81: %r0 = const 1
+    %82: %r0 = const 2
+    %83: %r7 = array %81, %82
+    %84: %r7 = alias %83
+    %86: %r7 = alias %84
+    %87: %r7 = clone %86
+    %88: %r7 = alias %87
+    %89: %r1 = alias %88
+    %92: %r1 = alias %89
+    %93: %r0 = const 2
+    %94: %r0 = const 0
+    %95: %r0 = const 0
+    %96: %r0 = const 7
+    %98: %r7 = alias %84
+    store element %98[%95]: %r0, %96
+    %99: %r0 = const 1
+    %100: %r0 = call total %92, %93, %94, %99
+    %101: %r0 = const 1
     %102: %r0 = const 2
-    %103: %r1 = alias %101
-    %106: %r0 = const 0
-    %107: %r1 = alias %103
-    %108: %r0 = const 0
-    %109: %r0 = call total %107, %102, %106, %108
-    %110: %r0 = const 10
-    %111: %r0 = binary.div %109, %110
-    %112: %r0 = coerce %111
-    %113: %r0 = binary.add %56, %78
-    %114: %r0 = coerce %113
-    %115: %r0 = binary.add %114, %97
-    %116: %r0 = coerce %115
-    %117: %r0 = const 100
-    %118: %r0 = binary.mul %116, %117
+    %103: %r0 = const 3
+    %104: %r14 = array %101, %102, %103
+    %105: %r1 = alias %104
+    %108: %r1 = alias %105
+    %109: %r0 = const 2
+    %110: %r0 = const 0
+    %111: %r0 = const 0
+    %112: %r0 = call total %108, %109, %110, %111
+    %113: %r0 = const 10
+    %114: %r0 = binary.div %112, %113
+    %115: %r0 = coerce %114
+    %116: %r0 = binary.add %57, %80
+    %117: %r0 = coerce %116
+    %118: %r0 = binary.add %117, %100
     %119: %r0 = coerce %118
-    %120: %r0 = binary.add %119, %112
-    %121: %r0 = coerce %120
-    return %121
+    %120: %r0 = const 100
+    %121: %r0 = binary.mul %119, %120
+    %122: %r0 = coerce %121
+    %123: %r0 = binary.add %122, %115
+    %124: %r0 = coerce %123
+    return %124
 
-optimizer clones 3 aliased 0 forwarded 0 removed 54 adopted 0 sunk 0 numbered 2 decided 0 unboxed 4 updated 0 split 2 promoted 10 folded 2
+optimizer clones 3 aliased 0 forwarded 0 removed 57 adopted 0 sunk 0 numbered 1 decided 0 unboxed 4 updated 0 split 2 promoted 10 folded 2
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Box {cell: %r9, tag: %r0}

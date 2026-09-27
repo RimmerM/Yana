@@ -1,0 +1,957 @@
+module ResolveTest
+
+let & trace: I32 = 0
+
+let string'188: [CodeUnit *10] = "failed at "
+
+fn readSome(self: s [unique call], into: Array(U8) [unique call view]) -> Result(e, Size) = <no body>
+
+fn Guard.drop(value: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr trace
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .id inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: %I32 address = global.addr trace
+  store inspect %7 consume %6
+  return
+}
+
+fn take(self: Input(s, e) [unique slot 0], count: Size [shared call]) -> Result(ReadFailure(e), Array(U8)) [owned here shape8 .1=shared slot 0 view] = <no body>
+
+fn header(input: Input(s, e) [unique call]) -> Result(ReadFailure(e), Header) = <no body>
+
+fn Memory.readSome(self: Memory [unique call], into: Array(U8) [unique call view]) -> Result(MemError, Size) {
+bb0(%0: Memory [unique call] guaranteed, %1: Array(U8) [unique call view] guaranteed):
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  %4: %Size address = field.addr .at inspect %0
+  %5: Size trivial = load inspect %4
+  %6: %Size address = field.addr .failAt inspect %0
+  %7: Size trivial = load inspect %6
+  %8: Bool trivial = eq inspect %5 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: %Size address = field.addr .at inspect %0
+  %10: Size trivial = load inspect %9
+  %11: %Array(U8) address = field.addr .bytes inspect %0
+  %12: Array(U8) [shared call] guaranteed from{%0} = load inspect %11
+  %13: Array(U8) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(U8) borrow %12
+  jump -> bb7
+
+bb3:
+  %18: Size trivial = const 10
+  %19: %Size address = field.addr .at inspect %0
+  %20: Size trivial = load inspect %19
+  %21: Maybe(Size) trivial = call Size.showBound borrow %20
+  %22: Size trivial = call formatBound borrow %21
+  %23: Size trivial = add inspect %18 inspect %22
+  %24: String owned = call String.ofCapacity borrow %23
+  store inspect %2 consume %24
+  %25: String [unique call] guaranteed from{%2} = load inspect %2
+  %26: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 10, ownsHeap: 0}, length: 10}}
+  store inspect %3 consume %26
+  %27: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  jump -> bb9
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %49: Size trivial = const 0
+  %50: %Size address = field.addr .at inspect %0
+  %51: Size trivial = load inspect %50
+  %52: %Array(U8) address = field.addr .bytes inspect %0
+  %53: Array(U8) [shared call] guaranteed from{%0} = load inspect %52
+  %54: Array(U8) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(U8) borrow %53
+  jump -> bb11
+
+bb6:
+  %96: Size trivial = const 0
+  %97: Result(MemError, Size) owned = aggregate.Ok consume %96
+  return consume %97
+
+bb7:
+  %15: %Size address = field.addr .length inspect %13
+  %16: Size trivial = load inspect %15
+  jump -> bb8(consume %16)
+
+bb8(%14: Size trivial):
+  %17: Bool trivial = eq inspect %10 inspect %14
+  branch inspect %17 -> bb6 -> bb4
+
+bb9:
+  %29: %Array(CodeUnit) address = field.addr .units inspect %27
+  %30: %Run(CodeUnit) address = field.addr .run inspect %29
+  %31: %%CodeUnit address = field.addr .items inspect %30
+  %32: %CodeUnit trivial = load inspect %31
+  %33: %Array(CodeUnit) address = field.addr .units inspect %27
+  %34: %@bits(30) U32 address = field.addr .length inspect %33
+  %35: @bits(30) U32 trivial = load inspect %34
+  %36: I32 trivial = convert inspect %35
+  %37: Size trivial = convert inspect %36
+  %38: StringView trivial = aggregate.StringView consume %32 consume %37
+  %39: String [shared slot 0 view] guaranteed = represent inspect %38
+  jump -> bb10(borrow %39)
+
+bb10(%28: String [shared slot 0 view] guaranteed from{%3}):
+  call String.push borrow %25 borrow %28
+  drop String inspect %3
+  %40: %Size address = field.addr .at inspect %0
+  %41: Size trivial = load inspect %40
+  %42: String [unique call] guaranteed from{%2} = load inspect %2
+  call Size.show borrow %41 borrow %42
+  %43: String owned = load inspect %2
+  %44: I32 trivial = const 11
+  %45: I32 trivial = const 100
+  %46: Guard owned = aggregate.Guard consume %45
+  %47: MemError owned = aggregate.MemError consume %43 consume %44 consume %46
+  %48: Result(MemError, Size) owned = aggregate.Err consume %47
+  return consume %48
+
+bb11:
+  %56: %Size address = alloc frame Size [shared call]
+  store inspect %56 borrow %51
+  %57: Size trivial = load inspect %56
+  %58: USize trivial = bitcast inspect %57
+  %59: Array(U8) [shared slot 0 view] guaranteed from{%54} = load inspect %54
+  jump -> bb16
+
+bb12(%55: U8 [shared slot 0] guaranteed from{%0}):
+  %72: U8 trivial = load inspect %55
+  %73: Array(U8) [unique call view] guaranteed from{%1} = load inspect %1
+  jump -> bb18
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %65: Array(U8) [shared slot 0 view] guaranteed from{%54} = load inspect %54
+  %66: %U8 [owned here shape6 .*=shared slot 0] trivial = call values(U8) borrow %65
+  %67: Size trivial = load inspect %56
+  %68: Size trivial = metric stride U8
+  %69: Size trivial = mul inspect %67 inspect %68
+  %70: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %66 inspect %69
+  %71: U8 [shared slot 0] guaranteed = load inspect %70
+  jump -> bb12(borrow %71)
+
+bb15:
+  call checkFailed
+  jump -> bb14
+
+bb16:
+  %61: %Size address = field.addr .length inspect %59
+  %62: Size trivial = load inspect %61
+  jump -> bb17(consume %62)
+
+bb17(%60: Size trivial):
+  %63: USize trivial = bitcast inspect %60
+  %64: Bool trivial = ge inspect %58 inspect %63
+  branch inspect %64 -> bb15 -> bb13
+
+bb18:
+  %75: %Size address = alloc frame Size [shared call]
+  store inspect %75 borrow %49
+  %76: Size trivial = load inspect %75
+  %77: USize trivial = bitcast inspect %76
+  %78: Array(U8) [shared slot 0 view] guaranteed from{%73} = load inspect %73
+  jump -> bb23
+
+bb19(%74: U8 [unique slot 0 owner] guaranteed from{%1}):
+  store inspect %74 consume %72
+  %91: %Size address = field.addr .at inspect %0
+  %92: Size [unique call] guaranteed from{%0} = load inspect %91
+  %93: Size trivial = const 1
+  call +=(Size) borrow %92 borrow %93
+  %94: Size trivial = const 1
+  %95: Result(MemError, Size) owned = aggregate.Ok consume %94
+  return consume %95
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %84: Array(U8) [unique slot 0 view] guaranteed from{%73} = load inspect %73
+  %85: %U8 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(U8) borrow %84
+  %86: Size trivial = load inspect %75
+  %87: Size trivial = metric stride U8
+  %88: Size trivial = mul inspect %86 inspect %87
+  %89: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %85 inspect %88
+  %90: U8 [unique slot 0 owner] guaranteed = load inspect %89
+  jump -> bb19(borrow %90)
+
+bb22:
+  call checkFailed
+  jump -> bb21
+
+bb23:
+  %80: %Size address = field.addr .length inspect %78
+  %81: Size trivial = load inspect %80
+  jump -> bb24(consume %81)
+
+bb24(%79: Size trivial):
+  %82: USize trivial = bitcast inspect %79
+  %83: Bool trivial = ge inspect %77 inspect %82
+  branch inspect %83 -> bb22 -> bb20
+}
+
+fn memory(bytes: Array(U8) [shared call view], failAt: Size [shared call]) -> Input(Memory, MemError) {
+bb0(%0: Array(U8) [shared call view] guaranteed, %1: Size trivial):
+  %2: %Size address = alloc frame Size [shared call]
+  %3: %Array(U8) address = alloc frame Array(U8)
+  store inspect %2 borrow %1
+  %4: Array(U8) [shared call view] guaranteed from{%0} = load inspect %0
+  %5: Array(U8) owned = call Array(a).copy(U8) borrow %4
+  %6: Size trivial = const 0
+  %7: Size trivial = load inspect %2
+  %8: Memory owned = aggregate.Memory consume %5 consume %6 consume %7
+  %9: Size trivial = const 0
+  %10: %U8 trivial = bitcast inspect %9
+  %11: @bits(30) U32 trivial = const 0
+  %12: @bits(2) U32 trivial = const 1
+  %13: Run(U8) owned = aggregate.Run consume %10 consume %11 consume %12
+  %14: @bits(30) U32 trivial = const 0
+  %15: Array(U8) owned = aggregate.Array consume %13 consume %14
+  store inspect %3 consume %15
+  %16: Array(U8) owned = load inspect %3
+  %17: Size trivial = const 0
+  %18: Size trivial = const 0
+  %19: Bool trivial = const False
+  %20: Input(Memory, MemError) owned = aggregate.Input consume %8 consume %16 consume %17 consume %18 consume %19
+  return consume %20
+}
+
+fn forget(error: MemError) -> I32 {
+bb0(%0: MemError owned):
+  %1: %MemError address = alloc frame MemError
+  store inspect %1 consume %0
+  %2: %I32 address = field.addr .code inspect %1
+  %3: I32 trivial = load inspect %2
+  drop MemError inspect %1
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %[U8 *4] address = alloc frame [U8 *4]
+  %2: %Input(Memory, MemError) address = alloc frame Input(Memory, MemError)
+  %3: %Result(ReadFailure(MemError), Header) address = alloc frame Result(ReadFailure(MemError), Header)
+  %4: %Header address = alloc frame Header
+  %5: %Result(ReadFailure(MemError), Array(U8)) address = alloc frame Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  %6: %[U8 *4] address = alloc frame [U8 *4]
+  %7: %Input(Memory, MemError) address = alloc frame Input(Memory, MemError)
+  %8: %Result(ReadFailure(MemError), Header) address = alloc frame Result(ReadFailure(MemError), Header)
+  %9: %[U8 *1] address = alloc frame [U8 *1]
+  %10: %Input(Memory, MemError) address = alloc frame Input(Memory, MemError)
+  %11: %Result(ReadFailure(MemError), Array(U8)) address = alloc frame Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  %12: %[U8 *1] address = alloc frame [U8 *1]
+  %13: %Input(Memory, MemError) address = alloc frame Input(Memory, MemError)
+  %14: %Result(ReadFailure(MemError), Array(U8)) address = alloc frame Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  %15: %[U8 *2] address = alloc frame [U8 *2]
+  %16: %Input(Memory, MemError) address = alloc frame Input(Memory, MemError)
+  %17: %Result(ReadFailure(MemError), Array(U8)) address = alloc frame Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  %18: %MemError address = alloc frame MemError
+  %19: %Bool address = alloc frame Bool
+  %20: Bool trivial = const False
+  store inspect %19 consume %20
+  %21: I32 trivial = const 0
+  store inspect %0 consume %21
+  %22: U8 trivial = const 1
+  %23: U8 trivial = const 2
+  %24: U8 trivial = const 3
+  %25: U8 trivial = const 4
+  %26: [U8 *4] trivial = aggregate.0 consume %22 consume %23 consume %24 consume %25
+  store inspect %1 consume %26
+  %27: [U8 *4] [shared call] guaranteed from{%1} = load inspect %1
+  %28: Array(U8) [shared slot 0 view] guaranteed from{%1} = call [a *n].elements(4, U8) borrow %27
+  %29: Size trivial = const 99
+  %30: Input(Memory, MemError) owned = call memory borrow %28 borrow %29
+  store inspect %2 consume %30
+  %31: Input(Memory, MemError) [unique call] guaranteed from{%2} = load inspect %2
+  %32: Result(ReadFailure(MemError), Header) owned = call header(Memory, MemError) borrow %31
+  store inspect %3 consume %32
+  %33: %U8 address = field.addr .# inspect %3
+  %34: U8 trivial = load inspect %33
+  %35: U8 trivial = const 1
+  %36: Bool trivial = eq inspect %34 inspect %35
+  branch inspect %36 -> bb3 -> bb1
+
+bb1:
+  drop Result(ReadFailure(MemError), Header) inspect %3
+  jump -> bb2
+
+bb2:
+  %37: Input(Memory, MemError) [unique slot 0] guaranteed from{%2} = load inspect %2
+  %38: Size trivial = const 2
+  %39: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = call take(Memory, MemError) borrow %37 borrow %38
+  store inspect %5 consume %39
+  %40: %U8 address = field.addr .# inspect %5
+  %41: U8 trivial = load inspect %40
+  %42: U8 trivial = const 1
+  %43: Bool trivial = eq inspect %41 inspect %42
+  branch inspect %43 -> bb6 -> bb4
+
+bb3:
+  %44: %Header address = field.addr .Ok inspect %3
+  %45: Header trivial = copy inspect %44
+  drop Result(ReadFailure(MemError), Header) inspect %3
+  store inspect %4 consume %45
+  %46: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %47: %U8 address = field.addr .kind inspect %4
+  %48: U8 trivial = load inspect %47
+  %49: I32 trivial = convert inspect %48
+  %50: %U8 address = field.addr .size inspect %4
+  %51: U8 trivial = load inspect %50
+  %52: I32 trivial = convert inspect %51
+  %53: I32 trivial = add inspect %49 inspect %52
+  call +=(I32) borrow %46 borrow %53
+  jump -> bb2
+
+bb4:
+  %54: %U8 address = field.addr .# inspect %5
+  %55: U8 trivial = load inspect %54
+  %56: U8 trivial = const 0
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb26 -> bb27
+
+bb5:
+  %59: U8 trivial = const 1
+  %60: U8 trivial = const 2
+  %61: U8 trivial = const 3
+  %62: U8 trivial = const 4
+  %63: [U8 *4] trivial = aggregate.0 consume %59 consume %60 consume %61 consume %62
+  store inspect %6 consume %63
+  %64: [U8 *4] [shared call] guaranteed from{%6} = load inspect %6
+  %65: Array(U8) [shared slot 0 view] guaranteed from{%6} = call [a *n].elements(4, U8) borrow %64
+  %66: Size trivial = const 1
+  %67: Input(Memory, MemError) owned = call memory borrow %65 borrow %66
+  store inspect %7 consume %67
+  %68: Input(Memory, MemError) [unique call] guaranteed from{%7} = load inspect %7
+  %69: Result(ReadFailure(MemError), Header) owned = call header(Memory, MemError) borrow %68
+  drop Input(Memory, MemError) inspect %7
+  store inspect %8 consume %69
+  %70: %U8 address = field.addr .# inspect %8
+  %71: U8 trivial = load inspect %70
+  %72: U8 trivial = const 1
+  %73: Bool trivial = eq inspect %71 inspect %72
+  branch inspect %73 -> bb10 -> bb7
+
+bb6:
+  %74: %Array(U8) address = field.addr .Ok inspect %5
+  %75: Array(U8) [shared slot 0 view] guaranteed from{%2, %5} = load inspect %74
+  %76: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %77: Size trivial = const 1
+  %78: Array(U8) [shared slot 0 view] guaranteed from{%2, %5} = load inspect %75
+  jump -> bb28
+
+bb7:
+  %105: %U8 address = field.addr .# inspect %8
+  %106: U8 trivial = load inspect %105
+  %107: U8 trivial = const 0
+  %108: Bool trivial = eq inspect %106 inspect %107
+  branch inspect %108 -> bb11 -> bb8
+
+bb8:
+  drop Result(ReadFailure(MemError), Header) inspect %8
+  %109: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %110: I32 trivial = const 2000
+  call +=(I32) borrow %109 borrow %110
+  jump -> bb9
+
+bb9:
+  %111: U8 trivial = const 1
+  %112: [U8 *1] trivial = aggregate.0 consume %111
+  store inspect %9 consume %112
+  %113: [U8 *1] [shared call] guaranteed from{%9} = load inspect %9
+  %114: Array(U8) [shared slot 0 view] guaranteed from{%9} = call [a *n].elements(1, U8) borrow %113
+  %115: Size trivial = const 99
+  %116: Input(Memory, MemError) owned = call memory borrow %114 borrow %115
+  store inspect %10 consume %116
+  %117: Input(Memory, MemError) [unique slot 0] guaranteed from{%10} = load inspect %10
+  %118: Size trivial = const 3
+  %119: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = call take(Memory, MemError) borrow %117 borrow %118
+  %120: Bool trivial = const True
+  store inspect %19 consume %120
+  store inspect %11 consume %119
+  %121: %U8 address = field.addr .# inspect %11
+  %122: U8 trivial = load inspect %121
+  %123: U8 trivial = const 1
+  %124: Bool trivial = eq inspect %122 inspect %123
+  branch inspect %124 -> bb16 -> bb13
+
+bb10:
+  drop Result(ReadFailure(MemError), Header) inspect %8
+  %125: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %126: I32 trivial = const 1000
+  call +=(I32) borrow %125 borrow %126
+  jump -> bb9
+
+bb11:
+  %127: %ReadFailure(MemError) address = field.addr .Err inspect %8
+  %128: %U8 address = field.addr .# inspect %127
+  %129: U8 trivial = load inspect %128
+  %130: U8 trivial = const 0
+  %131: Bool trivial = eq inspect %129 inspect %130
+  branch inspect %131 -> bb12 -> bb8
+
+bb12:
+  %132: %ReadFailure(MemError) address = field.addr .Err inspect %8
+  %133: %MemError address = field.addr .ReadError inspect %132
+  %134: MemError [shared call] guaranteed from{%8} = load inspect %133
+  %135: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %136: %I32 address = field.addr .code inspect %134
+  %137: I32 trivial = load inspect %136
+  drop Result(ReadFailure(MemError), Header) inspect %8
+  call +=(I32) borrow %135 borrow %137
+  jump -> bb9
+
+bb13:
+  %138: %U8 address = field.addr .# inspect %11
+  %139: U8 trivial = load inspect %138
+  drop Input(Memory, MemError) inspect %10
+  %140: U8 trivial = const 0
+  %141: Bool trivial = eq inspect %139 inspect %140
+  branch inspect %141 -> bb17 -> bb14
+
+bb14:
+  %142: Bool trivial = load inspect %19
+  branch inspect %142 -> bb37 -> bb38
+
+bb15:
+  %151: U8 trivial = const 1
+  %152: [U8 *1] trivial = aggregate.0 consume %151
+  store inspect %12 consume %152
+  %153: [U8 *1] [shared call] guaranteed from{%12} = load inspect %12
+  %154: Array(U8) [shared slot 0 view] guaranteed from{%12} = call [a *n].elements(1, U8) borrow %153
+  %155: Size trivial = const 0
+  %156: Input(Memory, MemError) owned = call memory borrow %154 borrow %155
+  store inspect %13 consume %156
+  %157: Input(Memory, MemError) [unique slot 0] guaranteed from{%13} = load inspect %13
+  %158: Size trivial = const 3
+  %159: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = call take(Memory, MemError) borrow %157 borrow %158
+  store inspect %14 consume %159
+  %160: %U8 address = field.addr .# inspect %14
+  %161: U8 trivial = load inspect %160
+  %162: %U8 address = field.addr .# inspect %14
+  %163: U8 trivial = load inspect %162
+  %164: U8 trivial = const 0
+  %165: Bool trivial = eq inspect %163 inspect %164
+  branch inspect %165 -> bb41 -> bb42
+
+bb16:
+  %169: %U8 address = field.addr .# inspect %11
+  %170: U8 trivial = load inspect %169
+  %171: U8 trivial = const 0
+  %172: Bool trivial = eq inspect %170 inspect %171
+  branch inspect %172 -> bb43 -> bb44
+
+bb17:
+  %177: %ReadFailure(MemError) address = field.addr .Err inspect %11
+  %178: %U8 address = field.addr .# inspect %177
+  %179: U8 trivial = load inspect %178
+  %180: %U8 address = field.addr .# inspect %11
+  %181: U8 trivial = load inspect %180
+  %182: U8 trivial = const 0
+  %183: Bool trivial = eq inspect %181 inspect %182
+  branch inspect %183 -> bb45 -> bb46
+
+bb18:
+  %188: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %189: I32 trivial = const 4000
+  call +=(I32) borrow %188 borrow %189
+  jump -> bb15
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %190: U8 trivial = const 5
+  %191: U8 trivial = const 6
+  %192: [U8 *2] trivial = aggregate.0 consume %190 consume %191
+  store inspect %15 consume %192
+  %193: [U8 *2] [shared call] guaranteed from{%15} = load inspect %15
+  %194: Array(U8) [shared slot 0 view] guaranteed from{%15} = call [a *n].elements(2, U8) borrow %193
+  %195: Size trivial = const 2
+  %196: Input(Memory, MemError) owned = call memory borrow %194 borrow %195
+  store inspect %16 consume %196
+  %197: Input(Memory, MemError) [unique slot 0] guaranteed from{%16} = load inspect %16
+  %198: Size trivial = const 4
+  %199: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = call take(Memory, MemError) borrow %197 borrow %198
+  store inspect %17 consume %199
+  %200: %U8 address = field.addr .# inspect %17
+  %201: U8 trivial = load inspect %200
+  drop Input(Memory, MemError) inspect %16
+  %202: U8 trivial = const 0
+  %203: Bool trivial = eq inspect %201 inspect %202
+  branch inspect %203 -> bb24 -> bb22
+
+bb21:
+  %204: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %205: I32 trivial = const 5000
+  call +=(I32) borrow %204 borrow %205
+  jump -> bb20
+
+bb22:
+  %206: %U8 address = field.addr .# inspect %17
+  %207: U8 trivial = load inspect %206
+  %208: U8 trivial = const 0
+  %209: Bool trivial = eq inspect %207 inspect %208
+  branch inspect %209 -> bb47 -> bb48
+
+bb23:
+  %213: I32 trivial = load inspect %0
+  %214: %I32 address = global.addr trace
+  %215: I32 trivial = load inspect %214
+  %216: I32 trivial = add inspect %213 inspect %215
+  return consume %216
+
+bb24:
+  %217: %ReadFailure(MemError) address = field.addr .Err inspect %17
+  %218: %U8 address = field.addr .# inspect %217
+  %219: U8 trivial = load inspect %218
+  %220: U8 trivial = const 0
+  %221: Bool trivial = eq inspect %219 inspect %220
+  branch inspect %221 -> bb25 -> bb22
+
+bb25:
+  %222: %ReadFailure(MemError) address = field.addr .Err inspect %17
+  %223: %MemError address = field.addr .ReadError inspect %222
+  %224: MemError owned = load inspect %223
+  store inspect %18 consume %224
+  %225: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %226: MemError owned = load inspect %18
+  %227: I32 trivial = call forget consume %226
+  %228: I32 trivial = const 10000
+  %229: I32 trivial = mul inspect %227 inspect %228
+  call +=(I32) borrow %225 borrow %229
+  jump -> bb23
+
+bb26 cleanup:
+  %58: %ReadFailure(MemError) address = field.addr .Err inspect %5
+  drop ReadFailure(MemError) inspect %58
+  jump -> bb27
+
+bb27:
+  drop Input(Memory, MemError) inspect %2
+  jump -> bb5
+
+bb28:
+  %80: %Size address = alloc frame Size [shared call]
+  store inspect %80 borrow %77
+  %81: Size trivial = load inspect %80
+  %82: USize trivial = bitcast inspect %81
+  %83: Array(U8) [shared slot 0 view] guaranteed from{%78} = load inspect %78
+  jump -> bb33
+
+bb29(%79: U8 [shared slot 0] guaranteed from{%2, %5}):
+  %96: U8 trivial = load inspect %79
+  %97: %U8 address = field.addr .# inspect %5
+  %98: U8 trivial = load inspect %97
+  %99: U8 trivial = const 0
+  %100: Bool trivial = eq inspect %98 inspect %99
+  branch inspect %100 -> bb35 -> bb36
+
+bb30:
+  jump -> bb31
+
+bb31:
+  %89: Array(U8) [shared slot 0 view] guaranteed from{%78} = load inspect %78
+  %90: %U8 [owned here shape6 .*=shared slot 0] trivial = call values(U8) borrow %89
+  %91: Size trivial = load inspect %80
+  %92: Size trivial = metric stride U8
+  %93: Size trivial = mul inspect %91 inspect %92
+  %94: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %90 inspect %93
+  %95: U8 [shared slot 0] guaranteed = load inspect %94
+  jump -> bb29(borrow %95)
+
+bb32:
+  call checkFailed
+  jump -> bb31
+
+bb33:
+  %85: %Size address = field.addr .length inspect %83
+  %86: Size trivial = load inspect %85
+  jump -> bb34(consume %86)
+
+bb34(%84: Size trivial):
+  %87: USize trivial = bitcast inspect %84
+  %88: Bool trivial = ge inspect %82 inspect %87
+  branch inspect %88 -> bb32 -> bb30
+
+bb35 cleanup:
+  %101: %ReadFailure(MemError) address = field.addr .Err inspect %5
+  drop ReadFailure(MemError) inspect %101
+  jump -> bb36
+
+bb36:
+  drop Input(Memory, MemError) inspect %2
+  %102: I32 trivial = convert inspect %96
+  %103: I32 trivial = const 10
+  %104: I32 trivial = mul inspect %102 inspect %103
+  call +=(I32) borrow %76 borrow %104
+  jump -> bb5
+
+bb37 cleanup:
+  %143: %U8 address = field.addr .# inspect %11
+  %144: U8 trivial = load inspect %143
+  %145: U8 trivial = const 0
+  %146: Bool trivial = eq inspect %144 inspect %145
+  branch inspect %146 -> bb39 -> bb40
+
+bb38:
+  %148: Bool trivial = const False
+  store inspect %19 consume %148
+  %149: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %150: I32 trivial = const 500
+  call +=(I32) borrow %149 borrow %150
+  jump -> bb15
+
+bb39 cleanup:
+  %147: %ReadFailure(MemError) address = field.addr .Err inspect %11
+  drop ReadFailure(MemError) inspect %147
+  jump -> bb40
+
+bb40 cleanup:
+  jump -> bb38
+
+bb41 cleanup:
+  %166: %ReadFailure(MemError) address = field.addr .Err inspect %14
+  drop ReadFailure(MemError) inspect %166
+  jump -> bb42
+
+bb42:
+  drop Input(Memory, MemError) inspect %13
+  %167: U8 trivial = const 1
+  %168: Bool trivial = eq inspect %161 inspect %167
+  branch inspect %168 -> bb21 -> bb19
+
+bb43 cleanup:
+  %173: %ReadFailure(MemError) address = field.addr .Err inspect %11
+  drop ReadFailure(MemError) inspect %173
+  jump -> bb44
+
+bb44:
+  drop Input(Memory, MemError) inspect %10
+  %174: Bool trivial = const False
+  store inspect %19 consume %174
+  %175: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %176: I32 trivial = const 3000
+  call +=(I32) borrow %175 borrow %176
+  jump -> bb15
+
+bb45 cleanup:
+  %184: %ReadFailure(MemError) address = field.addr .Err inspect %11
+  drop ReadFailure(MemError) inspect %184
+  jump -> bb46
+
+bb46:
+  %185: Bool trivial = const False
+  store inspect %19 consume %185
+  %186: U8 trivial = const 0
+  %187: Bool trivial = eq inspect %179 inspect %186
+  branch inspect %187 -> bb18 -> bb14
+
+bb47 cleanup:
+  %210: %ReadFailure(MemError) address = field.addr .Err inspect %17
+  drop ReadFailure(MemError) inspect %210
+  jump -> bb48
+
+bb48:
+  %211: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %212: I32 trivial = const 6000
+  call +=(I32) borrow %211 borrow %212
+  jump -> bb23
+}
+
+fn header(Memory, MemError)(input: Input(Memory, MemError) [unique call]) -> Result(ReadFailure(MemError), Header) {
+bb0(%0: Input(Memory, MemError) [unique call] guaranteed):
+  %2: %Result(ReadFailure(MemError), Array(U8)) address = alloc frame Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  %3: %Outcome(Array(U8), ReadFailure(MemError)) address = alloc frame Outcome(Array(U8), ReadFailure(MemError))
+  %4: %Header address = alloc frame Header
+  %5: Input(Memory, MemError) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %6: Size trivial = const 2
+  %7: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = call take(Memory, MemError) borrow %5 borrow %6
+  store inspect %2 consume %7
+  %8: %U8 address = field.addr .# inspect %2
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 0
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: %Array(U8) address = field.addr .Ok inspect %2
+  %13: Array(U8) [shared slot 0 view] guaranteed from{%0, %2} = load inspect %12
+  jump -> bb2(borrow %13)
+
+bb2(%1: Array(U8) [shared slot 0 view] guaranteed):
+  %14: Size trivial = const 0
+  %15: Array(U8) [shared slot 0 view] guaranteed from{%0, %1, %2} = load inspect %1
+  jump -> bb6
+
+bb3:
+  %64: %ReadFailure(MemError) address = field.addr .Err inspect %2
+  %65: ReadFailure(MemError) owned = load inspect %64
+  %66: Result(ReadFailure(MemError), Array(U8)) owned = aggregate.Err consume %65
+  %67: Outcome(Array(U8), ReadFailure(MemError)) owned = call Result(e, a).toOutcome(ReadFailure(MemError), Array(U8)) consume %66
+  store inspect %3 consume %67
+  %68: %U8 address = field.addr .# inspect %3
+  %69: U8 trivial = load inspect %68
+  %70: U8 trivial = const 1
+  %71: Bool trivial = eq inspect %69 inspect %70
+  branch inspect %71 -> bb5 -> bb4
+
+bb4:
+  drop Outcome(Array(U8), ReadFailure(MemError)) inspect %3
+  unreachable
+
+bb5:
+  %72: %ReadFailure(MemError) address = field.addr .Exit inspect %3
+  %73: ReadFailure(MemError) owned = load inspect %72
+  %74: Result(ReadFailure(MemError), Header) owned = call Result(e, a).fromExit(ReadFailure(MemError), Header) consume %73
+  return consume %74
+
+bb6:
+  %17: %Size address = alloc frame Size [shared call]
+  store inspect %17 borrow %14
+  %18: Size trivial = load inspect %17
+  %19: USize trivial = bitcast inspect %18
+  %20: Array(U8) [shared slot 0 view] guaranteed from{%15} = load inspect %15
+  jump -> bb11
+
+bb7(%16: U8 [shared slot 0] guaranteed from{%0, %1, %2}):
+  %33: U8 trivial = load inspect %16
+  %34: Size trivial = const 1
+  %35: Array(U8) [shared slot 0 view] guaranteed from{%0, %1, %2} = load inspect %1
+  jump -> bb13
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %26: Array(U8) [shared slot 0 view] guaranteed from{%15} = load inspect %15
+  %27: %U8 [owned here shape6 .*=shared slot 0] trivial = call values(U8) borrow %26
+  %28: Size trivial = load inspect %17
+  %29: Size trivial = metric stride U8
+  %30: Size trivial = mul inspect %28 inspect %29
+  %31: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %27 inspect %30
+  %32: U8 [shared slot 0] guaranteed = load inspect %31
+  jump -> bb7(borrow %32)
+
+bb10:
+  call checkFailed
+  jump -> bb9
+
+bb11:
+  %22: %Size address = field.addr .length inspect %20
+  %23: Size trivial = load inspect %22
+  jump -> bb12(consume %23)
+
+bb12(%21: Size trivial):
+  %24: USize trivial = bitcast inspect %21
+  %25: Bool trivial = ge inspect %19 inspect %24
+  branch inspect %25 -> bb10 -> bb8
+
+bb13:
+  %37: %Size address = alloc frame Size [shared call]
+  store inspect %37 borrow %34
+  %38: Size trivial = load inspect %37
+  %39: USize trivial = bitcast inspect %38
+  %40: Array(U8) [shared slot 0 view] guaranteed from{%35} = load inspect %35
+  jump -> bb18
+
+bb14(%36: U8 [shared slot 0] guaranteed from{%0, %1, %2}):
+  %53: U8 trivial = load inspect %36
+  %54: %U8 address = field.addr .# inspect %2
+  %55: U8 trivial = load inspect %54
+  %56: U8 trivial = const 0
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb20 -> bb21
+
+bb15:
+  jump -> bb16
+
+bb16:
+  %46: Array(U8) [shared slot 0 view] guaranteed from{%35} = load inspect %35
+  %47: %U8 [owned here shape6 .*=shared slot 0] trivial = call values(U8) borrow %46
+  %48: Size trivial = load inspect %37
+  %49: Size trivial = metric stride U8
+  %50: Size trivial = mul inspect %48 inspect %49
+  %51: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %47 inspect %50
+  %52: U8 [shared slot 0] guaranteed = load inspect %51
+  jump -> bb14(borrow %52)
+
+bb17:
+  call checkFailed
+  jump -> bb16
+
+bb18:
+  %42: %Size address = field.addr .length inspect %40
+  %43: Size trivial = load inspect %42
+  jump -> bb19(consume %43)
+
+bb19(%41: Size trivial):
+  %44: USize trivial = bitcast inspect %41
+  %45: Bool trivial = ge inspect %39 inspect %44
+  branch inspect %45 -> bb17 -> bb15
+
+bb20 cleanup:
+  %58: %ReadFailure(MemError) address = field.addr .Err inspect %2
+  drop ReadFailure(MemError) inspect %58
+  jump -> bb21
+
+bb21:
+  %59: Header trivial = aggregate.Header consume %33 consume %53
+  store inspect %4 consume %59
+  %60: Bool trivial = const False
+  %61: %Bool address = field.addr .ended inspect %0
+  store inspect %61 consume %60
+  %62: Header trivial = copy inspect %4
+  %63: Result(ReadFailure(MemError), Header) owned = aggregate.Ok consume %62
+  return consume %63
+}
+
+fn take(Memory, MemError)(self: Input(Memory, MemError) [unique slot 0], count: Size [shared call]) -> Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] {
+bb0(%0: Input(Memory, MemError) [unique slot 0] guaranteed, %1: Size trivial):
+  %2: %Size address = alloc frame Size [shared call]
+  %3: %Result(MemError, Size) address = alloc frame Result(MemError, Size)
+  %4: %MemError address = alloc frame MemError
+  %5: %Size address = alloc frame Size
+  %6: %Size address = alloc frame Size
+  store inspect %2 borrow %1
+  jump -> bb1
+
+bb1:
+  %7: %Size address = field.addr .end inspect %0
+  %8: Size trivial = load inspect %7
+  %9: %Size address = field.addr .begin inspect %0
+  %10: Size trivial = load inspect %9
+  %11: Size trivial = sub inspect %8 inspect %10
+  %12: Size trivial = load inspect %2
+  %13: Bool trivial = lt inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb2
+
+bb2:
+  %14: %Size address = field.addr .begin inspect %0
+  %15: Size trivial = load inspect %14
+  store inspect %6 consume %15
+  %16: %Size address = field.addr .begin inspect %0
+  %17: Size [unique slot 0] guaranteed from{%0} = load inspect %16
+  %18: Size trivial = load inspect %2
+  call +=(Size) borrow %17 borrow %18
+  %19: %Array(U8) address = field.addr .buffer inspect %0
+  %20: Array(U8) [shared slot 0] guaranteed from{%0} = load inspect %19
+  %21: Size trivial = load inspect %6
+  %22: Size trivial = load inspect %6
+  %23: Size trivial = load inspect %2
+  %24: Size trivial = add inspect %22 inspect %23
+  %25: Array(U8) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(U8) borrow %20
+  %26: Array(U8) [shared slot 0 view] guaranteed from{%0} = call slice(U8) borrow %25 borrow %21 borrow %24
+  %27: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = aggregate.Ok borrow %26
+  return consume %27
+
+bb3:
+  %28: %Bool address = field.addr .ended inspect %0
+  %29: Bool trivial = load inspect %28
+  branch inspect %29 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %30: %Array(U8) address = field.addr .buffer inspect %0
+  %31: Array(U8) [shared slot 0] guaranteed from{%0} = load inspect %30
+  %32: Array(U8) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(U8) borrow %31
+  jump -> bb15
+
+bb6:
+  %39: ReadFailure(MemError) owned = aggregate.Ended
+  %40: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = aggregate.Err consume %39
+  return consume %40
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %41: %Memory address = field.addr .source inspect %0
+  %42: Memory [unique slot 0] guaranteed from{%0} = load inspect %41
+  %43: %Array(U8) address = field.addr .buffer inspect %0
+  %44: Array(U8) [unique slot 0] guaranteed from{%0} = load inspect %43
+  %45: %Size address = field.addr .end inspect %0
+  %46: Size trivial = load inspect %45
+  %47: %Size address = field.addr .end inspect %0
+  %48: Size trivial = load inspect %47
+  %49: Size trivial = const 1
+  %50: Size trivial = add inspect %48 inspect %49
+  %51: Array(U8) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(U8) borrow %44
+  %52: Array(U8) [unique slot 0 view] guaranteed from{%0} = call sliceMut(U8) borrow %51 borrow %46 borrow %50
+  %53: Result(MemError, Size) owned = call Memory.readSome borrow %42 borrow %52
+  store inspect %3 consume %53
+  %54: %U8 address = field.addr .# inspect %3
+  %55: U8 trivial = load inspect %54
+  %56: U8 trivial = const 1
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb11 -> bb10
+
+bb9:
+  %58: %Array(U8) address = field.addr .buffer inspect %0
+  %59: Array(U8) [unique slot 0] guaranteed from{%0} = load inspect %58
+  %60: U8 trivial = const 0
+  call push(U8) borrow %59 consume %60
+  jump -> bb8
+
+bb10:
+  %61: %MemError address = field.addr .Err inspect %3
+  %62: MemError owned = load inspect %61
+  store inspect %4 consume %62
+  %63: MemError owned = load inspect %4
+  %64: ReadFailure(MemError) owned = aggregate.ReadError consume %63
+  %65: Result(ReadFailure(MemError), Array(U8)) [owned here shape8 .1=shared slot 0 view] owned = aggregate.Err consume %64
+  return consume %65
+
+bb11:
+  %66: %Size address = field.addr .Ok inspect %3
+  %67: Size trivial = load inspect %66
+  drop Result(MemError, Size) inspect %3
+  store inspect %5 consume %67
+  %68: Size trivial = load inspect %5
+  %69: Size trivial = const 0
+  %70: Bool trivial = eq inspect %68 inspect %69
+  branch inspect %70 -> bb14 -> bb12
+
+bb12:
+  jump -> bb13
+
+bb13:
+  %71: %Size address = field.addr .end inspect %0
+  %72: Size [unique slot 0] guaranteed from{%0} = load inspect %71
+  %73: Size trivial = load inspect %5
+  call +=(Size) borrow %72 borrow %73
+  jump -> bb1
+
+bb14:
+  %74: Bool trivial = const True
+  %75: %Bool address = field.addr .ended inspect %0
+  store inspect %75 consume %74
+  jump -> bb13
+
+bb15:
+  %34: %Size address = field.addr .length inspect %32
+  %35: Size trivial = load inspect %34
+  jump -> bb16(consume %35)
+
+bb16(%33: Size trivial):
+  %36: %Size address = field.addr .end inspect %0
+  %37: Size trivial = load inspect %36
+  %38: Bool trivial = eq inspect %33 inspect %37
+  branch inspect %38 -> bb9 -> bb7
+}
+
+entry main

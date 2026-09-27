@@ -2932,6 +2932,9 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
         if(!breakLayoutCycles(context, *program)) return false;
         if(!classifyTypes(context, *program)) return false;
 
+        // The instance superclasses whose answer was a classification - `checkSuperclassesOf`.
+        if(!resolver.checkDeferredSuperclasses()) return false;
+
         /*
          * What a qualified type argument may be written over - `checkQualifiedShapes`.
          *

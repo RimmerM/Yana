@@ -1,9 +1,9 @@
 module ResolveTest
 
-let string'142: [CodeUnit *11] = "  one
+let string'188: [CodeUnit *11] = "  one
 two  "
 
-let string'143: [CodeUnit *0] = ""
+let string'189: [CodeUnit *0] = ""
 
 fn source(flag: Bool [shared call]) -> Maybe(String) {
 bb0(%0: Bool trivial):
@@ -21,7 +21,7 @@ bb2(%1: Maybe(String) owned):
   return consume %1
 
 bb3:
-  %6: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 11, ownsHeap: 0}, length: 11}}
+  %6: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 11, ownsHeap: 0}, length: 11}}
   store inspect %3 consume %6
   %7: String [shared slot 0] guaranteed from{%3} = load inspect %3
   jump -> bb4
@@ -97,7 +97,7 @@ bb0(%0: Bool trivial, %1: (String) -> I32 [shared call] guaranteed):
   branch inspect %17 -> bb3 -> bb1
 
 bb1:
-  %18: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %18: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 0, ownsHeap: 0}, length: 0}}
   %19: Bool trivial = const True
   store inspect %10 consume %19
   store inspect %6 consume %18

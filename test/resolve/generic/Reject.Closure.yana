@@ -10,8 +10,9 @@
    captures live in gets a **heap-placed** environment, decided by the position the lambda is written
    at, and `ownership/ClosureEscape.yana` is that shape run. What is left is the two things a
    placement cannot answer - a lambda whose captures would be reached through *another* lambda's
-   environment, and one in a generic body, where argument zero is already spent - plus a lambda that
-   asks for an owning capture at a position that only borrows the closure.
+   environment, and one in a generic body compiled **once**, where argument zero is already spent -
+   plus a lambda that asks for an owning capture at a position that only borrows the closure. A
+   lambda in an ordinary generic body is specialized with it since C3 (`LambdaGeneric.yana`).
 -}
 
 data Held {v: I32}
@@ -80,8 +81,10 @@ fn merged(c: Bool) -> I32:
     return take(if c: ((x: I32) -> x + n) :: (I32) -> I32
                 else: ((x: I32) -> x * 2) :: (I32) -> I32)
 
--- A lambda in a **generic** body. Argument zero is one slot - "what the callee needs that its
--- arguments do not say" - and a body compiled once already spends it on the layouts it reads.
+-- A lambda in a generic body compiled **once**. Argument zero is one slot - "what the callee needs
+-- that its arguments do not say" - and an erased body already spends it on the layouts it reads.
+-- Without `@generic` this is specialized with its caller and compiles (C3).
+@generic
 fn (a.tag: I32) inGeneric(x: a) -> I32 = take(((y: I32) -> y + x.tag) :: (I32) -> I32)
 
 fn main() -> I32 = 0

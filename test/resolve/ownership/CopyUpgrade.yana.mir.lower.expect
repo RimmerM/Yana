@@ -7,56 +7,40 @@ main<complex>(): I32 {
     store %v_2, 9, 4
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 4, 4
-    %v_4 = imm 3: I64
-    jmp b_5
-  }
-
-  b_6 {
-    %v_7 = add 19, %v_8: I32
-    ret %v_7
-  }
-
-  b_9 {
-    %v_10 = cmp_ge %v_11, %v_4: I32
-    je %v_10, b_12, b_5
+    jmp b_4
   }
 
   b_5 {
-    %v_13 = phi [b_9, %v_8], [b_0, 0]: I32
-    %v_14 = phi [b_9, %v_11], [b_0, 0]: I64
-    %v_15 = shl %v_14, 2: I64
-    %v_16 = add %v_1, %v_15: Ptr
-    %v_17 = loads %v_16, 4: I32
-    %v_18 = cmp_igt %v_17, %v_13: I32
-    je %v_18, b_19, b_20
+    %v_6 = add 19, %v_7: I32
+    ret %v_6
   }
 
-  b_20 {
-    jmp b_21
+  b_4 {
+    %v_8 = phi [b_9, %v_7], [b_0, 0]: I32
+    %v_10 = phi [b_9, %v_11], [b_0, 0]: I64
+    %v_12 = shl %v_10, 2: I64
+    %v_13 = add %v_1, %v_12: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = cmp_igt %v_14, %v_8: I32
+    je %v_15, b_16, b_17
   }
 
-  b_19 {
-    %v_22 = cmp_ge %v_14, %v_4: I32
-    je %v_22, b_12, b_23
+  b_17 {
+    jmp b_9
   }
 
-  b_23 {
-    %v_24 = shl %v_14, 2: I64
-    %v_25 = add %v_1, %v_24: Ptr
-    %v_26 = loads %v_25, 4: I32
-    jmp b_21
+  b_16 {
+    %v_18 = shl %v_10, 2: I64
+    %v_19 = add %v_1, %v_18: Ptr
+    %v_20 = loads %v_19, 4: I32
+    jmp b_9
   }
 
-  b_21 {
-    %v_8 = phi [b_20, %v_13], [b_23, %v_26]: I32
-    %v_11 = add %v_14, 1: I64
-    %v_27 = cmp_ilt %v_11, %v_4: I32
-    je %v_27, b_9, b_6
-  }
-
-  b_12 {
-    %v_28 = syscall 60, 134: I64
-    unreachable 
+  b_9 {
+    %v_7 = phi [b_17, %v_8], [b_16, %v_20]: I32
+    %v_11 = add %v_10, 1: I64
+    %v_21 = cmp_ilt %v_11, 3: I32
+    je %v_21, b_4, b_5
   }
 }
 

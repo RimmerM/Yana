@@ -2,9 +2,9 @@ module ResolveTest
 
 data Point {x: I32, y: I32}
 
-let string'142: [CodeUnit *2] = "ab"
+let string'188: [CodeUnit *2] = "ab"
 
-let string'143: [CodeUnit *4] = "abcd"
+let string'189: [CodeUnit *4] = "abcd"
 
 fn put(slot: a [unique call], value: a) -> {} {
   form specialized
@@ -51,10 +51,10 @@ bb0:
   %7: I32 [unique call] = read borrow.unique (count) loan1
   %8: I32 = const 9
   %9: {} = call put(I32) borrow.unique %7 take %8
-  %10: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %10: String = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (name) take %10
   %12: String [unique call] = read borrow.unique (name) loan2
-  %13: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %13: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   %14: {} = call put(String) borrow.unique %12 take %13
   %15: I32 = const 1
   %16: I32 = const 2

@@ -291,22 +291,114 @@ static bool requiredByEnclosing(Resolver& resolver, Function& candidate, TypeArg
 
         SmallArray<DeclPtr<Type>, 4> arguments;
         auto complete = true;
+        auto decided = true;
+        U16 index = 0;
 
         for(auto argument: requirement.args.contents(base)) {
             auto supplied = substituteType(resolver.context, resolver.program, argument, with);
             complete = complete && supplied;
+            decided = decided && (supplied || base[klass]->isDetermined(index));
             arguments.push(supplied);
+            index++;
         }
 
-        if(!complete) continue;
-
-        if(satisfiesRequirement(resolver.context, resolver.program, enclosing, klass,
-                                arguments.pointer(), arguments.size())) {
+        if(complete && satisfiesRequirement(resolver.context, resolver.program, enclosing, klass,
+                                            arguments.pointer(), arguments.size())) {
             return true;
+        }
+
+        /*
+         * The deciding prefix alone, for a class with a functional dependency - `fn next(&self: 'r)
+         * -> Result(e, _)` of `class ByteReader(r -> e)`, where `e` is only in the result and the
+         * trial leaves it unbound or bound to something of its own. The prefix is what selects an
+         * instance, so it is also what decides whether the enclosing `ByteReader(r, e)` is this
+         * requirement: without this, a member whose name another class also declares (`next`, beside
+         * `Iterate.next`) was ambiguous even in a body requiring its class (J206).
+         */
+        auto determined = base[klass]->determined;
+        if(!decided || determined >= arguments.size()) continue;
+
+        for(auto held: base[enclosing]->classes.contents(base)) {
+            if(held.klass != klass) continue;
+
+            auto have = requirementArgs(base, held);
+            if(have.count != arguments.size()) continue;
+
+            auto same = true;
+            for(U16 i = 0; i < determined; i++) {
+                same = same && arguments[i] && have.data[i] == arguments[i];
+            }
+
+            if(same) return true;
         }
     }
 
     return false;
+}
+
+/*
+ * Whether a class with a functional dependency has an instance at this requirement's **deciding
+ * prefix**, where the prefix is bound and concrete and a determined position is not - the question
+ * `fillFromRequirement` asks before it fills one, asked here without filling.
+ *
+ * `dischargeRequirement` cannot answer while a determined position is still a variable: it asks for
+ * an instance at the whole head, open item and all, and none matches - which a sole callee never
+ * notices, because `fillDetermined` fills the position first and a missing instance is reported
+ * there, by name. Between two candidates nothing filled it, so `Iterate.next` and
+ * `IterateFailing.next`, which bind only `s` from `it.next()`, were both unusable at every object
+ * and every `x.next()` was ambiguous (J216). The prefix is exactly what selects the instance, so its
+ * answer is the requirement's: `Yes` discharges it, `No` refuses the candidate, and `Open` - a
+ * prefix not concrete yet, or nothing left open - leaves it to `dischargeRequirement` as before.
+ */
+enum class Decided { Open, Yes, No };
+
+static Decided prefixHasInstance(Resolver& resolver, GenRequirement requirement,
+                                 const Substitution& with, LocationId source) {
+    auto base = resolver.decl();
+    auto& klass = *base[requirement.klass];
+    auto arity = klass.arity(base);
+    if(klass.determined >= arity) return Decided::Open;
+
+    SmallArray<DeclPtr<Type>, 4> applied;
+    auto open = false;
+
+    for(U32 i = 0; i < arity; i++) {
+        auto argument = substituteType(resolver.context, resolver.program,
+                                       requirement.args.get(base, i), with);
+
+        /*
+         * An object a generic body built at its own variables (P16) is as decided as a concrete
+         * one here: its `Iterate` or `IterateFailing` instance is the open record's own, and which
+         * of the two it has does not depend on the arguments.
+         */
+        auto openSite = argument && base[argument]->kind == Type::Record &&
+                        ((RecordType*)base[argument])->openSite;
+
+        if(i < klass.determined) {
+            if(!argument || (!isConcreteType(base, argument) && !openSite)) return Decided::Open;
+        } else if(!argument || !isConcreteType(base, argument)) {
+            open = true;
+            argument = nullptr;
+        }
+
+        /*
+         * A determined position the call already bound **concretely** is kept, and only an open one
+         * is left for the instance to fill. The prefix selects the instance, and the instance then
+         * says what the position is - so a bound one either agrees or rules the candidate out:
+         * `Index(c, k, v)` with `c = [I32]` from the collection and `v = String` from an argument
+         * has an instance at the prefix and none at the requirement, and answering `Yes` there chose
+         * that candidate over a class member that fitted and reported the missing instance after it
+         * (`Overload.DeterminedBound.yana`).
+         */
+
+        applied.push(argument);
+    }
+
+    if(!open) return Decided::Open;
+
+    InstanceMatch found;
+    return selectInstance(resolver.context, resolver.program, requirement.klass, applied.pointer(),
+                          applied.size(), source, false, found) ? Decided::Yes : Decided::No;
 }
 
 // Whether every requirement this candidate's context states can be proved at the bound types -
@@ -319,6 +411,9 @@ static bool candidateDischarges(Resolver& resolver, Function& candidate, TypeArg
     auto with = bound.with();
 
     for(auto requirement: base[candidate.gen]->classes.contents(base)) {
+        auto decided = prefixHasInstance(resolver, requirement, with, source);
+        if(decided == Decided::No) return false;
+        if(decided == Decided::Yes) continue;
         if(!resolver.dischargeRequirement(requirement, with, source, false)) return false;
     }
 
@@ -400,7 +495,8 @@ static String candidateList(Context& context, DeclBase base, const Candidate* co
  */
 static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size count,
                         const OverloadSet& set, Size arguments, LocationId source,
-                        SmallArray<Request, 8>& requests, SmallArray<bool, 8>& deferred) {
+                        SmallArray<Request, 8>& requests, SmallArray<bool, 8>& deferred,
+                        SmallArray<bool, 8>* split = nullptr) {
     auto base = resolver.decl();
     auto& first = *base[candidates[0].function];
 
@@ -414,6 +510,7 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
 
         requests.push(requestOf(parameter.occurrence));
         deferred.push(parameter.lazy);
+        if(split) split->push(false);
     }
 
     for(Size c = 1; c < count; c++) {
@@ -438,6 +535,24 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
                     source, candidateText(resolver.context, base, first),
                     candidateText(resolver.context, base, candidate), U64(i + 1));
                 return false;
+            }
+
+            /*
+             * Where they disagree about publishing, R5's winner decided above, and its request is
+             * the one read: an owning read serves a shared borrow but not a position the callee
+             * **writes back through**. `fn widen(&p: Point)` beside Core's `widen(->from: a)` (K4
+             * made the class consume) moved `p` into a temporary, lent the temporary uniquely, and
+             * the write landed nowhere - `Loop.yana` and `Forward.yana` answered wrong.
+             *
+             * That answer is still a guess about a candidate not yet chosen, and it was wrong the
+             * other way round: `widen(n) :: I64` on an immutable `n` asked for the plain function's
+             * writable place, which `Widen.widen` never wanted and `n` cannot give (R2 #5). So the
+             * position is reported as `split`, and a caller that can resolve the argument as a
+             * place reads it after choosing, under the winner's own request - `selectOverload`.
+             */
+            if(request.published != requests[i].published) {
+                if(split) (*split)[i] = true;
+                continue;
             }
 
             // The owning read where any of them owns - see the note above, where the direction and
@@ -472,7 +587,8 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
                                         StringId name, LocationId nameSource, LocationId source,
                                         Maybe<TypeArguments>& winner,
                                         const intrinsic::Known* literals = nullptr,
-                                        CandidateKind kind = CandidateKind::Any) {
+                                        CandidateKind kind = CandidateKind::Any,
+                                        Place* const* places = nullptr) {
     auto& context = resolver.context;
     auto base = resolver.decl();
 
@@ -510,7 +626,11 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
      */
     SmallArray<DeclPtr<Type>, 8> argumentTypes;
     for(Size i = 0; i < arguments; i++) {
-        argumentTypes.push(values[i] ? valueType(*values[i]) : nullptr);
+        // A place not read yet is judged by what it holds - `selectOverload`'s split positions.
+        auto type = values[i] ? valueType(*values[i])
+                  : places && places[i] ? places[i]->occurrence.type
+                                        : nullptr;
+        argumentTypes.push(type);
     }
 
     for(Size i = 0; i < candidates.size(); i++) {
@@ -797,8 +917,9 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
 
     SmallArray<Request, 8> requests;
     SmallArray<bool, 8> deferred;
+    SmallArray<bool, 8> split;
     if(!agreedShape(*this, candidates.pointer(), candidates.size(), set, arguments, source,
-                    requests, deferred)) {
+                    requests, deferred, &split)) {
         return false;
     }
 
@@ -817,9 +938,11 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
      */
     auto& values = into.values;
     SmallArray<intrinsic::Known, 8> literals;
+    SmallArray<Place*, 8> places;
     for(Size i = 0; i < arguments; i++) {
         values.push(nullptr);
         literals.push(intrinsic::Known::Count);
+        places.push(nullptr);
     }
 
     {
@@ -862,14 +985,44 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
              */
             ObjectScope object(*this, argument.value.source);
 
+            /*
+             * A position the set disagrees about publishing, filled by a **local** - resolved as a
+             * place and read once the winner is known, under the winner's request (`agreedShape`,
+             * R2 #5). A name and nothing else, because reading one later is reading the same
+             * storage: nothing between here and the choice can write a local this call has not been
+             * handed, while a global may be written by a later argument's call and a subscript
+             * already chose between `get` and `getMut` by the access it was asked with.
+             */
+            if(split[index] && argument.value.kind == ast::Expr::Var) {
+                auto place = resolvePlace(builder, argument.value, false);
+                if(place && place->kind == Place::Local) {
+                    places[index] = place;
+                    continue;
+                }
+            }
+
             values[index] = resolveValue(builder, argument.value, nullptr, requests[index]);
             if(!values[index]) return false;
         }
     }
 
     auto chosen = chooseCandidate(*this, candidates, set, values.pointer(), arguments, name,
-                                  nameSource, source, into.args, literals.pointer(), kind);
+                                  nameSource, source, into.args, literals.pointer(), kind,
+                                  places.pointer());
     if(!chosen) return false;
+
+    // The split positions, read now under the request of the candidate that takes them.
+    auto& winner = *decl()[chosen->function];
+    auto at = leading;
+    for(auto argument: written.args.contents(parse)) {
+        auto index = at++;
+        if(!places[index]) continue;
+
+        auto& parameter = *decl()[winner.args.get(decl(), chosen->map.position(U32(index)))];
+        values[index] = readPlace(builder, argument.value.source, *places[index],
+                                  requestOf(parameter.occurrence));
+        if(!values[index]) return false;
+    }
 
     into.function = chosen->function;
 

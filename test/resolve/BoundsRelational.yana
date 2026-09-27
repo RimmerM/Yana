@@ -1,0 +1,103 @@
+{-
+   Relational bounds facts - a check decided by a fact relating two values rather than a value and a
+   constant (`compiler/resolve_ssa/opt/bounds.cpp`, J190; P12's second slice in
+   `doc/inflight/Implementation-Streams.md`, D10's overflow rule).
+
+   `BoundsFacts.yana` is the constant half: `length(b) >= 9` in front of reads at literal offsets.
+   What a decoder that *walks* has is a position, and every check behind its test compares the
+   position with the length. Five shapes carry no refusal arm in the `.ssa.opt.expect` beside this:
+
+   - `countFields` and `skipVarint` walk from zero under `while at < length(b)`; the counter is
+     non-negative by induction over the loop's edges, so `at <s len` is `at <u len`;
+   - `recordNeed` states D10's `need(b, at, k)` - `len >= k` and `at <=u len - k` - and reads
+     `at` and `at + 2`, each `at + j <=u len - width` for `j + width <= k`;
+   - `recordChecked` states the signed guarded subtraction with `at >= 0` beside it;
+   - `passed` keeps its first read's check and none after it: the check that passed says
+     `at <=u len - 4`, which answers `at`, `at + 2` and `at + 3`.
+
+   The other four are the checks that must **survive**, because each has an input that reaches
+   the read with the position outside the bytes:
+
+   - `walkFrom` walks from the caller's position, which may be negative;
+   - `recordSigned` is the guarded subtraction without `at >= 0`: `at = -10` passes both
+     `at <= len` and `len - at >= 6`;
+   - `bare` tests `at + 6 > length(b)`, which a position near the top of `Size` wraps past;
+   - `wideIndex` converts a `U32`, which is non-negative as a 64-bit `Size` and not as a 32-bit
+     one, and a fact is spent only where both widths agree.
+
+   `lib/Native/Aborts.test.native.yana` runs the three inputs that reach those reads outside the
+   bytes and asserts that each still stops. Here every function is called with an input its checks
+   let through, so the answer below is reached on every build.
+-}
+
+-- A delimiter scan from zero.
+@noinline fn countFields(b: [U8]) -> Int:
+    let &at = 0 :: Size
+    let &fields = 1
+    while at < length(b):
+        if b[at] == 44 then fields += 1     -- a comma; the parser has no character literal
+        at += 1
+    return fields
+
+-- A LEB128 length, walked from zero: where the value ends, or nothing if the bytes do.
+@noinline fn skipVarint(b: [U8]) -> Size:
+    let &at = 0 :: Size
+    while at < length(b):
+        let byte = b[at]
+        at += 1
+        if byte < 128 then return at
+    return 0
+
+-- The same walk from a position the caller chose.
+@noinline fn walkFrom(b: [U8], from: Size) -> Int:
+    let &at = from
+    let &total = 0
+    while at < length(b):
+        total += (b[at] :: Int)
+        at += 1
+    return total
+
+-- D10's test, in `checkWordInBounds`'s shape: the position read unsigned.
+fn need(b: [U8], at: Size, count: Size) -> Bool =
+    length(b) >= count && (bitcast(at) :: USize) <= (bitcast(length(b) - count) :: USize)
+
+@noinline fn recordNeed(b: [U8], at: Size) -> U32:
+    if !need(b, at, 6) then return 0
+    return (readBigU16(b, at) :: U32) + readBigU32(b, at + 2)
+
+@noinline fn recordChecked(b: [U8], at: Size) -> U32:
+    if at < 0 || at > length(b) then return 0
+    if length(b) - at < 6 then return 0
+    return (readBigU16(b, at) :: U32) + readBigU32(b, at + 2)
+
+@noinline fn recordSigned(b: [U8], at: Size) -> U32:
+    if at > length(b) then return 0
+    if length(b) - at < 6 then return 0
+    return (readBigU16(b, at) :: U32) + readBigU32(b, at + 2)
+
+@noinline fn bare(b: [U8], at: Size) -> U32:
+    if at + 6 > length(b) then return 0
+    return (readBigU16(b, at) :: U32) + readBigU32(b, at + 2)
+
+@noinline fn passed(b: [U8], at: Size) -> U32:
+    let word = readBigU32(b, at)
+    return word + (b[at] :: U32) + (b[at + 3] :: U32) + (readBigU16(b, at + 2) :: U32)
+
+@noinline fn wideIndex(b: [U8], i: U32) -> U8:
+    let at = truncate(i) :: Size
+    if at >= length(b) then return 0
+    return b[at]
+
+@noinline fn narrowIndex(b: [U8], i: U16) -> U8:
+    let at = i :: Size
+    if at >= length(b) then return 0
+    return b[at]
+
+fn main() -> Int:
+    let bytes = [1, 44, 3, 4, 44, 6, 7, 8, 9] :: [U8]
+    let varint = [200, 129, 5, 1] :: [U8]
+
+    let fields = countFields(bytes) + (truncate(skipVarint(varint)) :: Int) + walkFrom(bytes, 6)
+    let records = recordNeed(bytes, 1) + recordChecked(bytes, 2) + recordSigned(bytes, 3) + bare(bytes, 1)
+    let rest = passed(bytes, 4) + (wideIndex(bytes, 5) :: U32) + (narrowIndex(bytes, 8) :: U32)
+    return fields + bitcast(records `and` 0xfff) + bitcast(rest `and` 0xfff)

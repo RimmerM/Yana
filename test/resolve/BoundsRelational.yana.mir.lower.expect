@@ -1,0 +1,437 @@
+
+countFields<complex>(%b$items: Ptr, %b$length: I64): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 1], [b_3, %v_6]: I32
+    %v_7 = cmp_ilt %v_2, %b$length: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    ret %v_5
+  }
+
+  b_8 {
+    %v_10 = add %b$items, %v_2: Ptr
+    %v_11 = load %v_10, 1: I32
+    %v_12 = cmp_eq %v_11, 44: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_3
+  }
+
+  b_3 {
+    %v_6 = phi [b_14, %v_5], [b_13, %v_15]: I32
+    %v_4 = add %v_2, 1: I64
+    jmp b_1
+  }
+
+  b_13 {
+    %v_15 = add %v_5, 1: I32
+    jmp b_3
+  }
+}
+
+skipVarint<complex>(%b$items: Ptr, %b$length: I64): I64 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = cmp_ilt %v_2, %b$length: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    ret 0
+  }
+
+  b_6 {
+    %v_8 = add %b$items, %v_2: Ptr
+    %v_9 = load %v_8, 1: I32
+    %v_4 = add %v_2, 1: I64
+    %v_10 = cmp_lt %v_9, 128: I32
+    je %v_10, b_11, b_3
+  }
+
+  b_3 {
+    jmp b_1
+  }
+
+  b_11 {
+    ret %v_4
+  }
+}
+
+walkFrom<complex>(%b$items: Ptr, %b$length: I64, %from: I64): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, %from], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ilt %v_2, %b$length: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    ret %v_5
+  }
+
+  b_8 {
+    %v_10 = cmp_ge %v_2, %b$length: I32
+    je %v_10, b_11, b_3
+  }
+
+  b_3 {
+    %v_12 = add %b$items, %v_2: Ptr
+    %v_13 = load %v_12, 1: I32
+    %v_6 = add %v_5, %v_13: I32
+    %v_4 = add %v_2, 1: I64
+    jmp b_1
+  }
+
+  b_11 {
+    %v_14 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+recordNeed<complex>(%b$items: Ptr, %b$length: I64, %at: I64): I32 {
+  b_0 {
+    %v_1 = imm 6: I64
+    %v_2 = cmp_ige %b$length, %v_1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    %v_6 = add %b$items, %at: Ptr
+    %v_7 = load %v_6, 2: I32
+    %v_8 = imm 8: I32
+    %v_9 = shl %v_7, %v_8: I32
+    %v_10 = shr %v_7, %v_8: I32
+    %v_11 = or %v_9, %v_10: I32
+    %v_12 = and %v_11, 65535: I32
+    %v_13 = add %at, 2: I64
+    %v_14 = add %b$items, %v_13: Ptr
+    %v_15 = load %v_14, 4: I32
+    %v_16 = bswap %v_15: I32
+    %v_17 = add %v_12, %v_16: I32
+    ret %v_17
+  }
+
+  b_18 {
+    ret 0
+  }
+
+  b_4 {
+    jmp b_18
+  }
+
+  b_3 {
+    %v_19 = sub %b$length, %v_1: I64
+    %v_20 = cmp_le %at, %v_19: I32
+    je %v_20, b_5, b_18
+  }
+}
+
+recordChecked<complex>(%b$items: Ptr, %b$length: I64, %at: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %at, 0: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = cmp_igt %at, %b$length: I32
+    je %v_4, b_2, b_5
+  }
+
+  b_5 {
+    %v_6 = sub %b$length, %at: I64
+    %v_7 = cmp_ilt %v_6, 6: I32
+    je %v_7, b_2, b_8
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_8 {
+    %v_9 = add %b$items, %at: Ptr
+    %v_10 = load %v_9, 2: I32
+    %v_11 = imm 8: I32
+    %v_12 = shl %v_10, %v_11: I32
+    %v_13 = shr %v_10, %v_11: I32
+    %v_14 = or %v_12, %v_13: I32
+    %v_15 = and %v_14, 65535: I32
+    %v_16 = add %at, 2: I64
+    %v_17 = add %b$items, %v_16: Ptr
+    %v_18 = load %v_17, 4: I32
+    %v_19 = bswap %v_18: I32
+    %v_20 = add %v_15, %v_19: I32
+    ret %v_20
+  }
+}
+
+recordSigned<complex>(%b$items: Ptr, %b$length: I64, %at: I64): I32 {
+  b_0 {
+    %v_1 = cmp_igt %at, %b$length: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = sub %b$length, %at: I64
+    %v_5 = cmp_ilt %v_4, 6: I32
+    je %v_5, b_2, b_6
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_6 {
+    %v_7 = imm 2: I64
+    %v_8 = cmp_ilt %b$length, %v_7: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    %v_11 = sub %b$length, %v_7: I64
+    %v_12 = cmp_gt %at, %v_11: I32
+    je %v_12, b_9, b_13
+  }
+
+  b_13 {
+    %v_14 = add %b$items, %at: Ptr
+    %v_15 = load %v_14, 2: I32
+    %v_16 = imm 8: I32
+    %v_17 = shl %v_15, %v_16: I32
+    %v_18 = shr %v_15, %v_16: I32
+    %v_19 = or %v_17, %v_18: I32
+    %v_20 = and %v_19, 65535: I32
+    %v_21 = add %at, 2: I64
+    %v_22 = cmp_ilt %b$length, 4: I32
+    je %v_22, b_9, b_23
+  }
+
+  b_9 {
+    %v_24 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_23 {
+    %v_25 = add %b$items, %v_21: Ptr
+    %v_26 = load %v_25, 4: I32
+    %v_27 = bswap %v_26: I32
+    %v_28 = add %v_20, %v_27: I32
+    ret %v_28
+  }
+}
+
+bare<complex>(%b$items: Ptr, %b$length: I64, %at: I64): I32 {
+  b_0 {
+    %v_1 = add %at, 6: I64
+    %v_2 = cmp_igt %v_1, %b$length: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = imm 2: I64
+    %v_6 = cmp_ilt %b$length, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_3 {
+    ret 0
+  }
+
+  b_8 {
+    %v_9 = sub %b$length, %v_5: I64
+    %v_10 = cmp_gt %at, %v_9: I32
+    je %v_10, b_7, b_11
+  }
+
+  b_11 {
+    %v_12 = add %b$items, %at: Ptr
+    %v_13 = load %v_12, 2: I32
+    %v_14 = imm 8: I32
+    %v_15 = shl %v_13, %v_14: I32
+    %v_16 = shr %v_13, %v_14: I32
+    %v_17 = or %v_15, %v_16: I32
+    %v_18 = and %v_17, 65535: I32
+    %v_19 = add %at, 2: I64
+    %v_20 = imm 4: I64
+    %v_21 = cmp_ilt %b$length, %v_20: I32
+    je %v_21, b_7, b_22
+  }
+
+  b_7 {
+    %v_23 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_22 {
+    %v_24 = sub %b$length, %v_20: I64
+    %v_25 = cmp_gt %v_19, %v_24: I32
+    je %v_25, b_7, b_26
+  }
+
+  b_26 {
+    %v_27 = add %b$items, %v_19: Ptr
+    %v_28 = load %v_27, 4: I32
+    %v_29 = bswap %v_28: I32
+    %v_30 = add %v_18, %v_29: I32
+    ret %v_30
+  }
+}
+
+passed<complex>(%b$items: Ptr, %b$length: I64, %at: I64): I32 {
+  b_0 {
+    %v_1 = imm 4: I64
+    %v_2 = cmp_ilt %b$length, %v_1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = sub %b$length, %v_1: I64
+    %v_6 = cmp_gt %at, %v_5: I32
+    je %v_6, b_3, b_7
+  }
+
+  b_7 {
+    %v_8 = add %b$items, %at: Ptr
+    %v_9 = load %v_8, 4: I32
+    %v_10 = bswap %v_9: I32
+    %v_11 = load %v_8, 1: I32
+    %v_12 = add %v_10, %v_11: I32
+    %v_13 = add %at, 3: I64
+    %v_14 = add %b$items, %v_13: Ptr
+    %v_15 = load %v_14, 1: I32
+    %v_16 = add %v_12, %v_15: I32
+    %v_17 = add %at, 2: I64
+    %v_18 = add %b$items, %v_17: Ptr
+    %v_19 = load %v_18, 2: I32
+    %v_20 = imm 8: I32
+    %v_21 = shl %v_19, %v_20: I32
+    %v_22 = shr %v_19, %v_20: I32
+    %v_23 = or %v_21, %v_22: I32
+    %v_24 = and %v_23, 65535: I32
+    %v_25 = add %v_16, %v_24: I32
+    ret %v_25
+  }
+
+  b_3 {
+    %v_26 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+wideIndex<complex>(%b$items: Ptr, %b$length: I64, %i: I32): I32 {
+  b_0 {
+    %v_1 = cast %i: I64
+    %v_2 = cmp_ige %v_1, %b$length: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = cmp_ge %v_1, %b$length: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_3 {
+    ret 0
+  }
+
+  b_7 {
+    %v_8 = add %b$items, %v_1: Ptr
+    %v_9 = load %v_8, 1: I32
+    ret %v_9
+  }
+
+  b_6 {
+    %v_10 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+narrowIndex<complex>(%b$items: Ptr, %b$length: I64, %i: I32): I32 {
+  b_0 {
+    %v_1 = cast %i: I64
+    %v_2 = cmp_ige %v_1, %b$length: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %b$items, %v_1: Ptr
+    %v_6 = load %v_5, 1: I32
+    ret %v_6
+  }
+
+  b_3 {
+    ret 0
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 9, 1: Ptr
+    store %v_1, 1, 1
+    %v_2 = add %v_1, 1: Ptr
+    store %v_2, 44, 1
+    %v_3 = add %v_1, 2: Ptr
+    store %v_3, 3, 1
+    %v_4 = add %v_1, 3: Ptr
+    store %v_4, 4, 1
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, 44, 1
+    %v_6 = add %v_1, 5: Ptr
+    store %v_6, 6, 1
+    %v_7 = add %v_1, 6: Ptr
+    store %v_7, 7, 1
+    %v_8 = add %v_1, 7: Ptr
+    store %v_8, 8, 1
+    %v_9 = add %v_1, 8: Ptr
+    store %v_9, 9, 1
+    %v_10 = alloca 4, 1: Ptr
+    store %v_10, 200, 1
+    %v_11 = add %v_10, 1: Ptr
+    store %v_11, 129, 1
+    %v_12 = add %v_10, 2: Ptr
+    store %v_12, 5, 1
+    %v_13 = add %v_10, 3: Ptr
+    store %v_13, 1, 1
+    %v_14 = imm 9: I64
+    %v_15 = call_complex countFields, %v_1, %v_14: I32
+    %v_16 = call_complex skipVarint, %v_10, 4: I64
+    %v_17 = sext %v_16: I32
+    %v_18 = add %v_15, %v_17: I32
+    %v_19 = call_complex walkFrom, %v_1, %v_14, 6: I32
+    %v_20 = add %v_18, %v_19: I32
+    %v_21 = call_complex recordNeed, %v_1, %v_14, 1: I32
+    %v_22 = call_complex recordChecked, %v_1, %v_14, 2: I32
+    %v_23 = add %v_21, %v_22: I32
+    %v_24 = call_complex recordSigned, %v_1, %v_14, 3: I32
+    %v_25 = add %v_23, %v_24: I32
+    %v_26 = call_complex bare, %v_1, %v_14, 1: I32
+    %v_27 = add %v_25, %v_26: I32
+    %v_28 = call_complex passed, %v_1, %v_14, 4: I32
+    %v_29 = call_complex wideIndex, %v_1, %v_14, 5: I32
+    %v_30 = add %v_28, %v_29: I32
+    %v_31 = call_complex narrowIndex, %v_1, %v_14, 8: I32
+    %v_32 = add %v_30, %v_31: I32
+    %v_33 = and %v_27, 4095: I32
+    %v_34 = add %v_20, %v_33: I32
+    %v_35 = and %v_32, 4095: I32
+    %v_36 = add %v_34, %v_35: I32
+    ret %v_36
+  }
+}
+

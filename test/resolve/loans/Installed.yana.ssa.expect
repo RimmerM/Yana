@@ -178,7 +178,7 @@ bb0:
   store inspect %3 consume %10
   %11: Store [unique call] guaranteed from{%0, %2} = load inspect %2
   %12: Cell [shared slot 0] guaranteed from{%1} = load inspect %1
-  %13: Store [unique slot 0] guaranteed = load inspect %2
+  %13: Cell [unique slot 0] guaranteed = load inspect %1
   %14: I32 [unique slot 1] guaranteed = load inspect %3
   %15: throughLens.cont.env affine = aggregate.throughLens.cont.env borrow %13 borrow %14
   %16: (->{}) -> I32 [owned here shape9 .0=shared call] affine = fun.value throughLens.cont borrow %15
@@ -186,14 +186,19 @@ bb0:
   jump -> bb1
 
 bb1:
-  %18: I32 trivial = const 10
-  %19: %I32 address = field.addr .value inspect %1
-  store inspect %19 consume %18
-  %20: I32 trivial = load inspect %3
-  %21: %I32 address = field.addr .value inspect %1
-  %22: I32 trivial = load inspect %21
-  %23: I32 trivial = add inspect %20 inspect %22
-  return consume %23
+  %18: %Cell address = field.addr .held inspect %2
+  %19: %Cell address = load inspect %18
+  %20: %I32 address = field.addr .value inspect %19
+  %21: I32 trivial = load inspect %20
+  store inspect %3 consume %21
+  %22: I32 trivial = const 10
+  %23: %I32 address = field.addr .value inspect %1
+  store inspect %23 consume %22
+  %24: I32 trivial = load inspect %3
+  %25: %I32 address = field.addr .value inspect %1
+  %26: I32 trivial = load inspect %25
+  %27: I32 trivial = add inspect %24 inspect %26
+  return consume %27
 }
 
 fn throughClass() -> I32 {
@@ -594,18 +599,16 @@ bb0(%0: Store [unique call] guaranteed, %1: Store trivial):
 
 fn throughLens.cont(throughLens.cont.env: throughLens.cont.env [unique call], $handed: {}) -> I32 {
 bb0(%0: throughLens.cont.env [unique call] guaranteed, %1: {} trivial):
-  %2: %Store address = field.addr .box inspect %0
-  %3: %Store address = load inspect %2
+  %2: %Cell address = field.addr .source inspect %0
+  %3: %Cell address = load inspect %2
   %4: %I32 address = field.addr .read inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  %7: %Cell address = field.addr .held inspect %3
-  %8: %Cell address = load inspect %7
-  %9: %I32 address = field.addr .value inspect %8
-  %10: I32 trivial = load inspect %9
-  store inspect %5 consume %10
-  %11: I32 trivial = const 0
-  return consume %11
+  %7: %I32 address = field.addr .value inspect %3
+  %8: I32 trivial = load inspect %7
+  store inspect %5 consume %8
+  %9: I32 trivial = const 0
+  return consume %9
 }
 
 entry main

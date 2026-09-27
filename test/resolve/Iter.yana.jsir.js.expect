@@ -5,7 +5,7 @@ var visited = 0;
 
 // 
 function main() {
-  var p8, p13, p17, p22, p23, p28;
+  var s1, p8, p11, p13, p17, p22, p23, p28;
   var p0 = 0;
   var p1 = 0;
   while (p0 < 5) {
@@ -27,12 +27,12 @@ function main() {
     p5 = p5 + 1 | 0;
   }
   var v59 = v46 + p6 | 0;
-  var s1 = 0;
+  var s2 = 0;
   var p7 = 0;
   L4: for (;;) {
     if (p7 < 10) {
       if (p7 > 6) {
-        s1 = p7;
+        s2 = p7;
         p8 = 1;
         break L4;
       }
@@ -42,54 +42,47 @@ function main() {
     p8 = 0;
     break L4;
   }
-  var v78 = v59 + (p8 === 1 ? s1 : -1) | 0;
-  var s2 = 0;
+  var v78 = v59 + (p8 === 1 ? s2 : -1) | 0;
   var p9 = 0;
   var p12 = 0;
   L5: for (;;) {
     if (p9 < 10) {
-      B6: {
-        if (p9 > 20) {
-          s2 = Math.imul(p9, 100);
-          p13 = 1;
-        } else {
-          if (p9 === 4) {
-            p13 = 2;
-            break B6;
-          }
-          p12 = p12 + 1 | 0;
-          p13 = 0;
-        }
+      if (p9 === 4) {
+        p11 = 2;
+      } else {
+        p12 = p12 + 1 | 0;
+        p11 = 0;
       }
-      if (p13 === 0) {
+      if (p11 === 0) {
         p9 = p9 + 1 | 0;
         continue L5;
       }
+      p13 = 2;
       break L5;
     }
     p13 = 0;
     break L5;
   }
-  var v107 = v78 + (p13 === 1 ? s2 : p12) | 0;
+  var v100 = v78 + (p13 === 1 ? s1 : p12) | 0;
   var p15 = 0;
   var p18 = 0;
   while (p15 < 3) {
-    var v242 = Math.imul(p15, 10);
+    var v235 = Math.imul(p15, 10);
     p17 = 0;
     while (p17 < 2) {
-      p18 = (p18 + v242 | 0) + p17 | 0;
+      p18 = (p18 + v235 | 0) + p17 | 0;
       p17 = p17 + 1 | 0;
     }
     p15 = p15 + 1 | 0;
   }
-  var v118 = v107 + p18 | 0;
+  var v111 = v100 + p18 | 0;
   var p19 = 0;
   var p20 = 0;
   while (p19 < 3) {
     p20 = (p20 + p19 | 0) + Math.imul(p19, 2) | 0;
     p19 = p19 + 1 | 0;
   }
-  var v129 = (v118 + p20 | 0) + 16 | 0;
+  var v122 = (v111 + p20 | 0) + 16 | 0;
   var s3 = 0;
   var p21 = 0;
   L10: for (;;) {
@@ -105,7 +98,7 @@ function main() {
     p22 = 0;
     break L10;
   }
-  var v151 = v129 + (p22 === 1 ? s3 : -1) | 0;
+  var v144 = v122 + (p22 === 1 ? s3 : -1) | 0;
   var p24 = 0;
   B12: {
     while (p24 < 10) {
@@ -117,31 +110,31 @@ function main() {
     }
     p23 = { a: -1, b: -1 };
   }
-  var v170 = v151 + p23.b | 0;
+  var v163 = v144 + p23.b | 0;
   var p25 = 0;
   var p26 = 0;
   while (p25 < 3) {
-    var v219 = log;
-    p26 = (p26 + (v219 + 1 | 0) | 0) + p25 | 0;
-    log = v219 + 11 | 0;
+    var v212 = log;
+    p26 = (p26 + (v212 + 1 | 0) | 0) + p25 | 0;
+    log = v212 + 11 | 0;
     p25 = p25 + 1 | 0;
   }
-  var v179 = v170 + p26 | 0;
-  var v184 = log + 1 | 0;
-  log = v184;
+  var v172 = v163 + p26 | 0;
+  var v177 = log + 1 | 0;
+  log = v177;
   var p27 = 0;
   B15: {
     while (p27 < 5) {
       if (p27 === 2) {
-        p28 = Math.imul(v184, 1000) + 2 | 0;
+        p28 = Math.imul(v177, 1000) + 2 | 0;
         break B15;
       }
       p27 = p27 + 1 | 0;
     }
-    p28 = v184;
+    p28 = v177;
   }
   log = log + 10 | 0;
-  var v203 = v179 + p28 | 0;
+  var v196 = v172 + p28 | 0;
   visited = 0;
   var p29 = 0;
   while (p29 < 10) {
@@ -149,11 +142,11 @@ function main() {
     visited = visited + p29 | 0;
     p29 = p29 + 1 | 0;
   }
-  return v203 + visited | 0;
+  return v196 + visited | 0;
 }
 
 // `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

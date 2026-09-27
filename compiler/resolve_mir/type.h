@@ -419,6 +419,27 @@ struct Ownership {
     }
 
     /*
+     * Whether an authored `Drop` answers for the **whole** value - `doc/spec/ownership.md`'s
+     * "Authored teardown", K5 (J210).
+     *
+     * `drop(->value: T)` owns its subject, so what the body does not consume is torn down at the end
+     * of the body, member by member at each member's own teardown (`analyze_drop.cpp`, and the
+     * conversion's `emitDrop` for a subject that dies whole), and a request that runs the authored
+     * member runs **nothing after it** - no derived `Reclaim` walk over the members. The split this
+     * replaces ran the authored body and then reclaimed every member from outside: a member with a
+     * `Drop` of its own never had it run (J209's `Fd`), and one the body moved out was reclaimed a
+     * second time. The body knows what it consumed and the caller cannot, so the body is the one
+     * that finishes the value.
+     *
+     * Not where the `Reclaim` is authored too: that instance already answers for the members'
+     * storage and runs after the `Drop`, so the value is not the `Drop` body's to finish. No type in
+     * `lib/` or `test/` declares both.
+     */
+    bool dropOwnsValue() const {
+        return drop == TeardownKind::Authored && reclaim != TeardownKind::Authored;
+    }
+
+    /*
      * Whether an owned value of this type carries an obligation - the subject of §7.1's linear rule.
      *
      * Two sources and not one: something to run at the end, or a disposal the source has to write.
@@ -907,9 +928,10 @@ struct RecordType: Type {
      * one position longer than anything a program may write. Deriving it by dropping that parameter
      * is the same fact stated twice, and the position is where it came from.
      *
-     * Null on every other record. An **instantiation** of a generic record never carries one - a
-     * site type has no parameters, since a lambda in a generic body is refused - so `instantiate`
-     * has nothing to copy.
+     * Null on every other record. A lambda written in a **generic** body (C3) makes a generic
+     * record - the declaration shares the body's context and *is* the value's type there - and each
+     * instantiation carries the lifted function specialized at its arguments and the shape
+     * substituted, which `fillInstantiation` writes, so every reader below sees a plain site type.
      */
     DeclPtr<Function> lambda = nullptr;
     DeclPtr<Type> lambdaShape = nullptr;
@@ -932,7 +954,9 @@ struct RecordType: Type {
      * as they do for any other call target.
      *
      * Null on every other record, and never copied by `instantiate`: a site type has no parameters
-     * of its own, since a construction inside a generic body is refused.
+     * of its own. A construction inside a generic body makes an `openSite` record instead, whose
+     * `producer` is the producer read at the body's variables and which a substitution replaces
+     * with the concrete record rather than instantiates.
      */
     DeclPtr<Function> producer = nullptr;
     DeclPtr<Function> producerStep = nullptr;
@@ -969,6 +993,17 @@ struct RecordType: Type {
      * apart.
      */
     DeclPtr<Function> producerTake = nullptr;
+
+    /*
+     * `f$failure(&self) -> ->E`, where the producer declared `| E` - P2, J216. The failure moved
+     * out of `$failure` and `$index` set to finished in the same breath, which is what makes a
+     * failure terminal: the step that failed left the record at `kIterFailed`, and the next step
+     * of a record that answered its failure is the dispatch's fallback - `Done`.
+     *
+     * A call rather than a field read for `f$take`'s reason: a consumer that moved out of a path of
+     * the record would have to say that nothing reads the path again, and only the step knows.
+     */
+    DeclPtr<Function> producerFailure = nullptr;
 
     /*
      * Where the payload starts, and what the three fixed members are - the field order §3.1 states.
@@ -1039,6 +1074,25 @@ struct RecordType: Type {
      * out of the embedded region is the next element or the lens's cleanup.
      */
     bool lensSite = false;
+
+    /*
+     * Whether this is the site type of an object built **inside a generic body at that body's own
+     * variables** - P16, J223. `readBlockCursor(left)` inside `fn (Source(ls, le)) equalInputs(&left:
+     * Input(ls, le), ...)` has no concrete producer to mint from, so the record is minted from the
+     * producer read under the body's substitution (`producer` is then an *open* clone that no table
+     * interns), shares the body's `gen` the way C3's lambda environment does, and is what the
+     * generic body's own analyses read: its constructor's borrows, its steppers' signatures, its
+     * `Iterate` instance. Nothing converts it. `substituteType` turns it into the site type minted
+     * at the specialization's arguments (`Program::openSites`), and `callTarget` turns a call of one
+     * of its generated functions into the same member of that record.
+     *
+     * The rejected alternative was an instantiation (`f.Iter(ls, le)`) whose fields are substituted
+     * per argument list, as a lambda's environment is: a site record's *payload* is decided by the
+     * producer's body read at those types - which members share a field, what is copied and what is
+     * borrowed - so an instantiation of the open record would be a second layout of the same object
+     * that nothing but the mint may decide.
+     */
+    bool openSite = false;
 
     /*
      * How each captured argument travels - `resolve_object.cpp`'s `IterCaptureKind`, one entry per
@@ -1221,6 +1275,16 @@ struct RecordType: Type {
     U16 innerField = 0;
 
     /*
+     * `$failure`, last, where the producer declared `| E` - 0 otherwise (P2, J216).
+     *
+     * Typed `Outcome(exit, E)`, the value the producer's own body returns, so the step's `return`
+     * is one store of what it was handed rather than a switch that takes the wrapper apart first -
+     * the tag is read back out of the field once the store is done. Never initialized and never read
+     * except where `$index` says the step failed, which is the payload's own rule.
+     */
+    U16 failureField = 0;
+
+    /*
      * The bit in a `payloadLocals` entry that says the field holds the member's **run address**
      * rather than its bytes - `@heap` on the producer's binding, Design-Iterator-Objects.md §6.1.
      *
@@ -1339,9 +1403,24 @@ struct FunType: Type {
  * decides whether the third row can arrive at all.
  *
  * `lends` and `window` are what the *slot* holds, carried here because the step's answer is an
- * address either way and the consumer has to know what it points at: a lending producer's answer is
- * the value's own address, a window producer's is a descriptor's, and everything else is the slot.
- * `RecordType::slotWindow` is the same question asked of a site type.
+ * address either way and the consumer has to know what it points at. The answer is **always the
+ * slot's address**: a lending producer's slot holds the value's address, which the consumer loads, a
+ * window producer's holds a descriptor, and everything else holds the value. A lending producer
+ * used to answer the value's own address, one load earlier - which an `&U8` item makes odd, and
+ * an odd answer is what the two tagged rows below are told apart by (the review of J218). The slot
+ * is laid out at least two-aligned for the same reason (`membersOf`). `RecordType::slotWindow` and
+ * the slot field's pointer type are the same two questions asked of a site type.
+ *
+ * `failure` is `E` of `iter(T | E)` (C1c, J218), null where the protocol cannot fail, and `failed`
+ * is `Outcome(exit, E)` - the type of the `$failure` member every record behind such a pair has. A
+ * failure is the step's **third consumer-facing row**, and it travels on the address channel rather
+ * than beside it: `f$erased` answers `&$failure | 1`, which no item answer can be because an item
+ * answer is a slot's address and a slot is at least two-aligned - `Outcome`'s own four-alignment
+ * is what makes the *failure's* address untaggable, and is only half of the argument; J218 stated
+ * it as the whole, and an odd lent `&U8` read as a failure. That is the tag bit delegation
+ * uses one shim over, and the two never meet on one channel - a trampoline steps `f$erased.step`,
+ * which answers a failure only when its own level re-asks for it (`emitIterErasedRaw`). Keyed on,
+ * because `iter(T)` and `iter(T | E)` accept different consumers.
  */
 struct IterType: Type {
     IterType(): Type(Iter) {}
@@ -1350,8 +1429,15 @@ struct IterType: Type {
     DeclPtr<Type> resume = nullptr;
     DeclPtr<Type> sent = nullptr;
     DeclPtr<Type> step = nullptr;
+    DeclPtr<Type> failure = nullptr;
+    DeclPtr<Type> failed = nullptr;
     bool window = false;
+    bool lends = false;
 };
+
+// Whether a producer handing over `handover` **lends** it - its slot holds the value's address.
+// `resolve_object.cpp` has the argument; the erased `IterType::lends` asks the same question.
+bool objectLends(DeclBase base, const Occurrence& handover);
 
 /*
  * `[T *n]` - see type.def, where the argument for it being a kind is written out.
@@ -1623,7 +1709,8 @@ struct Types {
      * compares.
      */
     DeclPtr<Type> iterType(DeclBase base, const Occurrence& handover, DeclPtr<Type> resume,
-                           DeclPtr<Type> sent, DeclPtr<Type> step, bool window);
+                           DeclPtr<Type> sent, DeclPtr<Type> step, bool window,
+                           DeclPtr<Type> failure = nullptr, DeclPtr<Type> failed = nullptr);
 
     /*
      * `[T *n]` - interned on the element and the count, so `[I32 *4]` written in two signatures is
@@ -1824,6 +1911,23 @@ DeclPtr<Type> tagTypeOf(DeclBase base, Types& types, DeclPtr<Type> record);
 // constructor's name resolves to is a declaration, and a value's type is usually an instantiation,
 // so this is what the two are compared at.
 DeclPtr<RecordType> recordDeclarationOf(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Which constructor of `lib/Core`'s `IterStep(e, y)` is which - `IterateFailing`'s answer (C1b).
+ *
+ * Found by what each carries on the **declaration** - the one holding `y`, the one holding `e`, and
+ * the one holding nothing - rather than by position, for the reason `iterateInstanceFor` finds
+ * `Maybe`'s `Just` that way: the order the library writes them in is not a second fact the compiler
+ * should hold. Reading the declaration rather than an instantiation is what tells the two carrying
+ * constructors apart at `IterStep(I32, I32)`. `0xffff` for a row the type does not have.
+ */
+struct IterStepRows {
+    U16 yield = 0xffff;
+    U16 done = 0xffff;
+    U16 failed = 0xffff;
+};
+
+IterStepRows iterStepRows(DeclBase base, DeclPtr<Type> type);
 
 // How wide that discriminant is, in bits, and zero for a record that has none - `TagRange::bits`
 // read on its own. The half of `tagTypeOf` the manifestation table needs, which has a base and no
@@ -2307,12 +2411,13 @@ inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
  * What a value of this occurrence owes - the type's answer, unless a qualified argument took its
  * members away.
  *
- * `checkQualifiedShapes` is what makes the second half a constant rather than a fold: a qualified
- * argument is admitted only where the bytes the member left behind owe nothing, to release or to
- * duplicate, so an occurrence that qualifies one is trivial and there is nothing left to walk. The
- * rule is checked once, at the declaration; this is where it is spent. What it does *not* check is
- * an authored `copy` of the whole value - that is a call, and `checkCarriedOrigins` refuses the
- * argument, which is the third reader of `qualifiesInterior` and the reason it is one test.
+ * The second half is `residueOwnership`, a fold over the members the qualification left - which
+ * was a constant until P15 (J187), when `checkQualifiedShapes` admitted only a residue that owed
+ * nothing. It now admits one that owes a derived teardown, and that teardown is `convert.cpp`'s to
+ * run field by field; what the check still refuses is a record whose teardown is authored. What it
+ * does *not* check is an authored `copy` of the whole value - that is a call, and
+ * `checkCarriedOrigins` refuses the argument, which is the third reader of `qualifiesInterior` and
+ * the reason it is one test.
  *
  * Asked of an occurrence rather than a type wherever the answer decides what *this* value does - a
  * drop placed against a local, a copy at a read - and deliberately not everywhere: what a type owes
@@ -2372,8 +2477,40 @@ inline bool holdsNoOwnedEnvironment(DeclBase base, const Occurrence& occurrence)
     return false;
 }
 
+/*
+ * What a qualified occurrence's **surviving members** owe - `classifyTypes`' member fold, over the
+ * fields the shape did not take away.
+ *
+ * `Result(String, '[U8])` still owns its error, so the value is not trivial: it moves, and where it
+ * dies `convert.cpp`'s `emitResidueDrop` releases that field and leaves the borrowed one alone. The
+ * common case - every wrapper whose members are exactly its parameters, `Maybe('v)` - folds to
+ * nothing and is the trivial answer it always was. A record with an authored teardown, and a boxed
+ * survivor, never reach here: `checkQualifiedShapes` refuses both where the type is written, because
+ * the first takes the whole value and the second's box is released by the type's own walk.
+ */
+inline Ownership residueOwnership(DeclBase base, const Occurrence& occurrence) {
+    auto& record = *(RecordType*)base[occurrence.type];
+
+    Ownership residue;
+    residue.relocatable = record.ownership.relocatable;
+
+    for(auto field: record.fields.contents(base)) {
+        if(fieldPosition(base, occurrence.shape, field.index)) continue;
+        if(!ownsField(field)) continue;
+
+        auto inner = ownershipOf(base, field.occurrence.type);
+        residue.trivialCopy = residue.trivialCopy && inner.trivialCopy;
+        residue.explicitDrop = residue.explicitDrop || inner.explicitDrop;
+        residue.hostHandle = residue.hostHandle || inner.hostHandle;
+        if(inner.reclaim != TeardownKind::None) residue.reclaim = TeardownKind::Derived;
+        if(inner.drop != TeardownKind::None) residue.drop = TeardownKind::Derived;
+    }
+
+    return residue;
+}
+
 inline Ownership ownershipOfOccurrence(DeclBase base, const Occurrence& occurrence) {
-    if(qualifiesInterior(base, occurrence)) return Ownership {};
+    if(qualifiesInterior(base, occurrence)) return residueOwnership(base, occurrence);
 
     // A function value whose environment word is not its own - the same statement as above, at the
     // one kind whose interior is not a field. `trivialCopy` stays false, which is why this is not
@@ -2464,6 +2601,14 @@ bool isLinear(DeclBase base, DeclPtr<Type> type);
  * at the point the following ends with the value still there.
  */
 bool needsExplicitDisposal(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether `function` is an authored `Drop` whose subject - its first parameter - is the body's to
+ * finish: a member of `instance Drop(T)` at a record `T` whose `Ownership::dropOwnsValue` holds.
+ * Not an authored `Reclaim`, and not an iterator object's `$drop`, whose step is the producer's own
+ * departure path and already releases every member it wrote (J57).
+ */
+bool ownsTeardownSubject(DeclBase base, const Function& function);
 
 /*
  * Whether this stage follows where a value of this type went - the move-path question, and the

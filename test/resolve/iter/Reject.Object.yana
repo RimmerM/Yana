@@ -13,7 +13,11 @@ iter fn plain(n: Int) -> Int:
         yield i
         i = i + 1
 
--- §6.6 - an object needs a terminal failure on its step.
+{-
+   §6.6's `| E` - an object over a failing traversal is built since J216 (`iter/Failing.Object.yana`),
+   and `next()` on one since C1b (`iter/Failing.Next.yana`, answering `IterStep`). What is left is
+   the one thing the author owes: a `for` over it takes the alternative `for x in failing(...)` owes.
+-}
 iter fn failing(n: Int) -> (Int | Int):
     yield n
     return 0
@@ -53,7 +57,9 @@ iter fn recursive(n: Int) -> Int:
 -}
 
 fn field() -> Int:
-    let it = failing(3)
+    let &it = failing(3)
+    for x in it:
+        print("{x}")
     return 0
 
 fn recursed() -> Int:
@@ -91,7 +97,7 @@ fn positions(n: Int) -> Int:
 
 -- A construction inside a body compiled **once**: a site type is minted per set of type arguments,
 -- and a body at a type variable has no substitution to mint one under. `@generic` is what makes the
--- body erased; `Auto` would specialize it, which is always available and is what the message says.
+-- body erased; without it each specialization builds its own record (P16, `GenericBody.yana`).
 iter fn (a) echo(x: a) -> a:
     yield x
 

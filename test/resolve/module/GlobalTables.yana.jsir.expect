@@ -15,32 +15,27 @@ fn main() -> one %r1
     %12: %r1 = select %10, %11, %0
     jump -> block1
   block1:
-    jump -> block3
+    %17: %r1 = const 6
+    %18: %r1 = binary.add %12, %17
+    %19: %r1 = coerce %18
+    %20: %r0 = load global decimalPairs: %r0
+    %21: %r0 = alias %20
+    %22: %r0 = const "00010203040506070809"
+    %23: %r0 = alias %21
+    %24: %r0 = alias %22
+    %25: %r0 = alias %23
+    %26: %r0 = alias %24
+    %27: %r2 = host host.binary "===" %25, %26
+    %28: %r1 = const 14
+    %29: %r1 = binary.add %12, %28
+    %30: %r1 = coerce %29
+    %31: %r1 = select %27, %30, %19
+    return %31
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block3:
-    %21: %r1 = const 6
-    %22: %r1 = binary.add %12, %21
-    %23: %r1 = coerce %22
-    %24: %r0 = load global decimalPairs: %r0
-    %25: %r0 = alias %24
-    %26: %r0 = const "00010203040506070809"
-    %27: %r0 = alias %25
-    %28: %r0 = alias %26
-    %29: %r0 = alias %27
-    %30: %r0 = alias %28
-    %31: %r2 = host host.binary "===" %29, %30
-    %32: %r1 = const 14
-    %33: %r1 = binary.add %12, %32
-    %34: %r1 = coerce %33
-    %35: %r1 = select %31, %34, %23
-    return %35
-  block4:
-    host host.throw "yana: a runtime check failed"
-    unreachable
 
-optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 0 folded 4
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 0 folded 2
 
 rep %r0 = string
 rep %r1 = number signed 32

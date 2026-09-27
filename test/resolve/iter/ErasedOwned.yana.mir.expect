@@ -1,0 +1,452 @@
+module ResolveTest
+
+data Tag {id: I32, name: String} drop authored reclaim derived
+
+data tags.Iter {$index: I32, $slot: Tag, n: I32, : I32, : String, : String, : I32, : I32, $held: Bool} drop authored
+
+instance Drop(Tag): Tag.drop
+
+instance Drop(tags.Iter): tags$drop
+
+instance Iterate(tags.Iter, Tag, {}): tags$next, tags$resume
+
+let & drops: I32 = 0
+
+let & failures: I32 = 0
+
+let string'188: [CodeUnit *11] = "tag number "
+
+let string'189: [CodeUnit *1] = "!"
+
+fn Tag.drop(value: Tag) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global drops) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  drop (value.name)
+  return
+}
+
+lens fn tags(n: I32 [shared call], $body: (->Tag) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+  local & local5: String
+  local local6: String
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 1
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %47: I32 = read copy.trivial (local3)
+  %48: I32 = sub inspect %7 inspect %47
+  %49: Bool = ge inspect %48 inspect %8
+  branch inspect %49 -> bb7(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %57: I32 = read copy.trivial ($yielded)
+  return take %57
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: Size = const 11
+  %22: I32 = read copy.trivial (i)
+  %23: Maybe(Size) = call showBound(I32) borrow.shared %22
+  %24: Size = call formatBound borrow.shared %23
+  %25: Size = add inspect %21 inspect %24
+  %26: String = call String.ofCapacity borrow.shared %25
+  write.init borrow.unique (local5) take %26
+  %28: String [unique call] = read borrow.unique (local5) loan0
+  %29: String = const String {units: Array {run: Run {items: &string'188, capacity: 11, ownsHeap: 0}, length: 11}}
+  write.init borrow.unique (local6) take %29
+  %31: String [shared slot 0] = read borrow.shared (local6) loan1
+  %32: String [shared slot 0 view] = call.derivation view(String) borrow.shared %31 roots{1}
+  %33: {} = call String.push borrow.unique %28 borrow.shared %32
+  drop (local6)
+  %34: I32 = read copy.trivial (i)
+  %35: String [unique call] = read borrow.unique (local5) loan2
+  %36: {} = call show(I32) borrow.shared %34 borrow.unique %35
+  %37: String = read take (local5)
+  %38: Tag = aggregate.Tag take %20 take %37
+  %39: (->Tag) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %40: I32 = call inspect %39 take %38
+  %41: I32 = const 0
+  %42: Bool = eq inspect %40 inspect %41
+  write.assign borrow.unique ($yielded) take %40
+  branch inspect %42 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7(%50: I32, %51: I32):
+  %53: I32 = read copy.trivial (local3)
+  %54: I32 = add inspect %53 inspect %51
+  write.assign borrow.unique (local3) take %54
+  jump -> bb1(take %50, take %51)
+}
+
+fn erased(n: I32 [shared call]) -> iter(->Tag) {
+  local local1: tags.Iter
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: tags.Iter = call tags$new take %0
+  write.init borrow.unique (local1) take %1
+  %3: tags.Iter = read take (local1)
+  %4: iter(->Tag) = fun.value tags$erased.heap take %3
+  return take %4
+}
+
+fn named(t: Tag [shared call]) -> I32 {
+bb0:
+  %0: String [shared call] = read borrow.shared (t.name) loan0
+  %1: String [shared slot 0 view] = call.derivation view(String) borrow.shared %0 roots{0}
+  %2: Size = call length(String) borrow.shared %1
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+fn expect(case: I32 [shared call], got: I32 [shared call], want: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (got)
+  %1: I32 = read copy.trivial (want)
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  return
+
+bb3:
+  %4: I32 [unique call] = read borrow.unique (global failures) loan0
+  %5: I32 = read copy.trivial (case)
+  %6: {} = call +=(I32) borrow.unique %4 borrow.shared %5
+  jump -> bb2
+}
+
+fn looped(n: I32 [shared call]) -> I32 {
+  local & it: iter(->Tag)
+  local & sum: I32
+  local local3: %Tag
+  local t: Tag [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: iter(->Tag) = call erased borrow.shared %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (sum) take %3
+  jump -> bb1
+
+bb1:
+  %6: iter(->Tag) [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: %Tag = call inspect %6 take %7 take %8
+  %10: USize = bitcast inspect %9
+  %11: USize = const 0
+  %12: Bool = ne inspect %10 inspect %11
+  write.init borrow.unique (local3) take %9
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %26: I32 = read copy.trivial (sum)
+  return take %26
+
+bb3:
+  %15: %Tag = read copy.trivial (local3)
+  %16: iter(->Tag) [shared slot 0] = read borrow.shared (it) loan1
+  %17: Tag [shared slot 0] = call iter(->Tag)'2$item borrow.shared %16 take %15 roots{1}
+  write.init borrow.unique (t) borrow.shared %17
+  %19: I32 [unique call] = read borrow.unique (sum) loan2
+  %20: I32 = read copy.trivial (t.id)
+  %21: Tag [shared slot 0] = read borrow.shared (t) loan3 roots{1}
+  %22: I32 = call named borrow.shared %21
+  %23: I32 = mul inspect %20 inspect %22
+  %24: {} = call +=(I32) borrow.unique %19 borrow.shared %23
+  jump -> bb1
+}
+
+fn stopped(n: I32 [shared call]) -> I32 {
+  local & it: iter(->Tag)
+  local local2: %Tag
+  local t: Tag [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: iter(->Tag) = call erased borrow.shared %0
+  write.init borrow.unique (it) take %1
+  jump -> bb1
+
+bb1:
+  %4: iter(->Tag) [unique call] = read borrow.unique (it) loan0
+  %5: I32 = const 0
+  %6: Bool = const False
+  %7: %Tag = call inspect %4 take %5 take %6
+  %8: USize = bitcast inspect %7
+  %9: USize = const 0
+  %10: Bool = ne inspect %8 inspect %9
+  write.init borrow.unique (local2) take %7
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %25: I32 = const 0
+  return take %25
+
+bb3:
+  %13: %Tag = read copy.trivial (local2)
+  %14: iter(->Tag) [shared slot 0] = read borrow.shared (it) loan1
+  %15: Tag [shared slot 0] = call iter(->Tag)'2$item borrow.shared %14 take %13 roots{1}
+  write.init borrow.unique (t) borrow.shared %15
+  %17: I32 = read copy.trivial (t.id)
+  %18: I32 = const 2
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  jump -> bb1
+
+bb6:
+  %21: I32 = read copy.trivial (t.id)
+  drop (it)
+  return take %21
+}
+
+fn stepped(n: I32 [shared call]) -> I32 {
+  local & it: iter(->Tag)
+  local & sum: I32
+  local local3: Maybe(Tag) [owned here shape2 .0=shared slot 0]
+  local t: Tag [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: iter(->Tag) = call erased borrow.shared %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (sum) take %3
+  jump -> bb1
+
+bb1:
+  %6: Bool = const True
+  branch inspect %6 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %24: I32 = read copy.trivial (sum)
+  return take %24
+
+bb3:
+  %8: iter(->Tag) [unique slot 0] = read borrow.unique (it) loan0
+  %9: Maybe(Tag) [owned here shape2 .0=shared slot 0] = call iter(->Tag)$next borrow.unique %8 roots.0{0}
+  write.init borrow.unique (local3) take %9
+  %11: U8 = read copy.trivial (local3.#)
+  %12: U8 = const 1
+  %13: Bool = eq inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb4:
+  drop (it)
+  %20: I32 = read copy.trivial (sum)
+  return take %20
+
+bb5:
+  jump -> bb1
+
+bb6:
+  %15: Tag [shared slot 0] = read borrow.shared (local3.Just) loan1 roots{0}
+  write.init borrow.unique (t) borrow.shared %15
+  %17: I32 [unique call] = read borrow.unique (sum) loan2
+  %18: I32 = read copy.trivial (t.id)
+  %19: {} = call +=(I32) borrow.unique %17 borrow.shared %18
+  jump -> bb5
+}
+
+lens fn relabelled(n: I32 [shared call], $body: (->Tag) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & inner: iter(->Tag)
+  local local4: %Tag
+  local t: Tag [shared slot 0]
+  local & local6: String
+  local local7: String
+  flag (inner) = gone
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: iter(->Tag) = call erased borrow.shared %2
+  write.init borrow.unique (inner) take %3
+  flag (inner) = held
+  jump -> bb1
+
+bb1:
+  %6: iter(->Tag) [unique call] = read borrow.unique (inner) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: %Tag = call inspect %6 take %7 take %8
+  %10: USize = bitcast inspect %9
+  %11: USize = const 0
+  %12: Bool = ne inspect %10 inspect %11
+  write.init borrow.unique (local4) take %9
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  drop.maybe (inner)
+  %50: I32 = read copy.trivial ($yielded)
+  flag (inner) = gone
+  return take %50
+
+bb3:
+  %15: %Tag = read copy.trivial (local4)
+  %16: iter(->Tag) [shared slot 0] = read borrow.shared (inner) loan1
+  %17: Tag [shared slot 0] = call iter(->Tag)'2$item borrow.shared %16 take %15 roots{1}
+  write.init borrow.unique (t) borrow.shared %17
+  %19: I32 = read copy.trivial (t.id)
+  %20: I32 = const 10
+  %21: I32 = add inspect %19 inspect %20
+  %22: Size = const 1
+  %23: String [shared slot 0] = read borrow.shared (t.name) loan2 roots{1}
+  %24: String [shared slot 0 view] = call.derivation view(String) borrow.shared %23 roots{1, 2}
+  %25: Maybe(Size) = call showBound(String) borrow.shared %24
+  %26: Size = call formatBound borrow.shared %25
+  %27: Size = add inspect %22 inspect %26
+  %28: String = call String.ofCapacity borrow.shared %27
+  write.init borrow.unique (local6) take %28
+  %30: String [shared slot 0] = read borrow.shared (t.name) loan3 roots{1}
+  %31: String [unique call] = read borrow.unique (local6) loan4
+  %32: String [shared slot 0 view] = call.derivation view(String) borrow.shared %30 roots{1, 3}
+  %33: {} = call show(String) borrow.shared %32 borrow.unique %31
+  %34: String [unique call] = read borrow.unique (local6) loan5
+  %35: String = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local7) take %35
+  %37: String [shared slot 0] = read borrow.shared (local7) loan6
+  %38: String [shared slot 0 view] = call.derivation view(String) borrow.shared %37 roots{6}
+  %39: {} = call String.push borrow.unique %34 borrow.shared %38
+  drop (local7)
+  %40: String = read take (local6)
+  %41: Tag = aggregate.Tag take %21 take %40
+  %42: (->Tag) -> I32 [shared call] = read borrow.shared ($body) loan7
+  %43: I32 = call inspect %42 take %41
+  %44: I32 = const 0
+  %45: Bool = eq inspect %43 inspect %44
+  write.assign borrow.unique ($yielded) take %43
+  branch inspect %45 -> bb4 -> bb5
+
+bb4:
+  jump -> bb1
+
+bb5:
+  drop (inner)
+  jump -> bb2
+  flag (inner) = gone
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local t: Tag
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 3
+  %2: I32 = call looped borrow.shared %1
+  %3: I32 = const 12
+  %4: I32 = const 24
+  %5: I32 = add inspect %3 inspect %4
+  %6: I32 = const 36
+  %7: I32 = add inspect %5 inspect %6
+  %8: {} = call expect borrow.shared %0 borrow.shared %2 borrow.shared %7
+  %9: I32 = const 2
+  %10: I32 = read copy.trivial (global drops)
+  %11: I32 = const 3
+  %12: {} = call expect borrow.shared %9 borrow.shared %10 borrow.shared %11
+  %13: I32 = const 4
+  %14: I32 = const 4
+  %15: I32 = call stopped borrow.shared %14
+  %16: I32 = const 2
+  %17: {} = call expect borrow.shared %13 borrow.shared %15 borrow.shared %16
+  %18: I32 = const 8
+  %19: I32 = read copy.trivial (global drops)
+  %20: I32 = const 5
+  %21: {} = call expect borrow.shared %18 borrow.shared %19 borrow.shared %20
+  %22: I32 = const 16
+  %23: I32 = const 4
+  %24: I32 = call stepped borrow.shared %23
+  %25: I32 = const 10
+  %26: {} = call expect borrow.shared %22 borrow.shared %24 borrow.shared %25
+  %27: I32 = const 32
+  %28: I32 = read copy.trivial (global drops)
+  %29: I32 = const 9
+  %30: {} = call expect borrow.shared %27 borrow.shared %28 borrow.shared %29
+  %31: I32 = const 0
+  write.init borrow.unique (total) take %31
+  %33: I32 = const 2
+  lens.call relabelled borrow.shared %33 -> bb2
+
+bb1:
+  %44: I32 = const 64
+  %45: I32 = read copy.trivial (total)
+  %46: I32 = const 11
+  %47: I32 = const 13
+  %48: I32 = add inspect %46 inspect %47
+  %49: I32 = const 12
+  %50: I32 = add inspect %48 inspect %49
+  %51: I32 = const 13
+  %52: I32 = add inspect %50 inspect %51
+  %53: {} = call expect borrow.shared %44 borrow.shared %45 borrow.shared %52
+  %54: I32 = const 128
+  %55: I32 = read copy.trivial (global drops)
+  %56: I32 = const 13
+  %57: {} = call expect borrow.shared %54 borrow.shared %55 borrow.shared %56
+  %58: I32 = read copy.trivial (global failures)
+  return take %58
+
+bb2(%34: Tag) handover(Tag) many -> bb1:
+  write.init borrow.unique (t) take %34
+  %37: I32 [unique call] = read borrow.unique (total) loan0
+  %38: I32 = read copy.trivial (t.id)
+  %39: Tag [shared call] = read borrow.shared (t) loan1
+  %40: I32 = call named borrow.shared %39
+  drop (t)
+  %41: I32 = add inspect %38 inspect %40
+  %42: {} = call +=(I32) borrow.unique %37 borrow.shared %41
+  jump -> bb1
+}
+
+fn tags$new(n: I32) -> tags.Iter = <no body>
+
+fn tags$step($self: tags.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn tags$drop($self: tags.Iter) -> {} = <no body>
+
+fn tags$take($self: tags.Iter [unique slot 0]) -> Tag = <no body>
+
+fn tags$next($self: tags.Iter [unique slot 0]) -> Maybe(Tag) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn tags$resume($self: tags.Iter [unique slot 0], $v: {}) -> Maybe(Tag) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn tags$erased.heap($env: tags.Iter [unique call], $sent: I32, $cancel: Bool) -> %Tag = <no body>
+
+entry main

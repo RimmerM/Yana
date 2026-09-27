@@ -160,13 +160,12 @@ fn aliasedStore(one %r1) -> one %r1
     %11: %r1 = alias %0
     %12: %r1 = const 1000
     %13: %r1 = binary.mul %11, %12
-    %14: %r1 = alias %6
-    %15: %r1 = const 100
-    %16: %r1 = binary.mul %14, %15
-    %17: %r1 = binary.add %13, %16
-    %18: %r1 = binary.add %17, %8
-    %19: %r1 = binary.add %18, %9
-    return %19
+    %14: %r1 = const 100
+    %15: %r1 = binary.mul %6, %14
+    %16: %r1 = binary.add %13, %15
+    %17: %r1 = binary.add %16, %8
+    %18: %r1 = binary.add %17, %9
+    return %18
 
 fn aliasedLoop(one %r1, one %r0) -> one %r1
   var $0: %r10
@@ -242,74 +241,59 @@ fn retested(one %r1, one %r2) -> one %r1
   var $3: %r1
   var $4: %r1
   block0(%0: %r1, %1: %r2):
-    branch %1 -> block8 -> block7
+    branch %1 -> block6 -> block5
   block1:
-    jump -> block2(%16)
+    jump -> block2(%15)
   block2(%2: %r1):
-    %33: %r2 = unary.not %1
-    %34: %r1 = const 1
-    %35: %r1 = binary.add %0, %34
-    branch %33 -> block11 -> block10
+    %32: %r2 = unary.not %1
+    %33: %r1 = const 1
+    %34: %r1 = binary.add %0, %33
+    branch %32 -> block9 -> block8
   block3:
-    %26: %r10 = load var $0: %r10
-    %56: %r1 = load property %26.x: %r1
-    %57: %r1 = load property %26.y: %r1
-    %29: %r1 = alias %56
-    %31: %r1 = alias %57
-    %32: %r1 = binary.add %29, %31
-    jump -> block2(%32)
-  block4:
-    jump -> block5(%2)
-  block5(%3: %r1):
+    %25: %r10 = load var $0: %r10
+    %47: %r1 = load property %25.x: %r1
+    %48: %r1 = load property %25.y: %r1
+    %28: %r1 = alias %47
+    %30: %r1 = alias %48
+    %31: %r1 = binary.add %28, %30
+    jump -> block2(%31)
+  block4(%3: %r1):
     return %3
+  block5:
+    %11: %r13 = const null
+    jump -> block7(%11)
   block6:
-    %49: %r10 = load var $0: %r10
-    %51: %r1 = const 10
-    %52: %r1 = binary.mul %2, %51
-    %59: %r1 = load property %49.x: %r1
-    %60: %r1 = load property %49.y: %r1
-    %54: %r1 = alias %59
-    %55: %r1 = binary.add %52, %54
-    jump -> block5(%55)
-  block7:
-    %12: %r13 = const null
-    jump -> block9(%12)
-  block8:
-    %13: %r1 = const 2
-    %14: %r10 = object %s3 %0, %13
-    %15: %r13 = alias %14
-    jump -> block9(%15)
-  block9(%4: %r13):
+    %12: %r1 = const 2
+    %13: %r10 = object %s3 %0, %12
+    %14: %r13 = alias %13
+    jump -> block7(%14)
+  block7(%4: %r13):
     store var $0: %r13, %4
-    %16: %r1 = const 0
-    %17: %r13 = load var $0: %r13
-    %18: %r13 = const null
-    %19: %r14 = binary.eq %17, %18
-    %20: %r12 = const 1
-    %21: %r12 = const 0
-    %22: %r12 = select %19, %21, %20
-    %23: %r12 = const 1
-    %24: %r2 = binary.eq %22, %23
-    branch %24 -> block3 -> block1
-  block10:
-    %36: %r13 = const null
-    jump -> block12(%36)
-  block11:
-    %37: %r1 = const 2
-    %38: %r10 = object %s3 %35, %37
-    %39: %r13 = alias %38
-    jump -> block12(%39)
-  block12(%5: %r13):
-    store var $0: %r13, %5
-    %40: %r13 = load var $0: %r13
-    %41: %r13 = const null
-    %42: %r14 = binary.eq %40, %41
-    %43: %r12 = const 1
-    %44: %r12 = const 0
-    %45: %r12 = select %42, %44, %43
-    %46: %r12 = const 1
-    %47: %r2 = binary.eq %45, %46
-    branch %47 -> block6 -> block4
+    %15: %r1 = const 0
+    %16: %r13 = load var $0: %r13
+    %17: %r13 = const null
+    %18: %r14 = binary.eq %16, %17
+    %19: %r12 = const 1
+    %20: %r12 = const 0
+    %21: %r12 = select %18, %20, %19
+    %22: %r12 = const 1
+    %23: %r2 = binary.eq %21, %22
+    branch %23 -> block3 -> block1
+  block8:
+    jump -> block4(%2)
+  block9:
+    %36: %r1 = const 2
+    %37: %r10 = object %s3 %34, %36
+    %38: %r13 = alias %37
+    store var $0: %r13, %38
+    %40: %r10 = load var $0: %r10
+    %42: %r1 = const 10
+    %43: %r1 = binary.mul %2, %42
+    %50: %r1 = load property %40.x: %r1
+    %51: %r1 = load property %40.y: %r1
+    %45: %r1 = alias %50
+    %46: %r1 = binary.add %43, %45
+    jump -> block4(%46)
 
 fn report(one %r3, one %r0, one %r3) -> omitted
   block0(%0: %r3, %1: %r0, %2: %r3):
@@ -521,7 +505,7 @@ fn captured.lambda(one %r9, one %r1) -> one %r1 env
     %7: %r1 = binary.add %6, %1
     return %7
 
-optimizer clones 11 aliased 7 forwarded 4 removed 164 adopted 2 sunk 1 numbered 2 decided 0 unboxed 0 updated 4 split 8 promoted 17 folded 0
+optimizer clones 11 aliased 7 forwarded 4 removed 166 adopted 2 sunk 1 numbered 1 decided 0 unboxed 0 updated 4 split 8 promoted 17 folded 0
 
 shape %s0 object Point {x: %r1, y: %r1, name: %r3}
 shape %s1 fun {$c: %r6 code, $e: %r6 env}

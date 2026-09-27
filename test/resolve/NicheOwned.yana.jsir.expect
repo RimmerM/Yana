@@ -262,16 +262,14 @@ fn main() -> one %r3
   block4:
     %190: %r4 = alias %189
     %198: %r4 = alias %190
-    %199: %r3 = alias %194
-    %200: %r3 = coerce %199
-    %201: %r2 = load element %198[%200]: %r2
-    %202: %r2 = alias %201
-    %203: %r3 = call codeIn %202
-    %204: %r3 = binary.add %188, %203
+    %199: %r2 = load element %198[%194]: %r2
+    %200: %r2 = alias %199
+    %201: %r3 = call codeIn %200
+    %202: %r3 = binary.add %188, %201
+    %203: %r3 = coerce %202
+    %204: %r3 = binary.add %1, %145
     %205: %r3 = coerce %204
-    %206: %r3 = binary.add %1, %145
-    %207: %r3 = coerce %206
-    jump -> block1(%205, %207)
+    jump -> block1(%203, %205)
   block5:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -330,19 +328,17 @@ fn push(Maybe(String))(parts %r7, one %r2) -> omitted
     %8: %r3 = coerce %7
     jump -> block1
   block1:
-    %19: %r4 = alias %3
-    store element %19[%5]: %r2, %2
-    %20: %r16 = convert %8
-    %21: %r13 = convert %20
-    %22: %r4 = load element %0[%1]: %r4
-    store property %22.length: %r13, %21
+    %17: %r4 = alias %3
+    store element %17[%5]: %r2, %2
+    %18: %r16 = convert %8
+    %19: %r13 = convert %18
+    %20: %r4 = load element %0[%1]: %r4
+    store property %20.length: %r13, %19
     return
   block2:
-    %14: %r4 = load element %0[%1]: %r4
-    %15: %r4 = load element %0[%1]: %r4
-    %16: %r3 = host host.field "length" host-range %15
-    %17: %r10 = binary.le %8, %16
-    branch %17 -> block1 -> block3
+    %14: %r3 = host host.field "length" host-range %10
+    %15: %r10 = binary.le %8, %14
+    branch %15 -> block1 -> block3
   block3:
     call growJsArray(Maybe(String)) %0, %1, %8
     jump -> block1
@@ -371,7 +367,7 @@ fn growJsArray(Maybe(String))(parts %r7, one %r3) -> omitted
     store element %0[%1]: %r4, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 40 adopted 0 sunk 0 numbered 9 decided 1 unboxed 0 updated 0 split 1 promoted 18 folded 2
+optimizer clones 0 aliased 0 forwarded 0 removed 40 adopted 0 sunk 0 numbered 8 decided 1 unboxed 0 updated 0 split 1 promoted 18 folded 2
 
 shape %s0 ref {$o: %r5 owner, $k: %r5 key}
 shape %s1 object Row {name: %r2, id: %r3}

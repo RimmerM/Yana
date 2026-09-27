@@ -981,15 +981,28 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         ast::ParseList<ast::Alt> alts;
         parseAlternatives(alts, false);
 
+        /*
+         * `for x in f(...)?:` - the traversal's failure propagated, Analysis-External-Iterators.md
+         * §2.3. Peeled here because the suffix belongs to the `for` source rather than to the call:
+         * a traversal's call produces no value a carrier could be read off, so the chain's `Try`
+         * node would be a `?` of nothing. Only on the source of an iterator loop - an interval's
+         * bounds are values, and `for i in 0..parse(n)?` unwraps one.
+         */
+        auto propagate = kNullLocation;
+        if(!hasTo && from.kind == ast::Expr::Try) {
+            propagate = from.source;
+            from = *(*arena)[from.tryValue];
+        }
+
         auto body = parseBlock(false);
         parseTrailingAlternatives(alts);
 
         return makeExpr(For, forLoop,
-                        heap(ast::ForExpr { pat, from, body, to, step, alts, reverse, inclusive }),
+                        heap(ast::ForExpr { pat, from, body, to, step, alts, propagate, reverse, inclusive }),
                         location);
     } else if(maybe(Token::kwReturn)) {
         Maybe<ast::Expr> body;
-        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
+        if(!endsLeavingStatement()) body = Just(parseExpr());
 
         return makeExpr(Ret, ret, body ? heap(body.unwrap()) : nullptr, location);
     } else if(maybe(Token::kwYield)) {
@@ -997,7 +1010,7 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         return makeExpr(Yield, yield, heap(value), location);
     } else if(maybe(Token::kwBreak)) {
         Maybe<ast::Expr> body;
-        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
+        if(!endsLeavingStatement()) body = Just(parseExpr());
 
         return makeExpr(Break, breakValue, body ? heap(body.unwrap()) : nullptr, location);
     } else if(maybe(Token::kwContinue)) {
@@ -1010,9 +1023,7 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
          * are where it means something or is refused (Design-Iterator-Objects.md §2.5).
          */
         Maybe<ast::Expr> resumed;
-        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) {
-            resumed = Just(parseExpr());
-        }
+        if(!endsLeavingStatement()) resumed = Just(parseExpr());
 
         return makeExpr(Continue, continueValue, resumed ? heap(resumed.unwrap()) : nullptr,
                         location);
@@ -1037,6 +1048,20 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
     } else {
         return parseAppExpr();
     }
+}
+
+/*
+ * Whether a `return`, `break` or `continue` stands with no value - the statement ends here.
+ *
+ * `in` and `:` as well as the layout tokens, because an alternative written inline is followed by
+ * what its declaration still owes: `| else -> return in:` on a `let`, `| else -> break:` on a `for`.
+ * Neither can begin an expression, so reading them as the end loses no value anyone could write
+ * (J198 reported `in` read as `return`'s operand).
+ */
+bool Parser::endsLeavingStatement() {
+    auto type = token.type;
+    return type == Token::EndOfStmt || type == Token::EndOfBlock || type == Token::EndOfFile ||
+           type == Token::kwIn || type == Token::opColon;
 }
 
 ast::Expr Parser::parseAppExpr() {
@@ -1981,7 +2006,18 @@ Parser::ArmShape Parser::alternativeArmShape() {
     auto shape = ArmShape::None;
 
     scanAhead([&](Token::Type type, U32 depth, bool first) {
-        if(depth != 0 || first) return false;
+        /*
+         * `| return False in:` - a leaving statement cannot begin a pattern, so an alternative that
+         * starts with one is the fallback, and the `in:` a `let` still owes is not its arm's `:`
+         * (J198). An `in` at this depth ends the alternative for the same reason: a pattern never
+         * contains one, so a `:` past it belongs to the declaration.
+         */
+        if(first) {
+            return type == Token::kwReturn || type == Token::kwBreak || type == Token::kwContinue;
+        }
+
+        if(depth != 0) return false;
+        if(type == Token::kwIn) return true;
 
         if(type == Token::opArrowR) shape = ArmShape::Expr;
         else if(type == Token::opColon) shape = ArmShape::Block;

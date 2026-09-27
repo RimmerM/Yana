@@ -1,0 +1,5 @@
+20:21: error: plain cannot fail, so there is no failure for `?` to propagate - drop the `?`
+25:20: error: this `for` propagates the traversal's failure with `?` and also handles it with an alternative - write one of the two
+30:20: error: `?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - I32 has no `Try` instance
+35:20: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild. An iterator that may fail says so with `| E`, and `?` is accepted in one of those
+40:15: error: plain cannot fail, so there is no failure for `?` to propagate - drop the `?`

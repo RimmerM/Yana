@@ -5,9 +5,8 @@ function opaque(x) {
 }
 
 function main() {
-  var v31 = BigInt.asIntN(64, BigInt(opaque(1)));
-  var p1 = v31 >= 0n & v31 <= 2n ? Number(BigInt.asUintN(8, v31)) & 255 : null;
-  return 31 + ((!(p1 === null) ? p1 | 0 : -1) === 1 ? 32 : 0) + 64 + (anyValue_Whence_I32(2) === 2 && anyValue_Errno_I32(122) === 122 ? 128 : 0);
+  var v30 = BigInt.asIntN(64, BigInt(opaque(1)));
+  return 31 + ((v30 >= 0n & v30 <= 2n ? Number(BigInt.asUintN(8, v30)) & 255 : -1) === 1 ? 32 : 0) + 64 + (anyValue_Whence_I32(2) === 2 && anyValue_Errno_I32(122) === 122 ? 128 : 0);
 }
 
 function anyValue_Whence_I32(x) {
@@ -17,4 +16,4 @@ function anyValue_Whence_I32(x) {
 function anyValue_Errno_I32(x) {
   return x | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

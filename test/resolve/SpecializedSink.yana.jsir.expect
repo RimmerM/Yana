@@ -23,27 +23,27 @@ fn main() -> one %r0
   block1:
     %47: %r2 = alias %46
     %60: %r2 = alias %47
-    %62: %r0 = const 2
-    %63: %r1 = load element %60[%62]: %r1
-    %64: %r1 = alias %63
-    %65: %r2 = alias %46
-    call Array(a).reclaim(String) %65
-    %66: %r1 = alias %64
-    %67: %r1 = alias %66
-    %68: %r0 = host host.field "length" host-range %67
-    %69: %r0 = convert %68
-    %70: %r0 = binary.add %54, %69
-    %71: %r0 = coerce %70
-    %72: %r7 = alias %31
-    %74: %r7 = alias %72
-    %75: %r5 = load property %74.length: %r5
-    %76: %r0 = convert %75
-    %78: %r7 = alias %72
-    call Array(a).reclaim(Array(I32)) %78
-    %79: %r0 = convert %76
-    %80: %r0 = binary.add %71, %79
-    %81: %r0 = coerce %80
-    return %81
+    %61: %r0 = const 2
+    %62: %r1 = load element %60[%61]: %r1
+    %63: %r1 = alias %62
+    %64: %r2 = alias %46
+    call Array(a).reclaim(String) %64
+    %65: %r1 = alias %63
+    %66: %r1 = alias %65
+    %67: %r0 = host host.field "length" host-range %66
+    %68: %r0 = convert %67
+    %69: %r0 = binary.add %54, %68
+    %70: %r0 = coerce %69
+    %71: %r7 = alias %31
+    %73: %r7 = alias %71
+    %74: %r5 = load property %73.length: %r5
+    %75: %r0 = convert %74
+    %77: %r7 = alias %71
+    call Array(a).reclaim(Array(I32)) %77
+    %78: %r0 = convert %75
+    %79: %r0 = binary.add %70, %78
+    %80: %r0 = coerce %79
+    return %80
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -62,11 +62,11 @@ fn main() -> one %r0
     %24: %r1 = const "ab"
     jump -> block6(%22)
   block5:
-    %107: %r8 = const "$v"
-    call push(String) %5, %107, %10
-    %108: %r0 = binary.add %0, %11
-    %109: %r0 = coerce %108
-    jump -> block3(%109)
+    %106: %r8 = const "$v"
+    call push(String) %5, %106, %10
+    %107: %r0 = binary.add %0, %11
+    %108: %r0 = coerce %107
+    jump -> block3(%108)
   block6(%1: %r0):
     %25: %r15 = binary.lt %1, %13
     branch %25 -> block8 -> block7
@@ -80,11 +80,11 @@ fn main() -> one %r0
     %35: %r0 = const 1
     jump -> block9(%32)
   block8:
-    %104: %r8 = const "$v"
-    call push(String) %18, %104, %24
-    %105: %r0 = binary.add %1, %23
-    %106: %r0 = coerce %105
-    jump -> block6(%106)
+    %103: %r8 = const "$v"
+    call push(String) %18, %103, %24
+    %104: %r0 = binary.add %1, %23
+    %105: %r0 = coerce %104
+    jump -> block6(%105)
   block9(%2: %r0):
     %37: %r15 = binary.lt %2, %26
     branch %37 -> block11 -> block10
@@ -108,32 +108,32 @@ fn main() -> one %r0
     %59: %r15 = binary.ge %57, %58
     branch %59 -> block2 -> block1
   block11:
-    %82: %r4 = host host.array
-    %84: %r7 = alias %31
-    %85: %r5 = load property %84.length: %r5
-    %86: %r0 = convert %85
-    %87: %r0 = binary.add %86, %34
-    %88: %r0 = coerce %87
+    %81: %r4 = host host.array
+    %83: %r7 = alias %31
+    %84: %r5 = load property %83.length: %r5
+    %85: %r0 = convert %84
+    %86: %r0 = binary.add %85, %34
+    %87: %r0 = coerce %86
     jump -> block12
   block12:
-    %97: %r7 = alias %84
-    %83: %r6 = object %s0 %82, %33
-    %98: %r6 = alias %83
-    store element %97[%86]: %r6, %98
-    %99: %r19 = convert %88
-    %100: %r5 = convert %99
-    %101: %r7 = alias %31
-    store property %101.length: %r5, %100
-    %102: %r0 = binary.add %2, %35
-    %103: %r0 = coerce %102
-    jump -> block9(%103)
+    %96: %r7 = alias %83
+    %82: %r6 = object %s0 %81, %33
+    %97: %r6 = alias %82
+    store element %96[%85]: %r6, %97
+    %98: %r19 = convert %87
+    %99: %r5 = convert %98
+    %100: %r7 = alias %31
+    store property %100.length: %r5, %99
+    %101: %r0 = binary.add %2, %35
+    %102: %r0 = coerce %101
+    jump -> block9(%102)
   block13:
-    %93: %r0 = host host.field "length" host-range %90
-    %94: %r15 = binary.le %88, %93
-    branch %94 -> block12 -> block14
+    %92: %r0 = host host.field "length" host-range %89
+    %93: %r15 = binary.le %87, %92
+    branch %93 -> block12 -> block14
   block14:
-    %95: %r8 = const "$v"
-    call growJsArray(Array(I32)) %28, %95, %88
+    %94: %r8 = const "$v"
+    call growJsArray(Array(I32)) %28, %94, %87
     jump -> block12
 
 fn Array(a).reclaim(String)(one %r2) -> omitted
@@ -176,19 +176,17 @@ fn push(String)(parts %r10, one %r1) -> omitted
     %8: %r0 = coerce %7
     jump -> block1
   block1:
-    %19: %r2 = alias %3
-    store element %19[%5]: %r1, %2
-    %20: %r19 = convert %8
-    %21: %r5 = convert %20
-    %22: %r2 = load element %0[%1]: %r2
-    store property %22.length: %r5, %21
+    %17: %r2 = alias %3
+    store element %17[%5]: %r1, %2
+    %18: %r19 = convert %8
+    %19: %r5 = convert %18
+    %20: %r2 = load element %0[%1]: %r2
+    store property %20.length: %r5, %19
     return
   block2:
-    %14: %r2 = load element %0[%1]: %r2
-    %15: %r2 = load element %0[%1]: %r2
-    %16: %r0 = host host.field "length" host-range %15
-    %17: %r15 = binary.le %8, %16
-    branch %17 -> block1 -> block3
+    %14: %r0 = host host.field "length" host-range %10
+    %15: %r15 = binary.le %8, %14
+    branch %15 -> block1 -> block3
   block3:
     call growJsArray(String) %0, %1, %8
     jump -> block1
@@ -236,7 +234,7 @@ fn growJsArray(Array(I32))(parts %r12, one %r0) -> omitted
     store element %0[%1]: %r7, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 37 adopted 0 sunk 1 numbered 21 decided 2 unboxed 1 updated 0 split 1 promoted 7 folded 3
+optimizer clones 0 aliased 0 forwarded 0 removed 36 adopted 0 sunk 1 numbered 21 decided 2 unboxed 1 updated 0 split 1 promoted 7 folded 1
 
 shape %s0 object Array {items: %r4, length: %r5}
 shape %s1 ref {$o: %r8 owner, $k: %r8 key}

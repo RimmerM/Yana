@@ -1,0 +1,700 @@
+module ResolveTest
+
+data Guard {id: I64} drop authored
+
+data Rec {x: Guard, y: Guard} drop derived
+
+data Outer {inner: Rec, z: Guard} drop derived
+
+data Sum = A {g: Guard, h: Guard} | B {B: Guard} drop derived
+
+data Flagged {x: Guard, y: Guard, flag: Bool} drop authored
+
+instance Drop(Guard): Guard.drop
+
+instance Drop(Flagged): Flagged.drop
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+fn note(n: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = const 10
+  %2: I64 = mul inspect %0 inspect %1
+  %3: I64 = read copy.trivial (n)
+  %4: I64 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+fn Guard.drop(self: Guard) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (self.id)
+  %1: {} = call note borrow.shared %0
+  return
+}
+
+fn consume(x: Guard) -> {} {
+bb0:
+  drop (x)
+  %0: I64 = const 8
+  %1: {} = call note borrow.shared %0
+  return
+}
+
+fn peek(g: Guard [shared call]) -> {} {
+bb0:
+  %0: I64 = const 7
+  %1: {} = call note borrow.shared %0
+  return
+}
+
+fn consumeRec(r: Rec) -> {} {
+bb0:
+  drop (r)
+  %0: I64 = const 8
+  %1: {} = call note borrow.shared %0
+  return
+}
+
+fn local(c: Bool [shared call], n: I64 [shared call]) -> {} {
+  local r: Rec
+  flag (r.x) = gone
+
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Guard = aggregate.Guard take %0
+  %2: I64 = read copy.trivial (n)
+  %3: I64 = const 1
+  %4: I64 = add inspect %2 inspect %3
+  %5: Guard = aggregate.Guard take %4
+  %6: Rec = aggregate.Rec take %1 take %5
+  write.init borrow.unique (r) take %6
+  flag (r.x) = held
+  %8: Bool = read copy.trivial (c)
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: Guard [shared call] = read borrow.shared (r.y) loan0
+  %15: {} = call peek borrow.shared %14
+  drop.maybe (r.x)
+  drop (r.y)
+  return
+  flag (r.x) = gone
+
+bb3:
+  %10: Guard = read take (r.x)
+  flag (r.x) = gone
+  %11: {} = call consume take %10
+  jump -> bb2
+}
+
+fn parameter(r: Rec, c: Bool [shared call]) -> {} {
+  flag (r.x) = held
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: Guard [shared call] = read borrow.shared (r.y) loan0
+  %7: {} = call peek borrow.shared %6
+  drop.maybe (r.x)
+  drop (r.y)
+  return
+  flag (r.x) = gone
+
+bb3:
+  %2: Guard = read take (r.x)
+  flag (r.x) = gone
+  %3: {} = call consume take %2
+  jump -> bb2
+}
+
+fn landing(n: I32 [shared call], base: I64 [shared call]) -> {} {
+  local r: Rec
+  local & local3: I32
+  local i: I32
+  flag (r.x) = gone
+
+bb0:
+  %0: I64 = read copy.trivial (base)
+  %1: Guard = aggregate.Guard take %0
+  %2: I64 = read copy.trivial (base)
+  %3: I64 = const 1
+  %4: I64 = add inspect %2 inspect %3
+  %5: Guard = aggregate.Guard take %4
+  %6: Rec = aggregate.Rec take %1 take %5
+  write.init borrow.unique (r) take %6
+  flag (r.x) = held
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 0
+  %10: I32 = const 1
+  write.init borrow.unique (local3) take %9
+  jump -> bb1(take %8, take %10)
+
+bb1(%11: I32, %12: I32):
+  %19: I32 = read copy.trivial (local3)
+  %20: Bool = lt inspect %19 inspect %11
+  branch inspect %20 -> bb4(take %11, take %12) -> bb3(take %11, take %12)
+
+bb2(%13: I32, %14: I32):
+  %41: I32 = read copy.trivial (local3)
+  %42: I32 = add inspect %41 inspect %14
+  write.assign borrow.unique (local3) take %42
+  jump -> bb1(take %13, take %14)
+
+bb3(%15: I32, %16: I32):
+  %45: Guard [shared call] = read borrow.shared (r.y) loan0
+  %46: {} = call peek borrow.shared %45
+  drop.maybe (r.x)
+  drop (r.y)
+  return
+  flag (r.x) = gone
+
+bb4(%21: I32, %22: I32):
+  %24: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %24
+  %26: I32 = read copy.trivial (i)
+  %27: I32 = const 1
+  %28: Bool = eq inspect %26 inspect %27
+  branch inspect %28 -> bb7(take %21, take %22) -> bb5(take %21, take %22)
+
+bb5(%29: I32, %30: I32):
+  jump -> bb6(take %29, take %30)
+
+bb6(%37: I32, %38: I32):
+  jump -> bb2(take %37, take %38)
+
+bb7(%31: I32, %32: I32):
+  %34: Guard = read take (r.x)
+  flag (r.x) = gone
+  %35: {} = call consume take %34
+  jump -> bb3(take %31, take %32)
+}
+
+fn three(k: I32 [shared call], base: I64 [shared call]) -> {} {
+  local r: Rec
+  local & local3: I32
+  local i: I32
+  flag (r.x) = gone
+  flag (r.y) = gone
+
+bb0:
+  %0: I64 = read copy.trivial (base)
+  %1: Guard = aggregate.Guard take %0
+  %2: I64 = read copy.trivial (base)
+  %3: I64 = const 1
+  %4: I64 = add inspect %2 inspect %3
+  %5: Guard = aggregate.Guard take %4
+  %6: Rec = aggregate.Rec take %1 take %5
+  write.init borrow.unique (r) take %6
+  flag (r.y) = held
+  flag (r.x) = held
+  %8: I32 = const 0
+  %9: I32 = const 1
+  %10: I32 = const 1
+  write.init borrow.unique (local3) take %8
+  jump -> bb1(take %9, take %10)
+
+bb1(%11: I32, %12: I32):
+  %19: I32 = read copy.trivial (local3)
+  %20: Bool = lt inspect %19 inspect %11
+  branch inspect %20 -> bb4(take %11, take %12) -> bb3(take %11, take %12)
+
+bb2(%13: I32, %14: I32):
+  %55: I32 = read copy.trivial (local3)
+  %56: I32 = add inspect %55 inspect %14
+  write.assign borrow.unique (local3) take %56
+  jump -> bb1(take %13, take %14)
+
+bb3(%15: I32, %16: I32):
+  drop.maybe (r.x)
+  drop.maybe (r.y)
+  %59: I64 = const 7
+  flag (r.x) = gone
+  flag (r.y) = gone
+  %60: {} = call note borrow.shared %59
+  return
+
+bb4(%21: I32, %22: I32):
+  %24: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %24
+  %26: I32 = read copy.trivial (k)
+  %27: I32 = const 0
+  %28: Bool = eq inspect %26 inspect %27
+  branch inspect %28 -> bb7(take %21, take %22) -> bb5(take %21, take %22)
+
+bb5(%29: I32, %30: I32):
+  jump -> bb6(take %29, take %30)
+
+bb6(%37: I32, %38: I32):
+  %40: I32 = read copy.trivial (k)
+  %41: I32 = const 1
+  %42: Bool = eq inspect %40 inspect %41
+  branch inspect %42 -> bb10(take %37, take %38) -> bb8(take %37, take %38)
+
+bb7(%31: I32, %32: I32):
+  %34: Rec = read take (r)
+  flag (r.y) = gone
+  flag (r.x) = gone
+  %35: {} = call consumeRec take %34
+  jump -> bb3(take %31, take %32)
+
+bb8(%43: I32, %44: I32):
+  jump -> bb9(take %43, take %44)
+
+bb9(%51: I32, %52: I32):
+  jump -> bb2(take %51, take %52)
+
+bb10(%45: I32, %46: I32):
+  %48: Guard = read take (r.x)
+  flag (r.x) = gone
+  drop (r.y)
+  %49: {} = call consume take %48
+  flag (r.y) = gone
+  jump -> bb3(take %45, take %46)
+}
+
+fn deep(c: Bool [shared call], base: I64 [shared call]) -> {} {
+  local o: Outer
+  flag (o.inner.x) = gone
+
+bb0:
+  %0: I64 = read copy.trivial (base)
+  %1: Guard = aggregate.Guard take %0
+  %2: I64 = read copy.trivial (base)
+  %3: I64 = const 1
+  %4: I64 = add inspect %2 inspect %3
+  %5: Guard = aggregate.Guard take %4
+  %6: Rec = aggregate.Rec take %1 take %5
+  %7: I64 = read copy.trivial (base)
+  %8: I64 = const 2
+  %9: I64 = add inspect %7 inspect %8
+  %10: Guard = aggregate.Guard take %9
+  %11: Outer = aggregate.Outer take %6 take %10
+  write.init borrow.unique (o) take %11
+  flag (o.inner.x) = held
+  %13: Bool = read copy.trivial (c)
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: Guard [shared call] = read borrow.shared (o.inner.y) loan0
+  %20: {} = call peek borrow.shared %19
+  %21: Guard [shared call] = read borrow.shared (o.z) loan1
+  %22: {} = call peek borrow.shared %21
+  drop.maybe (o.inner.x)
+  drop (o.inner.y)
+  drop (o.z)
+  return
+  flag (o.inner.x) = gone
+
+bb3:
+  %15: Guard = read take (o.inner.x)
+  flag (o.inner.x) = gone
+  %16: {} = call consume take %15
+  jump -> bb2
+}
+
+fn pick(fail: Bool [shared call]) -> Maybe(I32) {
+bb0:
+  %0: Bool = read copy.trivial (fail)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 7
+  %4: Maybe(I32) = aggregate.Just take %3
+  jump -> bb2(take %4)
+
+bb2(%5: Maybe(I32)):
+  return take %5
+
+bb3:
+  %2: Maybe(I32) = aggregate.Nothing
+  jump -> bb2(take %2)
+}
+
+fn question(c: Bool [shared call], fail: Bool [shared call], base: I64 [shared call]) -> Maybe(I32) {
+  local r: Rec
+  local local4: Outcome(I32, {})
+  local v: I32
+  flag (r.x) = gone
+
+bb0:
+  %0: I64 = read copy.trivial (base)
+  %1: Guard = aggregate.Guard take %0
+  %2: I64 = read copy.trivial (base)
+  %3: I64 = const 1
+  %4: I64 = add inspect %2 inspect %3
+  %5: Guard = aggregate.Guard take %4
+  %6: Rec = aggregate.Rec take %1 take %5
+  write.init borrow.unique (r) take %6
+  flag (r.x) = held
+  %8: Bool = read copy.trivial (c)
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: Bool = read copy.trivial (fail)
+  %15: Maybe(I32) = call pick borrow.shared %14
+  %16: Outcome(I32, {}) = call toOutcome(Maybe(I32), I32, {}) take %15
+  write.init borrow.unique (local4) take %16
+  %18: U8 = read copy.trivial (local4.#)
+  %19: U8 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %10: Guard = read take (r.x)
+  flag (r.x) = gone
+  %11: {} = call consume take %10
+  jump -> bb2
+
+bb4:
+  %25: I32 = read copy.trivial (local4.Proceed)
+  jump -> bb5(take %25)
+
+bb5(%26: I32):
+  write.init borrow.unique (v) take %26
+  %29: Guard [shared call] = read borrow.shared (r.y) loan0
+  %30: {} = call peek borrow.shared %29
+  drop.maybe (r.x)
+  drop (r.y)
+  %31: I32 = read copy.trivial (v)
+  flag (r.x) = gone
+  %32: Maybe(I32) = aggregate.Just take %31
+  return take %32
+
+bb6:
+  drop.maybe (r.x)
+  drop (r.y)
+  %22: {} = const {}
+  flag (r.x) = gone
+  %23: Maybe(I32) = call fromExit(Maybe(I32), I32, {}) take {}
+  return take %23
+}
+
+fn sum'2(n: I32 [shared call], s: Sum) -> {} {
+  local & local2: I32
+  local i: I32
+  local x: Guard object2
+  local k: Guard [shared call]
+  flag (s.g) = held
+  flag (s.h) = held
+  flag (s.B) = held
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: I32 = const 1
+  write.init borrow.unique (local2) take %1
+  jump -> bb1(take %0, take %2)
+
+bb1(%3: I32, %4: I32):
+  %11: I32 = read copy.trivial (local2)
+  %12: Bool = lt inspect %11 inspect %3
+  branch inspect %12 -> bb4(take %3, take %4) -> bb3(take %3, take %4)
+
+bb2(%5: I32, %6: I32):
+  %51: I32 = read copy.trivial (local2)
+  %52: I32 = add inspect %51 inspect %6
+  write.assign borrow.unique (local2) take %52
+  jump -> bb1(take %5, take %6)
+
+bb3(%7: I32, %8: I32):
+  drop.maybe (s.g) in arm
+  drop.maybe (s.h) in arm
+  drop.maybe (s.B) in arm
+  %55: I64 = const 7
+  flag (s.g) = gone
+  flag (s.h) = gone
+  flag (s.B) = gone
+  %56: {} = call note borrow.shared %55
+  return
+
+bb4(%13: I32, %14: I32):
+  %16: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %16
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb7(take %13, take %14) -> bb5(take %13, take %14)
+
+bb5(%21: I32, %22: I32):
+  jump -> bb6(take %21, take %22)
+
+bb6(%47: I32, %48: I32):
+  jump -> bb2(take %47, take %48)
+
+bb7(%23: I32, %24: I32):
+  %28: U8 = read copy.trivial (s.#)
+  %29: U8 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb10(take %23, take %24) -> bb8(take %23, take %24)
+
+bb8(%26: I32, %27: I32):
+  %38: Guard [shared call] = read borrow.shared (s.B) loan0
+  write.init borrow.unique (k) borrow.shared %38
+  %40: Guard [shared call] = read borrow.shared (k) loan1 roots{0}
+  %41: {} = call peek borrow.shared %40
+  drop (s)
+  jump -> bb9(take %26, take %27)
+  flag (s.B) = gone
+  flag (s.h) = gone
+  flag (s.g) = gone
+
+bb9(%42: I32, %43: I32):
+  jump -> bb3(take %42, take %43)
+
+bb10(%31: I32, %32: I32):
+  %34: Guard = read take (s.g)
+  flag (s.g) = gone
+  flag (s.B) = gone
+  drop (s.h)
+  write.init borrow.unique (x) take %34
+  flag (s.h) = gone
+  %36: Guard = read take (x)
+  %37: {} = call consume take %36
+  jump -> bb9(take %31, take %32)
+}
+
+fn Flagged.drop(self: Flagged) -> {} {
+  flag (self.x) = held
+bb0:
+  %0: Bool = read copy.trivial (self.flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: Guard [shared call] = read borrow.shared (self.y) loan0
+  %7: {} = call peek borrow.shared %6
+  drop.maybe (self.x)
+  drop (self.y)
+  return
+  flag (self.x) = gone
+
+bb3:
+  %2: Guard = read take (self.x)
+  flag (self.x) = gone
+  %3: {} = call consume take %2
+  jump -> bb2
+}
+
+fn expect(case: I32 [shared call], want: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = read copy.trivial (want)
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: I64 = const 0
+  write.assign borrow.unique (global trace) take %16
+  return
+
+bb3:
+  %4: I32 = read copy.trivial (global failures)
+  %5: I32 = const 100
+  %6: I32 = div inspect %4 inspect %5
+  %7: I32 = const 100
+  %8: I32 = mul inspect %6 inspect %7
+  %9: I32 = const 100
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = read copy.trivial (case)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (global failures) take %12
+  jump -> bb2
+}
+
+fn main() -> I32 {
+  local q1: Maybe(I32)
+  local q2: Maybe(I32)
+  local q3: Maybe(I32)
+  local q4: Maybe(I32)
+  local f1: Flagged
+  local f2: Flagged
+
+bb0:
+  %0: Bool = const True
+  %1: I64 = const 1
+  %2: {} = call local borrow.shared %0 borrow.shared %1
+  %3: I32 = const 1
+  %4: I64 = const 1872
+  %5: {} = call expect borrow.shared %3 borrow.shared %4
+  %6: Bool = const False
+  %7: I64 = const 3
+  %8: {} = call local borrow.shared %6 borrow.shared %7
+  %9: I32 = const 2
+  %10: I64 = const 734
+  %11: {} = call expect borrow.shared %9 borrow.shared %10
+  %12: I64 = const 1
+  %13: Guard = aggregate.Guard take %12
+  %14: I64 = const 2
+  %15: Guard = aggregate.Guard take %14
+  %16: Rec = aggregate.Rec take %13 take %15
+  %17: Bool = const True
+  %18: {} = call parameter take %16 borrow.shared %17
+  %19: I32 = const 3
+  %20: I64 = const 1872
+  %21: {} = call expect borrow.shared %19 borrow.shared %20
+  %22: I64 = const 3
+  %23: Guard = aggregate.Guard take %22
+  %24: I64 = const 4
+  %25: Guard = aggregate.Guard take %24
+  %26: Rec = aggregate.Rec take %23 take %25
+  %27: Bool = const False
+  %28: {} = call parameter take %26 borrow.shared %27
+  %29: I32 = const 4
+  %30: I64 = const 734
+  %31: {} = call expect borrow.shared %29 borrow.shared %30
+  %32: I32 = const 2
+  %33: I64 = const 1
+  %34: {} = call landing borrow.shared %32 borrow.shared %33
+  %35: I32 = const 5
+  %36: I64 = const 1872
+  %37: {} = call expect borrow.shared %35 borrow.shared %36
+  %38: I32 = const 0
+  %39: I64 = const 3
+  %40: {} = call landing borrow.shared %38 borrow.shared %39
+  %41: I32 = const 6
+  %42: I64 = const 734
+  %43: {} = call expect borrow.shared %41 borrow.shared %42
+  %44: I32 = const 0
+  %45: I64 = const 1
+  %46: {} = call three borrow.shared %44 borrow.shared %45
+  %47: I32 = const 7
+  %48: I64 = const 1287
+  %49: {} = call expect borrow.shared %47 borrow.shared %48
+  %50: I32 = const 1
+  %51: I64 = const 3
+  %52: {} = call three borrow.shared %50 borrow.shared %51
+  %53: I32 = const 8
+  %54: I64 = const 4387
+  %55: {} = call expect borrow.shared %53 borrow.shared %54
+  %56: I32 = const 2
+  %57: I64 = const 5
+  %58: {} = call three borrow.shared %56 borrow.shared %57
+  %59: I32 = const 9
+  %60: I64 = const 567
+  %61: {} = call expect borrow.shared %59 borrow.shared %60
+  %62: Bool = const True
+  %63: I64 = const 1
+  %64: {} = call deep borrow.shared %62 borrow.shared %63
+  %65: I32 = const 10
+  %66: I64 = const 187723
+  %67: {} = call expect borrow.shared %65 borrow.shared %66
+  %68: Bool = const False
+  %69: I64 = const 4
+  %70: {} = call deep borrow.shared %68 borrow.shared %69
+  %71: I32 = const 11
+  %72: I64 = const 77456
+  %73: {} = call expect borrow.shared %71 borrow.shared %72
+  %74: Bool = const True
+  %75: Bool = const True
+  %76: I64 = const 1
+  %77: Maybe(I32) = call question borrow.shared %74 borrow.shared %75 borrow.shared %76
+  write.init borrow.unique (q1) take %77
+  %79: I32 = const 12
+  %80: I64 = const 182
+  %81: {} = call expect borrow.shared %79 borrow.shared %80
+  %82: Bool = const True
+  %83: Bool = const False
+  %84: I64 = const 3
+  %85: Maybe(I32) = call question borrow.shared %82 borrow.shared %83 borrow.shared %84
+  write.init borrow.unique (q2) take %85
+  %87: I32 = const 13
+  %88: I64 = const 3874
+  %89: {} = call expect borrow.shared %87 borrow.shared %88
+  %90: Bool = const False
+  %91: Bool = const True
+  %92: I64 = const 5
+  %93: Maybe(I32) = call question borrow.shared %90 borrow.shared %91 borrow.shared %92
+  write.init borrow.unique (q3) take %93
+  %95: I32 = const 14
+  %96: I64 = const 56
+  %97: {} = call expect borrow.shared %95 borrow.shared %96
+  %98: Bool = const False
+  %99: Bool = const False
+  %100: I64 = const 1
+  %101: Maybe(I32) = call question borrow.shared %98 borrow.shared %99 borrow.shared %100
+  write.init borrow.unique (q4) take %101
+  %103: I32 = const 15
+  %104: I64 = const 712
+  %105: {} = call expect borrow.shared %103 borrow.shared %104
+  %106: I32 = const 2
+  %107: I64 = const 1
+  %108: Guard = aggregate.Guard take %107
+  %109: I64 = const 2
+  %110: Guard = aggregate.Guard take %109
+  %111: Sum = aggregate.A take %108 take %110
+  %112: {} = call sum'2 borrow.shared %106 take %111
+  %113: I32 = const 16
+  %114: I64 = const 2187
+  %115: {} = call expect borrow.shared %113 borrow.shared %114
+  %116: I32 = const 0
+  %117: I64 = const 3
+  %118: Guard = aggregate.Guard take %117
+  %119: I64 = const 4
+  %120: Guard = aggregate.Guard take %119
+  %121: Sum = aggregate.A take %118 take %120
+  %122: {} = call sum'2 borrow.shared %116 take %121
+  %123: I32 = const 17
+  %124: I64 = const 347
+  %125: {} = call expect borrow.shared %123 borrow.shared %124
+  %126: I32 = const 2
+  %127: I64 = const 5
+  %128: Guard = aggregate.Guard take %127
+  %129: Sum = aggregate.B take %128
+  %130: {} = call sum'2 borrow.shared %126 take %129
+  %131: I32 = const 18
+  %132: I64 = const 757
+  %133: {} = call expect borrow.shared %131 borrow.shared %132
+  %134: I32 = const 0
+  %135: I64 = const 6
+  %136: Guard = aggregate.Guard take %135
+  %137: Sum = aggregate.B take %136
+  %138: {} = call sum'2 borrow.shared %134 take %137
+  %139: I32 = const 19
+  %140: I64 = const 67
+  %141: {} = call expect borrow.shared %139 borrow.shared %140
+  %142: I64 = const 1
+  %143: Guard = aggregate.Guard take %142
+  %144: I64 = const 2
+  %145: Guard = aggregate.Guard take %144
+  %146: Bool = const True
+  %147: Flagged = aggregate.Flagged take %143 take %145 take %146
+  write.init borrow.unique (f1) take %147
+  drop (f1)
+  %149: I64 = const 3
+  %150: Guard = aggregate.Guard take %149
+  %151: I64 = const 4
+  %152: Guard = aggregate.Guard take %151
+  %153: Bool = const False
+  %154: Flagged = aggregate.Flagged take %150 take %152 take %153
+  write.init borrow.unique (f2) take %154
+  drop (f2)
+  %156: I32 = const 20
+  %157: I64 = const 1872734
+  %158: {} = call expect borrow.shared %156 borrow.shared %157
+  %159: I32 = read copy.trivial (global failures)
+  return take %159
+}
+
+entry main

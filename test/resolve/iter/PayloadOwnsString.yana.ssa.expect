@@ -1,10 +1,10 @@
 module ResolveTest
 
-let string'142: [CodeUnit *1] = "x"
+let string'188: [CodeUnit *1] = "x"
 
-let string'143: [CodeUnit *1] = "y"
+let string'189: [CodeUnit *1] = "y"
 
-let string'144: [CodeUnit *2] = "ab"
+let string'190: [CodeUnit *2] = "ab"
 
 iter growing.Iter of growing {
   $index: I32
@@ -144,7 +144,7 @@ bb0:
   %8: %Maybe(I32) address = alloc frame Maybe(I32) [owned here shape2 .0=shared slot 0]
   %9: %I32 address = alloc frame I32
   %10: I32 trivial = const 5
-  %11: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %11: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %0 consume %11
   %12: String [shared slot 0] guaranteed from{%0} = load inspect %0
   jump -> bb10
@@ -302,7 +302,7 @@ bb2:
 bb3:
   %18: I32 trivial = const 0
   store inspect %12 consume %18
-  %19: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %19: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   %20: Bool trivial = const True
   store inspect %16 consume %20
   store inspect %13 consume %19
@@ -333,7 +333,7 @@ bb7(%9: I32 trivial, %10: I32 trivial):
   %35: Bool trivial = const False
   store inspect %16 consume %35
   %36: String owned = load inspect %13
-  %37: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %37: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
   %38: String owned = call String.++ consume %36 consume %37
   %39: Bool trivial = const True
   store inspect %16 consume %39

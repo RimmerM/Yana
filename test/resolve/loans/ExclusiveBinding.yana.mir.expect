@@ -14,48 +14,48 @@ instance Drop(owning.Iter): owning$drop
 
 instance Iterate(owning.Iter, I32, {}): owning$next, owning$resume
 
-let string'142: [CodeUnit *1] = "a"
+let string'188: [CodeUnit *1] = "a"
 
-let string'143: [CodeUnit *3] = "bcd"
+let string'189: [CodeUnit *3] = "bcd"
 
-let string'144: [CodeUnit *1] = "a"
+let string'190: [CodeUnit *1] = "a"
 
-let string'145: [CodeUnit *1] = "b"
+let string'191: [CodeUnit *1] = "b"
 
-let string'146: [CodeUnit *1] = "a"
+let string'192: [CodeUnit *1] = "a"
 
-let string'147: [CodeUnit *3] = "xyz"
+let string'193: [CodeUnit *3] = "xyz"
 
-let string'148: [CodeUnit *1] = "a"
+let string'194: [CodeUnit *1] = "a"
 
-let string'149: [CodeUnit *1] = "b"
+let string'195: [CodeUnit *1] = "b"
 
-let string'150: [CodeUnit *1] = "c"
+let string'196: [CodeUnit *1] = "c"
 
-let string'151: [CodeUnit *2] = "zz"
+let string'197: [CodeUnit *2] = "zz"
 
-let string'152: [CodeUnit *1] = "p"
+let string'198: [CodeUnit *1] = "p"
 
-let string'153: [CodeUnit *0] = ""
+let string'199: [CodeUnit *0] = ""
 
-let string'154: [CodeUnit *1] = "a"
+let string'200: [CodeUnit *1] = "a"
 
-let string'155: [CodeUnit *1] = "a"
+let string'201: [CodeUnit *1] = "a"
 
-let string'156: [CodeUnit *2] = "qq"
+let string'202: [CodeUnit *2] = "qq"
 
-let string'157: [CodeUnit *3] = "abc"
+let string'203: [CodeUnit *3] = "abc"
 
 fn stringLocal() -> I32 {
   local & s: String
   local & d: String [unique call]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   write.init borrow.unique (s) take %0
   %2: String [unique call] = read borrow.unique (s) loan0
   write.init borrow.unique (d) borrow.unique %2
-  %4: String = const String {units: Array {run: Run {items: &string'143, capacity: 3, ownsHeap: 0}, length: 3}}
+  %4: String = const String {units: Array {run: Run {items: &string'189, capacity: 3, ownsHeap: 0}, length: 3}}
   drop (d)
   write.assign borrow.unique (d) take %4
   %6: String [shared call] = read borrow.shared (s) loan1
@@ -72,13 +72,13 @@ fn recordReplaced() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   write.init borrow.unique (box) take %2
   %4: R [unique call] = read borrow.unique (box) loan0
   write.init borrow.unique (d) borrow.unique %4
   %6: I32 = const 5
-  %7: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %7: String = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   %8: R = aggregate.R take %6 take %7
   drop (d)
   write.assign borrow.unique (d) take %8
@@ -93,14 +93,14 @@ fn recordFields() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'192, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   write.init borrow.unique (box) take %2
   %4: R [unique call] = read borrow.unique (box) loan0
   write.init borrow.unique (d) borrow.unique %4
   %6: I32 = const 5
   write.assign borrow.unique (d.n) take %6
-  %8: String = const String {units: Array {run: Run {items: &string'147, capacity: 3, ownsHeap: 0}, length: 3}}
+  %8: String = const String {units: Array {run: Run {items: &string'193, capacity: 3, ownsHeap: 0}, length: 3}}
   drop (d.s)
   write.assign borrow.unique (d.s) take %8
   %10: I32 = read copy.trivial (box.n)
@@ -122,10 +122,10 @@ fn element() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: String = const String {units: Array {run: Run {items: &string'148, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'194, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   %3: I32 = const 2
-  %4: String = const String {units: Array {run: Run {items: &string'149, capacity: 1, ownsHeap: 0}, length: 1}}
+  %4: String = const String {units: Array {run: Run {items: &string'195, capacity: 1, ownsHeap: 0}, length: 1}}
   %5: R = aggregate.R take %3 take %4
   %6: %R = run.slots R *2
   %7: Size = bitcast inspect %6
@@ -169,7 +169,7 @@ fn field() -> I32 {
 
 bb0:
   %0: I32 = const 3
-  %1: String = const String {units: Array {run: Run {items: &string'150, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'196, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   %3: I32 = const 4
   %4: P = aggregate.P take %2 take %3
@@ -177,7 +177,7 @@ bb0:
   %6: R [unique call] = read borrow.unique (p.r) loan0
   write.init borrow.unique (e) borrow.unique %6
   %8: I32 = const 7
-  %9: String = const String {units: Array {run: Run {items: &string'151, capacity: 2, ownsHeap: 0}, length: 2}}
+  %9: String = const String {units: Array {run: Run {items: &string'197, capacity: 2, ownsHeap: 0}, length: 2}}
   %10: R = aggregate.R take %8 take %9
   drop (e)
   write.assign borrow.unique (e) take %10
@@ -198,7 +198,7 @@ bb0:
   %0: R [unique call] = read borrow.unique (r) loan0
   write.init borrow.unique (d) borrow.unique %0
   %2: I32 = const 100
-  %3: String = const String {units: Array {run: Run {items: &string'152, capacity: 1, ownsHeap: 0}, length: 1}}
+  %3: String = const String {units: Array {run: Run {items: &string'198, capacity: 1, ownsHeap: 0}, length: 1}}
   %4: R = aggregate.R take %2 take %3
   drop (d)
   write.assign borrow.unique (d) take %4
@@ -210,7 +210,7 @@ fn parameter() -> I32 {
 
 bb0:
   %0: I32 = const 0
-  %1: String = const String {units: Array {run: Run {items: &string'153, capacity: 0, ownsHeap: 0}, length: 0}}
+  %1: String = const String {units: Array {run: Run {items: &string'199, capacity: 0, ownsHeap: 0}, length: 0}}
   %2: R = aggregate.R take %0 take %1
   write.init borrow.unique (q) take %2
   %4: R [unique call] = read borrow.unique (q) loan0
@@ -235,7 +235,7 @@ fn captured() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: String = const String {units: Array {run: Run {items: &string'154, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'200, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   write.init borrow.unique (box) take %2
   %4: R [unique slot 0] = read borrow.unique (box) loan0
@@ -259,13 +259,13 @@ fn parked() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: String = const String {units: Array {run: Run {items: &string'155, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'201, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: R = aggregate.R take %0 take %1
   write.init borrow.unique (box) take %2
   %4: R [unique call] = read borrow.unique (box) loan0
   write.init borrow.unique (d) borrow.unique %4
   %6: I32 = const 9
-  %7: String = const String {units: Array {run: Run {items: &string'156, capacity: 2, ownsHeap: 0}, length: 2}}
+  %7: String = const String {units: Array {run: Run {items: &string'202, capacity: 2, ownsHeap: 0}, length: 2}}
   %8: R = aggregate.R take %6 take %7
   drop (d)
   write.assign borrow.unique (d) take %8
@@ -395,7 +395,7 @@ fn steppedOwning() -> I32 {
   local x: I32
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'157, capacity: 3, ownsHeap: 0}, length: 3}}
+  %0: String = const String {units: Array {run: Run {items: &string'203, capacity: 3, ownsHeap: 0}, length: 3}}
   %1: I32 = const 5
   %2: owning.Iter = call owning$new take %0 take %1
   write.init borrow.unique (it) take %2

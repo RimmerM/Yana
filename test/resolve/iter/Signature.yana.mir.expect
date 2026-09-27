@@ -22,9 +22,9 @@ let string: [CodeUnit *3] = "at "
 
 let string'2: [CodeUnit *4] = " of "
 
-let string'144: [CodeUnit *3] = "abc"
+let string'190: [CodeUnit *3] = "abc"
 
-let string'145: [CodeUnit *5] = "hello"
+let string'191: [CodeUnit *5] = "hello"
 
 lens fn counted(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -254,7 +254,7 @@ bb4:
 
 bb5:
   drop (kt)
-  %28: String = const String {units: Array {run: Run {items: &string'145, capacity: 5, ownsHeap: 0}, length: 5}}
+  %28: String = const String {units: Array {run: Run {items: &string'191, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (text) take %28
   %30: String [shared call] = read borrow.shared (text) loan2
   %31: String [shared slot 0 view] = call.derivation view(String) borrow.shared %30 roots{2}
@@ -339,7 +339,7 @@ fn scanner(n: I32 [shared call]) -> owning.Iter {
   local it: owning.Iter
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
+  %0: String = const String {units: Array {run: Run {items: &string'190, capacity: 3, ownsHeap: 0}, length: 3}}
   %1: I32 = read copy.trivial (n)
   %2: owning.Iter = call owning$new take %0 take %1
   write.init borrow.unique (it) take %2

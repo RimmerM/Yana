@@ -95,6 +95,9 @@ static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
         case Type::Iter: {
             auto& iterated = *(IterType*)base[type];
             if(auto found = privateTypeIn(base, iterated.handover.type)) return found;
+            if(iterated.failure) {
+                if(auto found = privateTypeIn(base, iterated.failure)) return found;
+            }
             return privateTypeIn(base, iterated.resume);
         }
 

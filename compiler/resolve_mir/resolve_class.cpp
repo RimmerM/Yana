@@ -51,6 +51,7 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
         case Type::Iter: {
             auto& iterated = *(IterType*)base[type];
             if(namesLocalType(base, module, iterated.handover.type)) return true;
+            if(iterated.failure && namesLocalType(base, module, iterated.failure)) return true;
             return namesLocalType(base, module, iterated.resume);
         }
 
@@ -586,6 +587,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
 void Resolver::declareInstance(ast::Decl& declaration) {
     auto& written = declaration.instance;
     writtenInstances.push(nullptr);
+    writtenInstanceDecls.push(&declaration);
 
     /*
      * `@local instance Drop(T)` - `doc/spec/ownership.md`'s "who may dispose".
@@ -1188,47 +1190,82 @@ bool Resolver::breaksDependency(DeclPtr<Instance> pointer, LocationId source) {
  * Only the *written* instances, because a generated one is the compiler's own and `provideInstances`
  * supplies the superclass beside it or not at all - a diagnostic there would be about this compiler
  * rather than about the program.
+ *
+ * Nothing left to declare is not yet everything classified, and a superclass may be answered by a
+ * classification: `class (Copy(unit)) WindowOutput(...)` at `U8` is `Copy(U8)`, which Core gives
+ * through `(TrivialCopy(a)) Copy(a)`. Such an instance is checked again after `classifyTypes`
+ * (`checkDeferredSuperclasses`) rather than moving the whole pass there, where a missing superclass
+ * would no longer be reported beside the other declaration errors (`generic/Reject.Class.yana`).
  */
 void Resolver::checkInstanceSuperclasses() {
-    for(auto pointer: writtenInstances) {
-        // Null where the declaration failed. Its superclasses are a question about an instance the
-        // program does not have.
-        if(!pointer) continue;
+    for(auto pointer: writtenInstances) checkSuperclassesOf(pointer, true);
+}
 
-        auto& instance = *decl()[pointer];
-        auto& declared = *decl()[instance.klass];
-
-        SmallArray<DeclPtr<Type>, 4> arguments;
-        for(auto argument: instance.args.contents(decl())) arguments.push(argument);
-
-        for(auto super: declared.superclasses.contents(decl())) {
-            SmallArray<DeclPtr<Type>, 4> needed;
-
-            {
-                Substitution applied { declared.gen, arguments.pointer(), arguments.size() };
-                for(auto argument: super.args.contents(decl())) {
-                    needed.push(substituteType(context, program, argument, applied));
-                }
-            }
-
-            if(satisfiesRequirement(context, program, instance.gen, super.klass, needed.pointer(),
-                                    needed.size())) {
-                continue;
-            }
-
-            InstanceMatch found;
-            if(selectInstance(context, program, super.klass, needed.pointer(), needed.size(),
-                              instance.source, false, found)) {
-                continue;
-            }
-
-            context.diagnostics.error("%@ requires %@, and there is no instance of it"_v,
-                                      instance.source, context.findName(declared.name),
-                                      appliedClassText(context, decl(), super.klass,
-                                                       needed.pointer(), needed.size()));
-            break;
-        }
+// The instances `checkInstanceSuperclasses` could not answer before the classification, answered -
+// false where one of them is refused.
+bool Resolver::checkDeferredSuperclasses() {
+    auto refused = false;
+    for(auto pointer: deferredSuperclasses) {
+        if(!checkSuperclassesOf(pointer, false)) refused = true;
     }
+    deferredSuperclasses.clear();
+    return !refused;
+}
+
+/*
+ * One instance's superclasses, reported where one is missing - false then. `deferring` is the pass
+ * before the classification: a failure that met a structural question it could not answer yet is not
+ * a failure, and the instance goes to `deferredSuperclasses` instead (`Program::deferStructural`).
+ */
+bool Resolver::checkSuperclassesOf(DeclPtr<Instance> pointer, bool deferring) {
+    // Null where the declaration failed. Its superclasses are a question about an instance the
+    // program does not have.
+    if(!pointer) return true;
+
+    auto& instance = *decl()[pointer];
+    auto& declared = *decl()[instance.klass];
+
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    for(auto argument: instance.args.contents(decl())) arguments.push(argument);
+
+    for(auto super: declared.superclasses.contents(decl())) {
+        SmallArray<DeclPtr<Type>, 4> needed;
+
+        {
+            Substitution applied { declared.gen, arguments.pointer(), arguments.size() };
+            for(auto argument: super.args.contents(decl())) {
+                needed.push(substituteType(context, program, argument, applied));
+            }
+        }
+
+        program.deferStructural = deferring;
+        program.structuralDeferred = false;
+
+        auto held = satisfiesRequirement(context, program, instance.gen, super.klass, needed.pointer(),
+                                         needed.size());
+        if(!held) {
+            InstanceMatch found;
+            held = selectInstance(context, program, super.klass, needed.pointer(), needed.size(),
+                                  instance.source, false, found);
+        }
+
+        auto unsettled = program.structuralDeferred;
+        program.deferStructural = false;
+        program.structuralDeferred = false;
+        if(held) continue;
+
+        if(unsettled) {
+            deferredSuperclasses.push(pointer);
+            return true;
+        }
+
+        context.diagnostics.error("%@ requires %@, and there is no instance of it"_v,
+                                  instance.source, context.findName(declared.name),
+                                  appliedClassText(context, decl(), super.klass,
+                                                   needed.pointer(), needed.size()));
+        return false;
+    }
+    return true;
 }
 
 /*

@@ -1,0 +1,116 @@
+{-
+   A **recursive** failing traversal held as an object - C1c, §6.3's boxing with §6.6's `| E`.
+
+   `walk`'s passes do more than re-yield, so it does not delegate: every level holds its child as a
+   box, the erased `iter(Y | E)`, and steps it through the pair. A child that fails answers
+   `&$failure | 1`; the embedded `advance` tests the tag where the answer was not null, moves the
+   reason out of the child's record, releases the box and hands the reason to the region's
+   alternative, which runs in this level's own step - the edge the inline form (C1b) takes.
+
+   `| tag -> return tag` at every level makes a failure deep in the tree surface at the root, one
+   level at a time. Every walk is run once as an object and once as `for x in walk(...)`, and the two
+   traces must agree. Digits: an item (its value), an alternative (7 then what it saw), a `Tag`
+   released (9 then its id). `main` answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+data Tree = Leaf | Bad {id: Int} | Node {left: Tree, right: Tree, value: Int}
+
+-- In order, failing at a `Bad` wherever it is, and every level passing the failure up.
+iter fn walk(t: Tree) -> (Int | Tag):
+    match t:
+        Tree.Leaf -> {}
+        Tree.Bad {id} -> return Tag {id: id}
+        Tree.Node {left, right, value}:
+            for x in walk(left) | tag -> return tag:
+                yield x % 10
+            yield value
+            for x in walk(right) | tag -> return tag:
+                yield x % 10
+
+-- A level that **recovers**: a failed subtree is replaced by its id and the walk carries on.
+iter fn mended(t: Tree) -> (Int | Tag):
+    match t:
+        Tree.Leaf -> {}
+        Tree.Bad {id} -> return Tag {id: id}
+        Tree.Node {left, right, value}:
+            for x in mended(left) | tag -> yield tag.id:
+                yield x % 10
+            yield value
+            for x in mended(right) | tag -> yield tag.id:
+                yield x % 10
+
+fn objectWalk(t: Tree) -> Long:
+    trace = 0
+    let &it = walk(t)
+    for x in it:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    return trace
+
+fn loopWalk(t: Tree) -> Long:
+    trace = 0
+    for x in walk(t):
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    return trace
+
+fn objectMended(t: Tree) -> Long:
+    trace = 0
+    let &it = mended(t)
+    for x in it:
+        note(x :: Long)
+    | tag -> note(7)
+    return trace
+
+fn loopMended(t: Tree) -> Long:
+    trace = 0
+    for x in mended(t):
+        note(x :: Long)
+    | tag -> note(7)
+    return trace
+
+fn node(->left: Tree, value: Int, ->right: Tree) -> Tree = Tree.Node {left: left, right: right, value: value}
+
+-- A left spine `depth` deep whose bottom is `Bad {id: 3}`, with values 1..depth on the way up.
+fn spine(depth: Int) -> Tree:
+    if depth == 0 then return Tree.Bad {id: 3}
+    return node(spine(depth - 1), depth % 10, Tree.Leaf)
+
+fn main() -> Int:
+    -- The failure four levels down, reached before any item: it surfaces at the root at once.
+    let deep = spine(4)
+    if objectWalk(deep) != 7933 || loopWalk(deep) != 7933 then failures += 1
+
+    -- A failure in a right subtree after two items: 1, 2, then the root's consumer handles it.
+    let right = node(node(Tree.Leaf, 1, Tree.Leaf), 2, node(Tree.Bad {id: 5}, 6, Tree.Leaf))
+    if objectWalk(right) != 127955 || loopWalk(right) != 127955 then failures += 2
+
+    -- No failure at all: every item, and no alternative.
+    let clean = node(node(Tree.Leaf, 1, Tree.Leaf), 2, node(Tree.Leaf, 3, Tree.Leaf))
+    if objectWalk(clean) != 123 || loopWalk(clean) != 123 then failures += 4
+
+    -- Recovered one level up: the bad leaf's id replaces it, and the walk goes on to the end.
+    if objectMended(right) != loopMended(right) || objectMended(right) != 129556 then failures += 8
+
+    -- A hundred levels deep: the same failure, surfacing at the root.
+    let tall = spine(100)
+    if objectWalk(tall) != 7933 || loopWalk(tall) != 7933 then failures += 16
+
+    return failures

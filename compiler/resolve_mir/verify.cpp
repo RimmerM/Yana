@@ -1033,10 +1033,19 @@ struct Verifier {
             return;
         }
 
+        /*
+         * Leaving - for the destination the region declared, or, out of a **lens** region, for any
+         * block of the region the call was made in: the landing a `break` or `continue` written in
+         * a lens call's block reaches for a loop outside it (`resolveExit`), which the conversion
+         * makes a row of the exit signal. One region per edge either way, and never an iterator's
+         * other than at its destination, because its loop is the innermost one an exit can name.
+         */
         if(body.encloses(base, target.region, from.region)) {
             auto leaving = body.region(base, from.region);
             if(!leaving || !leaving->destination.valid()) return;
             if(leaving->destination == target.index) return;
+            if(leaving->parent == target.region &&
+               leaving->multiplicity != Continuation::Many) return;
 
             report(node.source,
                    "internal: %@ leaves continuation region %@ for block %@, which is not the destination %@ it rejoins at"_v,

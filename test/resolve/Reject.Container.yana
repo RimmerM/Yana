@@ -28,7 +28,7 @@ data Pool {slots: Run(I64), live: Int}
 instance Reclaim(Pool):
     fn reclaim(->value: Pool):
         recordClose()
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 data Ledger {entries: Run(I64)}
 
@@ -37,7 +37,7 @@ data Ledger {entries: Run(I64)}
 -- outside it rather than a way through.
 fn closeLedger(it: Ledger):
     recordClose()
-    releaseRun(it.entries)
+    releaseRun(bitcast(it.entries.items), it.entries.ownsHeap)
 
 instance Reclaim(Ledger):
     fn reclaim(->value: Ledger): closeLedger(value)
@@ -58,24 +58,24 @@ data Signalled {slots: Run(I64)}
 instance Reclaim(Hooked):
     fn reclaim(->value: Hooked):
         value.hook()
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 instance Reclaim(Bracketed):
     fn reclaim(->value: Bracketed):
         bracketed():
-            releaseRun(value.slots)
+            releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 instance Reclaim(Counted):
     fn reclaim(->value: Counted):
         let local = () -> recordClose()
         local()
         closes = 7
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 instance Reclaim(Signalled):
     fn reclaim(->value: Signalled):
         syscall1(39, 0)
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 -- A global written by a compound assignment - a call to `+=`, which is lent the global exclusively -
 -- and one written through its address. Both are the write they are since J162: the first was
@@ -86,13 +86,13 @@ data Poked {slots: Run(I64)}
 instance Reclaim(Tallied):
     fn reclaim(->value: Tallied):
         closes += 1
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 instance Reclaim(Poked):
     fn reclaim(->value: Poked):
         let p = bitcast(addressOf(closes)) :: %I64
         store(p, 3)
-        releaseRun(value.slots)
+        releaseRun(bitcast(value.slots.items), value.slots.ownsHeap)
 
 fn main() -> I64:
     let pool = Pool {slots: emptyRun(), live: 0}

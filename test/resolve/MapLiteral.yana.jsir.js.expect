@@ -154,9 +154,9 @@ function main() {
   var p0 = 0;
   var p2 = 0;
   while (p0 < 12) {
-    var v1421 = findEntry_I32_I32(v589, p0, hashKey_I32(p0));
-    if (v1421 < 0) throw $t;
-    if (v589.values.items[v1421] === Math.imul(p0, 10)) p2 = p2 + 1 | 0;
+    var v1417 = findEntry_I32_I32(v589, p0, hashKey_I32(p0));
+    if (v1417 < 0) throw $t;
+    if (v589.values.items[v1417] === Math.imul(p0, 10)) p2 = p2 + 1 | 0;
     p0 = p0 + 1 | 0;
   }
   if (p2 !== 12) return -17;
@@ -301,13 +301,13 @@ function main() {
   var v1144 = hashKey_I32(1);
   var v1145 = v1129.mask;
   if (v1145 === 0) {
-    var v1189 = v1129.keys;
-    var v1190 = v1189.items;
-    var v1193 = v1189.length;
+    var v1187 = v1129.keys;
+    var v1188 = v1187.items;
+    var v1191 = v1187.length;
     p8 = 0;
     B37: {
-      while (p8 < v1193) {
-        if (v1190[p8] === 1) break B37;
+      while (p8 < v1191) {
+        if (v1188[p8] === 1) break B37;
         p8 = p8 + 1 | 0;
       }
       p8 = -1;
@@ -320,13 +320,13 @@ function main() {
         var v1162 = v1129.index;
         var v1163 = v1162.items;
         if (p19 >>> 0 >= v1162.length) throw $t;
-        var v1174 = v1163[p19 | 0];
-        if (v1174 === -1) {
+        var v1172 = v1163[p19];
+        if (v1172 === -1) {
           p8 = -1;
           break B39;
         }
-        if (v1174 >= 0 && v1129.keys.items[v1174] === 1) {
-          p8 = v1174;
+        if (v1172 >= 0 && v1129.keys.items[v1172] === 1) {
+          p8 = v1172;
           break B39;
         }
         p19 = p19 + 1 & v1145;
@@ -336,88 +336,88 @@ function main() {
     }
   }
   if (p8 >= 0) {
-    var v1282 = v1129.values;
-    var v1290 = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
-    var v1291 = v1282[p8];
-    v1282[p8] = v1290;
-    p7 = v1291;
+    var v1280 = v1129.values;
+    var v1288 = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
+    var v1289 = v1280[p8];
+    v1280[p8] = v1288;
+    p7 = v1289;
   } else {
-    var v1206 = v1129.keys;
-    var v1210 = v1206.length;
-    push_I32(v1206, 1);
-    var v1213 = v1129.values;
-    var v1215 = v1213.length;
-    var v1218 = v1215 + 1;
-    v1213[v1215] = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
-    v1129.values.length = v1218 & 1073741823;
-    var v1238 = v1129.mask;
+    var v1204 = v1129.keys;
+    var v1208 = v1204.length;
+    push_I32(v1204, 1);
+    var v1211 = v1129.values;
+    var v1213 = v1211.length;
+    var v1216 = v1213 + 1;
+    v1211[v1213] = { keys: v1091.keys, values: v1091.values, index: v1091.index, live: v1091.live, mask: v1091.mask };
+    v1129.values.length = v1216 & 1073741823;
+    var v1236 = v1129.mask;
     B43: {
-      if (v1238 === 0) {
-        var v1269 = v1210 + 1;
-        if (v1269 > 64) {
+      if (v1236 === 0) {
+        var v1267 = v1208 + 1;
+        if (v1267 > 64) {
           p23 = 16;
-          while ((p23 - (p23 >>> 3) | 0) < v1269) {
+          while ((p23 - (p23 >>> 3) | 0) < v1267) {
             p23 = p23 + p23 | 0;
           }
           indexRebuild_I32_Map_I32_I32(v1129, p23);
         }
       } else {
-        var v1245 = v1238 + 1;
-        if (v1129.live + 1 > v1245 - (v1245 >>> 3)) {
-          p9 = Math.imul(v1210 + 1, 2) > v1245 ? v1245 + v1245 | 0 : v1245;
+        var v1243 = v1236 + 1;
+        if (v1129.live + 1 > v1243 - (v1243 >>> 3)) {
+          p9 = Math.imul(v1208 + 1, 2) > v1243 ? v1243 + v1243 | 0 : v1243;
           indexRebuild_I32_Map_I32_I32(v1129, p9);
           break B43;
         }
-        indexPlace($ge$indexPlace$1, v1129, v1210, v1144);
+        indexPlace($ge$indexPlace$1, v1129, v1208, v1144);
       }
     }
     p7 = null;
   }
-  var v1296 = hashKey_I32(1);
-  var v1297 = v1129.mask;
-  if (v1297 === 0) {
-    var v1341 = v1129.keys;
-    var v1342 = v1341.items;
-    var v1345 = v1341.length;
+  var v1294 = hashKey_I32(1);
+  var v1295 = v1129.mask;
+  if (v1295 === 0) {
+    var v1337 = v1129.keys;
+    var v1338 = v1337.items;
+    var v1341 = v1337.length;
     p15 = 0;
     B47: {
-      while (p15 < v1345) {
-        if (v1342[p15] === 1) break B47;
+      while (p15 < v1341) {
+        if (v1338[p15] === 1) break B47;
         p15 = p15 + 1 | 0;
       }
       p15 = -1;
     }
   } else {
-    p10 = v1296 & v1297;
+    p10 = v1294 & v1295;
     p11 = 0;
     B49: {
-      while (p11 <= v1297) {
-        var v1314 = v1129.index;
-        var v1315 = v1314.items;
-        if (p10 >>> 0 >= v1314.length) throw $t;
-        var v1326 = v1315[p10 | 0];
-        if (v1326 === -1) {
+      while (p11 <= v1295) {
+        var v1312 = v1129.index;
+        var v1313 = v1312.items;
+        if (p10 >>> 0 >= v1312.length) throw $t;
+        var v1322 = v1313[p10];
+        if (v1322 === -1) {
           p15 = -1;
           break B49;
         }
-        if (v1326 >= 0 && v1129.keys.items[v1326] === 1) {
-          p15 = v1326;
+        if (v1322 >= 0 && v1129.keys.items[v1322] === 1) {
+          p15 = v1322;
           break B49;
         }
-        p10 = p10 + 1 & v1297;
+        p10 = p10 + 1 & v1295;
         p11 = p11 + 1 | 0;
       }
       p15 = -1;
     }
   }
   if (p15 < 0) throw $t;
-  var v1358 = v1129.values;
-  var v1362 = hashKey_I32(2);
-  var v1364 = findEntry_I32_I32(v1358[p15], 2, v1362);
-  if (v1364 < 0) throw $t;
-  var v1371 = v1358[p15].values.items[v1364];
+  var v1354 = v1129.values;
+  var v1358 = hashKey_I32(2);
+  var v1360 = findEntry_I32_I32(v1354[p15], 2, v1358);
+  if (v1360 < 0) throw $t;
+  var v1367 = v1354[p15].values.items[v1360];
   Array_a_reclaim_Map_I32_I32(v1129.values);
-  return v1371 !== 3 ? -22 : 1;
+  return v1367 !== 3 ? -22 : 1;
 }
 
 function main$() {
@@ -442,11 +442,10 @@ function indexPlace($g, self, at, h) {
     var v19 = self.index;
     var v20 = v19.items;
     if (p4 >>> 0 >= v19.length) throw $t;
-    var v29 = p4 | 0;
-    var v31 = v20[v29];
-    if (v31 < 0) {
-      v20[v29] = at;
-      if (v31 === -1) self.live = self.live + 1 & 1073741823;
+    var v29 = v20[p4];
+    if (v29 < 0) {
+      v20[p4] = at;
+      if (v29 === -1) self.live = self.live + 1 & 1073741823;
       return;
     }
     p4 = p4 + 1 & v6;
@@ -462,7 +461,7 @@ function indexReset($g, self) {
     var v15 = self.index;
     var v16 = v15.items;
     if (p2 >>> 0 >= v15.length) throw $t;
-    v16[p2 | 0] = -1;
+    v16[p2] = -1;
     p2 = p2 + 1 | 0;
   }
   self.live = 0;
@@ -476,10 +475,10 @@ function insert_I32_I32(self, key, value) {
   var v38 = (v33 ^ v33 >>> 16) >>> 0;
   var v39 = self.mask;
   if (v39 === 0) {
-    var v89 = self.keys.length;
+    var v85 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v89) {
+      while (p3 < v85) {
         if (self.keys.items[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
@@ -490,16 +489,16 @@ function insert_I32_I32(self, key, value) {
     p7 = 0;
     B3: {
       while (p7 <= v39) {
-        var v58 = self.index;
-        var v59 = v58.items;
-        if (p6 >>> 0 >= v58.length) throw $t;
-        var v70 = v59[p6 | 0];
-        if (v70 === -1) {
+        var v56 = self.index;
+        var v57 = v56.items;
+        if (p6 >>> 0 >= v56.length) throw $t;
+        var v66 = v57[p6];
+        if (v66 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v70 >= 0 && self.keys.items[v70] === key) {
-          p3 = v70;
+        if (v66 >= 0 && self.keys.items[v66] === key) {
+          p3 = v66;
           break B3;
         }
         p6 = p6 + 1 & v39;
@@ -509,34 +508,34 @@ function insert_I32_I32(self, key, value) {
     }
   }
   if (p3 >= 0) {
-    var v158 = self.values.items;
-    var v160 = v158[p3];
-    v158[p3] = value;
-    return v160;
+    var v153 = self.values.items;
+    var v155 = v153[p3];
+    v153[p3] = value;
+    return v155;
   }
-  var v104 = self.keys;
-  var v108 = v104.length;
-  push_I32(v104, key);
+  var v100 = self.keys;
+  var v104 = v100.length;
+  push_I32(v100, key);
   push_I32(self.values, value);
-  var v112 = self.mask;
+  var v108 = self.mask;
   B6: {
-    if (v112 === 0) {
-      var v144 = v108 + 1;
-      if (v144 > 64) {
+    if (v108 === 0) {
+      var v139 = v104 + 1;
+      if (v139 > 64) {
         p10 = 16;
-        while ((p10 - (p10 >>> 3) | 0) < v144) {
+        while ((p10 - (p10 >>> 3) | 0) < v139) {
           p10 = p10 + p10 | 0;
         }
         indexRebuild_I32_I32(self, p10);
       }
     } else {
-      var v120 = v112 + 1;
-      if (self.live + 1 > v120 - (v120 >>> 3)) {
-        p4 = Math.imul(v108 + 1, 2) > v120 ? v120 + v120 | 0 : v120;
+      var v115 = v108 + 1;
+      if (self.live + 1 > v115 - (v115 >>> 3)) {
+        p4 = Math.imul(v104 + 1, 2) > v115 ? v115 + v115 | 0 : v115;
         indexRebuild_I32_I32(self, p4);
         break B6;
       }
-      indexPlace($ge$indexPlace, self, v108, v38);
+      indexPlace($ge$indexPlace, self, v104, v38);
     }
   }
   return null;
@@ -564,9 +563,9 @@ function indexRebuild_I32_I32(self, slots) {
   self.index.length = slots & 1073741823;
   self.mask = slots - 1 & 1073741823;
   indexReset($ge$indexReset, self);
-  var v26 = self.keys.length;
+  var v24 = self.keys.length;
   var p2 = 0;
-  while (p2 < v26) {
+  while (p2 < v24) {
     indexPlace($ge$indexPlace, self, p2, hashKey_I32(self.keys.items[p2]));
     p2 = p2 + 1 | 0;
   }
@@ -583,10 +582,10 @@ function findEntry_I32_I32(self, key, h) {
   var p3, p5, p6;
   var v9 = self.mask;
   if (v9 === 0) {
-    var v59 = self.keys.length;
+    var v55 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v59) {
+      while (p3 < v55) {
         if (self.keys.items[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
@@ -597,16 +596,16 @@ function findEntry_I32_I32(self, key, h) {
     p6 = 0;
     B3: {
       while (p6 <= v9) {
-        var v28 = self.index;
-        var v29 = v28.items;
-        if (p5 >>> 0 >= v28.length) throw $t;
-        var v40 = v29[p5 | 0];
-        if (v40 === -1) {
+        var v26 = self.index;
+        var v27 = v26.items;
+        if (p5 >>> 0 >= v26.length) throw $t;
+        var v36 = v27[p5];
+        if (v36 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v40 >= 0 && self.keys.items[v40] === key) {
-          p3 = v40;
+        if (v36 >= 0 && self.keys.items[v36] === key) {
+          p3 = v36;
           break B3;
         }
         p5 = p5 + 1 & v9;
@@ -635,10 +634,10 @@ function findEntry_String_I32(self, key, h) {
   var p3, p5, p6;
   var v9 = self.mask;
   if (v9 === 0) {
-    var v63 = self.keys.length;
+    var v59 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v63) {
+      while (p3 < v59) {
         if (self.keys[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
@@ -649,16 +648,16 @@ function findEntry_String_I32(self, key, h) {
     p6 = 0;
     B3: {
       while (p6 <= v9) {
-        var v28 = self.index;
-        var v29 = v28.items;
-        if (p5 >>> 0 >= v28.length) throw $t;
-        var v40 = v29[p5 | 0];
-        if (v40 === -1) {
+        var v26 = self.index;
+        var v27 = v26.items;
+        if (p5 >>> 0 >= v26.length) throw $t;
+        var v36 = v27[p5];
+        if (v36 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v40 >= 0 && self.keys[v40] === key) {
-          p3 = v40;
+        if (v36 >= 0 && self.keys[v36] === key) {
+          p3 = v36;
           break B3;
         }
         p5 = p5 + 1 & v9;
@@ -675,10 +674,10 @@ function insert_I32_Array_I32(self, key, value) {
   var v11 = hashKey_I32(key);
   var v12 = self.mask;
   if (v12 === 0) {
-    var v62 = self.keys.length;
+    var v58 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v62) {
+      while (p3 < v58) {
         if (self.keys.items[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
@@ -689,16 +688,16 @@ function insert_I32_Array_I32(self, key, value) {
     p7 = 0;
     B3: {
       while (p7 <= v12) {
-        var v31 = self.index;
-        var v32 = v31.items;
-        if (p6 >>> 0 >= v31.length) throw $t;
-        var v43 = v32[p6 | 0];
-        if (v43 === -1) {
+        var v29 = self.index;
+        var v30 = v29.items;
+        if (p6 >>> 0 >= v29.length) throw $t;
+        var v39 = v30[p6];
+        if (v39 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v43 >= 0 && self.keys.items[v43] === key) {
-          p3 = v43;
+        if (v39 >= 0 && self.keys.items[v39] === key) {
+          p3 = v39;
           break B3;
         }
         p6 = p6 + 1 & v12;
@@ -708,38 +707,38 @@ function insert_I32_Array_I32(self, key, value) {
     }
   }
   if (p3 >= 0) {
-    var v151 = self.values;
-    var v155 = v151[p3];
-    v151[p3] = value;
-    return v155;
+    var v144 = self.values;
+    var v148 = v144[p3];
+    v144[p3] = value;
+    return v148;
   }
-  var v77 = self.keys;
-  var v81 = v77.length;
-  push_I32(v77, key);
-  var v84 = self.values;
-  var v86 = v84.length;
-  var v89 = v86 + 1;
-  v84[v86] = value;
-  self.values.length = v89 & 1073741823;
-  var v106 = self.mask;
+  var v73 = self.keys;
+  var v77 = v73.length;
+  push_I32(v73, key);
+  var v80 = self.values;
+  var v82 = v80.length;
+  var v85 = v82 + 1;
+  v80[v82] = value;
+  self.values.length = v85 & 1073741823;
+  var v100 = self.mask;
   B6: {
-    if (v106 === 0) {
-      var v138 = v81 + 1;
-      if (v138 > 64) {
+    if (v100 === 0) {
+      var v131 = v77 + 1;
+      if (v131 > 64) {
         p10 = 16;
-        while ((p10 - (p10 >>> 3) | 0) < v138) {
+        while ((p10 - (p10 >>> 3) | 0) < v131) {
           p10 = p10 + p10 | 0;
         }
         indexRebuild_I32_Array_I32(self, p10);
       }
     } else {
-      var v114 = v106 + 1;
-      if (self.live + 1 > v114 - (v114 >>> 3)) {
-        p4 = Math.imul(v81 + 1, 2) > v114 ? v114 + v114 | 0 : v114;
+      var v107 = v100 + 1;
+      if (self.live + 1 > v107 - (v107 >>> 3)) {
+        p4 = Math.imul(v77 + 1, 2) > v107 ? v107 + v107 | 0 : v107;
         indexRebuild_I32_Array_I32(self, p4);
         break B6;
       }
-      indexPlace($ge$indexPlace$2, self, v81, v11);
+      indexPlace($ge$indexPlace$2, self, v77, v11);
     }
   }
   return null;
@@ -751,9 +750,9 @@ function indexRebuild_I32_Array_I32(self, slots) {
   self.index.length = slots & 1073741823;
   self.mask = slots - 1 & 1073741823;
   indexReset($ge$indexReset$1, self);
-  var v26 = self.keys.length;
+  var v24 = self.keys.length;
   var p2 = 0;
-  while (p2 < v26) {
+  while (p2 < v24) {
     indexPlace($ge$indexPlace$2, self, p2, hashKey_I32(self.keys.items[p2]));
     p2 = p2 + 1 | 0;
   }
@@ -765,9 +764,9 @@ function indexRebuild_I32_Map_I32_I32(self, slots) {
   self.index.length = slots & 1073741823;
   self.mask = slots - 1 & 1073741823;
   indexReset($ge$indexReset$2, self);
-  var v26 = self.keys.length;
+  var v24 = self.keys.length;
   var p2 = 0;
-  while (p2 < v26) {
+  while (p2 < v24) {
     indexPlace($ge$indexPlace$1, self, p2, hashKey_I32(self.keys.items[p2]));
     p2 = p2 + 1 | 0;
   }
@@ -796,9 +795,9 @@ function indexRebuild_String_I32(self, slots) {
   self.index.length = slots & 1073741823;
   self.mask = slots - 1 & 1073741823;
   indexReset($ge$indexReset$3, self);
-  var v26 = self.keys.length;
+  var v24 = self.keys.length;
   var p2 = 0;
-  while (p2 < v26) {
+  while (p2 < v24) {
     indexPlace($ge$indexPlace$3, self, p2, hashKey_String(self.keys[p2]));
     p2 = p2 + 1 | 0;
   }
@@ -808,25 +807,24 @@ function appendEntry_String_I32(self, key, value, h) {
   var p4, p5;
   var v6 = self.keys;
   var v10 = v6.length;
-  var v17 = v10 + 1;
+  var v15 = v10 + 1;
   v6[v10] = key;
-  self.keys.length = v17 & 1073741823;
+  self.keys.length = v15 & 1073741823;
   push_I32(self.values, value);
-  var v34 = self.mask;
-  if (v34 === 0) {
-    var v66 = v10 + 1;
-    if (v66 > 64) {
+  var v28 = self.mask;
+  if (v28 === 0) {
+    if (v15 > 64) {
       p5 = 16;
-      while ((p5 - (p5 >>> 3) | 0) < v66) {
+      while ((p5 - (p5 >>> 3) | 0) < v15) {
         p5 = p5 + p5 | 0;
       }
       indexRebuild_String_I32(self, p5);
     }
     return;
   }
-  var v42 = v34 + 1;
-  if (self.live + 1 > v42 - (v42 >>> 3)) {
-    p4 = Math.imul(v10 + 1, 2) > v42 ? v42 + v42 | 0 : v42;
+  var v35 = v28 + 1;
+  if (self.live + 1 > v35 - (v35 >>> 3)) {
+    p4 = Math.imul(v15, 2) > v35 ? v35 + v35 | 0 : v35;
     indexRebuild_String_I32(self, p4);
     return;
   }
@@ -864,4 +862,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main$();
+(globalThis.process ?? {}).exitCode = main$();

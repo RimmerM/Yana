@@ -1,48 +1,49 @@
 fn main() -> one %r0
   var $0: %r2
-  var $1: %r7
-  var $2: %r0
-  var $3: %r1
-  var $4: %r0
-  var $5: %r1
-  var $6: %r0
+  var $1: %r2
+  var $2: %r6
+  var $3: %r0
+  var $4: %r1
+  var $5: %r0
+  var $6: %r1
   var $7: %r0
+  var $8: %r1
+  var $9: %r0
+  var $10: %r0
   block0:
     %6: %r0 = const 1
     %7: %r0 = const 20
-    store var $6: %r0, %6
-    store var $7: %r0, %7
+    store var $9: %r0, %6
+    store var $10: %r0, %7
     %12: %r0 = const 1
-    %13: %r0 = load var $6: %r0
+    %13: %r0 = load var $9: %r0
     %14: %r0 = binary.add %13, %12
     %15: %r0 = coerce %14
-    store var $6: %r0, %15
-    %18: %r0 = load var $7: %r0
+    %18: %r0 = load var $10: %r0
     %19: %r0 = const 1
     %20: %r0 = binary.add %18, %19
     %21: %r0 = coerce %20
-    store var $7: %r0, %21
+    store var $10: %r0, %21
     %26: %r0 = const 3000
-    %29: %r0 = load var $6: %r0
-    %30: %r0 = const 100
-    %31: %r0 = binary.mul %29, %30
-    %32: %r0 = coerce %31
-    %33: %r0 = binary.add %26, %32
-    %34: %r0 = coerce %33
-    %38: %r0 = load var $7: %r0
-    %39: %r0 = binary.add %34, %38
-    %40: %r0 = coerce %39
-    %41: %r0 = const 3221
-    %42: %r3 = binary.ne %40, %41
-    branch %42 -> block2 -> block1
+    %27: %r0 = const 100
+    %28: %r0 = binary.mul %15, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.add %26, %29
+    %31: %r0 = coerce %30
+    %36: %r0 = load var $10: %r0
+    %37: %r0 = binary.add %31, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = const 3221
+    %40: %r3 = binary.ne %38, %39
+    branch %40 -> block2 -> block1
   block1:
-    %62: %r0 = const 3790
-    return %62
+    %56: %r0 = const 3790
+    return %56
   block2:
-    %63: %r0 = const -2
-    return %63
+    %57: %r0 = const -2
+    return %57
 
-optimizer clones 1 aliased 1 forwarded 0 removed 46 adopted 1 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 3 promoted 1 folded 2
+optimizer clones 1 aliased 1 forwarded 0 removed 44 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 1 folded 2
 
 shape %s0 object Config {hot: %r0, cold: %r1}
 shape %s1 object Diagnostics {count: %r0, level: %r0}
@@ -54,6 +55,5 @@ rep %r1 = object %s1
 rep %r2 = object %s0
 rep %r3 = number bool
 rep %r4 = object %s2
-rep %r5 = array Array of %r2
-rep %r6 = array Int32Array of %r0
-rep %r7 = object %s3
+rep %r5 = array Int32Array of %r0
+rep %r6 = object %s3

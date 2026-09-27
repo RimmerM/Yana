@@ -1,0 +1,104 @@
+{-
+   Implementation-Streams.md §3.2's buffered input, written the way the plan writes it (P15, J187).
+
+   `take` answers `Result(ReadFailure(e), '[U8])` - a view of the input's buffer beside an error
+   whose type is the class's variable. Until J187 that declaration was refused: a qualified type
+   argument was admitted only where the members it left behind owed nothing, and nothing says what
+   `e` owes. It is admitted now, and where such a value dies only the error is released - a tag test
+   and a drop of the `Err` payload at its own type - while the view is left alone.
+
+   `MemError` holds a `String` and a `Guard`, and every `Guard` adds its id to `trace` when it is
+   released, so an error freed twice or not at all changes the answer. It is made on four paths:
+   returned by `take` and dropped unmatched (`d`), propagated by `?` out of `header` and matched
+   (`b`), returned and matched by a pattern that binds nothing (`c` ends instead), and moved out of
+   the match into `forget` (`e`).
+
+   `header` is the plan's `input.take(n)?` in a generic body: `bytes` holds the loan on `input` until
+   its last use, and the write after that use is accepted - `Reject.Residue.Loan.yana` is the write
+   before it.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data MemError {message: String, code: I32, guard: Guard}
+
+class Source(s -> e):
+    fn readSome(&self: s, &into: [U8]) -> Result(e, Size)
+
+data ReadFailure(e) = ReadError(e) | Ended
+
+data Input(s, e) {source: s, buffer: [U8], begin: Size, end: Size, ended: Bool}
+
+fn (Source(s, e)) take(&self: 'Input(s, e), count: Size) -> Result(ReadFailure(e), '[U8]):
+    while self.end - self.begin < count:
+        if self.ended then return Err(Ended)
+        if length(self.buffer) == self.end then push(self.buffer, 0)
+        let Ok(got) = self.source.readSome(self.buffer[self.end..self.end + 1])
+            | Err(->e) -> return Err(ReadError(e))
+        if got == 0 then self.ended = True
+        self.end += got
+    let start = self.begin
+    self.begin += count
+    return Ok(self.buffer[start..start + count])
+
+data Header {kind: U8, size: U8}
+
+fn (Source(s, e)) header(&input: Input(s, e)) -> Result(ReadFailure(e), Header):
+    let bytes = input.take(2)?
+    let found = Header {kind: bytes[0], size: bytes[1]}
+    input.ended = False
+    return Ok(found)
+
+data Memory {bytes: [U8], at: Size, failAt: Size}
+
+instance Source(Memory, MemError):
+    fn readSome(&self: Memory, &into: [U8]) -> Result(MemError, Size):
+        if self.at == self.failAt:
+            return Err(MemError {message: "failed at {self.at}", code: 11, guard: Guard {id: 100}})
+        if self.at == length(self.bytes) then return Ok(0)
+        into[0] = self.bytes[self.at]
+        self.at += 1
+        return Ok(1)
+
+fn memory(bytes: [U8], failAt: Size) -> Input(Memory, MemError) =
+    Input {source: Memory {bytes: copy(bytes), at: 0, failAt: failAt}, buffer: [] :: [U8],
+           begin: 0, end: 0, ended: False}
+
+fn forget(->error: MemError) -> I32 = error.code
+
+fn main() -> I32:
+    let &total = 0 :: I32
+
+    let &a = memory([1, 2, 3, 4], 99)
+    if header(a) is Ok(h) then total += (h.kind :: I32) + (h.size :: I32)    -- 3
+    if a.take(2) is Ok(rest) then total += (rest[1] :: I32) * 10              -- 40
+
+    let &b = memory([1, 2, 3, 4], 1)
+    match header(b):
+        Ok(_) -> total += 1000
+        Err(ReadError(e)) -> total += e.code              -- 11
+        Err(Ended) -> total += 2000
+
+    let &c = memory([1], 99)
+    match c.take(3):
+        Ok(_) -> total += 3000
+        Err(ReadError(_)) -> total += 4000
+        Err(Ended) -> total += 500
+
+    let &d = memory([1], 0)
+    let r = d.take(3)
+    if r is Ok(_) then total += 5000
+
+    let &e = memory([5, 6], 2)
+    match e.take(4):
+        Err(ReadError(->error)) -> total += forget(error) * 10000          -- 110000
+        _ -> total += 6000
+
+    -- 3 + 40 + 11 + 500 + 110000, and three errors released once each.
+    return total + trace

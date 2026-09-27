@@ -29,7 +29,7 @@ function offsetWideRoundTrip(value) {
 }
 
 function main() {
-  return 155 + (wideRoundTrip(78187493530n) === 78187493530n ? 1 : 0) + (offsetWideRoundTrip(151488268715n) === 151488268715n ? 1 : 0) + 2 + 2;
+  return 155 + (wideRoundTrip(78187493530n) === 78187493530n ? 1 : 0) + (offsetWideRoundTrip(151488268715n) === 151488268715n ? 1 : 0) + 4;
 }
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp
@@ -37,4 +37,4 @@ function $w40u$wrap(a) {
   var v = a % 1099511627776;
   return v < 0 ? v + 1099511627776 : v;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

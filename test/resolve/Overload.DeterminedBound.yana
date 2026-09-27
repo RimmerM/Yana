@@ -1,0 +1,29 @@
+{-
+   A class candidate whose functional dependency's **determined** position the call already bound -
+   R2 #7, `prefixHasInstance` in `resolve_overload.cpp`.
+
+   `Pick(c -> k, v)` has an instance at `[I32]` whose `v` is `I32`. `probe(xs, small)` binds `c`
+   from `xs` and `v` from a `U8`, and leaves `k` open. The prefix alone has an instance, and asking
+   the prefix alone answered `Yes` for a requirement no instance satisfies - so `Pick.probe` stayed
+   usable beside `Probe.probe`, which does fit, and the call was ambiguous. A determined position
+   bound concretely is kept in the question now, so `Pick.probe` is ruled out at a `U8` and chosen at
+   an `I32`.
+-}
+
+class Pick(c -> k, v):
+  fn probe(xs: c, value: v) -> k
+
+instance Pick([I32], Size, I32):
+    fn probe(xs: [I32], value: I32) -> Size = 1
+
+class Probe(c):
+  fn probe(xs: c, value: U8) -> Size
+
+instance Probe([I32]):
+    fn probe(xs: [I32], value: U8) -> Size = 3
+
+fn main() -> I32:
+    let xs = [1, 2] :: [I32]
+    let small = 7 :: U8
+    let wide = 7 :: I32
+    return truncate(probe(xs, small) * 10 + probe(xs, wide))

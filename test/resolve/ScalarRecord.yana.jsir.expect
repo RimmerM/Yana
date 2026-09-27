@@ -58,33 +58,32 @@ fn heldValue(one %r7) -> one %r6
     %4: %r1 = binary.eq %2, %3
     branch %4 -> block4 -> block1
   block1:
-    %5: %r4 = alias %2
-    %6: %r4 = const 1
-    %7: %r1 = binary.eq %5, %6
-    branch %7 -> block5 -> block2
+    %5: %r4 = const 1
+    %6: %r1 = binary.eq %2, %5
+    branch %6 -> block5 -> block2
   block2:
-    %8: %r6 = const 8
-    jump -> block3(%8)
+    %7: %r6 = const 8
+    jump -> block3(%7)
   block3(%1: %r6):
     return %1
   block4:
-    %13: %r1 = load property %0.a: %r1
-    %14: %r1 = load property %0.b: %r1
-    %15: %r6 = const 1
-    %16: %r6 = const 0
-    %17: %r6 = select %13, %15, %16
-    %18: %r6 = const 2
-    %19: %r6 = const 0
-    %20: %r6 = select %14, %18, %19
-    %21: %r6 = binary.add %17, %20
-    %22: %r6 = coerce %21
-    jump -> block3(%22)
+    %12: %r1 = load property %0.a: %r1
+    %13: %r1 = load property %0.b: %r1
+    %14: %r6 = const 1
+    %15: %r6 = const 0
+    %16: %r6 = select %12, %14, %15
+    %17: %r6 = const 2
+    %18: %r6 = const 0
+    %19: %r6 = select %13, %17, %18
+    %20: %r6 = binary.add %16, %19
+    %21: %r6 = coerce %20
+    jump -> block3(%21)
   block5:
-    %9: %r6 = load property %0.Wide: %r6
-    %10: %r6 = const 10
-    %11: %r6 = binary.mul %9, %10
-    %12: %r6 = coerce %11
-    jump -> block3(%12)
+    %8: %r6 = load property %0.Wide: %r6
+    %9: %r6 = const 10
+    %10: %r6 = binary.mul %8, %9
+    %11: %r6 = coerce %10
+    jump -> block3(%11)
 
 fn main() -> one %r6
   var $0: %r11
@@ -435,50 +434,29 @@ fn main() -> one %r6
     %384: %r6 = const 300
     %385: %r6 = binary.add %378, %384
     %386: %r6 = coerce %385
-    %388: %r14 = load bits @0:4s of (var $19: %r15): %r14
-    %389: %r6 = convert %388
-    %390: %r6 = const 1000
-    %391: %r6 = binary.mul %389, %390
-    %392: %r6 = coerce %391
-    %393: %r6 = binary.add %386, %392
-    %394: %r6 = coerce %393
-    %400: %r6 = const 400000
-    %401: %r6 = binary.add %394, %400
-    %402: %r6 = coerce %401
-    %404: %r14 = load bits @4:4s of (var $19: %r15): %r14
-    %405: %r6 = convert %404
-    %406: %r6 = const 1000000
-    %407: %r6 = binary.mul %405, %406
-    %408: %r6 = coerce %407
-    %409: %r6 = binary.add %402, %408
-    %410: %r6 = coerce %409
-    %411: %r6 = binary.add %340, %410
-    %412: %r6 = coerce %411
-    %425: %r14 = const 6
-    store var $25: %r14, %425
-    %430: %r14 = load var $25: %r14
-    %431: %r6 = convert %430
-    %432: %r6 = const 1
-    %433: %r6 = binary.add %431, %432
-    %434: %r6 = coerce %433
-    %435: %r14 = convert %434
-    store var $25: %r14, %435
-    %475: %r6 = const 406401
-    %477: %r14 = load var $25: %r14
-    %478: %r6 = convert %477
-    %479: %r6 = const 1000000
-    %480: %r6 = binary.mul %478, %479
-    %481: %r6 = coerce %480
-    %482: %r6 = binary.add %475, %481
-    %483: %r6 = coerce %482
-    %484: %r6 = binary.add %412, %483
-    %485: %r6 = coerce %484
-    %496: %r6 = const 7406403
-    %497: %r6 = binary.add %485, %496
-    %498: %r6 = coerce %497
-    return %498
+    %387: %r6 = const 6000
+    %388: %r6 = binary.add %386, %387
+    %389: %r6 = coerce %388
+    %395: %r6 = const 400000
+    %396: %r6 = binary.add %389, %395
+    %397: %r6 = coerce %396
+    %398: %r6 = convert %362
+    %399: %r6 = const 1000000
+    %400: %r6 = binary.mul %398, %399
+    %401: %r6 = coerce %400
+    %402: %r6 = binary.add %397, %401
+    %403: %r6 = coerce %402
+    %404: %r6 = binary.add %340, %403
+    %405: %r6 = coerce %404
+    %469: %r6 = const 7406401
+    %470: %r6 = binary.add %405, %469
+    %471: %r6 = coerce %470
+    %482: %r6 = const 7406403
+    %483: %r6 = binary.add %471, %482
+    %484: %r6 = coerce %483
+    return %484
 
-optimizer clones 0 aliased 0 forwarded 0 removed 197 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 5 promoted 13 folded 37
+optimizer clones 0 aliased 0 forwarded 0 removed 204 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 5 promoted 13 folded 43
 
 shape %s0 object Owned {a: %r1, b: %r1}
 shape %s1 object Flags {a: %r1, b: %r1}

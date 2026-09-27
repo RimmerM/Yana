@@ -8,12 +8,10 @@ function main() {
   var p2 = 0;
   var p1 = 0;
   while (p1 < 2) {
-    if (p1 >>> 0 >= 2) throw $t;
     if (!(table[p1].a === null) && BigInt.asIntN(64, table[p1].a & 255n) === 0n) p2 = p2 + 1 | 0;
     p2 = p2 + table[p1].b | 0;
     p1 = p1 + 1 | 0;
   }
   return p2 + Math.imul(tree.$tag === 1 ? tree.mark : 7, 100) | 0;
 }
-var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

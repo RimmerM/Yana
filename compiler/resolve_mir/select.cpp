@@ -759,6 +759,10 @@ static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Cla
         case intrinsic::Known::trivialCopy:
         case intrinsic::Known::trivialSink: {
             if(!isConcreteType(base, args[0])) return Nothing();
+            if(!program.typesClassified && program.deferStructural) {
+                program.structuralDeferred = true;
+                return Nothing();
+            }
             assertTrue(program.typesClassified);
 
             auto ownership = ownershipOf(base, args[0]);
@@ -867,58 +871,6 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
  * Silent where there is no answer: the caller is filling a position in, and "nothing decided this"
  * is its message to give at the position rather than this function's to give about the class.
  */
-/*
- * Whether every variable this type mentions is one of `owner`'s - the walk `isConcreteType` makes,
- * asked about *whose* variables rather than about whether there are any.
- *
- * The distinction is the whole of D13's precondition. A type carrying the asking body's own `a` is
- * a shape that is settled for every specialization; one carrying an *inference* variable - a callee
- * parameter nothing has bound yet, which is what a half-resolved call site is full of - is a shape
- * that is not settled at all, and answering from the table there decides a question the argument
- * walk was still in the middle of.
- */
-static bool variablesFrom(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> owner) {
-    if(!type) return true;
-
-    switch(base[type]->kind) {
-        case Type::Variable:
-            return owner && ((VariableType*)base[type])->owner == owner;
-        case Type::Pointer:
-            return variablesFrom(base, ((PointerType*)base[type])->to, owner);
-        /*
-         * A **quantified count is a variable like any other** here, where `isConcreteType` treats it
-         * as an absence. That is the difference the two questions are asking: a body compiled once
-         * cannot lay `[a *n]` out, which is what that function is about, and `[a *n]` is still one
-         * shape for every `n` a specialization supplies, which is what this one is about.
-         * `instance (n: Int) Contiguous([a *n], a)` is the head that matches it.
-         */
-        case Type::Array: {
-            auto& array = *(ArrayType*)base[type];
-            return variablesFrom(base, array.element, owner) && variablesFrom(base, array.count, owner);
-        }
-        case Type::Vector: {
-            auto& vector = *(VectorType*)base[type];
-            return variablesFrom(base, vector.lane, owner) && variablesFrom(base, vector.count, owner);
-        }
-        case Type::Atomic:
-            return variablesFrom(base, ((AtomicType*)base[type])->content, owner);
-        case Type::Record:
-            for(auto argument: ((RecordType*)base[type])->arguments.contents(base)) {
-                if(!variablesFrom(base, argument, owner)) return false;
-            }
-            return true;
-        case Type::Fun: {
-            auto& fun = *(FunType*)base[type];
-            for(auto param: fun.params.contents(base)) {
-                if(!variablesFrom(base, param.occurrence.type, owner)) return false;
-            }
-            return variablesFrom(base, fun.result.type, owner);
-        }
-        default:
-            return true;
-    }
-}
-
 bool openHeadAnswerable(Program& program, DeclPtr<Class> klass, const DeclPtr<Type>* args,
                         Size count, DeclPtr<GenContext> enclosing) {
     if(!klass) return false;

@@ -1,0 +1,54 @@
+{-
+   A `?` whose view result is discarded, over storage this frame owns - K7, J212 §5.
+
+   `feed.next()?` unwraps a `Result(Fault, '[U8])` rooted in `feed`, and nothing reads the view, so
+   the unwrapped value joins as a block argument that is dead on arrival. The lender was dead past
+   the jump too, and its release was placed in front of the jump that handed the loan over:
+   "internal: jump uses N, whose loan has already ended". The same over a `&feed` parameter
+   compiled, because nothing is released there. A block argument's lender is now live into the
+   block, so the release lands on the far side of the edge.
+
+   `main` answers the cases that did not match; a `Feed` counts its releases, and all four are released before the count is read.
+-}
+
+let &released = 0
+
+data Fault {at: Int}
+
+data Feed {bytes: [U8], at: Int}
+
+instance Drop(Feed):
+    fn drop(->value: Feed):
+        released += 1
+
+fn Feed.next(&self: Feed) -> Result(Fault, '[U8]):
+    if self.at >= length(self.bytes) then return Err(Fault {at: self.at})
+    self.at += 1
+    return Ok(self.bytes[self.at - 1..self.at])
+
+fn discarded(fail: Bool) -> Result(Fault, Int):
+    let &feed = Feed {bytes: [1, 2, 3], at: 0}
+    if fail:
+        feed.next()?
+        return Err(Fault {at: 7})
+    return Ok(feed.at)
+
+fn exhausted() -> Result(Fault, Int):
+    let &feed = Feed {bytes: [5], at: 0}
+    feed.next()?
+    feed.next()?
+    return Ok(1)
+
+fn lent(&feed: Feed) -> Result(Fault, Int):
+    feed.next()?
+    return Err(Fault {at: 8})
+
+fn main() -> Int:
+    let &failures = 0
+    if !(discarded(True) is Err(Fault {at: 7})) then failures += 1
+    if !(discarded(False) is Ok(0)) then failures += 2
+    if !(exhausted() is Err(Fault {at: 1})) then failures += 4
+    let &feed = Feed {bytes: [9], at: 0}
+    if !(lent(feed) is Err(Fault {at: 8})) then failures += 8
+    if released != 4 then failures += 16
+    return failures

@@ -2,15 +2,15 @@ module ResolveTest
 
 let & log: I32 = 0
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *3] = "abc"
+let string'189: [CodeUnit *3] = "abc"
 
-let string'144: [CodeUnit *2] = "ab"
+let string'190: [CodeUnit *2] = "ab"
 
-let string'145: [CodeUnit *1] = "c"
+let string'191: [CodeUnit *1] = "c"
 
-let string'146: [CodeUnit *3] = "abc"
+let string'192: [CodeUnit *3] = "abc"
 
 fn logged($body: (I32) -> $r [shared call]) -> $r = <no body>
 
@@ -175,7 +175,7 @@ bb4:
 
 fn made() -> String {
 bb0:
-  %0: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %0: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   return consume %0
 }
 
@@ -198,10 +198,10 @@ bb0:
 fn built() -> String {
 bb0:
   %0: %String address = alloc frame String
-  %1: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %1: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %0 consume %1
   %2: String [unique call] guaranteed from{%0} = load inspect %0
-  %3: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %3: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   call ++=(String) borrow %2 consume %3
   %4: String owned = load inspect %0
   return consume %4
@@ -654,7 +654,7 @@ bb4:
   jump -> bb5(borrow %21)
 
 bb5(%10: String [shared slot 0 view] guaranteed from{%4}):
-  %22: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 3, ownsHeap: 0}, length: 3}}
+  %22: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 3, ownsHeap: 0}, length: 3}}
   store inspect %8 consume %22
   %23: String [shared slot 0] guaranteed from{%8} = load inspect %8
   jump -> bb6
@@ -720,7 +720,7 @@ bb4:
   jump -> bb5(borrow %21)
 
 bb5(%10: String [shared slot 0 view] guaranteed from{%4}):
-  %22: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 3, ownsHeap: 0}, length: 3}}
+  %22: String owned = const String {units: Array {run: Run {items: &string'192, capacity: 3, ownsHeap: 0}, length: 3}}
   store inspect %8 consume %22
   %23: String [shared slot 0] guaranteed from{%8} = load inspect %8
   jump -> bb6

@@ -1,0 +1,291 @@
+{-
+   Storage a traversal holds is released *after* the traversal's cleanup, on every way out of its
+   region (K6).
+
+   A lens call lends its arguments to a callee that is still running while the region runs, and the
+   callee reads them again in its cleanup. So a local lent to one may not be released inside the
+   region - J185 - and on a `return` from inside it the release has to wait for the cleanup the
+   `return` runs on its way out. It did not: the drop was placed before the `return`, ahead of the
+   cleanup, which then read a released value (J210 section 4). The release is now on the call's leave
+   path, one per call site, so nested traversals unwind innermost first with each one's storage going
+   after its own cleanup.
+
+   Every event appends a digit to `trace`: a lens's entry (1), its cleanup finding its argument
+   still there (2) or already released (7), the body's own work (8), a `Tag` released (9) and a
+   skip (6). `main` answers the cases whose trace did not match, as bits, so the golden is 0 on both
+   targets and with either optimizer off.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+let &released = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+    released = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        released = released `or` (1 `shl` value.id)
+
+fn alive(t: Tag) = (released `and` (1 `shl` t.id)) == 0
+
+fn checkAlive(t: Tag):
+    note(if alive(t) then 2 else 7)
+
+lens fn watch(t: Tag):
+    note(1)
+    yield {}
+    checkAlive(t)
+
+lens fn handing(t: Tag) -> Int:
+    note(1)
+    yield t.id * 2
+    checkAlive(t)
+
+-- A skipping lens: an odd id never reaches the block.
+lens fn even(t: Tag) -> (Int | Int):
+    if t.id % 2 == 1 then return t.id
+    note(1)
+    yield t.id
+    checkAlive(t)
+
+iter fn upTo(t: Tag, n: Int) -> Int:
+    note(1)
+    for i in 0..n:
+        yield i
+    checkAlive(t)
+
+-- `return` with a value from a block-form lens call.
+fn blockReturn(leave: Bool) -> Int:
+    let t = Tag {id: 1}
+    watch(t):
+        if leave then return 5
+        note(8)
+    return 0
+
+-- A bare `return` from a function answering nothing.
+fn unitReturn(leave: Bool):
+    let t = Tag {id: 1}
+    watch(t):
+        if leave then return
+        note(8)
+
+-- `return` out of an `in:` region, of the value the lens handed over.
+fn inReturn() -> Int:
+    let t = Tag {id: 2}
+    let v = handing(t) in:
+        return v + 1
+
+-- `return` inside a derived extent.
+fn derivedReturn(leave: Bool) -> Int:
+    let t = Tag {id: 2}
+    let v = handing(t)
+    if leave then return v
+    note(8)
+    return v + 10
+
+-- `return` out of a `for` over an `iter fn`, whose trailing statement is its cleanup.
+fn iterReturn() -> Int:
+    let t = Tag {id: 3}
+    for i in upTo(t, 5):
+        if i == 2 then return i
+        note(8)
+    return 0
+
+-- `?` inside a region is a `return` too.
+fn half(n: Int) -> Maybe(Int) = if n % 2 == 0 then Just(n / 2) else Nothing
+
+fn tryReturn(n: Int) -> Maybe(Int):
+    let t = Tag {id: 1}
+    watch(t):
+        let h = half(n)?
+        note(8)
+        return Just(h)
+    return Nothing
+
+-- A skipping lens: `return` from its region, and from the alternative that runs instead of it.
+fn skipReturn(id: Int) -> Int:
+    let t = Tag {id: id}
+    let v = even(t) | odd -> return odd + 100 in:
+        return v
+    return 0
+
+-- Two traversals, each holding its own `Tag`: inner cleanup, inner `Tag`, outer cleanup, outer
+-- `Tag`.
+fn nestedReturn() -> Int:
+    let a = Tag {id: 1}
+    watch(a):
+        let b = Tag {id: 2}
+        watch(b):
+            return 3
+    return 0
+
+-- One `Tag` lent to both: it outlives both cleanups.
+fn sharedReturn() -> Int:
+    let a = Tag {id: 1}
+    watch(a):
+        watch(a):
+            return 4
+    return 0
+
+-- A `Tag` the region does not hold is released at its last use, as before - and one the inner
+-- region holds, declared in the outer one, after the inner cleanup and before the outer.
+fn mixedReturn() -> Int:
+    let a = Tag {id: 1}
+    watch(a):
+        let b = Tag {id: 2}
+        let c = Tag {id: 3}
+        watch(c):
+            note(b.id)
+            return 6
+    return 0
+
+-- `break` and `continue` leave through a landing outside the region, where the storage is released
+-- after the cleanup already (J197); held to the same order here. A pass's `Tag` has an id of its own,
+-- since the last pass's was released.
+fn breakOut() -> Int:
+    let &i = 0
+    while i < 5:
+        let t = Tag {id: i + 1}
+        watch(t):
+            if i == 1 then break
+            note(8)
+        i += 1
+    return i
+
+fn continueOut() -> Int:
+    let &i = 0
+    while i < 2:
+        i += 1
+        let t = Tag {id: i + 1}
+        watch(t):
+            if i == 1 then continue
+            note(8)
+    return i
+
+-- A field lent: the record stays whole past the `return` and goes after the cleanup - or, with its
+-- other field handed over inside the region, what is left of it does.
+data Pair {a: Tag, b: Tag}
+
+fn consume(->t: Tag):
+    note(5)
+
+fn fieldHeld(leave: Bool) -> Int:
+    let p = Pair {a: Tag {id: 1}, b: Tag {id: 2}}
+    watch(p.a):
+        if leave then return 1
+        note(8)
+    return 0
+
+fn partHeld() -> Int:
+    let p = Pair {a: Tag {id: 1}, b: Tag {id: 2}}
+    watch(p.a):
+        consume(p.b)
+        return 1
+    return 0
+
+-- An exclusive loan holds the same way.
+lens fn bump(&t: Tag):
+    note(1)
+    yield {}
+    checkAlive(t)
+
+fn uniqueHeld() -> Int:
+    let &t = Tag {id: 1}
+    bump(t):
+        return 2
+    return 0
+
+-- A lens inside a `for` over an `iter fn`: the inner call's leave path runs inside the loop's
+-- continuation, and the outer one's after the producer's cleanup.
+fn iterOuter() -> Int:
+    let a = Tag {id: 1}
+    for i in upTo(a, 3):
+        let b = Tag {id: i + 2}
+        watch(b):
+            if i == 1 then return 7
+            note(8)
+    return 0
+
+-- A `Tag` handed over after the region on one path: the leave path still releases it
+-- unconditionally, since inside the region it is owned on every path.
+fn laterMove(leave: Bool) -> Int:
+    let t = Tag {id: 1}
+    watch(t):
+        if leave then return 1
+    if leave then consume(t)
+    return 0
+
+fn main() -> Int:
+    if blockReturn(True) != 5 then failures += 1048576
+    expect(1, 129)
+    if blockReturn(False) != 0 then failures += 1048576
+    expect(2, 1829)
+
+    unitReturn(True)
+    expect(4, 129)
+
+    if inReturn() != 5 then failures += 1048576
+    expect(8, 129)
+
+    if derivedReturn(True) != 4 then failures += 1048576
+    expect(16, 129)
+    if derivedReturn(False) != 14 then failures += 1048576
+    expect(32, 1829)
+
+    if iterReturn() != 2 then failures += 1048576
+    expect(64, 18829)
+
+    if !(tryReturn(4) is Just(2)) then failures += 1048576
+    expect(128, 1829)
+    if !(tryReturn(3) is Nothing) then failures += 1048576
+    expect(256, 129)
+
+    if skipReturn(2) != 2 then failures += 1048576
+    expect(512, 129)
+    if skipReturn(3) != 103 then failures += 1048576
+    expect(1024, 9)
+
+    if nestedReturn() != 3 then failures += 1048576
+    expect(2048, 112929)
+
+    if sharedReturn() != 4 then failures += 1048576
+    expect(4096, 11229)
+
+    if mixedReturn() != 6 then failures += 1048576
+    expect(8192, 11922929)
+
+    if breakOut() != 1 then failures += 1048576
+    expect(16384, 1829129)
+
+    if continueOut() != 2 then failures += 1048576
+    expect(32768, 1291829)
+
+    if fieldHeld(True) != 1 then failures += 1048576
+    expect(65536, 1299)
+    if fieldHeld(False) != 0 then failures += 1048576
+    expect(131072, 18299)
+
+    if partHeld() != 1 then failures += 1048576
+    expect(262144, 19529)
+
+    if uniqueHeld() != 2 then failures += 1048576
+    expect(524288, 129)
+
+    if iterOuter() != 7 then failures += 1048576
+    expect(2097152, 1182912929)
+
+    if laterMove(True) != 1 then failures += 1048576
+    expect(4194304, 129)
+    if laterMove(False) != 0 then failures += 1048576
+    expect(8388608, 129)
+
+    return failures

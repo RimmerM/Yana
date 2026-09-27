@@ -424,7 +424,7 @@ pub fn (n: Int) permute(vector: Vec(a, n), indices: Vec(b, n)) -> Vec(a, n) = lo
 -}
 pub data ByteSet {rows: Vec(U8, 16)}
 
-pub fn (Widen(a, Int)) byteSet(units: [a]) -> ByteSet:
+pub fn (TrivialCopy(a), Widen(a, Int)) byteSet(units: [a]) -> ByteSet:
     let lowNibbles = iota() :: Vec(U8, 16)
     let &rows = zero() :: Vec(U8, 16)
 

@@ -238,11 +238,30 @@ struct Simplifier {
          * record the aggregate built is checked below rather than assumed, because a field index
          * means nothing except against the declaration it indexes.
          */
+        /*
+         * **And through a `Guaranteed` load of it**, which is J189 and the shape a local *view* has.
+         * `let v = xs[a..b]` is the slice's `ArrayView` aggregate restated as the `[U8]` occurrence,
+         * and every later `length(v)` is `field.addr .length (load %restated)`: the load is how a
+         * borrow of a slot is spelled at this tier, the second name `memory.cpp`'s `throughNames`
+         * and `analysis.cpp`'s `allocationRoot` already peel. Without it each `length(v)` was a load
+         * of its own, so a dominating `length(v) < 9` and the check below it read two values and
+         * `opt/bounds.cpp` had no fact to spend. The walk is bounded because the shape is one
+         * represent and at most two loads, and the read-only test below follows the same steps.
+         */
         auto built = record;
-        if(made->kind == Inst::Unary && ((InstUnary&)*made).op == mir::UnaryOp::Represent) {
-            built = opt.base[((InstUnary&)*made).value.value()];
-            if(!built->definer) return false;
+        for(U32 step = 0; step < 4; step++) {
+            if(made->kind == Inst::Load) {
+                auto named = soleResult(*made);
+                if(!named || named->convention != Convention::Guaranteed) break;
 
+                built = opt.base[((InstLoad&)*made).address.value()];
+            } else if(made->kind == Inst::Unary && ((InstUnary&)*made).op == mir::UnaryOp::Represent) {
+                built = opt.base[((InstUnary&)*made).value.value()];
+            } else {
+                break;
+            }
+
+            if(!built->definer) return false;
             made = opt.base[built->definer];
         }
 
@@ -336,18 +355,29 @@ struct Simplifier {
      * lists, which is what an aggregate nothing stores into has.
      *
      * A `represent` is a second **name** for the storage rather than a use of it, so it is followed
-     * rather than refused, and what has to be read-only is everything reached through it. One level
-     * is what the shape needs - a view record is restated once and the restatement is what the field
-     * addresses hang off - and the bound is what keeps this a walk of two short lists.
+     * rather than refused, and what has to be read-only is everything reached through it. A view
+     * record is restated once, and the restatement - or a `Guaranteed` load of it, since J189 - is
+     * what the field addresses hang off; the bound of four steps is what keeps this a walk of a few
+     * short lists.
      */
     bool readOnlyRecord(Value& record, U32 depth) {
         for(auto pointer: record.uses(opt.base)) {
             auto user = opt.base[pointer];
 
             if(user->kind == Inst::Unary && ((InstUnary&)*user).op == mir::UnaryOp::Represent) {
-                auto restated = depth < 2 ? soleResult(*user) : nullptr;
+                auto restated = depth < 4 ? soleResult(*user) : nullptr;
                 if(!restated || !readOnlyRecord(*restated, depth + 1)) return false;
                 continue;
+            }
+
+            // A `Guaranteed` load is the same second name one step on - the borrow of a restated
+            // view that `tryAggregateField` walks through above - so it is followed as well.
+            if(user->kind == Inst::Load && depth > 0 && !((InstLoad&)*user).isVolatile) {
+                auto named = soleResult(*user);
+                if(named && named->convention == Convention::Guaranteed) {
+                    if(depth >= 4 || !readOnlyRecord(*named, depth + 1)) return false;
+                    continue;
+                }
             }
 
             if(user->kind != Inst::FieldAddress) return false;

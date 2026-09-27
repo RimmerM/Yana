@@ -4,7 +4,6 @@ function total(xs$0, xs$1, xs$2) {
   var p3 = 0;
   var p4 = 0;
   while (p3 < xs$1) {
-    if (p3 >>> 0 >= xs$1 >>> 0) throw $t;
     p4 = p4 + xs$0[xs$2 + p3 | 0] | 0;
     p3 = p3 + 1 | 0;
   }
@@ -15,7 +14,6 @@ function clobber(a) {
   var v3 = new Int32Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   var p1 = 0;
   while (p1 < 32) {
-    if (p1 >>> 0 >= 32) throw $t;
     v3[p1] = a + p1 | 0;
     p1 = p1 + 1 | 0;
   }
@@ -38,4 +36,4 @@ function main() {
   return (Math.imul(total(new Int32Array([1, 2, 3]), 3, 0), 1000) + Math.imul(held(5), 10) | 0) + named(7) | 0;
 }
 var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

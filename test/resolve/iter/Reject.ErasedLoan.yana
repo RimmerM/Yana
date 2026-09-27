@@ -1,0 +1,66 @@
+{-
+   An erased object over a **borrowing** producer, at a position that would keep it past the loan -
+   J228's defect, refused by J229.
+
+   A heap-placed pair has no interior position to root a loan in, so an owning `iter(T)` position
+   cannot carry what `bytesOf`'s record borrows: `sum(bytesOf(ys))` against `->source: iter(U8)`
+   stepped `ys` after its drop, and a returned or stored one read a frame that was gone. Every owning
+   position refuses it in `adaptIterValue`'s words - a `->` parameter, a result, a field, an element.
+
+   The second half is the same values held in the frame first. Those are frame-placed pairs whose
+   loan *is* carried, and what refuses them is that loan: `checkCarriedOrigins` at a `->` parameter,
+   a field and an element, and the result's conformance at a `return` - the closure's rule, with
+   the advice an object needs. `ErasedLoan.yana` runs the shapes that work.
+
+   # recover: yes - the escapes are refused while resolving and the held `return` by the loan
+   analysis, and both are asserted.
+-}
+
+iter fn bytesOf(xs: [U8]) -> U8:
+    for i in 0..length(xs):
+        yield xs[i]
+
+data Holder {it: iter(U8)}
+
+fn consume(->source: iter(U8)) -> I32:
+    let &it = source
+    let &total = 0 :: I32
+    for b in it:
+        total += widen(b)
+    return total
+
+-- J228's own shape.
+fn handedOver(ys: [U8]) -> I32 = consume(bytesOf(ys))
+
+fn returned(xs: [U8]) -> iter(U8) = bytesOf(xs)
+
+fn returnedLocal() -> iter(U8):
+    let ys = [1, 2, 3] :: [U8]
+    return bytesOf(ys)
+
+fn inField(ys: [U8]) -> Holder = Holder {it: bytesOf(ys)}
+
+fn inArray(ys: [U8]) -> [iter(U8)]:
+    let &all = [] :: [iter(U8)]
+    push(all, bytesOf(ys))
+    return all
+
+fn heldHandedOver(ys: [U8]) -> I32:
+    let &it = bytesOf(ys) :: iter(U8)
+    return consume(it)
+
+fn heldReturned(ys: [U8]) -> iter(U8):
+    let &it = bytesOf(ys) :: iter(U8)
+    return it
+
+fn heldInField(ys: [U8]) -> Holder:
+    let &it = bytesOf(ys) :: iter(U8)
+    return Holder {it: it}
+
+fn heldInArray(ys: [U8]) -> [iter(U8)]:
+    let &it = bytesOf(ys) :: iter(U8)
+    let &all = [] :: [iter(U8)]
+    push(all, it)
+    return all
+
+fn main() -> I32 = 0

@@ -1101,9 +1101,9 @@ bool Resolver::bindArgumentPositions(DeclPtr<RecordType> subject, DeclPtr<Type> 
             /*
              * The argument's own qualification, at the field that holds it. An owned argument states
              * nothing about the field - `Maybe(%s'U8)`'s payload is a pointer the `Maybe` owns - and
-             * a slot saying so would be worse than no slot: `residualObligation` skips the fields a
-             * shape names, so an owned marker would take a genuinely owned field out of the check
-             * that decides whether the qualification is admissible at all.
+             * a slot saying so would be worse than no slot: `residueOwnership` and `emitResidueDrop`
+             * skip the fields a shape names, so an owned marker would take a genuinely owned field
+             * out of what the value owes and out of the teardown that releases it.
              */
             if(!argument.contract.isOwned()) {
                 ExternalSlot slot;
@@ -2447,20 +2447,17 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
         if(!function->failure) return nullptr;
 
         /*
-         * A failure type of the signature's own variables - refused, and this is the boundary of
-         * what the wrapper is built for.
+         * A failure type may name the signature's own variables - the class's `error`, a generic
+         * traversal's `e`, `Wrap(e)` - and is not refused (P14 of Implementation-Streams.md).
          *
-         * `declareOutcome` makes a **concrete** record, so a failure type mentioning `a` would be a
-         * generic record with no context to instantiate it through, and every call site would
-         * project fields out of a shape it had not substituted. Making it generic is the ordinary
-         * `instantiateRecord` path and is what this grows into; refusing it is what keeps the two
-         * from disagreeing in the meantime.
+         * It was, while `declareOutcome` synthesized a concrete record per skipping lens: a record
+         * over `a` had no context to be instantiated through. The wrapper is Core's
+         * `Outcome(exit, E)` now, instantiated like any generic record in a signature, and every
+         * call is specialized, so each specialization answers the concrete record its substitution
+         * names. The one reader that had to change was the conversion's call site, which reads the
+         * wrapper at the failure *it* substituted (`NodeLensCall::reason`) rather than off this
+         * declaration - `skipOutcome` in `resolve_ssa/convert.cpp`.
          */
-        if(!isConcreteType(decl(), function->failure)) {
-            unsupported(parse[written.protocol.failure]->source,
-                        "failing with a type the signature is generic in"_v);
-            return nullptr;
-        }
     } else if(inherited && inherited->failure) {
         // The channel with the result, and for the same reason: an implementation that wrote no
         // protocol is one the class already gave one to. A *written* one that disagrees is compared
@@ -3071,9 +3068,10 @@ DeclPtr<Type> Resolver::siteTypeArguments(ast::SiteType& path, Function& declare
  *
  * The three channels are read by the same rules a traversal's result is read by, which is the point
  * of one grammar: the hand-over is a **binding** position, so it defaults to a borrow and `->` is
- * what makes a consumer own what it takes; `<- R` is what a `yield` evaluates to; and `| E` is
- * refused by name, because an object needs a terminal failure on its step and that is §6.6's first
- * gap.
+ * what makes a consumer own what it takes; `<- R` is what a `yield` evaluates to; and `| E` is the
+ * terminal failure a step may answer instead (C1c, J218) - `mir::IterType`'s `failure`, and the
+ * reason a consumer of one owes an alternative. JavaScript refuses it by name: its erased pair has
+ * no address for the failed row to be tagged onto (P8).
  *
  * The **slot scope is local**, and that is the one place this differs from a signature: an origin
  * written inside the brackets says the item is somebody else's, which is what every erased object
@@ -3084,10 +3082,18 @@ DeclPtr<Type> Resolver::siteTypeArguments(ast::SiteType& path, Function& declare
 DeclPtr<Type> Resolver::resolveErasedIterType(ast::Type& type) {
     auto& written = *parse[type.iterated];
 
+    DeclPtr<Type> failure = nullptr;
+
     if(written.protocol.failure) {
-        unsupported(parse[written.protocol.failure]->source,
-                    "a `| E` failure channel on an iterator object"_v);
-        return nullptr;
+        if(isJsMode(context.settings)) {
+            context.diagnostics.error(
+                "the erased `iter(T | E)` is native only for now: its failed step is answered as a tagged address, and JavaScript has no addresses to tag - hold the site type (`f.Iter`) instead, which JavaScript steps"_v,
+                parse[written.protocol.failure]->source);
+            return nullptr;
+        }
+
+        failure = resolveType(*parse[written.protocol.failure]);
+        if(!failure) return nullptr;
     }
 
     SlotScope slots;
@@ -3113,7 +3119,8 @@ DeclPtr<Type> Resolver::resolveErasedIterType(ast::Type& type) {
      * to say which step to call. Specializing is always available and is what `Auto` chooses.
      */
     auto open = genContext && (mentionsContext(decl(), handover.type, genContext) ||
-                               mentionsContext(decl(), resume, genContext));
+                               mentionsContext(decl(), resume, genContext) ||
+                               (failure && mentionsContext(decl(), failure, genContext)));
 
     if(open) {
         context.diagnostics.error(
@@ -3122,7 +3129,7 @@ DeclPtr<Type> Resolver::resolveErasedIterType(ast::Type& type) {
         return nullptr;
     }
 
-    return erasedIterTypeOf(handover, resume, type.source);
+    return erasedIterTypeOf(handover, resume, type.source, failure);
 }
 
 DeclPtr<Type> Resolver::resolveSiteType(ast::Type& type) {

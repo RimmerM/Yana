@@ -21,139 +21,122 @@ fn main() -> one %r0
     %21: %r5 = binary.ne %19, %20
     branch %21 -> block5 -> block4
   block3:
-    %87: %r2 = load property %5.length: %r2
-    %88: %r0 = convert %87
-    %89: %r0 = binary.add %88, %11
-    %90: %r0 = coerce %89
-    %91: %r1 = load property %5.items: %r1
-    jump -> block28
+    %73: %r2 = load property %5.length: %r2
+    %74: %r0 = convert %73
+    %75: %r0 = binary.add %74, %11
+    %76: %r0 = coerce %75
+    %77: %r1 = load property %5.items: %r1
+    jump -> block26
   block4:
-    %23: %r0 = const 0
     %24: %r8 = const 0
     %25: %r8 = convert %17
     %26: %r5 = binary.ge %24, %25
     branch %26 -> block18 -> block17
   block5:
     call Array(a).reclaim(I32) %5
-    %86: %r0 = const -1
-    return %86
+    %72: %r0 = const -1
+    return %72
   block6:
-    %33: %r8 = const 131071
-    %34: %r8 = alias %25
-    %35: %r5 = binary.ge %33, %34
+    %34: %r8 = const 131071
+    %35: %r5 = binary.ge %34, %25
     branch %35 -> block20 -> block19
   block7:
     call Array(a).reclaim(I32) %5
-    %85: %r0 = const -2
-    return %85
+    %71: %r0 = const -2
+    return %71
   block8:
-    %44: %r8 = const 131072
-    %45: %r8 = alias %25
-    %46: %r5 = binary.ge %44, %45
-    branch %46 -> block22 -> block21
+    %42: %r8 = const 131072
+    %43: %r5 = binary.ge %42, %25
+    branch %43 -> block22 -> block21
   block9:
     call Array(a).reclaim(I32) %5
-    %84: %r0 = const -3
-    return %84
+    %70: %r0 = const -3
+    return %70
   block10:
-    %55: %r8 = const 199999
-    %56: %r8 = alias %25
-    %57: %r5 = binary.ge %55, %56
-    branch %57 -> block24 -> block23
+    %50: %r8 = const 199999
+    %51: %r5 = binary.ge %50, %25
+    branch %51 -> block24 -> block23
   block11:
     call Array(a).reclaim(I32) %5
-    %83: %r0 = const -4
-    return %83
+    %69: %r0 = const -4
+    return %69
   block12:
-    %64: %r0 = const 0
-    %65: %r0 = const 0
-    %66: %r0 = const 200000
-    %68: %r0 = const 100
-    jump -> block14(%64, %65)
+    %56: %r0 = const 0
+    %57: %r0 = const 0
+    %58: %r0 = const 200000
+    %60: %r0 = const 100
+    jump -> block14(%56, %57)
   block13:
     call Array(a).reclaim(I32) %5
-    %82: %r0 = const -5
-    return %82
+    %68: %r0 = const -5
+    return %68
   block14(%1: %r0, %2: %r0):
-    %69: %r5 = binary.lt %2, %66
-    branch %69 -> block16 -> block15
+    %61: %r5 = binary.lt %2, %58
+    branch %61 -> block16 -> block15
   block15:
     call Array(a).reclaim(I32) %5
     return %1
   block16:
-    %70: %r0 = convert %2
-    %71: %r8 = convert %70
-    %72: %r8 = alias %25
-    %73: %r5 = binary.ge %71, %72
-    branch %73 -> block26 -> block25
+    %62: %r0 = convert %2
+    %63: %r0 = load element %27[%62]: %r0
+    %64: %r0 = binary.add %1, %63
+    %65: %r0 = coerce %64
+    %66: %r0 = binary.add %2, %60
+    %67: %r0 = coerce %66
+    jump -> block14(%65, %67)
   block17:
     %27: %r1 = alias %15
-    %28: %r0 = load element %27[%23]: %r0
-    %29: %r0 = const 0
-    %30: %r5 = binary.ne %28, %29
-    branch %30 -> block7 -> block6
+    %28: %r0 = const 0
+    %29: %r0 = load element %27[%28]: %r0
+    %30: %r0 = const 0
+    %31: %r5 = binary.ne %29, %30
+    branch %31 -> block7 -> block6
   block18:
     host host.throw "yana: a runtime check failed"
     unreachable
   block19:
-    %36: %r1 = alias %15
+    %36: %r0 = const 131071
+    %37: %r0 = load element %27[%36]: %r0
     %38: %r0 = const 131071
-    %39: %r0 = load element %36[%38]: %r0
-    %40: %r0 = const 131071
-    %41: %r5 = binary.ne %39, %40
-    branch %41 -> block9 -> block8
+    %39: %r5 = binary.ne %37, %38
+    branch %39 -> block9 -> block8
   block20:
     host host.throw "yana: a runtime check failed"
     unreachable
   block21:
-    %47: %r1 = alias %15
-    %49: %r0 = const 131072
-    %50: %r0 = load element %47[%49]: %r0
-    %51: %r0 = const 131072
-    %52: %r5 = binary.ne %50, %51
-    branch %52 -> block11 -> block10
+    %44: %r0 = const 131072
+    %45: %r0 = load element %27[%44]: %r0
+    %46: %r0 = const 131072
+    %47: %r5 = binary.ne %45, %46
+    branch %47 -> block11 -> block10
   block22:
     host host.throw "yana: a runtime check failed"
     unreachable
   block23:
-    %58: %r1 = alias %15
-    %60: %r0 = const 199999
-    %61: %r0 = load element %58[%60]: %r0
-    %62: %r0 = const 199999
-    %63: %r5 = binary.ne %61, %62
-    branch %63 -> block13 -> block12
+    %52: %r0 = const 199999
+    %53: %r0 = load element %27[%52]: %r0
+    %54: %r0 = const 199999
+    %55: %r5 = binary.ne %53, %54
+    branch %55 -> block13 -> block12
   block24:
     host host.throw "yana: a runtime check failed"
     unreachable
   block25:
-    %74: %r1 = alias %15
-    %75: %r0 = alias %70
-    %76: %r0 = coerce %75
-    %77: %r0 = load element %74[%76]: %r0
-    %78: %r0 = binary.add %1, %77
-    %79: %r0 = coerce %78
-    %80: %r0 = binary.add %2, %68
-    %81: %r0 = coerce %80
-    jump -> block14(%79, %81)
+    %82: %r1 = load property %5.items: %r1
+    store element %82[%74]: %r0, %0
+    %83: %r8 = convert %76
+    %84: %r2 = convert %83
+    store property %5.length: %r2, %84
+    %85: %r0 = binary.add %0, %12
+    %86: %r0 = coerce %85
+    jump -> block1(%86)
   block26:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %80: %r0 = host host.field "length" host-range %77
+    %81: %r5 = binary.le %76, %80
+    branch %81 -> block25 -> block27
   block27:
-    %96: %r1 = load property %5.items: %r1
-    store element %96[%88]: %r0, %0
-    %97: %r8 = convert %90
-    %98: %r2 = convert %97
-    store property %5.length: %r2, %98
-    %99: %r0 = binary.add %0, %12
-    %100: %r0 = coerce %99
-    jump -> block1(%100)
-  block28:
-    %94: %r0 = host host.field "length" host-range %91
-    %95: %r5 = binary.le %90, %94
-    branch %95 -> block27 -> block29
-  block29:
-    call growJsArray(I32) %5, %90
-    jump -> block27
+    call growJsArray(I32) %5, %76
+    jump -> block25
 
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
@@ -177,7 +160,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 18 adopted 1 sunk 0 numbered 6 decided 1 unboxed 0 updated 0 split 0 promoted 0 folded 10
+optimizer clones 0 aliased 0 forwarded 0 removed 16 adopted 1 sunk 0 numbered 1 decided 1 unboxed 0 updated 0 split 0 promoted 0 folded 4
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

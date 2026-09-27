@@ -554,12 +554,12 @@ bb0:
   %40: I32 trivial = const 4
   %41: Result(I32, I32) trivial = call viaResult borrow %40
   %42: I32 trivial = const 0
-  %43: I32 trivial = call okOr borrow %41 borrow %42
+  %43: I32 trivial = call okOr'2 borrow %41 borrow %42
   store inspect %5 consume %43
   %44: I32 trivial = const -2
   %45: Result(I32, I32) trivial = call viaResult borrow %44
   %46: I32 trivial = const 0
-  %47: I32 trivial = call okOr borrow %45 borrow %46
+  %47: I32 trivial = call okOr'2 borrow %45 borrow %46
   store inspect %6 consume %47
   %48: I32 trivial = const 2
   %49: I32 trivial = const 7
@@ -670,7 +670,7 @@ bb3:
   jump -> bb2(consume %12)
 }
 
-fn okOr(r: Result(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
+fn okOr'2(r: Result(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
 bb0(%0: Result(I32, I32) [shared call] guaranteed, %1: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32

@@ -84,7 +84,7 @@ fn send(handle: I32, value: I64, other: I64):
 
 fn main() -> I32:
     let &ends = [0, 0] :: [I32 *2]
-    if makePipe(bitcast(addressOf(ends)) :: %Int) < 0 then return 1
+    if makePipe(bitcast(addressOf(ends)) :: %Int, 0) < 0 then return 1
 
     let reader = ends[0]
     let writer = ends[1]

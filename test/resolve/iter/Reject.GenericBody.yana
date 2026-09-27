@@ -1,0 +1,34 @@
+{-
+   What an object built in a generic body at the body's own variables still refuses - P16, J223
+   (`GenericBody.yana` is what it builds). Each by name.
+-}
+
+iter fn (a) echo(x: a) -> a:
+    yield x
+
+iter fn (a) counting(keep: a, n: Int) -> Int:
+    for i in 0..n:
+        yield i
+
+iter fn (a) nested(keep: a, n: Int) -> Int:
+    for i in counting(keep, n):
+        yield i
+
+-- An item at the body's variable: whether it is lent or handed over is the type's answer, and the
+-- consumer is written against one of them.
+fn (a) itemAtVariable(x: a) -> Int:
+    let &it = echo(x)
+    return 0
+
+-- A body compiled once has no substitution to replace the record under.
+@generic fn (a) compiledOnce(x: a) -> Int:
+    let &it = counting(x, 2)
+    return 0
+
+-- A producer with a nested traversal: its object at the body's variables would mint the child's
+-- record at them as well, which is not built.
+fn (a) withNest(x: a) -> Int:
+    let &it = nested(x, 2)
+    return 0
+
+fn main() -> Int = itemAtVariable(1) + compiledOnce(2) + withNest(3)

@@ -1,13 +1,16 @@
 {-
-   The one condition a qualified type argument has that is not about structure.
+   What a qualified type argument may still not leave behind.
 
-   `Pair`'s second field is a `Guard` this value owns, so something still dies with it - and a
-   derived teardown is generated per *type*, which is the record's own field list with no way to be
-   told that one of its positions belongs to somebody else. So the qualification is admitted only
-   where the removal leaves nothing to release and nothing to deep copy, which is every wrapper whose
-   members are exactly its parameters and is not this one.
+   Since P15 (J187) a qualification may leave members that owe something - `Pair(a'Guard, Guard)`,
+   `Result(String, '[U8])` - and they are released member by member where the value dies, with the
+   borrowed position left alone (`Residue.yana`). Two residues cannot be released that way:
 
-   In a file of its own because the check runs after `classifyTypes` - what a `Pair` releases is a
+   - `Owned` has an **authored** teardown, which takes the whole value - so it would run over the
+     borrowed position however few fields are left;
+   - `Boxed`'s survivor is **boxed**, and a box is handed back by the owning type's own walk, which is
+     the walk a qualified value does not run.
+
+   In a file of its own because the check runs after `classifyTypes` - what a record releases is a
    question about the whole program - and a file with any declaration error never gets that far.
    `Reject.Argument.yana` is the structural half.
 -}
@@ -17,8 +20,15 @@ data Guard {id: I32}
 instance Drop(Guard):
     fn drop(->value: Guard) -> {} = {}
 
-data Pair(k, v) {key: k, value: v}
+data Owned(v) {value: v, id: I32}
 
-fn residue(g: a'Guard, ->own: Guard) -> Pair(a'Guard, Guard) = Pair {key: g, value: own}
+instance (a) Drop(Owned(a)):
+    fn drop(->value: Owned(a)) -> {} = {}
+
+fn authored(g: a'Guard) -> Owned(a'Guard) = Owned {value: g, id: 1}
+
+data Boxed(k, v) {key: k, value: @box v}
+
+fn boxed(g: a'Guard, ->own: Guard) -> Boxed(a'Guard, Guard) = Boxed {key: g, value: own}
 
 fn main() -> I32 = 0

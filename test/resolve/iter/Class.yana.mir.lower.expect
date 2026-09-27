@@ -100,59 +100,59 @@ main<complex>(): I32 {
     je %v_26, b_13, b_27
   }
 
-  b_13 {
-    %v_28 = add %v_1, 4: Ptr
-    store %v_28, %v_15, 4
-    store %v_1, %v_7, 4
-    %v_29 = imul %v_16, 10: I32
-    %v_30 = add %v_29, %v_15: I32
-    %v_17 = add %v_30, 1: I32
-    store %v_5, %v_17, 4
-    jmp b_11
-  }
-
   b_27 {
     store %v_1, 2147483647, 4
     jmp b_22
   }
 
   b_22 {
-    %v_31 = loads %v_5, 4: I32
+    %v_28 = loads %v_5, 4: I32
     store @trace, 0, 4
-    %v_32 = alloca 24, 8: Ptr
-    %v_33 = add %v_32, 8: Ptr
-    store %v_33, 0, 4
-    %v_34 = add %v_32, 12: Ptr
-    store %v_34, 3, 4
-    %v_35 = call_complex drain, @environment(drain(lent.Iter)), %v_32: I32
-    %v_36 = add %v_32, 8: Ptr
-    %v_37 = load %v_36, 4: I32
-    %v_38 = add %v_32, 20: Ptr
-    %v_39 = load %v_38, 4: I32
-    call_complex lent$drop, %v_37, %v_39
-    %v_40 = imul %v_35, 1000: I32
-    %v_41 = loads @trace, 4: I32
-    %v_42 = add %v_40, %v_41: I32
+    %v_29 = alloca 24, 8: Ptr
+    %v_30 = add %v_29, 8: Ptr
+    store %v_30, 0, 4
+    %v_31 = add %v_29, 12: Ptr
+    store %v_31, 3, 4
+    %v_32 = call_complex drain, @environment(drain(lent.Iter)), %v_29: I32
+    %v_33 = add %v_29, 8: Ptr
+    %v_34 = load %v_33, 4: I32
+    %v_35 = add %v_29, 20: Ptr
+    %v_36 = load %v_35, 4: I32
+    call_complex lent$drop, %v_34, %v_36
+    %v_37 = imul %v_32, 1000: I32
+    %v_38 = loads @trace, 4: I32
+    %v_39 = add %v_37, %v_38: I32
     store @trace, 0, 4
-    %v_43 = alloca 17, 4: Ptr
-    store %v_43, 0, 4
-    %v_44 = add %v_43, 8: Ptr
-    store %v_44, 3, 4
-    %v_45 = add %v_43, 16: Ptr
-    store %v_45, 0, 1
-    %v_46 = call_complex drain, @environment(drain(owning.Iter)), %v_43: I32
-    %v_47 = load %v_43, 4: I32
-    %v_48 = add %v_43, 4: Ptr
-    %v_49 = load %v_48, 4: I32
-    %v_50 = add %v_43, 16: Ptr
-    %v_51 = load %v_50, 1: I32
-    call_complex owning$drop, %v_47, %v_49, %v_51
-    %v_52 = imul %v_46, 1000: I32
-    %v_53 = loads @trace, 4: I32
-    %v_54 = add %v_52, %v_53: I32
-    %v_55 = add %v_31, %v_42: I32
-    %v_56 = add %v_55, %v_54: I32
-    ret %v_56
+    %v_40 = alloca 17, 4: Ptr
+    store %v_40, 0, 4
+    %v_41 = add %v_40, 8: Ptr
+    store %v_41, 3, 4
+    %v_42 = add %v_40, 16: Ptr
+    store %v_42, 0, 1
+    %v_43 = call_complex drain, @environment(drain(owning.Iter)), %v_40: I32
+    %v_44 = load %v_40, 4: I32
+    %v_45 = add %v_40, 4: Ptr
+    %v_46 = load %v_45, 4: I32
+    %v_47 = add %v_40, 16: Ptr
+    %v_48 = load %v_47, 1: I32
+    call_complex owning$drop, %v_44, %v_46, %v_48
+    %v_49 = imul %v_43, 1000: I32
+    %v_50 = loads @trace, 4: I32
+    %v_51 = add %v_49, %v_50: I32
+    %v_52 = add %v_28, %v_39: I32
+    %v_53 = add %v_52, %v_51: I32
+    ret %v_53
+  }
+
+  b_13 {
+    %v_54 = add %v_1, 4: Ptr
+    store %v_54, %v_15, 4
+    store %v_1, %v_7, 4
+    %v_55 = imul %v_16, 10: I32
+    %v_56 = add %v_55, %v_15: I32
+    %v_17 = add %v_56, 1: I32
+    store %v_5, %v_17, 4
+    jmp b_11
   }
 }
 

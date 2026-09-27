@@ -1,0 +1,147 @@
+{-
+   A traversal's leave path is a join - review R1 of K6 (J211).
+
+   A `return` inside a region releases what the region held on the call's leave path, after the
+   callee's cleanup. K6 released it once per `return` and folded repeats by place, on the belief that
+   a held path is frozen inside its region. Only the lent storage is: `consume(p.b); return 1` beside
+   `return 2` inside `for x in each(p.a)` left `p` whole on one path and taken apart on the other, and
+   the leave path dropped `p` *and* `p.a` - `a` twice on both paths, `b` twice on the first. The
+   leave path now meets the states every `return` reaches it with and releases once, member by member
+   where the members disagree.
+
+   Every case appends digits to `trace` in the order things ran - a `Guard`'s id when it is dropped,
+   7 for a read, 8 for a hand-over, 9 for a traversal's cleanup - so a member released twice, never,
+   or before the cleanup that reads it changes the number.
+-}
+
+let &trace = 0 :: I64
+
+fn note(n: I64):
+    trace = trace * 10 + n
+
+data Guard {id: I64}
+
+instance Drop(Guard):
+    fn drop(->self: Guard):
+        note(self.id)
+
+fn consume(->x: Guard):
+    note(8)
+
+fn peek(g: Guard):
+    note(7)
+
+iter fn each(s: Guard) -> I32:
+    for i in 0..2:
+        yield i
+    peek(s)
+    note(9)
+
+data Pair {a: Guard, b: Guard}
+
+-- The review's case: a sibling of the lent field handed over on one `return` path only.
+fn sibling(c: Bool) -> I32:
+    let p = Pair {a: Guard {id: 1}, b: Guard {id: 2}}
+    for x in each(p.a):
+        if c:
+            consume(p.b)
+            return 1
+        return 2
+    return 0
+
+-- Handed over on one branch *before* the region, then out of it by `return`.
+fn before(c: Bool, early: Bool) -> I32:
+    let p = Pair {a: Guard {id: 1}, b: Guard {id: 2}}
+    if c:
+        consume(p.b)
+    for x in each(p.a):
+        if early then return 1
+    return 0
+
+-- Two regions, and a `return` from each with a different state: the inner leave path's result
+-- meets the outer region's own `return`.
+data Triple {a: Guard, b: Guard, c: Guard}
+
+fn nested(k: I32) -> I32:
+    let t = Triple {a: Guard {id: 1}, b: Guard {id: 2}, c: Guard {id: 3}}
+    for x in each(t.a):
+        for y in each(t.b):
+            if k == 1:
+                consume(t.c)
+                return 1
+            if k == 2 then return 2
+        if k == 3 then return 3
+    return 0
+
+-- `return`, `break` and falling out of the same region.
+fn mixed(c: I32) -> I32:
+    let p = Guard {id: 1}
+    for x in each(p):
+        if c == 1 then return 1
+        if c == 2 then break
+    note(7)
+    return 0
+
+-- A sum whose payload is handed over on one `return` path, inside a region over its other member.
+data Sum = A {g: Guard, h: Guard} | B(Guard)
+
+fn sum(c: Bool) -> I32:
+    let s = A {g: Guard {id: 1}, h: Guard {id: 2}}
+    match s:
+        A {g: _, h}:
+            for i in each(h):
+                if c:
+                    match s:
+                        A {g: ->x, h: _} -> consume(x)
+                        B(k) -> peek(k)
+                    return 1
+                return 2
+        B(k) -> peek(k)
+    return 0
+
+-- Heap members, where a double release is a double free rather than a line of output.
+data Strings {a: String, b: String}
+
+iter fn chars(s: String) -> I32:
+    for i in 0..2:
+        yield i
+    if s == "xy" then note(9)
+
+fn take(->s: String):
+    if s == "zw" then note(8)
+
+fn strings(c: Bool) -> I32:
+    let p = Strings {a: "x" ++ "y", b: "z" ++ "w"}
+    for x in chars(p.a):
+        if c:
+            take(p.b)
+            return 1
+        return 2
+    return 0
+
+let &failures = 0 :: I32
+
+-- Held to the trace the case should leave, and to its result; both are then cleared, and a failure
+-- is counted and the last one named.
+fn expect(case: I32, result: I32, answer: I32, want: I64):
+    if trace != want || result != answer then failures = failures / 100 * 100 + 100 + case
+    trace = 0
+
+fn main() -> I32:
+    expect(1, sibling(True), 1, 28791)
+    expect(2, sibling(False), 2, 7912)
+    expect(3, before(True, True), 1, 28791)
+    expect(4, before(False, True), 1, 7912)
+    expect(5, before(True, False), 0, 28791)
+    expect(6, nested(1), 1, 38797912)
+    expect(7, nested(2), 2, 7979123)
+    expect(8, nested(3), 3, 7979123)
+    expect(9, nested(0), 0, 797979123)
+    expect(10, mixed(0), 0, 7917)
+    expect(11, mixed(1), 1, 791)
+    expect(12, mixed(2), 0, 7917)
+    expect(13, sum(True), 1, 18792)
+    expect(14, sum(False), 2, 7912)
+    expect(15, strings(True), 1, 89)
+    expect(16, strings(False), 2, 9)
+    return failures

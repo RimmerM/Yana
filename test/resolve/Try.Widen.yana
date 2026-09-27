@@ -1,0 +1,84 @@
+{-
+   `?` converting the reason by one `Widen` step into a generic wrapper - K4 of
+   `doc/inflight/Implementation-Streams.md`, J203's "`?` converts nothing".
+
+   It never was the conversion: `emitCarrierExit` has always coerced the reason, and a concrete
+   `instance Widen(Inner, Outer)` was always taken. What refused the wrapper was the class - `widen`
+   borrowed `from`, so an instance could not hand an owned error to the constructor that wraps it,
+   and every error worth wrapping owns something. The class now consumes, and each case here is a
+   shape the protocol code writes:
+
+   - `concrete`: the wrapper at a concrete argument, the inner error owning a `String`.
+   - `generic`: the same `?` in a body generic in the wrapped error, which is how every
+     `fn (Source(s, e))` reader is written - one instance generic in `e` serves both.
+   - `viewed`: J184's qualified carrier, a `Result(Inner(e), '[U8])` answering a view beside the
+     error - the exit is rebuilt unqualified and then widened, as `input.take(n)?` does.
+   - `numeric`: a rung of the ladder still widens a scalar reason, now through a `->` parameter.
+
+   Each check contributes a distinct weight and `main` is their sum, so a failure names which.
+-}
+
+data Inner(e) = Broken(e) | Short
+
+data Outer(e) = Wrapped(Inner(e)) | Refused
+
+instance (e) Widen(Inner(e), Outer(e)):
+    fn widen(->from: Inner(e)) -> Outer(e) = Wrapped(from)
+
+fn inner(n: Int) -> Result(Inner(String), Int):
+    if n > 5 then return Err(Broken("too large"))
+    if n < 0 then return Err(Short)
+    return Ok(n * 3)
+
+fn concrete(n: Int) -> Result(Outer(String), Int):
+    let v = inner(n)?
+    if v == 0 then return Err(Refused)
+    return Ok(v + 1)
+
+fn (e) generic(->r: Result(Inner(e), Int)) -> Result(Outer(e), Int):
+    let v = r?
+    return Ok(v * 2)
+
+data Buffer {bytes: [U8], at: Size}
+
+fn (e) take(&self: 'Buffer, count: Size, ->failure: e) -> Result(Inner(e), '[U8]):
+    if self.at + count > length(self.bytes) then return Err(Broken(failure))
+    let run = self.bytes[self.at .. self.at + count]
+    self.at += count
+    return Ok(run)
+
+fn viewed(&b: Buffer) -> Result(Outer(String), Int):
+    let run = b.take(2, "ended")?
+    return Ok((run[0] :: Int) * 10 + (run[1] :: Int))
+
+fn half(n: Int) -> Result(I32, Int) = if n % 2 == 0 then Ok(n / 2) else Err(n)
+
+fn numeric(n: Int) -> Result(I64, Int):
+    let v = half(n)?
+    return Ok(v)
+
+fn describe(r: Result(Outer(String), Int)) -> Int = match r:
+    Ok(v) -> v
+    Err(Wrapped(Broken(text))) -> if text == "too large" then 1001 else 1002
+    Err(Wrapped(Short)) -> 2000
+    Err(Refused) -> 3000
+
+fn main() -> Int:
+    let &total = 0
+    total += describe(concrete(2))                                     -- 7
+    total += describe(concrete(9))                                     -- 1001
+    total += describe(concrete(-1))                                    -- 2000
+    total += describe(concrete(0))                                     -- 3000
+
+    if generic(Err(Broken(7)) :: Result(Inner(Int), Int)) is Err(Wrapped(Broken(n))):
+        total += n * 10000                                             -- 70000
+    if generic(Ok(4) :: Result(Inner(Int), Int)) is Ok(v):
+        total += v * 100000                                            -- 800000
+
+    let &b = Buffer {bytes: [1, 2, 3], at: 0}
+    total += describe(viewed(b))                                       -- 12
+    total += describe(viewed(b))                                       -- 1002
+
+    if numeric(7) is Err(wide):
+        total += (truncate(wide * 1000000) :: Int)                     -- 7000000
+    return total % 256

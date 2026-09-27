@@ -1,160 +1,85 @@
 fn main() -> one %r0
   var $0: %r3
   var $1: %r1
-  var $2: %r4
-  var $3: %r3
-  var $4: %r1
-  var $5: %r4
-  var $6: %r1
-  var $7: %r1
+  var $2: %r1
+  var $3: %r1
   block0:
-    %8: %r1 = const "  one
+    %4: %r1 = const "  one
 two  "
+    %5: %r1 = alias %4
+    %6: %r3 = alias %5
+    store var $0: %r3, %6
+    %8: %r1 = load var $0: %r1
     %9: %r1 = alias %8
-    %10: %r3 = alias %9
-    store var $0: %r3, %10
-    %11: %r3 = load var $0: %r3
-    %12: %r3 = const null
-    %13: %r6 = binary.eq %11, %12
-    %14: %r2 = const 1
-    %15: %r2 = const 0
-    %16: %r2 = select %13, %15, %14
-    %17: %r2 = const 1
-    %18: %r7 = binary.eq %16, %17
-    branch %18 -> block2 -> block1
-  block1:
-    %19: %r1 = const ""
-    jump -> block3(%19)
-  block2:
-    %21: %r1 = load var $0: %r1
-    %22: %r1 = alias %21
-    %23: %r1 = alias %22
-    %24: %r1 = alias %23
-    jump -> block3(%24)
-  block3(%0: %r1):
-    %25: %r1 = alias %0
-    %26: %r1 = call trimAscii %25
-    %27: %r1 = alias %26
-    %28: %r1 = alias %27
-    %29: %r1 = alias %28
-    %30: %r0 = host host.field "length" host-range %29
-    %31: %r1 = alias %26
-    %32: %r8 = const 10
-    %33: %r0 = const 0
-    %34: %r1 = alias %31
-    %35: %r1 = host host.global "String.fromCharCode" %32
-    %36: %r1 = alias %34
-    %37: %r1 = alias %35
-    %38: %r0 = host host.call "indexOf" %36, %37, %33
-    %39: %r0 = const 0
-    %40: %r7 = binary.lt %38, %39
-    branch %40 -> block15 -> block14
+    %10: %r1 = alias %9
+    %11: %r1 = alias %10
+    %12: %r1 = alias %11
+    %13: %r1 = call trimAscii %12
+    %14: %r1 = alias %13
+    %15: %r1 = alias %14
+    %16: %r1 = alias %15
+    %17: %r0 = host host.field "length" host-range %16
+    %18: %r1 = alias %13
+    %19: %r5 = const 10
+    %20: %r0 = const 0
+    %21: %r1 = alias %18
+    %22: %r1 = host host.global "String.fromCharCode" %19
+    %23: %r1 = alias %21
+    %24: %r1 = alias %22
+    %25: %r0 = host host.call "indexOf" %23, %24, %20
+    %26: %r0 = const 0
+    %27: %r6 = binary.lt %25, %26
+    branch %27 -> block4 -> block3
+  block1(%0: %r0):
+    %29: %r0 = const 0
+    %30: %r1 = call String.slice %13, %29, %0
+    %31: %r1 = call trimEndAscii %30
+    %32: %r1 = alias %31
+    %33: %r1 = alias %32
+    %34: %r1 = alias %33
+    %35: %r0 = host host.field "length" host-range %34
+    %36: %r0 = convert %35
+    %39: %r1 = const ""
+    %40: %r1 = alias %39
+    %41: %r1 = call trimAscii %40
+    %42: %r1 = alias %41
+    %43: %r1 = alias %42
+    %44: %r1 = alias %43
+    %45: %r0 = host host.field "length" host-range %44
+    %46: %r1 = alias %41
+    %47: %r5 = const 10
+    %48: %r0 = const 0
+    %49: %r1 = alias %46
+    %50: %r1 = host host.global "String.fromCharCode" %47
+    %51: %r1 = alias %49
+    %52: %r1 = alias %50
+    %53: %r0 = host host.call "indexOf" %51, %52, %48
+    %54: %r0 = const 0
+    %55: %r6 = binary.lt %53, %54
+    branch %55 -> block6 -> block5
+  block2(%1: %r0):
+    %57: %r0 = const 0
+    %58: %r1 = call String.slice %41, %57, %1
+    %59: %r1 = call trimEndAscii %58
+    %60: %r0 = const 10
+    %61: %r0 = binary.mul %36, %60
+    %62: %r0 = coerce %61
+    %63: %r1 = alias %59
+    %64: %r1 = alias %63
+    %65: %r1 = alias %64
+    %66: %r0 = host host.field "length" host-range %65
+    %67: %r0 = convert %66
+    %68: %r0 = binary.add %62, %67
+    %69: %r0 = coerce %68
+    return %69
+  block3:
+    jump -> block1(%25)
   block4:
-    jump -> block6(%30)
+    jump -> block1(%17)
   block5:
-    %52: %r0 = load var $2: %r0
-    jump -> block6(%52)
-  block6(%1: %r0):
-    %53: %r0 = const 0
-    %54: %r1 = call String.slice %26, %53, %1
-    %55: %r1 = call trimEndAscii %54
-    %56: %r1 = alias %55
-    %57: %r1 = alias %56
-    %58: %r1 = alias %57
-    %59: %r0 = host host.field "length" host-range %58
-    %60: %r0 = convert %59
-    %63: %r3 = const null
-    store var $3: %r3, %63
-    %64: %r3 = load var $3: %r3
-    %65: %r3 = const null
-    %66: %r6 = binary.eq %64, %65
-    %67: %r2 = const 1
-    %68: %r2 = const 0
-    %69: %r2 = select %66, %68, %67
-    %70: %r2 = const 1
-    %71: %r7 = binary.eq %69, %70
-    branch %71 -> block8 -> block7
-  block7:
-    %72: %r1 = const ""
-    jump -> block9(%72)
-  block8:
-    %74: %r1 = load var $3: %r1
-    %75: %r1 = alias %74
-    %76: %r1 = alias %75
-    %77: %r1 = alias %76
-    jump -> block9(%77)
-  block9(%2: %r1):
-    %78: %r1 = alias %2
-    %79: %r1 = call trimAscii %78
-    %80: %r1 = alias %79
-    %81: %r1 = alias %80
-    %82: %r1 = alias %81
-    %83: %r0 = host host.field "length" host-range %82
-    %84: %r1 = alias %79
-    %85: %r8 = const 10
-    %86: %r0 = const 0
-    %87: %r1 = alias %84
-    %88: %r1 = host host.global "String.fromCharCode" %85
-    %89: %r1 = alias %87
-    %90: %r1 = alias %88
-    %91: %r0 = host host.call "indexOf" %89, %90, %86
-    %92: %r0 = const 0
-    %93: %r7 = binary.lt %91, %92
-    branch %93 -> block18 -> block17
-  block10:
-    jump -> block12(%83)
-  block11:
-    %105: %r0 = load var $5: %r0
-    jump -> block12(%105)
-  block12(%3: %r0):
-    %106: %r0 = const 0
-    %107: %r1 = call String.slice %79, %106, %3
-    %108: %r1 = call trimEndAscii %107
-    %109: %r0 = const 10
-    %110: %r0 = binary.mul %60, %109
-    %111: %r0 = coerce %110
-    %112: %r1 = alias %108
-    %113: %r1 = alias %112
-    %114: %r1 = alias %113
-    %115: %r0 = host host.field "length" host-range %114
-    %116: %r0 = convert %115
-    %117: %r0 = binary.add %111, %116
-    %118: %r0 = coerce %117
-    return %118
-  block13(%4: %r4):
-    store var $2: %r4, %4
-    %43: %r4 = load var $2: %r4
-    %44: %r4 = const null
-    %45: %r6 = binary.eq %43, %44
-    %46: %r2 = const 1
-    %47: %r2 = const 0
-    %48: %r2 = select %45, %47, %46
-    %49: %r2 = const 1
-    %50: %r7 = binary.eq %48, %49
-    branch %50 -> block5 -> block4
-  block14:
-    %41: %r4 = alias %38
-    jump -> block13(%41)
-  block15:
-    %42: %r4 = const null
-    jump -> block13(%42)
-  block16(%5: %r4):
-    store var $5: %r4, %5
-    %96: %r4 = load var $5: %r4
-    %97: %r4 = const null
-    %98: %r6 = binary.eq %96, %97
-    %99: %r2 = const 1
-    %100: %r2 = const 0
-    %101: %r2 = select %98, %100, %99
-    %102: %r2 = const 1
-    %103: %r7 = binary.eq %101, %102
-    branch %103 -> block11 -> block10
-  block17:
-    %94: %r4 = alias %91
-    jump -> block16(%94)
-  block18:
-    %95: %r4 = const null
-    jump -> block16(%95)
+    jump -> block2(%53)
+  block6:
+    jump -> block2(%45)
 
 fn trimEndAscii(one %r1) -> one %r1
   block0(%0: %r1):
@@ -165,12 +90,12 @@ fn trimEndAscii(one %r1) -> one %r1
     %7: %r0 = host host.field "length" host-range %6
     %8: %r0 = const 0
     %9: %r0 = const 1
-    %10: %r8 = const 32
-    %11: %r8 = const 9
-    %12: %r8 = const 13
+    %10: %r5 = const 32
+    %11: %r5 = const 9
+    %12: %r5 = const 13
     jump -> block1(%7)
   block1(%2: %r0):
-    %13: %r7 = binary.gt %2, %8
+    %13: %r6 = binary.gt %2, %8
     branch %13 -> block3 -> block2
   block2:
     %26: %r0 = const 0
@@ -184,12 +109,12 @@ fn trimEndAscii(one %r1) -> one %r1
     %17: %r0 = coerce %16
     %18: %r1 = alias %15
     %19: %r1 = alias %18
-    %20: %r8 = host host.call "charCodeAt" %19, %17
-    %21: %r7 = binary.eq %20, %10
-    %22: %r7 = binary.ge %20, %11
-    %23: %r7 = binary.le %20, %12
-    %24: %r7 = binary.and %22, %23
-    %25: %r7 = binary.or %21, %24
+    %20: %r5 = host host.call "charCodeAt" %19, %17
+    %21: %r6 = binary.eq %20, %10
+    %22: %r6 = binary.ge %20, %11
+    %23: %r6 = binary.le %20, %12
+    %24: %r6 = binary.and %22, %23
+    %25: %r6 = binary.or %21, %24
     branch %25 -> block4 -> block2
   block4:
     jump -> block1(%17)
@@ -203,37 +128,37 @@ fn trimAscii(one %r1) -> one %r1
     %8: %r0 = host host.field "length" host-range %7
     %9: %r0 = const 0
     %10: %r0 = const 1
-    %11: %r8 = const 32
-    %12: %r8 = const 9
-    %13: %r8 = const 13
+    %11: %r5 = const 32
+    %12: %r5 = const 9
+    %13: %r5 = const 13
     jump -> block1(%9)
   block1(%2: %r0):
-    %14: %r7 = binary.lt %2, %8
+    %14: %r6 = binary.lt %2, %8
     branch %14 -> block3 -> block2
   block2:
     %25: %r0 = const 1
-    %26: %r8 = const 32
-    %27: %r8 = const 9
-    %28: %r8 = const 13
+    %26: %r5 = const 32
+    %27: %r5 = const 9
+    %28: %r5 = const 13
     jump -> block5(%8)
   block3:
     %15: %r1 = alias %0
     %16: %r1 = alias %15
     %17: %r1 = alias %16
     %18: %r1 = alias %17
-    %19: %r8 = host host.call "charCodeAt" %18, %2
-    %20: %r7 = binary.eq %19, %11
-    %21: %r7 = binary.ge %19, %12
-    %22: %r7 = binary.le %19, %13
-    %23: %r7 = binary.and %21, %22
-    %24: %r7 = binary.or %20, %23
+    %19: %r5 = host host.call "charCodeAt" %18, %2
+    %20: %r6 = binary.eq %19, %11
+    %21: %r6 = binary.ge %19, %12
+    %22: %r6 = binary.le %19, %13
+    %23: %r6 = binary.and %21, %22
+    %24: %r6 = binary.or %20, %23
     branch %24 -> block4 -> block2
   block4:
     %44: %r0 = binary.add %2, %10
     %45: %r0 = coerce %44
     jump -> block1(%45)
   block5(%3: %r0):
-    %29: %r7 = binary.gt %3, %2
+    %29: %r6 = binary.gt %3, %2
     branch %29 -> block7 -> block6
   block6:
     %42: %r1 = alias %0
@@ -246,12 +171,12 @@ fn trimAscii(one %r1) -> one %r1
     %33: %r0 = coerce %32
     %34: %r1 = alias %31
     %35: %r1 = alias %34
-    %36: %r8 = host host.call "charCodeAt" %35, %33
-    %37: %r7 = binary.eq %36, %26
-    %38: %r7 = binary.ge %36, %27
-    %39: %r7 = binary.le %36, %28
-    %40: %r7 = binary.and %38, %39
-    %41: %r7 = binary.or %37, %40
+    %36: %r5 = host host.call "charCodeAt" %35, %33
+    %37: %r6 = binary.eq %36, %26
+    %38: %r6 = binary.ge %36, %27
+    %39: %r6 = binary.le %36, %28
+    %40: %r6 = binary.and %38, %39
+    %41: %r6 = binary.or %37, %40
     branch %41 -> block8 -> block6
   block8:
     jump -> block5(%33)
@@ -263,21 +188,21 @@ fn String.slice(one %r1, one %r0, one %r0) -> one %r1
     %5: %r1 = alias %4
     %6: %r0 = host host.field "length" host-range %5
     %7: %r0 = const 0
-    %8: %r7 = binary.lt %1, %7
+    %8: %r6 = binary.lt %1, %7
     %9: %r0 = const 0
     %10: %r0 = select %8, %9, %1
-    %11: %r7 = binary.gt %10, %6
+    %11: %r6 = binary.gt %10, %6
     %12: %r0 = select %11, %6, %10
-    %13: %r7 = binary.lt %2, %12
+    %13: %r6 = binary.lt %2, %12
     %14: %r0 = select %13, %12, %2
-    %15: %r7 = binary.gt %14, %6
+    %15: %r6 = binary.gt %14, %6
     %16: %r0 = select %15, %6, %14
     %17: %r1 = alias %0
     %18: %r1 = alias %17
     %19: %r1 = host host.call "substring" %18, %12, %16
     return %19
 
-optimizer clones 0 aliased 0 forwarded 7 removed 14 adopted 0 sunk 2 numbered 0 decided 0 unboxed 2 updated 0 split 0 promoted 4 folded 0
+optimizer clones 0 aliased 0 forwarded 7 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 2 updated 0 split 0 promoted 3 folded 0
 
 shape %s0 cell {$v: %r1 box}
 
@@ -285,8 +210,7 @@ rep %r0 = number signed 32
 rep %r1 = string
 rep %r2 = number unsigned 8
 rep %r3 = nullable of %r1
-rep %r4 = nullable of %r0
-rep %r5 = object %s0
-rep %r6 = boolean
-rep %r7 = number bool
-rep %r8 = number unsigned 16
+rep %r4 = object %s0
+rep %r5 = number unsigned 16
+rep %r6 = number bool
+rep %r7 = nullable of %r0

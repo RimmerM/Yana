@@ -1,0 +1,40 @@
+{-
+   `Stream.Input`'s `take`, discharged - L3 of `doc/inflight/Implementation-Streams.md`.
+
+   `header` is §3.2's decoder shape over the library's own input: `let h = input.take(9)?`, then
+   reads of `h` at constant offsets. `take` is inlined, the run it answers is `count` long, and J192
+   carried that length through the `?` join, so the `.ssa.opt.expect` beside this holds **no refusal
+   arm** in `header` - not for the two subscripts and not for the two word readers. `take`'s own
+   `count < 0` test folds for the constant; what stays is the refill branch, which is I/O and not a
+   bounds check.
+
+   `lines` is the delimiter scan over a split source, for the `.run.expect`: it reads through the
+   refill, the growth and the end the way `Input.test.yana` does, on every build of this corpus.
+-}
+
+import Stream
+
+@noinline fn header(&input: Input(SliceSource, Infallible)) -> Result(ReadFailure(Infallible), I64):
+    let h = input.take(9)?
+    return Ok((h[0] :: I64) + (readBigU16(h, 2) :: I64) + (readBigU32(h, 5) :: I64) + (h[8] :: I64))
+
+fn lines(&input: Input(ScriptedSource, Injected)) -> I64:
+    let &total = 0 :: I64
+    while input.takeUntil("\n", 16) is Ok(line):
+        total = total * 10 + (length(line) :: I64)
+    return total
+
+fn main() -> Int:
+    let &b = [] :: [U8]
+    for i in 0 .. 20:
+        push(b, truncate(i * 37) :: U8)
+
+    let &input = Input.over(sliceSource(b), 4)
+    let &answer = 0 :: I64
+    while header(input) is Ok(value):
+        answer = (answer + value) % 100000
+
+    let text = ["a", "\n", "b", "c", "\n", "\n", "d", "e", "f", "\n"] :: [U8]
+    let &split = Input.over(fragments(copy(text), [1, 2] :: [Size]), 2)
+    answer = answer * 10000 + lines(split)
+    return truncate(answer) :: Int

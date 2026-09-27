@@ -1,5 +1,8 @@
 20:4: error: produced answers an iterator object rather than being one, so its body runs when it is called and has no continuation to hand a value to - write `iter fn produced` to make it a producer, or return an object some `iter fn` built
-30:36: error: the compiler does not implement a `| E` failure channel on an iterator object yet
-36:14: error: nothing's object type is minted per set of type arguments, so one cannot be built inside a body compiled at a type variable - write `@specialize` on this function
-45:4: error: upTo is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one
-62:13: error: chunks hands over Array(a) here, and an iterator object's type is interned on the protocol it steps - so a declaration cannot hold one whose item is a type variable it binds. Bind the class's item parameter to a type, as in `Chunked(c, Int)`
+37:16: error: cannot ascribe failingUpTo.Iter to iter(I32): no instance of `Widen` relates them, and `::` selects a type or widens - it is not a conversion of its own
+38:20: error: cannot ascribe upTo.Iter to iter(I32 | I32): no instance of `Widen` relates them, and `::` selects a type or widens - it is not a conversion of its own
+40:13: error: iter(I32 | I32) can fail with I32, so this loop needs `| reason -> ...` for the path where it never hands over
+43:8: error: iter(I32) cannot fail, so there is nothing for an alternative to handle
+51:14: error: an object of nothing at this function's type variables is minted per specialization, and a function compiled once (`@generic`) has none - remove `@generic` so the function is specialized
+60:4: error: upTo is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one
+77:13: error: chunks hands over Array(a) here, and an iterator object's type is interned on the protocol it steps - so a declaration cannot hold one whose item is a type variable it binds. Bind the class's item parameter to a type, as in `Chunked(c, Int)`

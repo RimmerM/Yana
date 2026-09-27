@@ -1,0 +1,25 @@
+{-
+   An erased `for` over an owning producer lends its item (`ErasedOwned.yana`, K8): the object keeps
+   the item and releases it at its next refill, so a binding cannot be moved out of the body. The
+   site type moves it out through `f$take` and accepts the same body.
+-}
+
+data Tag {id: Int, name: String}
+
+iter fn tags(n: Int) -> ->Tag:
+    for i in 1..=n:
+        yield Tag {id: i, name: "tag"}
+
+fn erased(n: Int) -> iter(->Tag) = tags(n)
+
+fn first(n: Int) -> Tag:
+    let &it = erased(n)
+    for t in it:
+        if t.id == 2 then return t
+    return Tag {id: 0, name: ""}
+
+fn firstSite(n: Int) -> Tag:
+    let &it = tags(n)
+    for t in it:
+        if t.id == 2 then return t
+    return Tag {id: 0, name: ""}

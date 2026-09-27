@@ -1,0 +1,798 @@
+module ResolveTest
+
+data Tag {id: I32} drop authored
+
+data Tree = Leaf | Bad {id: I32} | Node {left: @box Tree, right: @box Tree, value: I32} reclaim derived
+
+data walk.Iter {$index: I32, $slot: I32, t: %Tree, right: %Tree, value: I32, tag: Tag, tag: Tag, $walk: iter(I32), $walk: iter(I32), $failure: Outcome(I32, Tag)} shape8 drop authored
+
+data mended.Iter {$index: I32, $slot: I32, t: %Tree, right: %Tree, value: I32, tag: Tag, tag: Tag, $mended: iter(I32), $mended: iter(I32), $failure: Outcome(I32, Tag)} shape8 drop authored
+
+instance Drop(Tag): Tag.drop
+
+instance Drop(walk.Iter): walk$drop
+
+instance IterateFailing(walk.Iter, I32, Tag, {}): walk$next, walk$resume
+
+instance Drop(mended.Iter): mended$drop
+
+instance IterateFailing(mended.Iter, I32, Tag, {}): mended$next, mended$resume
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+fn note(digit: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = const 10
+  %2: I64 = mul inspect %0 inspect %1
+  %3: I64 = read copy.trivial (digit)
+  %4: I64 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+fn Tag.drop(value: Tag) -> {} {
+bb0:
+  %0: I64 = const 9
+  %1: {} = call note borrow.shared %0
+  %2: I32 = read copy.trivial (value.id)
+  %3: I64 = convert inspect %2
+  %4: {} = call note borrow.shared %3
+  return
+}
+
+lens fn walk(t: Tree [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Tag) {
+  local & $yielded: I32
+  local id: I32
+  local left: Tree [shared call]
+  local right: Tree [shared call]
+  local value: I32
+  local x: I32 [shared call]
+  local tag: Tag
+  local x: I32 [shared call]
+  local tag: Tag
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = read copy.trivial (t.#)
+  %3: U8 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb4 -> bb1
+
+bb1:
+  %7: U8 = read copy.trivial (t.#)
+  %8: U8 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb5 -> bb2
+
+bb2:
+  %17: Tree [shared call] = read borrow.shared (t.left) loan0
+  write.init borrow.unique (left) borrow.shared %17
+  %19: Tree [shared call] = read borrow.shared (t.right) loan1
+  write.init borrow.unique (right) borrow.shared %19
+  %21: I32 = read copy.trivial (t.value)
+  write.init borrow.unique (value) take %21
+  %23: Tree [shared call] = read borrow.shared (left) loan2 roots{0}
+  lens.try walk borrow.shared %23 -> bb8 -> bb7
+
+bb3:
+  %85: I32 = read copy.trivial ($yielded)
+  %86: Outcome(I32, Tag) = aggregate.Proceed take %85
+  return take %86
+
+bb4:
+  %6: {} = const {}
+  jump -> bb3
+
+bb5:
+  %11: I32 = read copy.trivial (t.id)
+  write.init borrow.unique (id) take %11
+  %13: I32 = read copy.trivial (id)
+  %14: Tag = aggregate.Tag take %13
+  %15: Outcome(I32, Tag) = aggregate.Exit take %14
+  return take %15
+
+bb6:
+  %48: I32 = read copy.trivial ($yielded)
+  %49: I32 = const 0
+  %50: Bool = eq inspect %48 inspect %49
+  branch inspect %50 -> bb13 -> bb14
+
+bb7(%24: Tag):
+  write.init borrow.unique (tag) take %24
+  %45: Tag = read take (tag)
+  %46: Outcome(I32, Tag) = aggregate.Exit take %45
+  return take %46
+
+bb8(%25: I32 [shared call]) handover(I32 [shared call]) many -> bb6:
+  write.init borrow.unique (x) borrow.shared %25
+  %28: I32 = read copy.trivial ($yielded)
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb10
+
+bb9 handover(I32 [shared call]) many:
+  %32: I32 = read copy.trivial (x)
+  %33: I32 = const 10
+  %34: I32 = rem inspect %32 inspect %33
+  %35: (I32) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %36: I32 = call inspect %35 borrow.shared %34
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  write.assign borrow.unique ($yielded) take %36
+  branch inspect %38 -> bb11 -> bb12
+
+bb10 handover(I32 [shared call]) many:
+  jump -> bb12
+
+bb11 handover(I32 [shared call]) many:
+  jump -> bb6
+
+bb12 handover(I32 [shared call]) many:
+  break -> bb6
+
+bb13:
+  %52: I32 = read copy.trivial (value)
+  %53: (I32) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %54: I32 = call inspect %53 borrow.shared %52
+  write.assign borrow.unique ($yielded) take %54
+  jump -> bb15
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %58: Tree [shared call] = read borrow.shared (right) loan5 roots{1}
+  lens.try walk borrow.shared %58 -> bb18 -> bb17
+
+bb16:
+  jump -> bb3
+
+bb17(%59: Tag):
+  write.init borrow.unique (tag) take %59
+  %80: Tag = read take (tag)
+  %81: Outcome(I32, Tag) = aggregate.Exit take %80
+  return take %81
+
+bb18(%60: I32 [shared call]) handover(I32 [shared call]) many -> bb16:
+  write.init borrow.unique (x) borrow.shared %60
+  %63: I32 = read copy.trivial ($yielded)
+  %64: I32 = const 0
+  %65: Bool = eq inspect %63 inspect %64
+  branch inspect %65 -> bb19 -> bb20
+
+bb19 handover(I32 [shared call]) many:
+  %67: I32 = read copy.trivial (x)
+  %68: I32 = const 10
+  %69: I32 = rem inspect %67 inspect %68
+  %70: (I32) -> I32 [shared call] = read borrow.shared ($body) loan6
+  %71: I32 = call inspect %70 borrow.shared %69
+  %72: I32 = const 0
+  %73: Bool = eq inspect %71 inspect %72
+  write.assign borrow.unique ($yielded) take %71
+  branch inspect %73 -> bb21 -> bb22
+
+bb20 handover(I32 [shared call]) many:
+  jump -> bb22
+
+bb21 handover(I32 [shared call]) many:
+  jump -> bb16
+
+bb22 handover(I32 [shared call]) many:
+  break -> bb16
+}
+
+lens fn mended(t: Tree [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Tag) {
+  local & $yielded: I32
+  local id: I32
+  local left: Tree [shared call]
+  local right: Tree [shared call]
+  local value: I32
+  local x: I32 [shared call]
+  local tag: Tag
+  local x: I32 [shared call]
+  local tag: Tag
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = read copy.trivial (t.#)
+  %3: U8 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb4 -> bb1
+
+bb1:
+  %7: U8 = read copy.trivial (t.#)
+  %8: U8 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb5 -> bb2
+
+bb2:
+  %17: Tree [shared call] = read borrow.shared (t.left) loan0
+  write.init borrow.unique (left) borrow.shared %17
+  %19: Tree [shared call] = read borrow.shared (t.right) loan1
+  write.init borrow.unique (right) borrow.shared %19
+  %21: I32 = read copy.trivial (t.value)
+  write.init borrow.unique (value) take %21
+  %23: Tree [shared call] = read borrow.shared (left) loan2 roots{0}
+  lens.try mended borrow.shared %23 -> bb8 -> bb7
+
+bb3:
+  %101: I32 = read copy.trivial ($yielded)
+  %102: Outcome(I32, Tag) = aggregate.Proceed take %101
+  return take %102
+
+bb4:
+  %6: {} = const {}
+  jump -> bb3
+
+bb5:
+  %11: I32 = read copy.trivial (t.id)
+  write.init borrow.unique (id) take %11
+  %13: I32 = read copy.trivial (id)
+  %14: Tag = aggregate.Tag take %13
+  %15: Outcome(I32, Tag) = aggregate.Exit take %14
+  return take %15
+
+bb6:
+  %56: I32 = read copy.trivial ($yielded)
+  %57: I32 = const 0
+  %58: Bool = eq inspect %56 inspect %57
+  branch inspect %58 -> bb16 -> bb17
+
+bb7(%24: Tag):
+  write.init borrow.unique (tag) take %24
+  %45: I32 = read copy.trivial ($yielded)
+  %46: I32 = const 0
+  %47: Bool = eq inspect %45 inspect %46
+  branch inspect %47 -> bb13 -> bb14
+
+bb8(%25: I32 [shared call]) handover(I32 [shared call]) many -> bb6:
+  write.init borrow.unique (x) borrow.shared %25
+  %28: I32 = read copy.trivial ($yielded)
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb10
+
+bb9 handover(I32 [shared call]) many:
+  %32: I32 = read copy.trivial (x)
+  %33: I32 = const 10
+  %34: I32 = rem inspect %32 inspect %33
+  %35: (I32) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %36: I32 = call inspect %35 borrow.shared %34
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  write.assign borrow.unique ($yielded) take %36
+  branch inspect %38 -> bb11 -> bb12
+
+bb10 handover(I32 [shared call]) many:
+  jump -> bb12
+
+bb11 handover(I32 [shared call]) many:
+  jump -> bb6
+
+bb12 handover(I32 [shared call]) many:
+  break -> bb6
+
+bb13:
+  %49: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %50: (I32) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %51: I32 = call inspect %50 borrow.shared %49
+  write.assign borrow.unique ($yielded) take %51
+  jump -> bb15
+
+bb14:
+  drop (tag)
+  jump -> bb15
+
+bb15:
+  jump -> bb6
+
+bb16:
+  %60: I32 = read copy.trivial (value)
+  %61: (I32) -> I32 [shared call] = read borrow.shared ($body) loan5
+  %62: I32 = call inspect %61 borrow.shared %60
+  write.assign borrow.unique ($yielded) take %62
+  jump -> bb18
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %66: Tree [shared call] = read borrow.shared (right) loan6 roots{1}
+  lens.try mended borrow.shared %66 -> bb21 -> bb20
+
+bb19:
+  jump -> bb3
+
+bb20(%67: Tag):
+  write.init borrow.unique (tag) take %67
+  %88: I32 = read copy.trivial ($yielded)
+  %89: I32 = const 0
+  %90: Bool = eq inspect %88 inspect %89
+  branch inspect %90 -> bb26 -> bb27
+
+bb21(%68: I32 [shared call]) handover(I32 [shared call]) many -> bb19:
+  write.init borrow.unique (x) borrow.shared %68
+  %71: I32 = read copy.trivial ($yielded)
+  %72: I32 = const 0
+  %73: Bool = eq inspect %71 inspect %72
+  branch inspect %73 -> bb22 -> bb23
+
+bb22 handover(I32 [shared call]) many:
+  %75: I32 = read copy.trivial (x)
+  %76: I32 = const 10
+  %77: I32 = rem inspect %75 inspect %76
+  %78: (I32) -> I32 [shared call] = read borrow.shared ($body) loan7
+  %79: I32 = call inspect %78 borrow.shared %77
+  %80: I32 = const 0
+  %81: Bool = eq inspect %79 inspect %80
+  write.assign borrow.unique ($yielded) take %79
+  branch inspect %81 -> bb24 -> bb25
+
+bb23 handover(I32 [shared call]) many:
+  jump -> bb25
+
+bb24 handover(I32 [shared call]) many:
+  jump -> bb19
+
+bb25 handover(I32 [shared call]) many:
+  break -> bb19
+
+bb26:
+  %92: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %93: (I32) -> I32 [shared call] = read borrow.shared ($body) loan8
+  %94: I32 = call inspect %93 borrow.shared %92
+  write.assign borrow.unique ($yielded) take %94
+  jump -> bb28
+
+bb27:
+  drop (tag)
+  jump -> bb28
+
+bb28:
+  jump -> bb19
+}
+
+fn objectWalk(t: Tree [shared call]) -> I64 {
+  local & it: walk.Iter [owned here shape8 .2.*=shared slot 0]
+  local x: I32
+  local tag: Tag
+  flag (it) = gone
+
+bb0:
+  %0: I64 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: Tree [shared call] = read borrow.shared (t) loan0
+  %3: walk.Iter [owned here shape8 .2.*=shared slot 0] = call walk$new borrow.shared %2 roots.0{0}
+  write.init borrow.unique (it) take %3
+  flag (it) = held
+  jump -> bb1
+
+bb1:
+  %6: walk.Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call walk$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb4 -> bb3
+
+bb2:
+  drop.maybe (it)
+  %30: I64 = read copy.trivial (global trace)
+  flag (it) = gone
+  return take %30
+
+bb3:
+  %17: I32 = read copy.trivial (it.$index)
+  %18: I32 = const 2147483646
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb5 -> bb2
+
+bb4:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %11
+  %13: I32 = read copy.trivial (x)
+  %14: I64 = convert inspect %13
+  %15: {} = call note borrow.shared %14
+  jump -> bb1
+
+bb5:
+  %21: walk.Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{0}
+  %22: Tag = call walk$failure borrow.unique %21
+  drop (it)
+  write.init borrow.unique (tag) take %22
+  flag (it) = gone
+  %24: I64 = const 7
+  %25: {} = call note borrow.shared %24
+  %26: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %27: I64 = convert inspect %26
+  %28: {} = call note borrow.shared %27
+  jump -> bb2
+}
+
+fn loopWalk(t: Tree [shared call]) -> I64 {
+  local x: I32 [shared call]
+  local tag: Tag
+
+bb0:
+  %0: I64 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: Tree [shared call] = read borrow.shared (t) loan0
+  lens.try walk borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I64 = read copy.trivial (global trace)
+  return take %18
+
+bb2(%3: Tag):
+  write.init borrow.unique (tag) take %3
+  %12: I64 = const 7
+  %13: {} = call note borrow.shared %12
+  %14: I32 = read copy.trivial (tag.id)
+  drop (tag)
+  %15: I64 = convert inspect %14
+  %16: {} = call note borrow.shared %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (x)
+  %8: I64 = convert inspect %7
+  %9: {} = call note borrow.shared %8
+  jump -> bb1
+}
+
+fn objectMended(t: Tree [shared call]) -> I64 {
+  local & it: mended.Iter [owned here shape8 .2.*=shared slot 0]
+  local x: I32
+  local tag: Tag
+  flag (it) = gone
+
+bb0:
+  %0: I64 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: Tree [shared call] = read borrow.shared (t) loan0
+  %3: mended.Iter [owned here shape8 .2.*=shared slot 0] = call mended$new borrow.shared %2 roots.0{0}
+  write.init borrow.unique (it) take %3
+  flag (it) = held
+  jump -> bb1
+
+bb1:
+  %6: mended.Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call mended$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb4 -> bb3
+
+bb2:
+  drop.maybe (it)
+  %27: I64 = read copy.trivial (global trace)
+  flag (it) = gone
+  return take %27
+
+bb3:
+  %17: I32 = read copy.trivial (it.$index)
+  %18: I32 = const 2147483646
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb5 -> bb2
+
+bb4:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %11
+  %13: I32 = read copy.trivial (x)
+  %14: I64 = convert inspect %13
+  %15: {} = call note borrow.shared %14
+  jump -> bb1
+
+bb5:
+  %21: mended.Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{0}
+  %22: Tag = call mended$failure borrow.unique %21
+  drop (it)
+  write.init borrow.unique (tag) take %22
+  flag (it) = gone
+  drop (tag)
+  %24: I64 = const 7
+  %25: {} = call note borrow.shared %24
+  jump -> bb2
+}
+
+fn loopMended(t: Tree [shared call]) -> I64 {
+  local x: I32 [shared call]
+  local tag: Tag
+
+bb0:
+  %0: I64 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: Tree [shared call] = read borrow.shared (t) loan0
+  lens.try mended borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %15: I64 = read copy.trivial (global trace)
+  return take %15
+
+bb2(%3: Tag):
+  write.init borrow.unique (tag) take %3
+  drop (tag)
+  %12: I64 = const 7
+  %13: {} = call note borrow.shared %12
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (x)
+  %8: I64 = convert inspect %7
+  %9: {} = call note borrow.shared %8
+  jump -> bb1
+}
+
+fn node(left: Tree, value: I32 [shared call], right: Tree) -> Tree {
+bb0:
+  %0: Tree = read take (left)
+  %1: Tree = read take (right)
+  %2: I32 = read copy.trivial (value)
+  %3: Tree = aggregate.Node take %0 take %1 take %2
+  return take %3
+}
+
+fn spine(depth: I32 [shared call]) -> Tree {
+bb0:
+  %0: I32 = read copy.trivial (depth)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = read copy.trivial (depth)
+  %9: I32 = const 1
+  %10: I32 = sub inspect %8 inspect %9
+  %11: Tree = call spine borrow.shared %10
+  %12: I32 = read copy.trivial (depth)
+  %13: I32 = const 10
+  %14: I32 = rem inspect %12 inspect %13
+  %15: Tree = aggregate.Leaf
+  %16: Tree = call node take %11 borrow.shared %14 take %15
+  return take %16
+
+bb3:
+  %4: I32 = const 3
+  %5: Tree = aggregate.Bad take %4
+  return take %5
+}
+
+fn main() -> I32 {
+  local deep: Tree
+  local right: Tree
+  local clean: Tree
+  local tall: Tree
+
+bb0:
+  %0: I32 = const 4
+  %1: Tree = call spine borrow.shared %0
+  write.init borrow.unique (deep) take %1
+  %3: Tree [shared call] = read borrow.shared (deep) loan0
+  %4: I64 = call objectWalk borrow.shared %3
+  %5: I64 = const 7933
+  %6: Bool = ne inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %9: Tree [shared call] = read borrow.shared (deep) loan1
+  %10: I64 = call loopWalk borrow.shared %9
+  drop (deep)
+  %11: I64 = const 7933
+  %12: Bool = ne inspect %10 inspect %11
+  jump -> bb2(take %12)
+
+bb2(%13: Bool):
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  drop (deep)
+  %8: Bool = const True
+  jump -> bb2(take %8)
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %22: Tree = aggregate.Leaf
+  %23: I32 = const 1
+  %24: Tree = aggregate.Leaf
+  %25: Tree = call node take %22 borrow.shared %23 take %24
+  %26: I32 = const 2
+  %27: I32 = const 5
+  %28: Tree = aggregate.Bad take %27
+  %29: I32 = const 6
+  %30: Tree = aggregate.Leaf
+  %31: Tree = call node take %28 borrow.shared %29 take %30
+  %32: Tree = call node take %25 borrow.shared %26 take %31
+  write.init borrow.unique (right) take %32
+  %34: Tree [shared call] = read borrow.shared (right) loan3
+  %35: I64 = call objectWalk borrow.shared %34
+  %36: I64 = const 127955
+  %37: Bool = ne inspect %35 inspect %36
+  branch inspect %37 -> bb9 -> bb7
+
+bb6:
+  %17: I32 [unique call] = read borrow.unique (global failures) loan2
+  %18: I32 = const 1
+  %19: {} = call +=(I32) borrow.unique %17 borrow.shared %18
+  jump -> bb5
+
+bb7:
+  %40: Tree [shared call] = read borrow.shared (right) loan4
+  %41: I64 = call loopWalk borrow.shared %40
+  %42: I64 = const 127955
+  %43: Bool = ne inspect %41 inspect %42
+  jump -> bb8(take %43)
+
+bb8(%44: Bool):
+  branch inspect %44 -> bb12 -> bb10
+
+bb9:
+  %39: Bool = const True
+  jump -> bb8(take %39)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %53: Tree = aggregate.Leaf
+  %54: I32 = const 1
+  %55: Tree = aggregate.Leaf
+  %56: Tree = call node take %53 borrow.shared %54 take %55
+  %57: I32 = const 2
+  %58: Tree = aggregate.Leaf
+  %59: I32 = const 3
+  %60: Tree = aggregate.Leaf
+  %61: Tree = call node take %58 borrow.shared %59 take %60
+  %62: Tree = call node take %56 borrow.shared %57 take %61
+  write.init borrow.unique (clean) take %62
+  %64: Tree [shared call] = read borrow.shared (clean) loan6
+  %65: I64 = call objectWalk borrow.shared %64
+  %66: I64 = const 123
+  %67: Bool = ne inspect %65 inspect %66
+  branch inspect %67 -> bb15 -> bb13
+
+bb12:
+  %48: I32 [unique call] = read borrow.unique (global failures) loan5
+  %49: I32 = const 2
+  %50: {} = call +=(I32) borrow.unique %48 borrow.shared %49
+  jump -> bb11
+
+bb13:
+  %70: Tree [shared call] = read borrow.shared (clean) loan7
+  %71: I64 = call loopWalk borrow.shared %70
+  drop (clean)
+  %72: I64 = const 123
+  %73: Bool = ne inspect %71 inspect %72
+  jump -> bb14(take %73)
+
+bb14(%74: Bool):
+  branch inspect %74 -> bb18 -> bb16
+
+bb15:
+  drop (clean)
+  %69: Bool = const True
+  jump -> bb14(take %69)
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %83: Tree [shared call] = read borrow.shared (right) loan9
+  %84: I64 = call objectMended borrow.shared %83
+  %85: Tree [shared call] = read borrow.shared (right) loan10
+  %86: I64 = call loopMended borrow.shared %85
+  %87: Bool = ne inspect %84 inspect %86
+  branch inspect %87 -> bb21 -> bb19
+
+bb18:
+  %78: I32 [unique call] = read borrow.unique (global failures) loan8
+  %79: I32 = const 4
+  %80: {} = call +=(I32) borrow.unique %78 borrow.shared %79
+  jump -> bb17
+
+bb19:
+  %90: Tree [shared call] = read borrow.shared (right) loan11
+  %91: I64 = call objectMended borrow.shared %90
+  drop (right)
+  %92: I64 = const 129556
+  %93: Bool = ne inspect %91 inspect %92
+  jump -> bb20(take %93)
+
+bb20(%94: Bool):
+  branch inspect %94 -> bb24 -> bb22
+
+bb21:
+  drop (right)
+  %89: Bool = const True
+  jump -> bb20(take %89)
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %103: I32 = const 100
+  %104: Tree = call spine borrow.shared %103
+  write.init borrow.unique (tall) take %104
+  %106: Tree [shared call] = read borrow.shared (tall) loan13
+  %107: I64 = call objectWalk borrow.shared %106
+  %108: I64 = const 7933
+  %109: Bool = ne inspect %107 inspect %108
+  branch inspect %109 -> bb27 -> bb25
+
+bb24:
+  %98: I32 [unique call] = read borrow.unique (global failures) loan12
+  %99: I32 = const 8
+  %100: {} = call +=(I32) borrow.unique %98 borrow.shared %99
+  jump -> bb23
+
+bb25:
+  %112: Tree [shared call] = read borrow.shared (tall) loan14
+  %113: I64 = call loopWalk borrow.shared %112
+  drop (tall)
+  %114: I64 = const 7933
+  %115: Bool = ne inspect %113 inspect %114
+  jump -> bb26(take %115)
+
+bb26(%116: Bool):
+  branch inspect %116 -> bb30 -> bb28
+
+bb27:
+  drop (tall)
+  %111: Bool = const True
+  jump -> bb26(take %111)
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %125: I32 = read copy.trivial (global failures)
+  return take %125
+
+bb30:
+  %120: I32 [unique call] = read borrow.unique (global failures) loan15
+  %121: I32 = const 16
+  %122: {} = call +=(I32) borrow.unique %120 borrow.shared %121
+  jump -> bb29
+}
+
+fn walk$new(t: Tree [shared slot 0]) -> walk.Iter [owned here shape8 .2.*=shared slot 0] = <no body>
+
+fn walk$step($self: walk.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn walk$drop($self: walk.Iter) -> {} = <no body>
+
+fn walk$failure($self: walk.Iter [unique call]) -> Tag = <no body>
+
+fn walk$next($self: walk.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walk$resume($self: walk.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn mended$new(t: Tree [shared slot 0]) -> mended.Iter [owned here shape8 .2.*=shared slot 0] = <no body>
+
+fn mended$step($self: mended.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn mended$drop($self: mended.Iter) -> {} = <no body>
+
+fn mended$failure($self: mended.Iter [unique call]) -> Tag = <no body>
+
+fn mended$next($self: mended.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn mended$resume($self: mended.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walk$erased.heap($env: walk.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 = <no body>
+
+fn mended$erased.heap($env: mended.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 = <no body>
+
+entry main

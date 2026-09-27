@@ -1,0 +1,116 @@
+{-
+   A value with a teardown **relocated out of heap storage** and the storage then released, rewritten
+   or refilled before the value is used - K8, J221 §4.
+
+   A relocation out of an `Address` place is a load, and for a type that lives in storage a load is
+   its address: the bytes stay where they were until something consumes them. J221 found that shape
+   in a read the compiler generated itself and asked whether a program can write it. Every spelling
+   that reaches it is below, and each materializes the value before the source can change: a move
+   out of raw memory has to be bound with `let ->` (a copy out of it, a pattern moving out of it and a
+   `->` straight into an argument are refused), and the binding is a frame slot that the load is
+   stored into on the spot. `forwardMemory` declines to forward an `Owned` store through the slot, so
+   the optimizer does not undo it.
+
+    - `takeFree`: moved out, the block freed and two more allocated over it;
+    - `takeOverwrite`: moved out, then a new value stored into the same slot;
+    - `field`: a field moved out of a record behind a pointer, then the record's block freed;
+    - `consumedAfter`: moved out, then a call that frees, then the value consumed;
+    - `exchange` and `swap` over a raw slot and over array elements;
+    - `Array.remove`, whose `let ->doomed` is followed by the `moveMemory` that closes the gap.
+
+   A `Tag` is three words with a counted `Drop`, so it lives in storage and cannot be copied. `main`
+   answers the cases that did not match, and zero is every one of them.
+
+   Native only: the raw pointers are `lib/Native`'s.
+-}
+
+import Native
+
+let &drops = 0
+let &failures = 0
+
+data Tag {id: Int, a: Int, b: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        drops += 1
+
+data Pair {left: Tag, n: Int}
+
+fn tag(id: Int) = Tag {id: id, a: id * 10, b: id * 100}
+
+fn expect(case: Int, t: Tag, id: Int):
+    if t.id != id || t.a != id * 10 || t.b != id * 100 then failures += case
+
+fn cellOf(->value: a) -> %a:
+    let p = bitcast(allocateHeap(64)) :: %a
+    store(p, value)
+    return p
+
+fn release(p: %a):
+    freeHeap(bitcast(p) :: %U8)
+
+fn takeFree(p: %Tag) -> Tag:
+    let ->t = *p
+    release(p)
+    let q = cellOf(tag(99))
+    let r = cellOf(tag(98))
+    let ->s = *q
+    let ->u = *r
+    release(q)
+    release(r)
+    return t
+
+fn takeOverwrite(p: %Tag) -> Tag:
+    let ->t = *p
+    store(p, tag(42))
+    return t
+
+fn field(p: %Pair) -> Tag:
+    let ->t = (*p).left
+    release(p)
+    let q = cellOf(Pair {left: tag(68), n: 1})
+    let ->s = *q
+    release(q)
+    return t
+
+fn freeing(p: %Tag) -> Int:
+    release(p)
+    let q = cellOf(tag(77))
+    let ->s = *q
+    release(q)
+    return s.id
+
+fn consumedAfter(p: %Tag) -> Tag:
+    let ->t = *p
+    let n = freeing(p)
+    return {->t | a: t.a + n - 77}
+
+fn main() -> Int:
+    expect(1, takeFree(cellOf(tag(1))), 1)
+
+    let p = cellOf(tag(2))
+    expect(2, takeOverwrite(p), 2)
+    let ->left = *p
+    expect(4, left, 42)
+    release(p)
+
+    expect(8, field(cellOf(Pair {left: tag(3), n: 2})), 3)
+    expect(16, consumedAfter(cellOf(tag(4))), 4)
+
+    let q = cellOf(tag(5))
+    expect(32, exchange(*q, tag(6)), 5)
+    let ->now = *q
+    expect(64, now, 6)
+    release(q)
+
+    let &xs = [tag(7), tag(8), tag(9)]
+    expect(128, exchange(xs[0], tag(10)), 7)
+    let &y = tag(11)
+    swap(xs[1], y)
+    expect(256, y, 8)
+    let Just(->taken) = remove(xs, 0) | return 1000
+    expect(512, taken, 10)
+    expect(1024, xs[0], 11)
+
+    return failures

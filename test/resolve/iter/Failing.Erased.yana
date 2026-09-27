@@ -1,0 +1,56 @@
+{-
+   `Failing.Generic.yana`'s class member called from a body compiled **once** - `@generic`.
+
+   The failure is a class variable, so an erased caller holds `Outcome(exit, error)` at a type it
+   reads from its environment, and the skip block's reason is a value of that type: the trailing
+   `| reason:` arm binds it and drops it through the environment's teardown, a `String` in one call
+   and a scalar in the other.
+
+   Native only, as every `@generic` body over a class is: JSIR does not convert one.
+-}
+
+class BlockInput(i -> unit, error):
+    iter fn blocks(&input: i) -> ('[unit] | error)
+
+data InFail = InBroken
+
+data SliceBlocks {bytes: [U8], size: Size, failAt: Size}
+
+instance BlockInput(SliceBlocks, U8, InFail):
+    iter fn blocks(&input: SliceBlocks) -> ('[U8] | InFail):
+        let &at = 0 :: Size
+        while at < length(input.bytes):
+            if at >= input.failAt then return InBroken
+            let end = if at + input.size < length(input.bytes) then at + input.size else length(input.bytes)
+            yield input.bytes[at..end]
+            at = end
+
+data NamedBlocks {bytes: [U8], size: Size, failAt: Size}
+
+instance BlockInput(NamedBlocks, U8, String):
+    iter fn blocks(&input: NamedBlocks) -> ('[U8] | String):
+        let &at = 0 :: Size
+        while at < length(input.bytes):
+            if at >= input.failAt then return "broken at {at}"
+            let end = if at + input.size < length(input.bytes) then at + input.size else length(input.bytes)
+            yield input.bytes[at..end]
+            at = end
+
+@generic
+fn (BlockInput(i, U8, e)) countAll(&input: i) -> Size:
+    let &n = 0 :: Size
+    for block in input.blocks():
+        n += length(block)
+    | reason:
+        n += 1000
+    return n
+
+fn main() -> I32:
+    let input = [1, 2, 3, 4, 5, 6, 7] :: [U8]
+    let &a = SliceBlocks {bytes: copy(input), size: 4, failAt: 100}
+    let &b = SliceBlocks {bytes: copy(input), size: 4, failAt: 4}
+    let &c = NamedBlocks {bytes: copy(input), size: 3, failAt: 100}
+    let &d = NamedBlocks {bytes: copy(input), size: 3, failAt: 5}
+
+    -- 7 + 1004 + 7 + 1006 = 2024
+    return truncate(countAll(a) + countAll(b) + countAll(c) + countAll(d))

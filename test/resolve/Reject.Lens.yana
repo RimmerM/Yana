@@ -125,26 +125,12 @@ fn bindingNothing() -> Int:
     let nothing = scope()
     return 0
 
--- Leaving a lens continuation by `break` is the loop-shaped instance of the exit signal, which
--- arrives with `for` and `iter`.
-fn breakingOut(n: Int) -> Int:
-    while n > 0:
-        scope()
-        break
-
-    return n
 
 -- A lens value has no call site to split a block at, so it cannot be one of the two words a
 -- function value is.
 fn asValue() -> Int:
     let f = scope
     return 0
-
--- A lens call in a generic body is legal now - see Adaptor.yana. A *lambda* there still is not, and
--- for the reason a continuation escapes: a lambda may outlive the frame it captured from.
-fn lambdaInGeneric(value: a) -> Int:
-    let f = () -> 1
-    return f()
 
 {-
    A `lens fn` declared by a class, called wrongly.

@@ -1,0 +1,71 @@
+{-
+   An erased object over a **borrowing** producer holds its lender's loan for as long as it is
+   stepped - J228's defect, J229's fix.
+
+   `sum(bytesOf(ys))` with `fn sum(->it: iter(U8))` summed freed memory: the heap-placed pair had no
+   interior position to root `ys`'s loan in, so the loan ended at the conversion and `ys` was dropped
+   after its last *named* use, before `sum` stepped anything. That shape is refused now
+   (`Reject.ErasedLoan.yana`), and these are the shapes that carry the loan and print the sum:
+
+    - a **site-typed** loop, `for b in bytesOf(ys)`, which never erases;
+    - an erased object **held in the lender's frame** and lent to `&it: iter(U8)` - frame-placed, so
+      the pair's second word is a loan of the record and the record's of `ys`;
+    - the same through a **class member** that steps it;
+    - and a producer that **owns** what it iterates, `->xs`, which is the owning position's shape:
+      the pair owns its block and the block owns the bytes, so nothing is borrowed at all.
+
+   Every lender is built on the heap and has no use after the object is made, so a loan that ended
+   early is a use after free rather than a stale read of storage still intact.
+-}
+
+iter fn bytesOf(xs: [U8]) -> U8:
+    for i in 0..length(xs):
+        yield xs[i]
+
+iter fn ownedBytes(->xs: [U8]) -> U8:
+    for i in 0..length(xs):
+        yield xs[i]
+
+fn build(n: U8) -> [U8]:
+    let &ys = [] :: [U8]
+    for i in 0..n:
+        push(ys, i + 1)
+    return ys
+
+fn sum(&it: iter(U8)) -> I32:
+    let &total = 0 :: I32
+    for b in it:
+        total += widen(b)
+    return total
+
+fn consume(->source: iter(U8)) -> I32:
+    let &it = source
+    return sum(it)
+
+class Summed(s):
+  fn summed(&self: s) -> I32
+
+instance Summed(iter(U8)):
+    fn summed(&self: iter(U8)) -> I32 = sum(self)
+
+fn siteTyped() -> I32:
+    let ys = build(10)
+    let &total = 0 :: I32
+    for b in bytesOf(ys):
+        total += widen(b)
+    return total
+
+fn heldInFrame() -> I32:
+    let ys = build(10)
+    let &it = bytesOf(ys) :: iter(U8)
+    return sum(it)
+
+fn throughMember() -> I32:
+    let ys = build(10)
+    let &it = bytesOf(ys) :: iter(U8)
+    return summed(it)
+
+fn owning() -> I32 = consume(ownedBytes(build(10)))
+
+-- Each is 55, the sum of 1 through 10, as two digits of the answer.
+fn main() -> I32 = ((siteTyped() * 100 + heldInFrame()) * 100 + throughMember()) * 100 + owning()

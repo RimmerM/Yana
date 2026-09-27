@@ -3,112 +3,93 @@ fn opaque(one %r0) -> one %r0
     return %0
 
 fn main() -> one %r0
-  var $0: %r2
   block0:
     jump -> block2
   block1:
-    %11: %r3 = const 0
-    jump -> block3(%11)
+    %10: %r2 = const 0
+    jump -> block3(%10)
   block2:
-    %16: %r3 = const 1
-    jump -> block3(%16)
-  block3(%0: %r3):
-    %17: %r0 = const 1
-    %18: %r0 = const 0
-    %19: %r0 = select %0, %17, %18
-    %26: %r0 = const 30
-    %27: %r0 = binary.add %19, %26
-    %28: %r0 = coerce %27
-    %29: %r0 = const 1
-    %30: %r0 = call opaque %29
-    %31: %r4 = convert %30
-    %32: %r4 = const 0n
-    %33: %r3 = binary.ge %31, %32
-    %34: %r4 = const 2n
-    %35: %r3 = binary.le %31, %34
-    %36: %r3 = binary.and %33, %35
-    branch %36 -> block5 -> block4
+    %15: %r2 = const 1
+    jump -> block3(%15)
+  block3(%0: %r2):
+    %16: %r0 = const 1
+    %17: %r0 = const 0
+    %18: %r0 = select %0, %16, %17
+    %25: %r0 = const 30
+    %26: %r0 = binary.add %18, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = const 1
+    %29: %r0 = call opaque %28
+    %30: %r4 = convert %29
+    %31: %r4 = const 0n
+    %32: %r2 = binary.ge %30, %31
+    %33: %r4 = const 2n
+    %34: %r2 = binary.le %30, %33
+    %35: %r2 = binary.and %32, %34
+    branch %35 -> block5 -> block4
   block4:
-    %37: %r2 = const null
-    jump -> block6(%37)
+    %36: %r0 = const -1
+    jump -> block6(%36)
   block5:
-    %38: %r1 = convert %31
-    %39: %r1 = convert %38
-    %40: %r2 = alias %39
-    jump -> block6(%40)
-  block6(%1: %r2):
-    store var $0: %r2, %1
-    %41: %r2 = load var $0: %r2
-    %42: %r2 = const null
-    %43: %r5 = binary.eq %41, %42
-    %44: %r1 = const 1
-    %45: %r1 = const 0
-    %46: %r1 = select %43, %45, %44
-    %47: %r1 = const 1
-    %48: %r3 = binary.eq %46, %47
-    branch %48 -> block8 -> block7
+    %37: %r1 = convert %30
+    %38: %r1 = convert %37
+    %40: %r1 = convert %38
+    %41: %r0 = convert %40
+    jump -> block6(%41)
+  block6(%1: %r0):
+    %42: %r0 = const 1
+    %43: %r2 = binary.eq %1, %42
+    %44: %r0 = const 32
+    %45: %r0 = const 0
+    %46: %r0 = select %43, %44, %45
+    %47: %r0 = binary.add %27, %46
+    %48: %r0 = coerce %47
+    jump -> block7
   block7:
-    %49: %r0 = const -1
-    jump -> block9(%49)
+    jump -> block9
   block8:
-    %51: %r1 = load var $0: %r1
-    %52: %r1 = convert %51
-    %53: %r0 = convert %52
-    jump -> block9(%53)
-  block9(%2: %r0):
-    %54: %r0 = const 1
-    %55: %r3 = binary.eq %2, %54
-    %56: %r0 = const 32
-    %57: %r0 = const 0
-    %58: %r0 = select %55, %56, %57
-    %59: %r0 = binary.add %28, %58
-    %60: %r0 = coerce %59
+    %59: %r2 = const 0
+    jump -> block13(%59)
+  block9:
     jump -> block10
   block10:
-    jump -> block12
+    %67: %r1 = const 2
+    %68: %r1 = alias %67
+    jump -> block12(%68)
   block11:
-    %71: %r3 = const 0
-    jump -> block16(%71)
-  block12:
-    jump -> block13
-  block13:
-    %79: %r1 = const 2
-    %80: %r1 = alias %79
-    jump -> block15(%80)
+    %69: %r1 = const 0
+    jump -> block12(%69)
+  block12(%2: %r1):
+    %70: %r1 = const 2
+    %71: %r2 = binary.eq %2, %70
+    jump -> block13(%71)
+  block13(%3: %r2):
+    %72: %r0 = const 64
+    %73: %r0 = const 0
+    %74: %r0 = select %3, %72, %73
+    %75: %r0 = binary.add %48, %74
+    %76: %r0 = coerce %75
+    %77: %r1 = const 2
+    %78: %r0 = call anyValue(Whence, I32) %77
+    %79: %r0 = const 2
+    %80: %r2 = binary.eq %78, %79
+    branch %80 -> block15 -> block14
   block14:
-    %81: %r1 = const 0
-    jump -> block15(%81)
-  block15(%3: %r1):
-    %82: %r1 = const 2
-    %83: %r3 = binary.eq %3, %82
-    jump -> block16(%83)
-  block16(%4: %r3):
-    %84: %r0 = const 64
-    %85: %r0 = const 0
-    %86: %r0 = select %4, %84, %85
-    %87: %r0 = binary.add %60, %86
-    %88: %r0 = coerce %87
-    %89: %r1 = const 2
-    %90: %r0 = call anyValue(Whence, I32) %89
-    %91: %r0 = const 2
-    %92: %r3 = binary.eq %90, %91
-    branch %92 -> block18 -> block17
-  block17:
-    %93: %r3 = const 0
-    jump -> block19(%93)
-  block18:
-    %94: %r1 = const 122
-    %95: %r0 = call anyValue(Errno, I32) %94
-    %96: %r0 = const 122
-    %97: %r3 = binary.eq %95, %96
-    jump -> block19(%97)
-  block19(%5: %r3):
-    %98: %r0 = const 128
-    %99: %r0 = const 0
-    %100: %r0 = select %5, %98, %99
-    %101: %r0 = binary.add %88, %100
-    %102: %r0 = coerce %101
-    return %102
+    %81: %r2 = const 0
+    jump -> block16(%81)
+  block15:
+    %82: %r1 = const 122
+    %83: %r0 = call anyValue(Errno, I32) %82
+    %84: %r0 = const 122
+    %85: %r2 = binary.eq %83, %84
+    jump -> block16(%85)
+  block16(%4: %r2):
+    %86: %r0 = const 128
+    %87: %r0 = const 0
+    %88: %r0 = select %4, %86, %87
+    %89: %r0 = binary.add %76, %88
+    %90: %r0 = coerce %89
+    return %90
 
 fn anyValue(Whence, I32)(one %r1) -> one %r0
   block0(%0: %r1):
@@ -126,7 +107,6 @@ optimizer clones 0 aliased 0 forwarded 0 removed 33 adopted 0 sunk 0 numbered 0 
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8
-rep %r2 = nullable of %r1
-rep %r3 = number bool
+rep %r2 = number bool
+rep %r3 = nullable of %r1
 rep %r4 = bigint signed
-rep %r5 = boolean

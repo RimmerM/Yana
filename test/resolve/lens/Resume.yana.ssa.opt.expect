@@ -90,10 +90,8 @@ bb12:
 fn skipping(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: I32 trivial = const 0
-  %14: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
   %15: %Step address = alloc frame Step
   %17: I32 trivial = const 0
-  %18: U8 trivial = const 1
   %19: U8 trivial = const 0
   %20: U8 trivial = const 1
   %21: I32 trivial = const 3
@@ -103,24 +101,15 @@ bb0(%0: I32 trivial):
   %53: Step trivial = const Skip
   jump -> bb5(inspect %17, inspect %3)
 
-bb5(%11: I32 trivial, %57: I32 trivial):
+bb5(%11: I32 trivial, %59: I32 trivial):
   %24: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %24 -> bb6 -> bb14(inspect %57)
+  branch inspect %24 -> bb6 -> bb14
 
 bb6:
-  %51: I32 trivial = mul inspect %57 inspect %50
+  %51: I32 trivial = mul inspect %59 inspect %50
   %52: I32 trivial = add inspect %51 inspect %11
   %54: Outcome(Step, I32) trivial = aggregate.Proceed consume %53
-  store inspect %14 consume %54
-  %27: %U8 address = field.addr .# inspect %14
-  %28: U8 trivial = load inspect %27
-  %29: Bool trivial = eq inspect %28 inspect %18
-  branch inspect %29 -> bb14(inspect %52) -> bb7
-
-bb7:
-  %30: %Step address = field.addr .Proceed inspect %14
-  %31: Step trivial = load inspect %30
-  store inspect %15 consume %31
+  store inspect %15 consume %53
   %32: %U8 address = field.addr .# inspect %15
   %33: U8 trivial = load inspect %32
   %34: Bool trivial = eq inspect %33 inspect %19
@@ -145,14 +134,14 @@ bb11:
 bb12(%12: I32 trivial):
   jump -> bb5(inspect %12, inspect %52)
 
-bb14(%58: I32 trivial):
+bb14:
   %41: %I32 address = global.addr trail
   %42: I32 trivial = load inspect %41
   %43: I32 trivial = const 1
   %44: I32 trivial = add inspect %42 inspect %43
   %45: %I32 address = global.addr trail
   store inspect %45 consume %44
-  return consume %58
+  return consume %59
 }
 
 fn partWay(n: I32 [shared call]) -> I32 {
@@ -161,7 +150,6 @@ bb0(%0: I32 trivial):
   %14: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
   %15: %Step address = alloc frame Step
   %17: I32 trivial = const 0
-  %18: U8 trivial = const 1
   %19: U8 trivial = const 0
   %20: U8 trivial = const 1
   %21: I32 trivial = const 3
@@ -175,13 +163,13 @@ bb0(%0: I32 trivial):
 
 bb5(%11: I32 trivial, %62: I32 trivial):
   %24: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %24 -> bb6 -> bb14(inspect %62)
+  branch inspect %24 -> bb6 -> bb14
 
 bb6:
   %51: Bool trivial = gt inspect %11 inspect %50
   branch inspect %51 -> bb19 -> bb18
 
-bb7:
+bb7(%63: I32 trivial):
   %30: %Step address = field.addr .Proceed inspect %14
   %31: Step trivial = load inspect %30
   store inspect %15 consume %31
@@ -209,40 +197,33 @@ bb11:
 bb12(%12: I32 trivial):
   jump -> bb5(inspect %12, inspect %63)
 
-bb14(%64: I32 trivial):
+bb14:
   %41: %I32 address = global.addr trail
   %42: I32 trivial = load inspect %41
   %43: I32 trivial = const 1
   %44: I32 trivial = add inspect %42 inspect %43
   %45: %I32 address = global.addr trail
   store inspect %45 consume %44
-  return consume %64
-
-bb16(%47: Outcome(Step, I32) trivial, %63: I32 trivial):
-  store inspect %14 consume %47
-  %27: %U8 address = field.addr .# inspect %14
-  %28: U8 trivial = load inspect %27
-  %29: Bool trivial = eq inspect %28 inspect %18
-  branch inspect %29 -> bb14(inspect %63) -> bb7
+  return consume %62
 
 bb18:
   %54: I32 trivial = mul inspect %62 inspect %53
   %55: I32 trivial = add inspect %54 inspect %11
   %57: Outcome(Step, I32) trivial = aggregate.Proceed consume %56
-  jump -> bb16(consume %57, inspect %55)
+  store inspect %14 consume %57
+  jump -> bb7(inspect %55)
 
 bb19:
   %59: Outcome(Step, I32) trivial = aggregate.Proceed consume %58
-  jump -> bb16(consume %59, inspect %62)
+  store inspect %14 consume %59
+  jump -> bb7(inspect %62)
 }
 
 fn broken(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: I32 trivial = const 0
-  %14: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
   %15: %Step address = alloc frame Step
   %17: I32 trivial = const 0
-  %18: U8 trivial = const 1
   %19: U8 trivial = const 0
   %20: U8 trivial = const 1
   %21: I32 trivial = const 3
@@ -256,20 +237,11 @@ bb0(%0: I32 trivial):
 
 bb5(%11: I32 trivial, %62: I32 trivial):
   %24: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %24 -> bb6 -> bb14(inspect %62)
+  branch inspect %24 -> bb6 -> bb14
 
 bb6:
   %51: Bool trivial = gt inspect %11 inspect %50
   branch inspect %51 -> bb19 -> bb18
-
-bb7:
-  %30: %Step address = field.addr .Proceed inspect %14
-  %31: Step trivial = load inspect %30
-  store inspect %15 consume %31
-  %32: %U8 address = field.addr .# inspect %15
-  %33: U8 trivial = load inspect %32
-  %34: Bool trivial = eq inspect %33 inspect %19
-  branch inspect %34 -> bb11 -> bb8
 
 bb8:
   %35: Bool trivial = eq inspect %33 inspect %20
@@ -288,44 +260,39 @@ bb11:
   jump -> bb12(inspect %38)
 
 bb12(%12: I32 trivial):
-  jump -> bb5(inspect %12, inspect %63)
+  jump -> bb5(inspect %12, inspect %55)
 
-bb14(%64: I32 trivial):
+bb14:
   %41: %I32 address = global.addr trail
   %42: I32 trivial = load inspect %41
   %43: I32 trivial = const 1
   %44: I32 trivial = add inspect %42 inspect %43
   %45: %I32 address = global.addr trail
   store inspect %45 consume %44
-  return consume %64
-
-bb16(%47: Outcome(Step, I32) trivial, %63: I32 trivial):
-  store inspect %14 consume %47
-  %27: %U8 address = field.addr .# inspect %14
-  %28: U8 trivial = load inspect %27
-  %29: Bool trivial = eq inspect %28 inspect %18
-  branch inspect %29 -> bb14(inspect %63) -> bb7
+  return consume %62
 
 bb18:
   %54: I32 trivial = mul inspect %62 inspect %53
   %55: I32 trivial = add inspect %54 inspect %11
   %57: Outcome(Step, I32) trivial = aggregate.Proceed consume %56
-  jump -> bb16(consume %57, inspect %55)
+  store inspect %15 consume %56
+  %32: %U8 address = field.addr .# inspect %15
+  %33: U8 trivial = load inspect %32
+  %34: Bool trivial = eq inspect %33 inspect %19
+  branch inspect %34 -> bb11 -> bb8
 
 bb19:
   %59: Outcome(Step, I32) trivial = aggregate.Exit consume %58
-  jump -> bb16(consume %59, inspect %62)
+  jump -> bb14
 }
 
 fn leaving(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32
   %4: I32 [unique slot 0] guaranteed = load inspect %2
-  %16: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
   %17: %Step address = alloc frame Step
   %18: I32 trivial = const 0
   %19: I32 trivial = const 0
-  %20: U8 trivial = const 1
   %21: U8 trivial = const 0
   %22: U8 trivial = const 1
   %23: I32 trivial = const 3
@@ -346,15 +313,6 @@ bb7:
   %53: Bool trivial = gt inspect %13 inspect %52
   branch inspect %53 -> bb20 -> bb19
 
-bb8:
-  %32: %Step address = field.addr .Proceed inspect %16
-  %33: Step trivial = load inspect %32
-  store inspect %17 consume %33
-  %34: %U8 address = field.addr .# inspect %17
-  %35: U8 trivial = load inspect %34
-  %36: Bool trivial = eq inspect %35 inspect %21
-  branch inspect %36 -> bb12 -> bb9
-
 bb9:
   %37: Bool trivial = eq inspect %35 inspect %22
   branch inspect %37 -> bb11 -> bb10
@@ -374,11 +332,6 @@ bb12:
 bb13(%14: I32 trivial):
   jump -> bb6(inspect %14)
 
-bb14:
-  %41: %I32 address = field.addr .Exit inspect %16
-  %42: I32 trivial = load inspect %41
-  jump -> bb15(inspect %42)
-
 bb15(%15: I32 trivial):
   %43: %I32 address = global.addr trail
   %44: I32 trivial = load inspect %43
@@ -393,22 +346,19 @@ bb15(%15: I32 trivial):
   %61: I32 trivial = select inspect %9 inspect %10 inspect %11
   return consume %61
 
-bb17(%49: Outcome(Step, I32) trivial):
-  store inspect %16 consume %49
-  %29: %U8 address = field.addr .# inspect %16
-  %30: U8 trivial = load inspect %29
-  %31: Bool trivial = eq inspect %30 inspect %20
-  branch inspect %31 -> bb14 -> bb8
-
 bb19:
   %55: Outcome(Step, I32) trivial = aggregate.Proceed consume %54
-  jump -> bb17(consume %55)
+  store inspect %17 consume %54
+  %34: %U8 address = field.addr .# inspect %17
+  %35: U8 trivial = load inspect %34
+  %36: Bool trivial = eq inspect %35 inspect %21
+  branch inspect %36 -> bb12 -> bb9
 
 bb20:
   %57: I32 trivial = mul inspect %13 inspect %56
   store inspect %62 consume %57
   %59: Outcome(Step, I32) trivial = aggregate.Exit consume %58
-  jump -> bb17(consume %59)
+  jump -> bb15(inspect %58)
 }
 
 fn nothingBack(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
@@ -488,10 +438,8 @@ fn doubled(n: I32 [shared call], $body: (I32) -> Outcome(Step, I32) [shared call
 bb0(%0: I32 trivial, %1: (I32) -> Outcome(Step, I32) [shared call] guaranteed):
   %4: I32 trivial = const 0
   %6: (I32) -> Outcome(Step, I32) [unique slot 0] guaranteed = load inspect %1
-  %16: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
   %17: %Step address = alloc frame Step
   %19: I32 trivial = const 0
-  %20: U8 trivial = const 1
   %21: U8 trivial = const 0
   %22: U8 trivial = const 1
   %23: I32 trivial = const 3
@@ -500,11 +448,11 @@ bb0(%0: I32 trivial, %1: (I32) -> Outcome(Step, I32) [shared call] guaranteed):
   %55: I32 trivial = const 10
   %61: U8 trivial = const 1
   %68: I32 trivial = const 2
-  jump -> bb5(inspect %19, inspect %4)
+  jump -> bb5(inspect %19)
 
-bb5(%13: I32 trivial, %73: I32 trivial):
+bb5(%13: I32 trivial):
   %26: Bool trivial = lt inspect %13 inspect %0
-  branch inspect %26 -> bb6 -> bb14(inspect %73)
+  branch inspect %26 -> bb6 -> bb14(inspect %4)
 
 bb6:
   %71: %(I32) -> Outcome(Step, I32) address = represent inspect %6
@@ -517,15 +465,6 @@ bb6:
   %60: U8 trivial = load inspect %59
   %62: Bool trivial = eq inspect %60 inspect %61
   branch inspect %62 -> bb19 -> bb18
-
-bb7:
-  %32: %Step address = field.addr .Proceed inspect %16
-  %33: Step trivial = load inspect %32
-  store inspect %17 consume %33
-  %34: %U8 address = field.addr .# inspect %17
-  %35: U8 trivial = load inspect %34
-  %36: Bool trivial = eq inspect %35 inspect %21
-  branch inspect %36 -> bb11 -> bb8
 
 bb8:
   %37: Bool trivial = eq inspect %35 inspect %22
@@ -544,230 +483,160 @@ bb11:
   jump -> bb12(inspect %40)
 
 bb12(%14: I32 trivial):
-  jump -> bb5(inspect %14, inspect %74)
+  jump -> bb5(inspect %14)
 
-bb14(%75: I32 trivial):
+bb14(%74: I32 trivial):
   %43: %I32 address = global.addr trail
   %44: I32 trivial = load inspect %43
   %45: I32 trivial = const 1
   %46: I32 trivial = add inspect %44 inspect %45
   %47: %I32 address = global.addr trail
   store inspect %47 consume %46
-  return consume %75
-
-bb16(%49: Outcome(Step, I32) trivial, %74: I32 trivial):
-  store inspect %16 consume %49
-  %29: %U8 address = field.addr .# inspect %16
-  %30: U8 trivial = load inspect %29
-  %31: Bool trivial = eq inspect %30 inspect %20
-  branch inspect %31 -> bb14(inspect %74) -> bb7
+  return consume %74
 
 bb18:
   %63: %Step address = field.addr .Proceed inspect %54
   %64: Step trivial = load inspect %63
   %65: Outcome(Step, I32) trivial = aggregate.Proceed consume %64
-  jump -> bb16(consume %65, inspect %73)
+  store inspect %17 consume %64
+  %34: %U8 address = field.addr .# inspect %17
+  %35: U8 trivial = load inspect %34
+  %36: Bool trivial = eq inspect %35 inspect %21
+  branch inspect %36 -> bb11 -> bb8
 
 bb19:
   %66: %I32 address = field.addr .Exit inspect %54
   %67: I32 trivial = load inspect %66
   %69: Outcome(Step, I32) trivial = aggregate.Exit consume %68
-  jump -> bb16(consume %69, inspect %67)
+  jump -> bb14(inspect %67)
 }
 
 fn throughTwo(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: I32 trivial = const 0
+  %16: %Step address = alloc frame Step
   %17: I32 trivial = const 0
-  %19: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %20: %Step address = alloc frame Step
-  %21: I32 trivial = const 0
-  %22: U8 trivial = const 1
-  %23: U8 trivial = const 0
-  %24: U8 trivial = const 1
-  %25: I32 trivial = const 3
-  %26: I32 trivial = const 2
-  %27: I32 trivial = const 1
-  %28: I32 trivial = const 10
-  %29: U8 trivial = const 1
-  %30: I32 trivial = const 2
-  %68: Step trivial = const Again
-  jump -> bb5(inspect %21, inspect %17, inspect %3)
+  %18: U8 trivial = const 0
+  %19: U8 trivial = const 1
+  %20: I32 trivial = const 3
+  %21: I32 trivial = const 2
+  %22: I32 trivial = const 1
+  %23: I32 trivial = const 10
+  %58: Step trivial = const Again
+  jump -> bb5(inspect %17, inspect %3)
 
-bb5(%11: I32 trivial, %12: I32 trivial, %72: I32 trivial):
-  %31: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %31 -> bb6 -> bb16(inspect %72)
+bb5(%11: I32 trivial, %64: I32 trivial):
+  %26: Bool trivial = lt inspect %11 inspect %0
+  branch inspect %26 -> bb6 -> bb14
 
 bb6:
-  %33: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %34: I32 trivial = mul inspect %11 inspect %28
-  %67: I32 trivial = add inspect %72 inspect %34
-  %69: Outcome(Step, I32) trivial = aggregate.Proceed consume %68
-  store inspect %33 consume %69
-  %37: %U8 address = field.addr .# inspect %33
-  %38: U8 trivial = load inspect %37
-  %39: Bool trivial = eq inspect %38 inspect %29
-  branch inspect %39 -> bb8 -> bb7
-
-bb7:
-  %40: %Step address = field.addr .Proceed inspect %33
-  %41: Step trivial = load inspect %40
-  %42: Outcome(Step, I32) trivial = aggregate.Proceed consume %41
-  jump -> bb9(consume %42, inspect %12)
+  %29: I32 trivial = mul inspect %11 inspect %23
+  %57: I32 trivial = add inspect %64 inspect %29
+  %59: Outcome(Step, I32) trivial = aggregate.Proceed consume %58
+  %37: Outcome(Step, I32) trivial = aggregate.Proceed consume %58
+  store inspect %16 consume %58
+  %38: %U8 address = field.addr .# inspect %16
+  %39: U8 trivial = load inspect %38
+  %40: Bool trivial = eq inspect %39 inspect %18
+  branch inspect %40 -> bb11 -> bb8
 
 bb8:
-  %43: %I32 address = field.addr .Exit inspect %33
-  %44: I32 trivial = load inspect %43
-  %45: Outcome(Step, I32) trivial = aggregate.Exit consume %30
-  jump -> bb9(consume %45, inspect %44)
+  %41: Bool trivial = eq inspect %39 inspect %19
+  branch inspect %41 -> bb10 -> bb9
 
-bb9(%13: Outcome(Step, I32) trivial, %14: I32 trivial):
-  store inspect %19 consume %13
-  %46: %U8 address = field.addr .# inspect %19
-  %47: U8 trivial = load inspect %46
-  %48: Bool trivial = eq inspect %47 inspect %22
-  branch inspect %48 -> bb16(inspect %67) -> bb10
+bb9:
+  %42: I32 trivial = add inspect %11 inspect %20
+  jump -> bb12(inspect %42)
 
 bb10:
-  %49: %Step address = field.addr .Proceed inspect %19
-  %50: Step trivial = load inspect %49
-  store inspect %20 consume %50
-  %51: %U8 address = field.addr .# inspect %20
-  %52: U8 trivial = load inspect %51
-  %53: Bool trivial = eq inspect %52 inspect %23
-  branch inspect %53 -> bb14 -> bb11
+  %43: I32 trivial = add inspect %11 inspect %21
+  jump -> bb12(inspect %43)
 
 bb11:
-  %54: Bool trivial = eq inspect %52 inspect %24
-  branch inspect %54 -> bb13 -> bb12
+  %44: I32 trivial = add inspect %11 inspect %22
+  jump -> bb12(inspect %44)
 
-bb12:
-  %55: I32 trivial = add inspect %11 inspect %25
-  jump -> bb15(inspect %55)
-
-bb13:
-  %56: I32 trivial = add inspect %11 inspect %26
-  jump -> bb15(inspect %56)
+bb12(%12: I32 trivial):
+  jump -> bb5(inspect %12, inspect %57)
 
 bb14:
-  %57: I32 trivial = add inspect %11 inspect %27
-  jump -> bb15(inspect %57)
-
-bb15(%15: I32 trivial):
-  jump -> bb5(inspect %15, inspect %14, inspect %67)
-
-bb16(%73: I32 trivial):
-  %58: %I32 address = global.addr trail
-  %59: I32 trivial = load inspect %58
-  %60: I32 trivial = const 1
-  %61: I32 trivial = add inspect %59 inspect %60
-  %62: %I32 address = global.addr trail
-  store inspect %62 consume %61
-  return consume %73
+  %48: %I32 address = global.addr trail
+  %49: I32 trivial = load inspect %48
+  %50: I32 trivial = const 1
+  %51: I32 trivial = add inspect %49 inspect %50
+  %52: %I32 address = global.addr trail
+  store inspect %52 consume %51
+  return consume %64
 }
 
 fn throughTwoBroken(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: I32 trivial = const 0
+  %16: %Step address = alloc frame Step
   %17: I32 trivial = const 0
-  %19: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %20: %Step address = alloc frame Step
-  %21: I32 trivial = const 0
-  %22: U8 trivial = const 1
-  %23: U8 trivial = const 0
-  %24: U8 trivial = const 1
-  %25: I32 trivial = const 3
-  %26: I32 trivial = const 2
-  %27: I32 trivial = const 1
-  %28: I32 trivial = const 10
-  %29: U8 trivial = const 1
-  %30: I32 trivial = const 2
-  %67: I32 trivial = const 10
-  %71: Step trivial = const Again
-  %73: I32 trivial = const 2
-  jump -> bb5(inspect %21, inspect %17, inspect %3)
+  %18: U8 trivial = const 0
+  %19: U8 trivial = const 1
+  %20: I32 trivial = const 3
+  %21: I32 trivial = const 2
+  %22: I32 trivial = const 1
+  %23: I32 trivial = const 10
+  %25: I32 trivial = const 2
+  %57: I32 trivial = const 10
+  %61: Step trivial = const Again
+  %63: I32 trivial = const 2
+  jump -> bb5(inspect %17, inspect %3)
 
-bb5(%11: I32 trivial, %12: I32 trivial, %77: I32 trivial):
-  %31: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %31 -> bb6 -> bb16(inspect %77)
+bb5(%11: I32 trivial, %67: I32 trivial):
+  %26: Bool trivial = lt inspect %11 inspect %0
+  branch inspect %26 -> bb6 -> bb14
 
 bb6:
-  %33: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %34: I32 trivial = mul inspect %11 inspect %28
-  %68: Bool trivial = gt inspect %34 inspect %67
-  branch inspect %68 -> bb21 -> bb20
-
-bb7:
-  %40: %Step address = field.addr .Proceed inspect %33
-  %41: Step trivial = load inspect %40
-  %42: Outcome(Step, I32) trivial = aggregate.Proceed consume %41
-  jump -> bb9(consume %42, inspect %12)
+  %29: I32 trivial = mul inspect %11 inspect %23
+  %58: Bool trivial = gt inspect %29 inspect %57
+  branch inspect %58 -> bb19 -> bb18
 
 bb8:
-  %43: %I32 address = field.addr .Exit inspect %33
-  %44: I32 trivial = load inspect %43
-  %45: Outcome(Step, I32) trivial = aggregate.Exit consume %30
-  jump -> bb9(consume %45, inspect %44)
+  %41: Bool trivial = eq inspect %39 inspect %19
+  branch inspect %41 -> bb10 -> bb9
 
-bb9(%13: Outcome(Step, I32) trivial, %14: I32 trivial):
-  store inspect %19 consume %13
-  %46: %U8 address = field.addr .# inspect %19
-  %47: U8 trivial = load inspect %46
-  %48: Bool trivial = eq inspect %47 inspect %22
-  branch inspect %48 -> bb16(inspect %78) -> bb10
+bb9:
+  %42: I32 trivial = add inspect %11 inspect %20
+  jump -> bb12(inspect %42)
 
 bb10:
-  %49: %Step address = field.addr .Proceed inspect %19
-  %50: Step trivial = load inspect %49
-  store inspect %20 consume %50
-  %51: %U8 address = field.addr .# inspect %20
-  %52: U8 trivial = load inspect %51
-  %53: Bool trivial = eq inspect %52 inspect %23
-  branch inspect %53 -> bb14 -> bb11
+  %43: I32 trivial = add inspect %11 inspect %21
+  jump -> bb12(inspect %43)
 
 bb11:
-  %54: Bool trivial = eq inspect %52 inspect %24
-  branch inspect %54 -> bb13 -> bb12
+  %44: I32 trivial = add inspect %11 inspect %22
+  jump -> bb12(inspect %44)
 
-bb12:
-  %55: I32 trivial = add inspect %11 inspect %25
-  jump -> bb15(inspect %55)
-
-bb13:
-  %56: I32 trivial = add inspect %11 inspect %26
-  jump -> bb15(inspect %56)
+bb12(%12: I32 trivial):
+  jump -> bb5(inspect %12, inspect %60)
 
 bb14:
-  %57: I32 trivial = add inspect %11 inspect %27
-  jump -> bb15(inspect %57)
+  %48: %I32 address = global.addr trail
+  %49: I32 trivial = load inspect %48
+  %50: I32 trivial = const 1
+  %51: I32 trivial = add inspect %49 inspect %50
+  %52: %I32 address = global.addr trail
+  store inspect %52 consume %51
+  return consume %67
 
-bb15(%15: I32 trivial):
-  jump -> bb5(inspect %15, inspect %14, inspect %78)
+bb18:
+  %60: I32 trivial = add inspect %67 inspect %29
+  %62: Outcome(Step, I32) trivial = aggregate.Proceed consume %61
+  %37: Outcome(Step, I32) trivial = aggregate.Proceed consume %61
+  store inspect %16 consume %61
+  %38: %U8 address = field.addr .# inspect %16
+  %39: U8 trivial = load inspect %38
+  %40: Bool trivial = eq inspect %39 inspect %18
+  branch inspect %40 -> bb11 -> bb8
 
-bb16(%79: I32 trivial):
-  %58: %I32 address = global.addr trail
-  %59: I32 trivial = load inspect %58
-  %60: I32 trivial = const 1
-  %61: I32 trivial = add inspect %59 inspect %60
-  %62: %I32 address = global.addr trail
-  store inspect %62 consume %61
-  return consume %79
-
-bb18(%64: Outcome(Step, I32) trivial, %78: I32 trivial):
-  store inspect %33 consume %64
-  %37: %U8 address = field.addr .# inspect %33
-  %38: U8 trivial = load inspect %37
-  %39: Bool trivial = eq inspect %38 inspect %29
-  branch inspect %39 -> bb8 -> bb7
-
-bb20:
-  %70: I32 trivial = add inspect %77 inspect %34
-  %72: Outcome(Step, I32) trivial = aggregate.Proceed consume %71
-  jump -> bb18(consume %72, inspect %70)
-
-bb21:
-  %74: Outcome(Step, I32) trivial = aggregate.Exit consume %73
-  jump -> bb18(consume %74, inspect %77)
+bb19:
+  %64: Outcome(Step, I32) trivial = aggregate.Exit consume %63
+  %47: Outcome(Step, I32) trivial = aggregate.Exit consume %25
+  jump -> bb14
 }
 
 fn twoSteps(a: I32 [shared call], b: I32 [shared call], $body: (I32) -> Outcome(I32, I32) [shared call]) -> I32 {
@@ -830,51 +699,18 @@ bb0:
   %1: I32 trivial = const 0
   %2: %I32 address = global.addr trail
   store inspect %2 consume %1
-  %17: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %18: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %73: I32 trivial = const 1
   %59: I32 trivial = const 3
   %60: Outcome(I32, I32) trivial = aggregate.Proceed consume %59
-  store inspect %17 consume %60
-  %22: %U8 address = field.addr .# inspect %17
-  %23: U8 trivial = load inspect %22
-  %24: U8 trivial = const 1
-  %25: Bool trivial = eq inspect %23 inspect %24
-  branch inspect %25 -> bb3(inspect %73) -> bb5
-
-bb3(%71: I32 trivial):
-  %11: I32 trivial = const 10000
-  %12: I32 trivial = mul inspect %71 inspect %11
-  %13: %I32 address = global.addr trail
-  %14: I32 trivial = load inspect %13
-  %15: I32 trivial = add inspect %12 inspect %14
-  return consume %15
-
-bb5:
-  %26: %I32 address = field.addr .Proceed inspect %17
-  %27: I32 trivial = load inspect %26
+  %73: I32 trivial = const 3
   %31: %I32 address = global.addr trail
-  store inspect %31 consume %27
-  %75: I32 trivial = const 12
-  %76: I32 trivial = add inspect %27 inspect %75
+  store inspect %31 consume %73
   %67: I32 trivial = const 3
   %68: Outcome(I32, I32) trivial = aggregate.Proceed consume %67
-  store inspect %18 consume %68
-  %35: %U8 address = field.addr .# inspect %18
-  %36: U8 trivial = load inspect %35
-  %37: U8 trivial = const 1
-  %38: Bool trivial = eq inspect %36 inspect %37
-  branch inspect %38 -> bb3(inspect %76) -> bb6
-
-bb6:
-  %39: %I32 address = field.addr .Proceed inspect %18
-  %40: I32 trivial = load inspect %39
-  %43: I32 trivial = const 100
-  %44: I32 trivial = mul inspect %40 inspect %43
-  %45: I32 trivial = add inspect %27 inspect %44
+  %78: I32 trivial = const 303
   %46: %I32 address = global.addr trail
-  store inspect %46 consume %45
-  jump -> bb3(inspect %76)
+  store inspect %46 consume %78
+  %84: I32 trivial = const 150303
+  return consume %84
 }
 
 fn brokenTrail() -> I32 {
@@ -882,51 +718,10 @@ bb0:
   %1: I32 trivial = const 0
   %2: %I32 address = global.addr trail
   store inspect %2 consume %1
-  %17: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %18: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %73: I32 trivial = const 1
   %59: I32 trivial = const 2
   %60: Outcome(I32, I32) trivial = aggregate.Exit consume %59
-  store inspect %17 consume %60
-  %22: %U8 address = field.addr .# inspect %17
-  %23: U8 trivial = load inspect %22
-  %24: U8 trivial = const 1
-  %25: Bool trivial = eq inspect %23 inspect %24
-  branch inspect %25 -> bb3(inspect %73) -> bb5
-
-bb3(%71: I32 trivial):
-  %11: I32 trivial = const 10000
-  %12: I32 trivial = mul inspect %71 inspect %11
-  %13: %I32 address = global.addr trail
-  %14: I32 trivial = load inspect %13
-  %15: I32 trivial = add inspect %12 inspect %14
-  return consume %15
-
-bb5:
-  %26: %I32 address = field.addr .Proceed inspect %17
-  %27: I32 trivial = load inspect %26
-  %31: %I32 address = global.addr trail
-  store inspect %31 consume %27
-  %75: I32 trivial = const 12
-  %76: I32 trivial = add inspect %27 inspect %75
-  %67: I32 trivial = const 2
-  %68: Outcome(I32, I32) trivial = aggregate.Exit consume %67
-  store inspect %18 consume %68
-  %35: %U8 address = field.addr .# inspect %18
-  %36: U8 trivial = load inspect %35
-  %37: U8 trivial = const 1
-  %38: Bool trivial = eq inspect %36 inspect %37
-  branch inspect %38 -> bb3(inspect %76) -> bb6
-
-bb6:
-  %39: %I32 address = field.addr .Proceed inspect %18
-  %40: I32 trivial = load inspect %39
-  %43: I32 trivial = const 100
-  %44: I32 trivial = mul inspect %40 inspect %43
-  %45: I32 trivial = add inspect %27 inspect %44
-  %46: %I32 address = global.addr trail
-  store inspect %46 consume %45
-  jump -> bb3(inspect %76)
+  %78: I32 trivial = const 10000
+  return consume %78
 }
 
 fn holding(n: I32 [shared call], $body: (I32) -> Outcome(I32, I32) [shared call]) -> I32 {
@@ -999,12 +794,10 @@ fn heldBroken(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: I32 trivial = const 0
   %15: %Box address = alloc frame Box
-  %16: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   %18: Box owned = aggregate.Box consume %0
   %19: Bool trivial = const True
   store inspect %15 consume %18
   %20: I32 trivial = const 0
-  %21: U8 trivial = const 1
   %59: I32 trivial = const 10
   %62: I32 trivial = const 1
   %64: I32 trivial = const 2
@@ -1012,30 +805,14 @@ bb0(%0: I32 trivial):
 
 bb5(%12: I32 trivial, %69: I32 trivial):
   %22: Bool trivial = lt inspect %12 inspect %0
-  branch inspect %22 -> bb6 -> bb9(inspect %19, inspect %69)
+  branch inspect %22 -> bb6 -> bb9(inspect %19)
 
 bb6:
   %23: I32 trivial = add inspect %12 inspect %0
   %57: Bool trivial = gt inspect %23 inspect %0
   branch inspect %57 -> bb16 -> bb15
 
-bb7:
-  %29: %I32 address = field.addr .Proceed inspect %16
-  %30: I32 trivial = load inspect %29
-  %31: I32 trivial = add inspect %12 inspect %30
-  jump -> bb5(inspect %31, inspect %70)
-
-bb8:
-  %32: %I32 address = global.addr gone
-  %33: I32 trivial = load inspect %32
-  %34: I32 trivial = const 1
-  %35: I32 trivial = add inspect %33 inspect %34
-  %36: %I32 address = global.addr gone
-  store inspect %36 consume %35
-  %37: Bool trivial = const False
-  jump -> bb9(inspect %37, inspect %70)
-
-bb9(%14: Bool trivial, %71: I32 trivial):
+bb9(%14: Bool trivial):
   branch inspect %14 -> bb10 -> bb11
 
 bb10 cleanup:
@@ -1054,24 +831,25 @@ bb11:
   %48: I32 trivial = add inspect %46 inspect %47
   %49: %I32 address = global.addr trail
   store inspect %49 consume %48
-  return consume %71
-
-bb13(%51: Outcome(I32, I32) trivial, %70: I32 trivial):
-  store inspect %16 consume %51
-  %26: %U8 address = field.addr .# inspect %16
-  %27: U8 trivial = load inspect %26
-  %28: Bool trivial = eq inspect %27 inspect %21
-  branch inspect %28 -> bb8 -> bb7
+  return consume %69
 
 bb15:
   %60: I32 trivial = mul inspect %69 inspect %59
   %61: I32 trivial = add inspect %60 inspect %23
   %63: Outcome(I32, I32) trivial = aggregate.Proceed consume %62
-  jump -> bb13(consume %63, inspect %61)
+  %31: I32 trivial = add inspect %12 inspect %62
+  jump -> bb5(inspect %31, inspect %61)
 
 bb16:
   %65: Outcome(I32, I32) trivial = aggregate.Exit consume %64
-  jump -> bb13(consume %65, inspect %69)
+  %32: %I32 address = global.addr gone
+  %33: I32 trivial = load inspect %32
+  %34: I32 trivial = const 1
+  %35: I32 trivial = add inspect %33 inspect %34
+  %36: %I32 address = global.addr gone
+  store inspect %36 consume %35
+  %37: Bool trivial = const False
+  jump -> bb9(inspect %37)
 }
 
 fn heldLeft(n: I32 [shared call]) -> I32 {
@@ -1079,13 +857,11 @@ bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32
   %5: I32 [unique slot 1] guaranteed = load inspect %2
   %17: %Box address = alloc frame Box
-  %18: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   %19: I32 trivial = const 0
   %20: Box owned = aggregate.Box consume %0
   %21: Bool trivial = const True
   store inspect %17 consume %20
   %22: I32 trivial = const 0
-  %23: U8 trivial = const 1
   %59: I32 trivial = const 1
   %62: I32 trivial = const 1
   %64: I32 trivial = const 7
@@ -1102,24 +878,6 @@ bb7:
   %70: %I32 address = represent inspect %5
   %61: Bool trivial = gt inspect %25 inspect %60
   branch inspect %61 -> bb17 -> bb16
-
-bb8:
-  %31: %I32 address = field.addr .Proceed inspect %18
-  %32: I32 trivial = load inspect %31
-  %33: I32 trivial = add inspect %14 inspect %32
-  jump -> bb6(inspect %33)
-
-bb9:
-  %34: %I32 address = global.addr gone
-  %35: I32 trivial = load inspect %34
-  %36: I32 trivial = const 1
-  %37: I32 trivial = add inspect %35 inspect %36
-  %38: %I32 address = global.addr gone
-  store inspect %38 consume %37
-  %39: Bool trivial = const False
-  %40: %I32 address = field.addr .Exit inspect %18
-  %41: I32 trivial = load inspect %40
-  jump -> bb10(inspect %41, inspect %39)
 
 bb10(%15: I32 trivial, %16: Bool trivial):
   branch inspect %16 -> bb11 -> bb12
@@ -1147,22 +905,23 @@ bb12:
   %68: I32 trivial = select inspect %10 inspect %11 inspect %12
   return consume %68
 
-bb14(%53: Outcome(I32, I32) trivial):
-  store inspect %18 consume %53
-  %28: %U8 address = field.addr .# inspect %18
-  %29: U8 trivial = load inspect %28
-  %30: Bool trivial = eq inspect %29 inspect %23
-  branch inspect %30 -> bb9 -> bb8
-
 bb16:
   %63: Outcome(I32, I32) trivial = aggregate.Proceed consume %62
-  jump -> bb14(consume %63)
+  %33: I32 trivial = add inspect %14 inspect %62
+  jump -> bb6(inspect %33)
 
 bb17:
   %65: I32 trivial = mul inspect %25 inspect %64
   store inspect %70 consume %65
   %67: Outcome(I32, I32) trivial = aggregate.Exit consume %66
-  jump -> bb14(consume %67)
+  %34: %I32 address = global.addr gone
+  %35: I32 trivial = load inspect %34
+  %36: I32 trivial = const 1
+  %37: I32 trivial = add inspect %35 inspect %36
+  %38: %I32 address = global.addr gone
+  store inspect %38 consume %37
+  %39: Bool trivial = const False
+  jump -> bb10(inspect %66, inspect %39)
 }
 
 fn owning(n: I32 [shared call], $body: (I32) -> Outcome(Command, I32) [shared call]) -> I32 {
@@ -1213,29 +972,22 @@ bb0(%0: I32 trivial):
   %13: %Outcome(Command, I32) address = alloc frame Outcome(Command, I32)
   %14: %Command address = alloc frame Command
   %16: I32 trivial = const 0
-  %17: U8 trivial = const 1
   %35: I32 trivial = const 10
   %38: I32 trivial = const 2
   %39: I32 trivial = const 0
   jump -> bb5(inspect %16, inspect %3)
 
-bb5(%11: I32 trivial, %45: I32 trivial):
+bb5(%11: I32 trivial, %47: I32 trivial):
   %18: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %18 -> bb6 -> bb9(inspect %45)
+  branch inspect %18 -> bb6 -> bb9
 
 bb6:
-  %36: I32 trivial = mul inspect %45 inspect %35
+  %36: I32 trivial = mul inspect %47 inspect %35
   %37: I32 trivial = add inspect %36 inspect %11
   %40: Box owned = aggregate.Box consume %39
   %41: Command owned = aggregate.Command consume %38 consume %40
   %42: Outcome(Command, I32) owned = aggregate.Proceed consume %41
   store inspect %13 consume %42
-  %21: %U8 address = field.addr .# inspect %13
-  %22: U8 trivial = load inspect %21
-  %23: Bool trivial = eq inspect %22 inspect %17
-  branch inspect %23 -> bb8 -> bb7
-
-bb7:
   %24: %Command address = field.addr .Proceed inspect %13
   %25: Command owned = load inspect %24
   store inspect %14 consume %25
@@ -1245,12 +997,8 @@ bb7:
   %28: I32 trivial = add inspect %11 inspect %27
   jump -> bb5(inspect %28, inspect %37)
 
-bb8:
-  drop Outcome(Command, I32) inspect %13
-  jump -> bb9(inspect %37)
-
-bb9(%46: I32 trivial):
-  return consume %46
+bb9:
+  return consume %47
 }
 
 fn keeping(n: I32 [shared call], $body: (I32) -> Outcome(Note, I32) [shared call]) -> I32 {
@@ -1326,36 +1074,27 @@ bb0(%0: I32 trivial):
   %21: Note owned = aggregate.Note consume %18 consume %20
   store inspect %14 consume %21
   %22: I32 trivial = const 0
-  %23: Bool trivial = const True
-  %24: Bool trivial = const False
-  %25: U8 trivial = const 1
   %26: I32 trivial = const 1
   %46: I32 trivial = const 10
   %49: I32 trivial = const 5
   %50: I32 trivial = const 0
   jump -> bb5(inspect %22, inspect %3)
 
-bb5(%11: I32 trivial, %56: I32 trivial):
+bb5(%11: I32 trivial, %58: I32 trivial):
   %27: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %27 -> bb6 -> bb9(inspect %23, inspect %56)
+  branch inspect %27 -> bb6 -> bb9
 
 bb6:
   %28: %I32 address = field.addr .mark inspect %14
   %29: I32 trivial = load inspect %28
   drop Note inspect %14
   %30: I32 trivial = add inspect %11 inspect %29
-  %47: I32 trivial = mul inspect %56 inspect %46
+  %47: I32 trivial = mul inspect %58 inspect %46
   %48: I32 trivial = add inspect %47 inspect %30
   %51: Box owned = aggregate.Box consume %50
   %52: Note owned = aggregate.Note consume %49 consume %51
   %53: Outcome(Note, I32) owned = aggregate.Proceed consume %52
   store inspect %15 consume %53
-  %33: %U8 address = field.addr .# inspect %15
-  %34: U8 trivial = load inspect %33
-  %35: Bool trivial = eq inspect %34 inspect %25
-  branch inspect %35 -> bb8 -> bb7
-
-bb7:
   %36: %Note address = field.addr .Proceed inspect %15
   %37: Note owned = load inspect %36
   store inspect %16 consume %37
@@ -1364,19 +1103,15 @@ bb7:
   %39: I32 trivial = add inspect %11 inspect %26
   jump -> bb5(inspect %39, inspect %48)
 
-bb8:
-  drop Outcome(Note, I32) inspect %15
-  jump -> bb9(inspect %24, inspect %48)
-
-bb9(%13: Bool trivial, %57: I32 trivial):
-  branch inspect %13 -> bb10 -> bb11
+bb9:
+  jump -> bb10
 
 bb10 cleanup:
   drop Note inspect %14
   jump -> bb11
 
 bb11:
-  return consume %57
+  return consume %58
 }
 
 fn guarded(n: I32 [shared call], $body: (I32) -> Outcome(I32, I32) [shared call]) -> Outcome(I32, Trouble) {
@@ -1428,65 +1163,42 @@ bb8:
 
 fn guardedSum(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
-  %5: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
   %6: I32 trivial = const 0
-  %27: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   %28: I32 trivial = const 0
   %29: I32 trivial = const 0
   %30: I32 trivial = const 4
-  %31: U8 trivial = const 1
   %51: I32 trivial = const 10
   %54: I32 trivial = const 1
   jump -> bb8(inspect %29, inspect %6)
 
-bb6(%24: Outcome(I32, Trouble) trivial, %60: I32 trivial):
-  store inspect %5 consume %24
-  %12: %U8 address = field.addr .# inspect %5
-  %13: U8 trivial = load inspect %12
-  %14: U8 trivial = const 1
-  %15: Bool trivial = eq inspect %13 inspect %14
-  %22: I32 trivial = const 7
-  %23: I32 trivial = add inspect %60 inspect %22
-  %62: I32 trivial = select inspect %15 inspect %23 inspect %60
-  return consume %62
+bb1(%61: I32 trivial):
+  return consume %61
 
-bb8(%25: I32 trivial, %58: I32 trivial):
+bb8(%25: I32 trivial, %60: I32 trivial):
   %32: Bool trivial = lt inspect %25 inspect %0
-  branch inspect %32 -> bb9 -> bb13(inspect %28, inspect %58)
+  branch inspect %32 -> bb9 -> bb13
 
 bb9:
   %33: Bool trivial = gt inspect %25 inspect %30
   branch inspect %33 -> bb14 -> bb10
 
 bb10:
-  %52: I32 trivial = mul inspect %58 inspect %51
+  %52: I32 trivial = mul inspect %60 inspect %51
   %53: I32 trivial = add inspect %52 inspect %25
   %55: Outcome(I32, I32) trivial = aggregate.Proceed consume %54
-  store inspect %27 consume %55
-  %36: %U8 address = field.addr .# inspect %27
-  %37: U8 trivial = load inspect %36
-  %38: Bool trivial = eq inspect %37 inspect %31
-  branch inspect %38 -> bb12 -> bb11
-
-bb11:
-  %39: %I32 address = field.addr .Proceed inspect %27
-  %40: I32 trivial = load inspect %39
-  %41: I32 trivial = add inspect %25 inspect %40
+  %41: I32 trivial = add inspect %25 inspect %54
   jump -> bb8(inspect %41, inspect %53)
 
-bb12:
-  %42: %I32 address = field.addr .Exit inspect %27
-  %43: I32 trivial = load inspect %42
-  jump -> bb13(inspect %43, inspect %53)
-
-bb13(%26: I32 trivial, %59: I32 trivial):
-  %44: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %26
-  jump -> bb6(consume %44, inspect %59)
+bb13:
+  %44: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %28
+  jump -> bb1(inspect %60)
 
 bb14:
   %45: Trouble trivial = aggregate.TooFar
   %46: Outcome(I32, Trouble) trivial = aggregate.Exit consume %45
-  jump -> bb6(consume %46, inspect %58)
+  %22: I32 trivial = const 7
+  %23: I32 trivial = add inspect %60 inspect %22
+  jump -> bb1(inspect %23)
 }
 
 fn main() -> I32 {
@@ -1498,1024 +1210,707 @@ bb0:
   %19: %I32 address = global.addr trail
   store inspect %19 consume %18
   %20: I32 trivial = const 6
-  %96: I32 trivial = const 0
-  %97: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %98: %Step address = alloc frame Step
-  %99: I32 trivial = const 0
-  %100: U8 trivial = const 1
-  %101: U8 trivial = const 0
-  %102: U8 trivial = const 1
-  %103: I32 trivial = const 3
-  %104: I32 trivial = const 2
-  %105: I32 trivial = const 1
-  %106: I32 trivial = const 10
-  %107: Step trivial = const Skip
-  jump -> bb4(inspect %99, inspect %96)
+  %95: I32 trivial = const 0
+  %96: %Step address = alloc frame Step
+  %97: I32 trivial = const 0
+  %98: U8 trivial = const 0
+  %99: U8 trivial = const 1
+  %100: I32 trivial = const 3
+  %101: I32 trivial = const 2
+  %102: I32 trivial = const 1
+  %103: I32 trivial = const 10
+  %104: Step trivial = const Skip
+  jump -> bb4(inspect %97, inspect %95)
 
 bb4(%92: I32 trivial, %93: I32 trivial):
-  %108: Bool trivial = lt inspect %92 inspect %20
-  branch inspect %108 -> bb5 -> bb12(inspect %93)
+  %105: Bool trivial = lt inspect %92 inspect %20
+  branch inspect %105 -> bb6 -> bb5
 
 bb5:
-  %109: I32 trivial = mul inspect %93 inspect %106
-  %110: I32 trivial = add inspect %109 inspect %92
-  %111: Outcome(Step, I32) trivial = aggregate.Proceed consume %107
-  store inspect %97 consume %111
-  %112: %U8 address = field.addr .# inspect %97
-  %113: U8 trivial = load inspect %112
-  %114: Bool trivial = eq inspect %113 inspect %100
-  branch inspect %114 -> bb12(inspect %110) -> bb6
+  %106: %I32 address = global.addr trail
+  %107: I32 trivial = load inspect %106
+  %108: I32 trivial = const 1
+  %109: I32 trivial = add inspect %107 inspect %108
+  %110: %I32 address = global.addr trail
+  store inspect %110 consume %109
+  %22: I32 trivial = const 6
+  %126: I32 trivial = const 0
+  %127: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
+  %128: %Step address = alloc frame Step
+  %129: I32 trivial = const 0
+  %130: U8 trivial = const 0
+  %131: U8 trivial = const 1
+  %132: I32 trivial = const 3
+  %133: I32 trivial = const 2
+  %134: I32 trivial = const 1
+  %135: I32 trivial = const 2
+  %136: I32 trivial = const 10
+  %137: Step trivial = const Again
+  %138: Step trivial = const Twice
+  jump -> bb15(inspect %129, inspect %126)
 
 bb6:
-  %115: %Step address = field.addr .Proceed inspect %97
-  %116: Step trivial = load inspect %115
-  store inspect %98 consume %116
-  %117: %U8 address = field.addr .# inspect %98
-  %118: U8 trivial = load inspect %117
-  %119: Bool trivial = eq inspect %118 inspect %101
-  branch inspect %119 -> bb10 -> bb7
+  %111: I32 trivial = mul inspect %93 inspect %103
+  %112: I32 trivial = add inspect %111 inspect %92
+  %113: Outcome(Step, I32) trivial = aggregate.Proceed consume %104
+  store inspect %96 consume %104
+  %114: %U8 address = field.addr .# inspect %96
+  %115: U8 trivial = load inspect %114
+  %116: Bool trivial = eq inspect %115 inspect %98
+  branch inspect %116 -> bb10 -> bb7
 
 bb7:
-  %120: Bool trivial = eq inspect %118 inspect %102
-  branch inspect %120 -> bb9 -> bb8
+  %117: Bool trivial = eq inspect %115 inspect %99
+  branch inspect %117 -> bb9 -> bb8
 
 bb8:
-  %121: I32 trivial = add inspect %92 inspect %103
-  jump -> bb11(inspect %121)
+  %118: I32 trivial = add inspect %92 inspect %100
+  jump -> bb11(inspect %118)
 
 bb9:
-  %122: I32 trivial = add inspect %92 inspect %104
-  jump -> bb11(inspect %122)
+  %119: I32 trivial = add inspect %92 inspect %101
+  jump -> bb11(inspect %119)
 
 bb10:
-  %123: I32 trivial = add inspect %92 inspect %105
-  jump -> bb11(inspect %123)
+  %120: I32 trivial = add inspect %92 inspect %102
+  jump -> bb11(inspect %120)
 
 bb11(%94: I32 trivial):
-  jump -> bb4(inspect %94, inspect %110)
+  jump -> bb4(inspect %94, inspect %112)
 
-bb12(%95: I32 trivial):
-  %124: %I32 address = global.addr trail
-  %125: I32 trivial = load inspect %124
-  %126: I32 trivial = const 1
-  %127: I32 trivial = add inspect %125 inspect %126
-  %128: %I32 address = global.addr trail
-  store inspect %128 consume %127
-  %22: I32 trivial = const 6
-  %136: I32 trivial = const 0
-  %137: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %138: %Step address = alloc frame Step
-  %139: I32 trivial = const 0
-  %140: U8 trivial = const 1
-  %141: U8 trivial = const 0
-  %142: U8 trivial = const 1
-  %143: I32 trivial = const 3
-  %144: I32 trivial = const 2
-  %145: I32 trivial = const 1
-  %146: I32 trivial = const 2
-  %147: I32 trivial = const 10
-  %148: Step trivial = const Again
-  %149: Step trivial = const Twice
-  jump -> bb16(inspect %139, inspect %136)
+bb15(%122: I32 trivial, %123: I32 trivial):
+  %139: Bool trivial = lt inspect %122 inspect %22
+  branch inspect %139 -> bb17 -> bb16
 
-bb16(%130: I32 trivial, %131: I32 trivial):
-  %150: Bool trivial = lt inspect %130 inspect %22
-  branch inspect %150 -> bb17 -> bb27(inspect %131)
+bb16:
+  %140: %I32 address = global.addr trail
+  %141: I32 trivial = load inspect %140
+  %142: I32 trivial = const 1
+  %143: I32 trivial = add inspect %141 inspect %142
+  %144: %I32 address = global.addr trail
+  store inspect %144 consume %143
+  %24: I32 trivial = const 6
+  %163: I32 trivial = const 0
+  %164: %Step address = alloc frame Step
+  %165: I32 trivial = const 0
+  %166: U8 trivial = const 0
+  %167: U8 trivial = const 1
+  %168: I32 trivial = const 3
+  %169: I32 trivial = const 2
+  %170: I32 trivial = const 1
+  %171: I32 trivial = const 2
+  %172: I32 trivial = const 10
+  %173: Step trivial = const Again
+  %174: I32 trivial = const 2
+  jump -> bb29(inspect %165, inspect %163)
 
 bb17:
-  %151: Bool trivial = gt inspect %130 inspect %146
-  branch inspect %151 -> bb19 -> bb18
+  %145: Bool trivial = gt inspect %122 inspect %135
+  branch inspect %145 -> bb19 -> bb18
 
 bb18:
-  %152: I32 trivial = mul inspect %131 inspect %147
-  %153: I32 trivial = add inspect %152 inspect %130
-  %154: Outcome(Step, I32) trivial = aggregate.Proceed consume %148
-  jump -> bb20(consume %154, inspect %153)
+  %146: I32 trivial = mul inspect %123 inspect %136
+  %147: I32 trivial = add inspect %146 inspect %122
+  %148: Outcome(Step, I32) trivial = aggregate.Proceed consume %137
+  store inspect %127 consume %148
+  jump -> bb20(inspect %147)
 
 bb19:
-  %155: Outcome(Step, I32) trivial = aggregate.Proceed consume %149
-  jump -> bb20(consume %155, inspect %131)
+  %149: Outcome(Step, I32) trivial = aggregate.Proceed consume %138
+  store inspect %127 consume %149
+  jump -> bb20(inspect %123)
 
-bb20(%132: Outcome(Step, I32) trivial, %133: I32 trivial):
-  store inspect %137 consume %132
-  %156: %U8 address = field.addr .# inspect %137
-  %157: U8 trivial = load inspect %156
-  %158: Bool trivial = eq inspect %157 inspect %140
-  branch inspect %158 -> bb27(inspect %133) -> bb21
+bb20(%124: I32 trivial):
+  %150: %Step address = field.addr .Proceed inspect %127
+  %151: Step trivial = load inspect %150
+  store inspect %128 consume %151
+  %152: %U8 address = field.addr .# inspect %128
+  %153: U8 trivial = load inspect %152
+  %154: Bool trivial = eq inspect %153 inspect %130
+  branch inspect %154 -> bb24 -> bb21
 
 bb21:
-  %159: %Step address = field.addr .Proceed inspect %137
-  %160: Step trivial = load inspect %159
-  store inspect %138 consume %160
-  %161: %U8 address = field.addr .# inspect %138
-  %162: U8 trivial = load inspect %161
-  %163: Bool trivial = eq inspect %162 inspect %141
-  branch inspect %163 -> bb25 -> bb22
+  %155: Bool trivial = eq inspect %153 inspect %131
+  branch inspect %155 -> bb23 -> bb22
 
 bb22:
-  %164: Bool trivial = eq inspect %162 inspect %142
-  branch inspect %164 -> bb24 -> bb23
+  %156: I32 trivial = add inspect %122 inspect %132
+  jump -> bb25(inspect %156)
 
 bb23:
-  %165: I32 trivial = add inspect %130 inspect %143
-  jump -> bb26(inspect %165)
+  %157: I32 trivial = add inspect %122 inspect %133
+  jump -> bb25(inspect %157)
 
 bb24:
-  %166: I32 trivial = add inspect %130 inspect %144
-  jump -> bb26(inspect %166)
+  %158: I32 trivial = add inspect %122 inspect %134
+  jump -> bb25(inspect %158)
 
-bb25:
-  %167: I32 trivial = add inspect %130 inspect %145
-  jump -> bb26(inspect %167)
+bb25(%125: I32 trivial):
+  jump -> bb15(inspect %125, inspect %124)
 
-bb26(%134: I32 trivial):
-  jump -> bb16(inspect %134, inspect %133)
+bb29(%160: I32 trivial, %161: I32 trivial):
+  %175: Bool trivial = lt inspect %160 inspect %24
+  branch inspect %175 -> bb30 -> bb38
 
-bb27(%135: I32 trivial):
-  %168: %I32 address = global.addr trail
-  %169: I32 trivial = load inspect %168
-  %170: I32 trivial = const 1
-  %171: I32 trivial = add inspect %169 inspect %170
-  %172: %I32 address = global.addr trail
-  store inspect %172 consume %171
-  %24: I32 trivial = const 6
-  %180: I32 trivial = const 0
-  %181: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %182: %Step address = alloc frame Step
-  %183: I32 trivial = const 0
-  %184: U8 trivial = const 1
-  %185: U8 trivial = const 0
-  %186: U8 trivial = const 1
-  %187: I32 trivial = const 3
-  %188: I32 trivial = const 2
-  %189: I32 trivial = const 1
-  %190: I32 trivial = const 2
-  %191: I32 trivial = const 10
-  %192: Step trivial = const Again
-  %193: I32 trivial = const 2
-  jump -> bb31(inspect %183, inspect %180)
+bb30:
+  %176: Bool trivial = gt inspect %160 inspect %171
+  branch inspect %176 -> bb37 -> bb31
 
-bb31(%174: I32 trivial, %175: I32 trivial):
-  %194: Bool trivial = lt inspect %174 inspect %24
-  branch inspect %194 -> bb32 -> bb42(inspect %175)
+bb31:
+  %177: I32 trivial = mul inspect %161 inspect %172
+  %178: I32 trivial = add inspect %177 inspect %160
+  %179: Outcome(Step, I32) trivial = aggregate.Proceed consume %173
+  store inspect %164 consume %173
+  %180: %U8 address = field.addr .# inspect %164
+  %181: U8 trivial = load inspect %180
+  %182: Bool trivial = eq inspect %181 inspect %166
+  branch inspect %182 -> bb35 -> bb32
 
 bb32:
-  %195: Bool trivial = gt inspect %174 inspect %190
-  branch inspect %195 -> bb34 -> bb33
+  %183: Bool trivial = eq inspect %181 inspect %167
+  branch inspect %183 -> bb34 -> bb33
 
 bb33:
-  %196: I32 trivial = mul inspect %175 inspect %191
-  %197: I32 trivial = add inspect %196 inspect %174
-  %198: Outcome(Step, I32) trivial = aggregate.Proceed consume %192
-  jump -> bb35(consume %198, inspect %197)
+  %184: I32 trivial = add inspect %160 inspect %168
+  jump -> bb36(inspect %184)
 
 bb34:
-  %199: Outcome(Step, I32) trivial = aggregate.Exit consume %193
-  jump -> bb35(consume %199, inspect %175)
+  %185: I32 trivial = add inspect %160 inspect %169
+  jump -> bb36(inspect %185)
 
-bb35(%176: Outcome(Step, I32) trivial, %177: I32 trivial):
-  store inspect %181 consume %176
-  %200: %U8 address = field.addr .# inspect %181
-  %201: U8 trivial = load inspect %200
-  %202: Bool trivial = eq inspect %201 inspect %184
-  branch inspect %202 -> bb42(inspect %177) -> bb36
+bb35:
+  %186: I32 trivial = add inspect %160 inspect %170
+  jump -> bb36(inspect %186)
 
-bb36:
-  %203: %Step address = field.addr .Proceed inspect %181
-  %204: Step trivial = load inspect %203
-  store inspect %182 consume %204
-  %205: %U8 address = field.addr .# inspect %182
-  %206: U8 trivial = load inspect %205
-  %207: Bool trivial = eq inspect %206 inspect %185
-  branch inspect %207 -> bb40 -> bb37
+bb36(%162: I32 trivial):
+  jump -> bb29(inspect %162, inspect %178)
 
 bb37:
-  %208: Bool trivial = eq inspect %206 inspect %186
-  branch inspect %208 -> bb39 -> bb38
+  %187: Outcome(Step, I32) trivial = aggregate.Exit consume %174
+  jump -> bb38
 
 bb38:
-  %209: I32 trivial = add inspect %174 inspect %187
-  jump -> bb41(inspect %209)
-
-bb39:
-  %210: I32 trivial = add inspect %174 inspect %188
-  jump -> bb41(inspect %210)
-
-bb40:
-  %211: I32 trivial = add inspect %174 inspect %189
-  jump -> bb41(inspect %211)
-
-bb41(%178: I32 trivial):
-  jump -> bb31(inspect %178, inspect %177)
-
-bb42(%179: I32 trivial):
-  %212: %I32 address = global.addr trail
-  %213: I32 trivial = load inspect %212
-  %214: I32 trivial = const 1
-  %215: I32 trivial = add inspect %213 inspect %214
-  %216: %I32 address = global.addr trail
-  store inspect %216 consume %215
+  %188: %I32 address = global.addr trail
+  %189: I32 trivial = load inspect %188
+  %190: I32 trivial = const 1
+  %191: I32 trivial = add inspect %189 inspect %190
+  %192: %I32 address = global.addr trail
+  store inspect %192 consume %191
   %26: I32 trivial = const 6
-  %222: %I32 address = alloc frame I32
-  %223: I32 [unique slot 0] guaranteed = load inspect %222
-  %224: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %225: %Step address = alloc frame Step
-  %226: I32 trivial = const 0
-  %227: I32 trivial = const 0
-  %228: U8 trivial = const 1
-  %229: U8 trivial = const 0
-  %230: U8 trivial = const 1
-  %231: I32 trivial = const 3
-  %232: I32 trivial = const 2
-  %233: I32 trivial = const 1
-  %234: I32 trivial = const 2
-  %235: Step trivial = const Again
-  %236: I32 trivial = const 100
-  %237: I32 trivial = const 1
-  jump -> bb46(inspect %227)
+  %197: %I32 address = alloc frame I32
+  %198: I32 [unique slot 0] guaranteed = load inspect %197
+  %199: %Step address = alloc frame Step
+  %200: I32 trivial = const 0
+  %201: I32 trivial = const 0
+  %202: U8 trivial = const 0
+  %203: U8 trivial = const 1
+  %204: I32 trivial = const 3
+  %205: I32 trivial = const 2
+  %206: I32 trivial = const 1
+  %207: I32 trivial = const 2
+  %208: Step trivial = const Again
+  %209: I32 trivial = const 100
+  %210: I32 trivial = const 1
+  jump -> bb42(inspect %201)
 
-bb46(%218: I32 trivial):
-  %238: Bool trivial = lt inspect %218 inspect %26
-  branch inspect %238 -> bb47 -> bb58(inspect %226)
+bb42(%194: I32 trivial):
+  %211: Bool trivial = lt inspect %194 inspect %26
+  branch inspect %211 -> bb43 -> bb51(inspect %200)
+
+bb43:
+  %212: %I32 address = represent inspect %198
+  %213: Bool trivial = gt inspect %194 inspect %207
+  branch inspect %213 -> bb50 -> bb44
+
+bb44:
+  %214: Outcome(Step, I32) trivial = aggregate.Proceed consume %208
+  store inspect %199 consume %208
+  %215: %U8 address = field.addr .# inspect %199
+  %216: U8 trivial = load inspect %215
+  %217: Bool trivial = eq inspect %216 inspect %202
+  branch inspect %217 -> bb48 -> bb45
+
+bb45:
+  %218: Bool trivial = eq inspect %216 inspect %203
+  branch inspect %218 -> bb47 -> bb46
+
+bb46:
+  %219: I32 trivial = add inspect %194 inspect %204
+  jump -> bb49(inspect %219)
 
 bb47:
-  %239: %I32 address = represent inspect %223
-  %240: Bool trivial = gt inspect %218 inspect %234
-  branch inspect %240 -> bb49 -> bb48
+  %220: I32 trivial = add inspect %194 inspect %205
+  jump -> bb49(inspect %220)
 
 bb48:
-  %241: Outcome(Step, I32) trivial = aggregate.Proceed consume %235
-  jump -> bb50(consume %241)
+  %221: I32 trivial = add inspect %194 inspect %206
+  jump -> bb49(inspect %221)
 
-bb49:
-  %242: I32 trivial = mul inspect %218 inspect %236
-  store inspect %239 consume %242
-  %243: Outcome(Step, I32) trivial = aggregate.Exit consume %237
-  jump -> bb50(consume %243)
+bb49(%195: I32 trivial):
+  jump -> bb42(inspect %195)
 
-bb50(%219: Outcome(Step, I32) trivial):
-  store inspect %224 consume %219
-  %244: %U8 address = field.addr .# inspect %224
-  %245: U8 trivial = load inspect %244
-  %246: Bool trivial = eq inspect %245 inspect %228
-  branch inspect %246 -> bb57 -> bb51
+bb50:
+  %222: I32 trivial = mul inspect %194 inspect %209
+  store inspect %212 consume %222
+  %223: Outcome(Step, I32) trivial = aggregate.Exit consume %210
+  jump -> bb51(inspect %210)
 
-bb51:
-  %247: %Step address = field.addr .Proceed inspect %224
-  %248: Step trivial = load inspect %247
-  store inspect %225 consume %248
-  %249: %U8 address = field.addr .# inspect %225
-  %250: U8 trivial = load inspect %249
-  %251: Bool trivial = eq inspect %250 inspect %229
-  branch inspect %251 -> bb55 -> bb52
+bb51(%196: I32 trivial):
+  %224: %I32 address = global.addr trail
+  %225: I32 trivial = load inspect %224
+  %226: I32 trivial = const 1
+  %227: I32 trivial = add inspect %225 inspect %226
+  %228: %I32 address = global.addr trail
+  store inspect %228 consume %227
+  %229: I32 trivial = const 1
+  %230: Bool trivial = eq inspect %196 inspect %229
+  %231: I32 trivial = load inspect %197
+  %232: I32 trivial = const 0
+  %233: I32 trivial = select inspect %230 inspect %231 inspect %232
+  %28: I32 trivial = const 4
+  %237: I32 trivial = const 0
+  %238: I32 trivial = const 0
+  %239: I32 trivial = const 1
+  %240: I32 trivial = const 10
+  jump -> bb55(inspect %238, inspect %237)
 
-bb52:
-  %252: Bool trivial = eq inspect %250 inspect %230
-  branch inspect %252 -> bb54 -> bb53
+bb55(%235: I32 trivial, %236: I32 trivial):
+  %241: Bool trivial = lt inspect %235 inspect %28
+  branch inspect %241 -> bb57 -> bb56
 
-bb53:
-  %253: I32 trivial = add inspect %218 inspect %231
-  jump -> bb56(inspect %253)
-
-bb54:
-  %254: I32 trivial = add inspect %218 inspect %232
-  jump -> bb56(inspect %254)
-
-bb55:
-  %255: I32 trivial = add inspect %218 inspect %233
-  jump -> bb56(inspect %255)
-
-bb56(%220: I32 trivial):
-  jump -> bb46(inspect %220)
+bb56:
+  %30: I32 trivial = const 4
+  %248: I32 trivial = const 0
+  %249: I32 trivial = const 0
+  %250: I32 trivial = const 1
+  %251: I32 trivial = const 10
+  jump -> bb61(inspect %249, inspect %248)
 
 bb57:
-  %256: %I32 address = field.addr .Exit inspect %224
-  %257: I32 trivial = load inspect %256
-  jump -> bb58(inspect %257)
+  %242: I32 trivial = mul inspect %236 inspect %240
+  %243: I32 trivial = add inspect %242 inspect %235
+  %244: I32 trivial = add inspect %235 inspect %239
+  jump -> bb55(inspect %244, inspect %243)
 
-bb58(%221: I32 trivial):
-  %258: %I32 address = global.addr trail
-  %259: I32 trivial = load inspect %258
-  %260: I32 trivial = const 1
-  %261: I32 trivial = add inspect %259 inspect %260
-  %262: %I32 address = global.addr trail
-  store inspect %262 consume %261
-  %263: I32 trivial = const 1
-  %264: Bool trivial = eq inspect %221 inspect %263
-  %265: I32 trivial = load inspect %222
-  %266: I32 trivial = const 0
-  %267: I32 trivial = select inspect %264 inspect %265 inspect %266
-  %28: I32 trivial = const 4
-  %271: I32 trivial = const 0
-  %272: I32 trivial = const 0
-  %273: I32 trivial = const 1
-  %274: I32 trivial = const 10
-  jump -> bb62(inspect %272, inspect %271)
+bb61(%246: I32 trivial, %247: I32 trivial):
+  %252: Bool trivial = lt inspect %246 inspect %30
+  branch inspect %252 -> bb63 -> bb62
 
-bb62(%269: I32 trivial, %270: I32 trivial):
-  %275: Bool trivial = lt inspect %269 inspect %28
-  branch inspect %275 -> bb64 -> bb63
+bb62:
+  %32: I32 trivial = const 4
+  %260: I32 trivial = const 0
+  %261: %Step address = alloc frame Step
+  %262: I32 trivial = const 0
+  %263: U8 trivial = const 0
+  %264: U8 trivial = const 1
+  %265: I32 trivial = const 3
+  %266: I32 trivial = const 2
+  %267: I32 trivial = const 1
+  %268: I32 trivial = const 10
+  %269: Step trivial = const Again
+  jump -> bb67(inspect %262, inspect %260)
 
 bb63:
-  %30: I32 trivial = const 4
-  %282: I32 trivial = const 0
-  %283: I32 trivial = const 0
-  %284: I32 trivial = const 1
-  %285: I32 trivial = const 10
-  jump -> bb68(inspect %283, inspect %282)
+  %253: I32 trivial = mul inspect %247 inspect %251
+  %254: I32 trivial = add inspect %253 inspect %246
+  %255: I32 trivial = add inspect %246 inspect %250
+  jump -> bb61(inspect %255, inspect %254)
 
-bb64:
-  %276: I32 trivial = mul inspect %270 inspect %274
-  %277: I32 trivial = add inspect %276 inspect %269
-  %278: I32 trivial = add inspect %269 inspect %273
-  jump -> bb62(inspect %278, inspect %277)
+bb67(%257: I32 trivial, %258: I32 trivial):
+  %270: Bool trivial = lt inspect %257 inspect %32
+  branch inspect %270 -> bb69 -> bb68
 
-bb68(%280: I32 trivial, %281: I32 trivial):
-  %286: Bool trivial = lt inspect %280 inspect %30
-  branch inspect %286 -> bb70 -> bb69
+bb68:
+  %271: %I32 address = global.addr trail
+  %272: I32 trivial = load inspect %271
+  %273: I32 trivial = const 1
+  %274: I32 trivial = add inspect %272 inspect %273
+  %275: %I32 address = global.addr trail
+  store inspect %275 consume %274
+  %34: I32 trivial = const 4
+  %291: I32 trivial = const 0
+  %292: %Step address = alloc frame Step
+  %293: I32 trivial = const 0
+  %294: U8 trivial = const 0
+  %295: U8 trivial = const 1
+  %296: I32 trivial = const 3
+  %297: I32 trivial = const 2
+  %298: I32 trivial = const 1
+  %299: I32 trivial = const 10
+  %300: I32 trivial = const 2
+  %301: I32 trivial = const 10
+  %302: Step trivial = const Again
+  %303: I32 trivial = const 2
+  jump -> bb78(inspect %293, inspect %291)
 
 bb69:
-  %32: I32 trivial = const 4
-  %298: I32 trivial = const 0
-  %299: I32 trivial = const 0
-  %300: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %301: %Step address = alloc frame Step
-  %302: I32 trivial = const 0
-  %303: U8 trivial = const 1
-  %304: U8 trivial = const 0
-  %305: U8 trivial = const 1
-  %306: I32 trivial = const 3
-  %307: I32 trivial = const 2
-  %308: I32 trivial = const 1
-  %309: I32 trivial = const 10
-  %310: U8 trivial = const 1
-  %311: I32 trivial = const 2
-  %312: Step trivial = const Again
-  jump -> bb74(inspect %302, inspect %299, inspect %298)
+  %276: I32 trivial = mul inspect %257 inspect %268
+  %277: I32 trivial = add inspect %258 inspect %276
+  %278: Outcome(Step, I32) trivial = aggregate.Proceed consume %269
+  %279: Outcome(Step, I32) trivial = aggregate.Proceed consume %269
+  store inspect %261 consume %269
+  %280: %U8 address = field.addr .# inspect %261
+  %281: U8 trivial = load inspect %280
+  %282: Bool trivial = eq inspect %281 inspect %263
+  branch inspect %282 -> bb73 -> bb70
 
 bb70:
-  %287: I32 trivial = mul inspect %281 inspect %285
-  %288: I32 trivial = add inspect %287 inspect %280
-  %289: I32 trivial = add inspect %280 inspect %284
-  jump -> bb68(inspect %289, inspect %288)
+  %283: Bool trivial = eq inspect %281 inspect %264
+  branch inspect %283 -> bb72 -> bb71
 
-bb74(%291: I32 trivial, %292: I32 trivial, %293: I32 trivial):
-  %313: Bool trivial = lt inspect %291 inspect %32
-  branch inspect %313 -> bb75 -> bb85(inspect %293)
+bb71:
+  %284: I32 trivial = add inspect %257 inspect %265
+  jump -> bb74(inspect %284)
 
-bb75:
-  %314: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %315: I32 trivial = mul inspect %291 inspect %309
-  %316: I32 trivial = add inspect %293 inspect %315
-  %317: Outcome(Step, I32) trivial = aggregate.Proceed consume %312
-  store inspect %314 consume %317
-  %318: %U8 address = field.addr .# inspect %314
-  %319: U8 trivial = load inspect %318
-  %320: Bool trivial = eq inspect %319 inspect %310
-  branch inspect %320 -> bb77 -> bb76
+bb72:
+  %285: I32 trivial = add inspect %257 inspect %266
+  jump -> bb74(inspect %285)
 
-bb76:
-  %321: %Step address = field.addr .Proceed inspect %314
-  %322: Step trivial = load inspect %321
-  %323: Outcome(Step, I32) trivial = aggregate.Proceed consume %322
-  jump -> bb78(consume %323, inspect %292)
+bb73:
+  %286: I32 trivial = add inspect %257 inspect %267
+  jump -> bb74(inspect %286)
 
-bb77:
-  %324: %I32 address = field.addr .Exit inspect %314
-  %325: I32 trivial = load inspect %324
-  %326: Outcome(Step, I32) trivial = aggregate.Exit consume %311
-  jump -> bb78(consume %326, inspect %325)
+bb74(%259: I32 trivial):
+  jump -> bb67(inspect %259, inspect %277)
 
-bb78(%294: Outcome(Step, I32) trivial, %295: I32 trivial):
-  store inspect %300 consume %294
-  %327: %U8 address = field.addr .# inspect %300
-  %328: U8 trivial = load inspect %327
-  %329: Bool trivial = eq inspect %328 inspect %303
-  branch inspect %329 -> bb85(inspect %316) -> bb79
+bb78(%288: I32 trivial, %289: I32 trivial):
+  %304: Bool trivial = lt inspect %288 inspect %34
+  branch inspect %304 -> bb79 -> bb87
 
 bb79:
-  %330: %Step address = field.addr .Proceed inspect %300
-  %331: Step trivial = load inspect %330
-  store inspect %301 consume %331
-  %332: %U8 address = field.addr .# inspect %301
-  %333: U8 trivial = load inspect %332
-  %334: Bool trivial = eq inspect %333 inspect %304
-  branch inspect %334 -> bb83 -> bb80
+  %305: I32 trivial = mul inspect %288 inspect %299
+  %306: Bool trivial = gt inspect %305 inspect %301
+  branch inspect %306 -> bb86 -> bb80
 
 bb80:
-  %335: Bool trivial = eq inspect %333 inspect %305
-  branch inspect %335 -> bb82 -> bb81
+  %307: I32 trivial = add inspect %289 inspect %305
+  %308: Outcome(Step, I32) trivial = aggregate.Proceed consume %302
+  %309: Outcome(Step, I32) trivial = aggregate.Proceed consume %302
+  store inspect %292 consume %302
+  %310: %U8 address = field.addr .# inspect %292
+  %311: U8 trivial = load inspect %310
+  %312: Bool trivial = eq inspect %311 inspect %294
+  branch inspect %312 -> bb84 -> bb81
 
 bb81:
-  %336: I32 trivial = add inspect %291 inspect %306
-  jump -> bb84(inspect %336)
+  %313: Bool trivial = eq inspect %311 inspect %295
+  branch inspect %313 -> bb83 -> bb82
 
 bb82:
-  %337: I32 trivial = add inspect %291 inspect %307
-  jump -> bb84(inspect %337)
+  %314: I32 trivial = add inspect %288 inspect %296
+  jump -> bb85(inspect %314)
 
 bb83:
-  %338: I32 trivial = add inspect %291 inspect %308
-  jump -> bb84(inspect %338)
+  %315: I32 trivial = add inspect %288 inspect %297
+  jump -> bb85(inspect %315)
 
-bb84(%296: I32 trivial):
-  jump -> bb74(inspect %296, inspect %295, inspect %316)
+bb84:
+  %316: I32 trivial = add inspect %288 inspect %298
+  jump -> bb85(inspect %316)
 
-bb85(%297: I32 trivial):
-  %339: %I32 address = global.addr trail
-  %340: I32 trivial = load inspect %339
-  %341: I32 trivial = const 1
-  %342: I32 trivial = add inspect %340 inspect %341
-  %343: %I32 address = global.addr trail
-  store inspect %343 consume %342
-  %34: I32 trivial = const 4
-  %354: I32 trivial = const 0
-  %355: I32 trivial = const 0
-  %356: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %357: %Step address = alloc frame Step
-  %358: I32 trivial = const 0
-  %359: U8 trivial = const 1
-  %360: U8 trivial = const 0
-  %361: U8 trivial = const 1
-  %362: I32 trivial = const 3
-  %363: I32 trivial = const 2
-  %364: I32 trivial = const 1
-  %365: I32 trivial = const 10
-  %366: U8 trivial = const 1
-  %367: I32 trivial = const 2
-  %368: I32 trivial = const 10
-  %369: Step trivial = const Again
-  %370: I32 trivial = const 2
-  jump -> bb89(inspect %358, inspect %355, inspect %354)
+bb85(%290: I32 trivial):
+  jump -> bb78(inspect %290, inspect %307)
 
-bb89(%345: I32 trivial, %346: I32 trivial, %347: I32 trivial):
-  %371: Bool trivial = lt inspect %345 inspect %34
-  branch inspect %371 -> bb90 -> bb103(inspect %347)
+bb86:
+  %317: Outcome(Step, I32) trivial = aggregate.Exit consume %303
+  %318: Outcome(Step, I32) trivial = aggregate.Exit consume %300
+  jump -> bb87
 
-bb90:
-  %372: %Outcome(Step, I32) address = alloc frame Outcome(Step, I32)
-  %373: I32 trivial = mul inspect %345 inspect %365
-  %374: Bool trivial = gt inspect %373 inspect %368
-  branch inspect %374 -> bb92 -> bb91
-
-bb91:
-  %375: I32 trivial = add inspect %347 inspect %373
-  %376: Outcome(Step, I32) trivial = aggregate.Proceed consume %369
-  jump -> bb93(consume %376, inspect %375)
-
-bb92:
-  %377: Outcome(Step, I32) trivial = aggregate.Exit consume %370
-  jump -> bb93(consume %377, inspect %347)
-
-bb93(%348: Outcome(Step, I32) trivial, %349: I32 trivial):
-  store inspect %372 consume %348
-  %378: %U8 address = field.addr .# inspect %372
-  %379: U8 trivial = load inspect %378
-  %380: Bool trivial = eq inspect %379 inspect %366
-  branch inspect %380 -> bb95 -> bb94
-
-bb94:
-  %381: %Step address = field.addr .Proceed inspect %372
-  %382: Step trivial = load inspect %381
-  %383: Outcome(Step, I32) trivial = aggregate.Proceed consume %382
-  jump -> bb96(consume %383, inspect %346)
-
-bb95:
-  %384: %I32 address = field.addr .Exit inspect %372
-  %385: I32 trivial = load inspect %384
-  %386: Outcome(Step, I32) trivial = aggregate.Exit consume %367
-  jump -> bb96(consume %386, inspect %385)
-
-bb96(%350: Outcome(Step, I32) trivial, %351: I32 trivial):
-  store inspect %356 consume %350
-  %387: %U8 address = field.addr .# inspect %356
-  %388: U8 trivial = load inspect %387
-  %389: Bool trivial = eq inspect %388 inspect %359
-  branch inspect %389 -> bb103(inspect %349) -> bb97
-
-bb97:
-  %390: %Step address = field.addr .Proceed inspect %356
-  %391: Step trivial = load inspect %390
-  store inspect %357 consume %391
-  %392: %U8 address = field.addr .# inspect %357
-  %393: U8 trivial = load inspect %392
-  %394: Bool trivial = eq inspect %393 inspect %360
-  branch inspect %394 -> bb101 -> bb98
-
-bb98:
-  %395: Bool trivial = eq inspect %393 inspect %361
-  branch inspect %395 -> bb100 -> bb99
-
-bb99:
-  %396: I32 trivial = add inspect %345 inspect %362
-  jump -> bb102(inspect %396)
-
-bb100:
-  %397: I32 trivial = add inspect %345 inspect %363
-  jump -> bb102(inspect %397)
-
-bb101:
-  %398: I32 trivial = add inspect %345 inspect %364
-  jump -> bb102(inspect %398)
-
-bb102(%352: I32 trivial):
-  jump -> bb89(inspect %352, inspect %351, inspect %349)
-
-bb103(%353: I32 trivial):
-  %406: I32 trivial = const 0
-  %407: %I32 address = global.addr trail
-  store inspect %407 consume %406
-  %408: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %409: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %410: I32 trivial = const 1
-  %411: I32 trivial = const 3
-  %412: Outcome(I32, I32) trivial = aggregate.Proceed consume %411
-  store inspect %408 consume %412
-  %413: %U8 address = field.addr .# inspect %408
-  %414: U8 trivial = load inspect %413
-  %415: U8 trivial = const 1
-  %416: Bool trivial = eq inspect %414 inspect %415
-  branch inspect %416 -> bb109(inspect %410) -> bb107
-
-bb107:
-  %417: %I32 address = field.addr .Proceed inspect %408
-  %418: I32 trivial = load inspect %417
-  %419: %I32 address = global.addr trail
-  store inspect %419 consume %418
-  %420: I32 trivial = const 12
-  %421: I32 trivial = add inspect %418 inspect %420
-  %422: I32 trivial = const 3
-  %423: Outcome(I32, I32) trivial = aggregate.Proceed consume %422
-  store inspect %409 consume %423
-  %424: %U8 address = field.addr .# inspect %409
-  %425: U8 trivial = load inspect %424
-  %426: U8 trivial = const 1
-  %427: Bool trivial = eq inspect %425 inspect %426
-  branch inspect %427 -> bb109(inspect %421) -> bb108
-
-bb108:
-  %428: %I32 address = field.addr .Proceed inspect %409
-  %429: I32 trivial = load inspect %428
-  %430: I32 trivial = const 100
-  %431: I32 trivial = mul inspect %429 inspect %430
-  %432: I32 trivial = add inspect %418 inspect %431
-  %433: %I32 address = global.addr trail
-  store inspect %433 consume %432
-  jump -> bb109(inspect %421)
-
-bb109(%405: I32 trivial):
-  %434: I32 trivial = const 10000
-  %435: I32 trivial = mul inspect %405 inspect %434
-  %436: %I32 address = global.addr trail
-  %437: I32 trivial = load inspect %436
-  %438: I32 trivial = add inspect %435 inspect %437
-  %441: I32 trivial = const 0
-  %442: %I32 address = global.addr trail
-  store inspect %442 consume %441
-  %443: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %444: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %445: I32 trivial = const 1
-  %446: I32 trivial = const 2
-  %447: Outcome(I32, I32) trivial = aggregate.Exit consume %446
-  store inspect %443 consume %447
-  %448: %U8 address = field.addr .# inspect %443
-  %449: U8 trivial = load inspect %448
-  %450: U8 trivial = const 1
-  %451: Bool trivial = eq inspect %449 inspect %450
-  branch inspect %451 -> bb115(inspect %445) -> bb113
-
-bb113:
-  %452: %I32 address = field.addr .Proceed inspect %443
-  %453: I32 trivial = load inspect %452
-  %454: %I32 address = global.addr trail
-  store inspect %454 consume %453
-  %455: I32 trivial = const 12
-  %456: I32 trivial = add inspect %453 inspect %455
-  %457: I32 trivial = const 2
-  %458: Outcome(I32, I32) trivial = aggregate.Exit consume %457
-  store inspect %444 consume %458
-  %459: %U8 address = field.addr .# inspect %444
-  %460: U8 trivial = load inspect %459
-  %461: U8 trivial = const 1
-  %462: Bool trivial = eq inspect %460 inspect %461
-  branch inspect %462 -> bb115(inspect %456) -> bb114
-
-bb114:
-  %463: %I32 address = field.addr .Proceed inspect %444
-  %464: I32 trivial = load inspect %463
-  %465: I32 trivial = const 100
-  %466: I32 trivial = mul inspect %464 inspect %465
-  %467: I32 trivial = add inspect %453 inspect %466
-  %468: %I32 address = global.addr trail
-  store inspect %468 consume %467
-  jump -> bb115(inspect %456)
-
-bb115(%440: I32 trivial):
-  %469: I32 trivial = const 10000
-  %470: I32 trivial = mul inspect %440 inspect %469
-  %471: %I32 address = global.addr trail
-  %472: I32 trivial = load inspect %471
-  %473: I32 trivial = add inspect %470 inspect %472
+bb87:
+  %324: I32 trivial = const 0
+  %325: %I32 address = global.addr trail
+  store inspect %325 consume %324
+  %326: I32 trivial = const 3
+  %327: Outcome(I32, I32) trivial = aggregate.Proceed consume %326
+  %328: I32 trivial = const 3
+  %329: %I32 address = global.addr trail
+  store inspect %329 consume %328
+  %330: I32 trivial = const 3
+  %331: Outcome(I32, I32) trivial = aggregate.Proceed consume %330
+  %335: I32 trivial = const 0
+  %336: %I32 address = global.addr trail
+  store inspect %336 consume %335
+  %337: I32 trivial = const 2
+  %338: Outcome(I32, I32) trivial = aggregate.Exit consume %337
   %38: I32 trivial = const 0
   %39: %I32 address = global.addr trail
   store inspect %39 consume %38
   %40: I32 trivial = const 3
-  %481: I32 trivial = const 0
-  %482: %Box address = alloc frame Box
-  %483: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %484: Box owned = aggregate.Box consume %40
-  %485: Bool trivial = const True
-  store inspect %482 consume %484
-  %486: I32 trivial = const 0
-  %487: U8 trivial = const 1
-  %488: I32 trivial = const 10
-  %489: I32 trivial = const 1
-  %490: I32 trivial = const 2
-  jump -> bb119(inspect %486, inspect %481)
+  %344: I32 trivial = const 0
+  %345: %Box address = alloc frame Box
+  %346: Box owned = aggregate.Box consume %40
+  %347: Bool trivial = const True
+  store inspect %345 consume %346
+  %348: I32 trivial = const 0
+  %349: I32 trivial = const 10
+  %350: I32 trivial = const 1
+  %351: I32 trivial = const 2
+  jump -> bb91(inspect %348, inspect %344)
 
-bb119(%475: I32 trivial, %476: I32 trivial):
-  %491: Bool trivial = lt inspect %475 inspect %40
-  branch inspect %491 -> bb120 -> bb126(inspect %485, inspect %476)
+bb91(%341: I32 trivial, %342: I32 trivial):
+  %352: Bool trivial = lt inspect %341 inspect %40
+  branch inspect %352 -> bb92 -> bb95(inspect %347)
+
+bb92:
+  %353: I32 trivial = add inspect %341 inspect %40
+  %354: Bool trivial = gt inspect %353 inspect %40
+  branch inspect %354 -> bb94 -> bb93
+
+bb93:
+  %355: I32 trivial = mul inspect %342 inspect %349
+  %356: I32 trivial = add inspect %355 inspect %353
+  %357: Outcome(I32, I32) trivial = aggregate.Proceed consume %350
+  %358: I32 trivial = add inspect %341 inspect %350
+  jump -> bb91(inspect %358, inspect %356)
+
+bb94:
+  %359: Outcome(I32, I32) trivial = aggregate.Exit consume %351
+  %360: %I32 address = global.addr gone
+  %361: I32 trivial = load inspect %360
+  %362: I32 trivial = const 1
+  %363: I32 trivial = add inspect %361 inspect %362
+  %364: %I32 address = global.addr gone
+  store inspect %364 consume %363
+  %365: Bool trivial = const False
+  jump -> bb95(inspect %365)
+
+bb95(%343: Bool trivial):
+  branch inspect %343 -> bb96 -> bb97
+
+bb96 cleanup:
+  %366: %I32 address = global.addr gone
+  %367: I32 trivial = load inspect %366
+  %368: I32 trivial = const 1
+  %369: I32 trivial = add inspect %367 inspect %368
+  %370: %I32 address = global.addr gone
+  store inspect %370 consume %369
+  jump -> bb97
+
+bb97:
+  %371: %I32 address = global.addr trail
+  %372: I32 trivial = load inspect %371
+  %373: I32 trivial = const 1000
+  %374: I32 trivial = add inspect %372 inspect %373
+  %375: %I32 address = global.addr trail
+  store inspect %375 consume %374
+  %42: I32 trivial = const 3
+  %380: %I32 address = alloc frame I32
+  %381: I32 [unique slot 1] guaranteed = load inspect %380
+  %382: %Box address = alloc frame Box
+  %383: I32 trivial = const 0
+  %384: Box owned = aggregate.Box consume %42
+  %385: Bool trivial = const True
+  store inspect %382 consume %384
+  %386: I32 trivial = const 0
+  %388: I32 trivial = const 1
+  %389: I32 trivial = const 7
+  %390: I32 trivial = const 1
+  %616: I32 trivial = const 4
+  jump -> bb101(inspect %386)
+
+bb101(%377: I32 trivial):
+  %392: Bool trivial = lt inspect %377 inspect %42
+  branch inspect %392 -> bb102 -> bb105(inspect %383, inspect %385)
+
+bb102:
+  %393: I32 trivial = add inspect %377 inspect %42
+  %394: %I32 address = represent inspect %381
+  %395: Bool trivial = gt inspect %393 inspect %616
+  branch inspect %395 -> bb104 -> bb103
+
+bb103:
+  %396: Outcome(I32, I32) trivial = aggregate.Proceed consume %388
+  %397: I32 trivial = add inspect %377 inspect %388
+  jump -> bb101(inspect %397)
+
+bb104:
+  %398: I32 trivial = mul inspect %393 inspect %389
+  store inspect %394 consume %398
+  %399: Outcome(I32, I32) trivial = aggregate.Exit consume %390
+  %400: %I32 address = global.addr gone
+  %401: I32 trivial = load inspect %400
+  %402: I32 trivial = const 1
+  %403: I32 trivial = add inspect %401 inspect %402
+  %404: %I32 address = global.addr gone
+  store inspect %404 consume %403
+  %405: Bool trivial = const False
+  jump -> bb105(inspect %390, inspect %405)
+
+bb105(%378: I32 trivial, %379: Bool trivial):
+  branch inspect %379 -> bb106 -> bb107
+
+bb106 cleanup:
+  %406: %I32 address = global.addr gone
+  %407: I32 trivial = load inspect %406
+  %408: I32 trivial = const 1
+  %409: I32 trivial = add inspect %407 inspect %408
+  %410: %I32 address = global.addr gone
+  store inspect %410 consume %409
+  jump -> bb107
+
+bb107:
+  %411: %I32 address = global.addr trail
+  %412: I32 trivial = load inspect %411
+  %413: I32 trivial = const 1000
+  %414: I32 trivial = add inspect %412 inspect %413
+  %415: %I32 address = global.addr trail
+  store inspect %415 consume %414
+  %416: I32 trivial = const 1
+  %417: Bool trivial = eq inspect %378 inspect %416
+  %418: I32 trivial = load inspect %380
+  %419: I32 trivial = const 0
+  %420: I32 trivial = select inspect %417 inspect %418 inspect %419
+  %44: I32 trivial = const 5
+  %424: I32 trivial = const 0
+  %425: %Outcome(Command, I32) address = alloc frame Outcome(Command, I32)
+  %426: %Command address = alloc frame Command
+  %427: I32 trivial = const 0
+  %428: I32 trivial = const 10
+  %429: I32 trivial = const 2
+  %430: I32 trivial = const 0
+  jump -> bb111(inspect %427, inspect %424)
+
+bb111(%422: I32 trivial, %423: I32 trivial):
+  %431: Bool trivial = lt inspect %422 inspect %44
+  branch inspect %431 -> bb113 -> bb112
+
+bb112:
+  %46: I32 trivial = const 4
+  %445: I32 trivial = const 0
+  %446: %Note address = alloc frame Note
+  %447: %Outcome(Note, I32) address = alloc frame Outcome(Note, I32)
+  %448: %Note address = alloc frame Note
+  %449: I32 trivial = const 0
+  %450: I32 trivial = const 0
+  %451: Box owned = aggregate.Box consume %450
+  %452: Note owned = aggregate.Note consume %449 consume %451
+  store inspect %446 consume %452
+  %453: I32 trivial = const 0
+  %454: I32 trivial = const 1
+  %455: I32 trivial = const 10
+  %456: I32 trivial = const 5
+  %457: I32 trivial = const 0
+  jump -> bb117(inspect %453, inspect %445)
+
+bb113:
+  %432: I32 trivial = mul inspect %423 inspect %428
+  %433: I32 trivial = add inspect %432 inspect %422
+  %434: Box owned = aggregate.Box consume %430
+  %435: Command owned = aggregate.Command consume %429 consume %434
+  %436: Outcome(Command, I32) owned = aggregate.Proceed consume %435
+  store inspect %425 consume %436
+  %437: %Command address = field.addr .Proceed inspect %425
+  %438: Command owned = load inspect %437
+  store inspect %426 consume %438
+  %439: %I32 address = field.addr .code inspect %426
+  %440: I32 trivial = load inspect %439
+  drop Command inspect %426
+  %441: I32 trivial = add inspect %422 inspect %440
+  jump -> bb111(inspect %441, inspect %433)
+
+bb117(%443: I32 trivial, %444: I32 trivial):
+  %458: Bool trivial = lt inspect %443 inspect %46
+  branch inspect %458 -> bb121 -> bb118
+
+bb118:
+  jump -> bb119
+
+bb119 cleanup:
+  drop Note inspect %446
+  jump -> bb120
 
 bb120:
-  %492: I32 trivial = add inspect %475 inspect %40
-  %493: Bool trivial = gt inspect %492 inspect %40
-  branch inspect %493 -> bb122 -> bb121
+  %48: I32 trivial = const 3
+  %475: I32 trivial = const 0
+  %476: I32 trivial = const 0
+  %477: I32 trivial = const 0
+  %479: I32 trivial = const 10
+  %480: I32 trivial = const 1
+  jump -> bb125(inspect %477, inspect %475)
 
 bb121:
-  %494: I32 trivial = mul inspect %476 inspect %488
-  %495: I32 trivial = add inspect %494 inspect %492
-  %496: Outcome(I32, I32) trivial = aggregate.Proceed consume %489
-  jump -> bb123(consume %496, inspect %495)
+  %459: %I32 address = field.addr .mark inspect %446
+  %460: I32 trivial = load inspect %459
+  drop Note inspect %446
+  %461: I32 trivial = add inspect %443 inspect %460
+  %462: I32 trivial = mul inspect %444 inspect %455
+  %463: I32 trivial = add inspect %462 inspect %461
+  %464: Box owned = aggregate.Box consume %457
+  %465: Note owned = aggregate.Note consume %456 consume %464
+  %466: Outcome(Note, I32) owned = aggregate.Proceed consume %465
+  store inspect %447 consume %466
+  %467: %Note address = field.addr .Proceed inspect %447
+  %468: Note owned = load inspect %467
+  store inspect %448 consume %468
+  %469: Note owned = load inspect %448
+  store inspect %446 consume %469
+  %470: I32 trivial = add inspect %443 inspect %454
+  jump -> bb117(inspect %470, inspect %463)
 
-bb122:
-  %497: Outcome(I32, I32) trivial = aggregate.Exit consume %490
-  jump -> bb123(consume %497, inspect %476)
+bb125(%472: I32 trivial, %473: I32 trivial):
+  %481: Bool trivial = lt inspect %472 inspect %48
+  branch inspect %481 -> bb127 -> bb126
 
-bb123(%477: Outcome(I32, I32) trivial, %478: I32 trivial):
-  store inspect %483 consume %477
-  %498: %U8 address = field.addr .# inspect %483
-  %499: U8 trivial = load inspect %498
-  %500: Bool trivial = eq inspect %499 inspect %487
-  branch inspect %500 -> bb125 -> bb124
+bb126:
+  %482: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %476
+  %50: I32 trivial = const 9
+  %496: I32 trivial = const 0
+  %497: I32 trivial = const 0
+  %498: I32 trivial = const 0
+  %499: I32 trivial = const 4
+  %500: I32 trivial = const 10
+  %501: I32 trivial = const 1
+  jump -> bb134(inspect %498, inspect %496)
 
-bb124:
-  %501: %I32 address = field.addr .Proceed inspect %483
-  %502: I32 trivial = load inspect %501
-  %503: I32 trivial = add inspect %475 inspect %502
-  jump -> bb119(inspect %503, inspect %478)
+bb127:
+  %484: I32 trivial = mul inspect %473 inspect %479
+  %485: I32 trivial = add inspect %484 inspect %472
+  %486: Outcome(I32, I32) trivial = aggregate.Proceed consume %480
+  %487: I32 trivial = add inspect %472 inspect %480
+  jump -> bb125(inspect %487, inspect %485)
 
-bb125:
-  %504: %I32 address = global.addr gone
-  %505: I32 trivial = load inspect %504
-  %506: I32 trivial = const 1
-  %507: I32 trivial = add inspect %505 inspect %506
-  %508: %I32 address = global.addr gone
-  store inspect %508 consume %507
-  %509: Bool trivial = const False
-  jump -> bb126(inspect %509, inspect %478)
-
-bb126(%479: Bool trivial, %480: I32 trivial):
-  branch inspect %479 -> bb127 -> bb128
-
-bb127 cleanup:
-  %510: %I32 address = global.addr gone
-  %511: I32 trivial = load inspect %510
-  %512: I32 trivial = const 1
-  %513: I32 trivial = add inspect %511 inspect %512
-  %514: %I32 address = global.addr gone
-  store inspect %514 consume %513
-  jump -> bb128
-
-bb128:
-  %515: %I32 address = global.addr trail
-  %516: I32 trivial = load inspect %515
-  %517: I32 trivial = const 1000
-  %518: I32 trivial = add inspect %516 inspect %517
-  %519: %I32 address = global.addr trail
-  store inspect %519 consume %518
-  %42: I32 trivial = const 3
-  %525: %I32 address = alloc frame I32
-  %526: I32 [unique slot 1] guaranteed = load inspect %525
-  %527: %Box address = alloc frame Box
-  %528: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %529: I32 trivial = const 0
-  %530: Box owned = aggregate.Box consume %42
-  %531: Bool trivial = const True
-  store inspect %527 consume %530
-  %532: I32 trivial = const 0
-  %533: U8 trivial = const 1
-  %535: I32 trivial = const 1
-  %536: I32 trivial = const 7
-  %537: I32 trivial = const 1
-  %819: I32 trivial = const 4
-  jump -> bb132(inspect %532)
-
-bb132(%521: I32 trivial):
-  %539: Bool trivial = lt inspect %521 inspect %42
-  branch inspect %539 -> bb133 -> bb139(inspect %529, inspect %531)
-
-bb133:
-  %540: I32 trivial = add inspect %521 inspect %42
-  %541: %I32 address = represent inspect %526
-  %542: Bool trivial = gt inspect %540 inspect %819
-  branch inspect %542 -> bb135 -> bb134
-
-bb134:
-  %543: Outcome(I32, I32) trivial = aggregate.Proceed consume %535
-  jump -> bb136(consume %543)
+bb134(%493: I32 trivial, %494: I32 trivial):
+  %502: Bool trivial = lt inspect %493 inspect %50
+  branch inspect %502 -> bb136 -> bb135
 
 bb135:
-  %544: I32 trivial = mul inspect %540 inspect %536
-  store inspect %541 consume %544
-  %545: Outcome(I32, I32) trivial = aggregate.Exit consume %537
-  jump -> bb136(consume %545)
+  %503: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %497
+  jump -> bb139(inspect %494)
 
-bb136(%522: Outcome(I32, I32) trivial):
-  store inspect %528 consume %522
-  %546: %U8 address = field.addr .# inspect %528
-  %547: U8 trivial = load inspect %546
-  %548: Bool trivial = eq inspect %547 inspect %533
-  branch inspect %548 -> bb138 -> bb137
+bb136:
+  %504: Bool trivial = gt inspect %493 inspect %499
+  branch inspect %504 -> bb138 -> bb137
 
 bb137:
-  %549: %I32 address = field.addr .Proceed inspect %528
-  %550: I32 trivial = load inspect %549
-  %551: I32 trivial = add inspect %521 inspect %550
-  jump -> bb132(inspect %551)
+  %505: I32 trivial = mul inspect %494 inspect %500
+  %506: I32 trivial = add inspect %505 inspect %493
+  %507: Outcome(I32, I32) trivial = aggregate.Proceed consume %501
+  %508: I32 trivial = add inspect %493 inspect %501
+  jump -> bb134(inspect %508, inspect %506)
 
 bb138:
-  %552: %I32 address = global.addr gone
-  %553: I32 trivial = load inspect %552
-  %554: I32 trivial = const 1
-  %555: I32 trivial = add inspect %553 inspect %554
-  %556: %I32 address = global.addr gone
-  store inspect %556 consume %555
-  %557: Bool trivial = const False
-  %558: %I32 address = field.addr .Exit inspect %528
-  %559: I32 trivial = load inspect %558
-  jump -> bb139(inspect %559, inspect %557)
+  %509: Trouble trivial = aggregate.TooFar
+  %510: Outcome(I32, Trouble) trivial = aggregate.Exit consume %509
+  %511: I32 trivial = const 7
+  %512: I32 trivial = add inspect %494 inspect %511
+  jump -> bb139(inspect %512)
 
-bb139(%523: I32 trivial, %524: Bool trivial):
-  branch inspect %524 -> bb140 -> bb141
-
-bb140 cleanup:
-  %560: %I32 address = global.addr gone
-  %561: I32 trivial = load inspect %560
-  %562: I32 trivial = const 1
-  %563: I32 trivial = add inspect %561 inspect %562
-  %564: %I32 address = global.addr gone
-  store inspect %564 consume %563
-  jump -> bb141
-
-bb141:
-  %565: %I32 address = global.addr trail
-  %566: I32 trivial = load inspect %565
-  %567: I32 trivial = const 1000
-  %568: I32 trivial = add inspect %566 inspect %567
-  %569: %I32 address = global.addr trail
-  store inspect %569 consume %568
-  %570: I32 trivial = const 1
-  %571: Bool trivial = eq inspect %523 inspect %570
-  %572: I32 trivial = load inspect %525
-  %573: I32 trivial = const 0
-  %574: I32 trivial = select inspect %571 inspect %572 inspect %573
-  %44: I32 trivial = const 5
-  %579: I32 trivial = const 0
-  %580: %Outcome(Command, I32) address = alloc frame Outcome(Command, I32)
-  %581: %Command address = alloc frame Command
-  %582: I32 trivial = const 0
-  %583: U8 trivial = const 1
-  %584: I32 trivial = const 10
-  %585: I32 trivial = const 2
-  %586: I32 trivial = const 0
-  jump -> bb145(inspect %582, inspect %579)
-
-bb145(%576: I32 trivial, %577: I32 trivial):
-  %587: Bool trivial = lt inspect %576 inspect %44
-  branch inspect %587 -> bb146 -> bb149(inspect %577)
-
-bb146:
-  %588: I32 trivial = mul inspect %577 inspect %584
-  %589: I32 trivial = add inspect %588 inspect %576
-  %590: Box owned = aggregate.Box consume %586
-  %591: Command owned = aggregate.Command consume %585 consume %590
-  %592: Outcome(Command, I32) owned = aggregate.Proceed consume %591
-  store inspect %580 consume %592
-  %593: %U8 address = field.addr .# inspect %580
-  %594: U8 trivial = load inspect %593
-  %595: Bool trivial = eq inspect %594 inspect %583
-  branch inspect %595 -> bb148 -> bb147
-
-bb147:
-  %596: %Command address = field.addr .Proceed inspect %580
-  %597: Command owned = load inspect %596
-  store inspect %581 consume %597
-  %598: %I32 address = field.addr .code inspect %581
-  %599: I32 trivial = load inspect %598
-  drop Command inspect %581
-  %600: I32 trivial = add inspect %576 inspect %599
-  jump -> bb145(inspect %600, inspect %589)
-
-bb148:
-  drop Outcome(Command, I32) inspect %580
-  jump -> bb149(inspect %589)
-
-bb149(%578: I32 trivial):
-  %46: I32 trivial = const 4
-  %606: I32 trivial = const 0
-  %607: %Note address = alloc frame Note
-  %608: %Outcome(Note, I32) address = alloc frame Outcome(Note, I32)
-  %609: %Note address = alloc frame Note
-  %610: I32 trivial = const 0
-  %611: I32 trivial = const 0
-  %612: Box owned = aggregate.Box consume %611
-  %613: Note owned = aggregate.Note consume %610 consume %612
-  store inspect %607 consume %613
-  %614: I32 trivial = const 0
-  %615: Bool trivial = const True
-  %616: Bool trivial = const False
-  %617: U8 trivial = const 1
-  %618: I32 trivial = const 1
-  %619: I32 trivial = const 10
-  %620: I32 trivial = const 5
-  %621: I32 trivial = const 0
-  jump -> bb153(inspect %614, inspect %606)
-
-bb153(%602: I32 trivial, %603: I32 trivial):
-  %622: Bool trivial = lt inspect %602 inspect %46
-  branch inspect %622 -> bb154 -> bb157(inspect %615, inspect %603)
-
-bb154:
-  %623: %I32 address = field.addr .mark inspect %607
-  %624: I32 trivial = load inspect %623
-  drop Note inspect %607
-  %625: I32 trivial = add inspect %602 inspect %624
-  %626: I32 trivial = mul inspect %603 inspect %619
-  %627: I32 trivial = add inspect %626 inspect %625
-  %628: Box owned = aggregate.Box consume %621
-  %629: Note owned = aggregate.Note consume %620 consume %628
-  %630: Outcome(Note, I32) owned = aggregate.Proceed consume %629
-  store inspect %608 consume %630
-  %631: %U8 address = field.addr .# inspect %608
-  %632: U8 trivial = load inspect %631
-  %633: Bool trivial = eq inspect %632 inspect %617
-  branch inspect %633 -> bb156 -> bb155
-
-bb155:
-  %634: %Note address = field.addr .Proceed inspect %608
-  %635: Note owned = load inspect %634
-  store inspect %609 consume %635
-  %636: Note owned = load inspect %609
-  store inspect %607 consume %636
-  %637: I32 trivial = add inspect %602 inspect %618
-  jump -> bb153(inspect %637, inspect %627)
-
-bb156:
-  drop Outcome(Note, I32) inspect %608
-  jump -> bb157(inspect %616, inspect %627)
-
-bb157(%604: Bool trivial, %605: I32 trivial):
-  branch inspect %604 -> bb158 -> bb159
-
-bb158 cleanup:
-  drop Note inspect %607
-  jump -> bb159
-
-bb159:
-  %48: I32 trivial = const 3
-  %645: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
-  %646: I32 trivial = const 0
-  %647: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %648: I32 trivial = const 0
-  %649: I32 trivial = const 0
-  %650: I32 trivial = const 4
-  %651: U8 trivial = const 1
-  %652: I32 trivial = const 10
-  %653: I32 trivial = const 1
-  jump -> bb163(inspect %649, inspect %646)
-
-bb163(%639: I32 trivial, %640: I32 trivial):
-  %654: Bool trivial = lt inspect %639 inspect %48
-  branch inspect %654 -> bb164 -> bb168(inspect %648, inspect %640)
-
-bb164:
-  %655: Bool trivial = gt inspect %639 inspect %650
-  branch inspect %655 -> bb169 -> bb165
-
-bb165:
-  %656: I32 trivial = mul inspect %640 inspect %652
-  %657: I32 trivial = add inspect %656 inspect %639
-  %658: Outcome(I32, I32) trivial = aggregate.Proceed consume %653
-  store inspect %647 consume %658
-  %659: %U8 address = field.addr .# inspect %647
-  %660: U8 trivial = load inspect %659
-  %661: Bool trivial = eq inspect %660 inspect %651
-  branch inspect %661 -> bb167 -> bb166
-
-bb166:
-  %662: %I32 address = field.addr .Proceed inspect %647
-  %663: I32 trivial = load inspect %662
-  %664: I32 trivial = add inspect %639 inspect %663
-  jump -> bb163(inspect %664, inspect %657)
-
-bb167:
-  %665: %I32 address = field.addr .Exit inspect %647
-  %666: I32 trivial = load inspect %665
-  jump -> bb168(inspect %666, inspect %657)
-
-bb168(%641: I32 trivial, %642: I32 trivial):
-  %667: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %641
-  jump -> bb170(consume %667, inspect %642)
-
-bb169:
-  %668: Trouble trivial = aggregate.TooFar
-  %669: Outcome(I32, Trouble) trivial = aggregate.Exit consume %668
-  jump -> bb170(consume %669, inspect %640)
-
-bb170(%643: Outcome(I32, Trouble) trivial, %644: I32 trivial):
-  store inspect %645 consume %643
-  %670: %U8 address = field.addr .# inspect %645
-  %671: U8 trivial = load inspect %670
-  %672: U8 trivial = const 1
-  %673: Bool trivial = eq inspect %671 inspect %672
-  %674: I32 trivial = const 7
-  %675: I32 trivial = add inspect %644 inspect %674
-  %676: I32 trivial = select inspect %673 inspect %675 inspect %644
-  %50: I32 trivial = const 9
-  %684: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
-  %685: I32 trivial = const 0
-  %686: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %687: I32 trivial = const 0
-  %688: I32 trivial = const 0
-  %689: I32 trivial = const 4
-  %690: U8 trivial = const 1
-  %691: I32 trivial = const 10
-  %692: I32 trivial = const 1
-  jump -> bb174(inspect %688, inspect %685)
-
-bb174(%678: I32 trivial, %679: I32 trivial):
-  %693: Bool trivial = lt inspect %678 inspect %50
-  branch inspect %693 -> bb175 -> bb179(inspect %687, inspect %679)
-
-bb175:
-  %694: Bool trivial = gt inspect %678 inspect %689
-  branch inspect %694 -> bb180 -> bb176
-
-bb176:
-  %695: I32 trivial = mul inspect %679 inspect %691
-  %696: I32 trivial = add inspect %695 inspect %678
-  %697: Outcome(I32, I32) trivial = aggregate.Proceed consume %692
-  store inspect %686 consume %697
-  %698: %U8 address = field.addr .# inspect %686
-  %699: U8 trivial = load inspect %698
-  %700: Bool trivial = eq inspect %699 inspect %690
-  branch inspect %700 -> bb178 -> bb177
-
-bb177:
-  %701: %I32 address = field.addr .Proceed inspect %686
-  %702: I32 trivial = load inspect %701
-  %703: I32 trivial = add inspect %678 inspect %702
-  jump -> bb174(inspect %703, inspect %696)
-
-bb178:
-  %704: %I32 address = field.addr .Exit inspect %686
-  %705: I32 trivial = load inspect %704
-  jump -> bb179(inspect %705, inspect %696)
-
-bb179(%680: I32 trivial, %681: I32 trivial):
-  %706: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %680
-  jump -> bb181(consume %706, inspect %681)
-
-bb180:
-  %707: Trouble trivial = aggregate.TooFar
-  %708: Outcome(I32, Trouble) trivial = aggregate.Exit consume %707
-  jump -> bb181(consume %708, inspect %679)
-
-bb181(%682: Outcome(I32, Trouble) trivial, %683: I32 trivial):
-  store inspect %684 consume %682
-  %709: %U8 address = field.addr .# inspect %684
-  %710: U8 trivial = load inspect %709
-  %711: U8 trivial = const 1
-  %712: Bool trivial = eq inspect %710 inspect %711
-  %713: I32 trivial = const 7
-  %714: I32 trivial = add inspect %683 inspect %713
-  %715: I32 trivial = select inspect %712 inspect %714 inspect %683
-  %54: I32 trivial = add inspect %95 inspect %135
-  %56: I32 trivial = add inspect %54 inspect %179
-  %58: I32 trivial = add inspect %56 inspect %267
-  %60: I32 trivial = add inspect %58 inspect %270
-  %62: I32 trivial = add inspect %60 inspect %281
-  %64: I32 trivial = add inspect %62 inspect %297
-  %66: I32 trivial = add inspect %64 inspect %438
-  %68: I32 trivial = add inspect %66 inspect %473
-  %70: I32 trivial = add inspect %68 inspect %480
-  %72: I32 trivial = add inspect %70 inspect %574
-  %74: I32 trivial = add inspect %72 inspect %578
-  %76: I32 trivial = add inspect %74 inspect %676
-  %78: I32 trivial = add inspect %76 inspect %715
-  %80: I32 trivial = add inspect %78 inspect %605
-  %82: I32 trivial = add inspect %80 inspect %353
+bb139(%495: I32 trivial):
+  %54: I32 trivial = add inspect %93 inspect %123
+  %56: I32 trivial = add inspect %54 inspect %161
+  %58: I32 trivial = add inspect %56 inspect %233
+  %60: I32 trivial = add inspect %58 inspect %236
+  %62: I32 trivial = add inspect %60 inspect %247
+  %64: I32 trivial = add inspect %62 inspect %258
+  %617: I32 trivial = const 160303
+  %618: I32 trivial = add inspect %64 inspect %617
+  %70: I32 trivial = add inspect %618 inspect %342
+  %72: I32 trivial = add inspect %70 inspect %420
+  %74: I32 trivial = add inspect %72 inspect %423
+  %76: I32 trivial = add inspect %74 inspect %473
+  %78: I32 trivial = add inspect %76 inspect %495
+  %80: I32 trivial = add inspect %78 inspect %444
+  %82: I32 trivial = add inspect %80 inspect %289
   %83: %I32 address = global.addr gone
   %84: I32 trivial = load inspect %83
   %85: I32 trivial = const 100000

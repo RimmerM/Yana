@@ -1,11 +1,11 @@
-@string'142 = [97, 98, 99]
-@string'143 = [100, 101, 102]
-@string'144 = [120, 121]
+@string'188 = [97, 98, 99]
+@string'189 = [100, 101, 102]
+@string'190 = [120, 121]
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
-@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'142}
+@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0] {ptr 0: @string'188}
 
 sview<complex>(%s: Ptr): I64, I64, I32 {
   b_0 {
@@ -140,7 +140,7 @@ main<complex>(): I32 {
     %v_24 = add %v_1, 16: Ptr
     store %v_24, %v_22, 4
     %v_25 = alloca 16, 8: Ptr
-    store %v_25, @string'144, 8
+    store %v_25, @string'190, 8
     %v_26 = add %v_25, 8: Ptr
     store %v_26, 2, 8
     %v_27, %v_28, %v_29 = call_complex sview, %v_25: I64, I64, I32
@@ -262,7 +262,7 @@ main<complex>(): I32 {
   b_68 {
     %v_106 = load %v_4, 8: Ptr
     %v_107 = add %v_106, %v_101: Ptr
-    call_complex copyMemory, %v_107, @string'143, 3
+    call_complex copyMemory, %v_107, @string'189, 3
     %v_108 = cast %v_102: I32
     %v_109 = and %v_108, 1073741823: I32
     store %v_104, %v_109, 4
@@ -282,31 +282,31 @@ main<complex>(): I32 {
 
 String.reclaim<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 

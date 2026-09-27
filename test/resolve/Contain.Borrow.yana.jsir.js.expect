@@ -11,11 +11,11 @@ function main() {
   var v26 = { items: new Int32Array([]), length: 0 };
   var p0 = 0;
   while (p0 < 3) {
-    var v74 = v26.length;
-    var v76 = v74 + 1;
-    if (v76 > v26.items.length) growJsArray_I32(v26, v76);
-    v26.items[v74] = p0;
-    v26.length = v76 & 1073741823;
+    var v65 = v26.length;
+    var v67 = v65 + 1;
+    if (v67 > v26.items.length) growJsArray_I32(v26, v67);
+    v26.items[v65] = p0;
+    v26.length = v67 & 1073741823;
     p0 = p0 + 1 | 0;
   }
   var p1 = 0;
@@ -25,11 +25,10 @@ function main() {
     var v44 = v26.length;
     var v46 = p2 >>> 0;
     if (v46 >= v44) throw $t;
-    var v51 = p2 | 0;
-    v42[v51] = v42[v51] + 1 | 0;
-    var v60 = v26.items;
+    v42[p2] = v42[p2] + 1 | 0;
+    var v53 = v26.items;
     if (v46 >= v26.length) throw $t;
-    p1 = p1 + v60[v51] | 0;
+    p1 = p1 + v53[p2] | 0;
     p2 = p2 + 1 | 0;
   }
   return v19 + p1 | 0;
@@ -56,4 +55,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

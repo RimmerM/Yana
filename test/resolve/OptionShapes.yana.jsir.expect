@@ -63,47 +63,8 @@ fn main() -> one %r3
     %36: %r1 = select %33, %35, %34
     %37: %r1 = const 0
     %38: %r5 = binary.eq %36, %37
-    branch %38 -> block4 -> block3
+    branch %38 -> block2 -> block1
   block1:
-    %169: %r3 = load property %9.$v: %r3
-    %170: %r3 = const 2
-    %171: %r3 = binary.mul %169, %170
-    %172: %r3 = coerce %171
-    store property %9.$v: %r3, %172
-    %173: %r0 = const "abcdef"
-    store var $0: %r0, %173
-    %174: %r6 = alias %17
-    %175: %r3 = load property %174.x: %r3
-    %176: %r3 = const 20
-    %177: %r3 = binary.add %175, %176
-    %178: %r3 = coerce %177
-    store property %174.x: %r3, %178
-    %179: %r3 = binary.add %151, %172
-    %180: %r3 = coerce %179
-    %181: %r0 = load var $0: %r0
-    %182: %r0 = alias %181
-    %183: %r0 = alias %182
-    %184: %r0 = alias %183
-    %185: %r3 = host host.field "length" host-range %184
-    %186: %r3 = convert %185
-    %187: %r3 = binary.add %180, %186
-    %188: %r3 = coerce %187
-    %189: %r3 = binary.add %188, %178
-    %190: %r3 = coerce %189
-    %191: %r6 = alias %17
-    %192: %r3 = load property %191.y: %r3
-    %193: %r3 = binary.add %190, %192
-    %194: %r3 = coerce %193
-    return %194
-  block2:
-    %164: %r10 = load var $2: %r10
-    %165: %r3 = load cell %164: %r3
-    %166: %r3 = const 10
-    %167: %r3 = binary.add %165, %166
-    %168: %r3 = coerce %167
-    store cell %164: %r3, %168
-    jump -> block1
-  block3:
     %39: %r6 = alias %28
     %40: %r6 = alias %39
     %41: %r6 = alias %40
@@ -112,11 +73,11 @@ fn main() -> one %r3
     %44: %r3 = load property %43.y: %r3
     %45: %r3 = binary.add %42, %44
     %46: %r3 = coerce %45
-    jump -> block5(%46)
-  block4:
+    jump -> block3(%46)
+  block2:
     %47: %r3 = const 0
-    jump -> block5(%47)
-  block5(%0: %r3):
+    jump -> block3(%47)
+  block3(%0: %r3):
     %48: %r3 = binary.add %25, %0
     %49: %r3 = coerce %48
     %50: %r2 = const null
@@ -131,24 +92,24 @@ fn main() -> one %r3
     %62: %r1 = select %59, %61, %60
     %63: %r1 = const 0
     %64: %r5 = binary.eq %62, %63
-    branch %64 -> block7 -> block6
-  block6:
+    branch %64 -> block5 -> block4
+  block4:
     %65: %r6 = alias %54
-    %195: %r3 = load property %65.x: %r3
-    %196: %r3 = load property %65.y: %r3
-    %68: %r3 = alias %195
-    %70: %r3 = alias %196
+    %187: %r3 = load property %65.x: %r3
+    %188: %r3 = load property %65.y: %r3
+    %68: %r3 = alias %187
+    %70: %r3 = alias %188
     %71: %r3 = binary.add %68, %70
     %72: %r3 = coerce %71
-    jump -> block8(%72)
-  block7:
+    jump -> block6(%72)
+  block5:
     %73: %r3 = const 0
-    jump -> block8(%73)
-  block8(%1: %r3):
+    jump -> block6(%73)
+  block6(%1: %r3):
     %74: %r3 = binary.add %53, %1
     %75: %r3 = coerce %74
-    jump -> block13
-  block9:
+    jump -> block11
+  block7:
     %82: %r7 = alias %77
     %83: %r7 = alias %82
     store var $5: %r7, %83
@@ -160,27 +121,27 @@ fn main() -> one %r3
     %89: %r1 = select %86, %88, %87
     %90: %r1 = const 0
     %91: %r5 = binary.eq %89, %90
-    branch %91 -> block11 -> block10
-  block10:
+    branch %91 -> block9 -> block8
+  block8:
     %93: %r3 = load var $5: %r3
     %94: %r3 = const 3
     %95: %r3 = binary.add %94, %93
     %96: %r3 = coerce %95
-    jump -> block12(%96)
-  block11:
+    jump -> block10(%96)
+  block9:
     %97: %r3 = const 2
-    jump -> block12(%97)
-  block12(%2: %r3):
-    jump -> block14(%2)
-  block13:
+    jump -> block10(%97)
+  block10(%2: %r3):
+    jump -> block12(%2)
+  block11:
     %98: %r3 = const 1
-    jump -> block14(%98)
-  block14(%3: %r3):
+    jump -> block12(%98)
+  block12(%3: %r3):
     %99: %r3 = binary.add %75, %3
     %100: %r3 = coerce %99
     %101: %r7 = const null
-    jump -> block15
-  block15:
+    jump -> block13
+  block13:
     %107: %r7 = alias %101
     %108: %r7 = alias %107
     store var $6: %r7, %108
@@ -192,27 +153,27 @@ fn main() -> one %r3
     %114: %r1 = select %111, %113, %112
     %115: %r1 = const 0
     %116: %r5 = binary.eq %114, %115
-    branch %116 -> block17 -> block16
-  block16:
+    branch %116 -> block15 -> block14
+  block14:
     %118: %r3 = load var $6: %r3
     %119: %r3 = const 3
     %120: %r3 = binary.add %119, %118
     %121: %r3 = coerce %120
-    jump -> block18(%121)
-  block17:
+    jump -> block16(%121)
+  block15:
     %122: %r3 = const 2
-    jump -> block18(%122)
-  block18(%4: %r3):
-    jump -> block20(%4)
-  block19:
+    jump -> block16(%122)
+  block16(%4: %r3):
+    jump -> block18(%4)
+  block17:
     %123: %r3 = const 1
-    jump -> block20(%123)
-  block20(%5: %r3):
+    jump -> block18(%123)
+  block18(%5: %r3):
     %124: %r3 = binary.add %100, %5
     %125: %r3 = coerce %124
     %126: %r3 = const 7
-    jump -> block21
-  block21:
+    jump -> block19
+  block19:
     %127: %r7 = alias %126
     %133: %r7 = alias %127
     %134: %r7 = alias %133
@@ -225,37 +186,64 @@ fn main() -> one %r3
     %140: %r1 = select %137, %139, %138
     %141: %r1 = const 0
     %142: %r5 = binary.eq %140, %141
-    branch %142 -> block23 -> block22
-  block22:
+    branch %142 -> block21 -> block20
+  block20:
     %144: %r3 = load var $7: %r3
     %145: %r3 = const 3
     %146: %r3 = binary.add %145, %144
     %147: %r3 = coerce %146
-    jump -> block24(%147)
-  block23:
+    jump -> block22(%147)
+  block21:
     %148: %r3 = const 2
-    jump -> block24(%148)
-  block24(%6: %r3):
-    jump -> block26(%6)
-  block25:
+    jump -> block22(%148)
+  block22(%6: %r3):
+    jump -> block24(%6)
+  block23:
     %149: %r3 = const 1
-    jump -> block26(%149)
-  block26(%7: %r3):
+    jump -> block24(%149)
+  block24(%7: %r3):
     %150: %r3 = binary.add %125, %7
     %151: %r3 = coerce %150
     %152: %r9 = const "$v"
     %153: %r10 = object %s2 %9, %152
     %154: %r11 = alias %153
     store var $2: %r11, %154
-    %155: %r11 = load var $2: %r11
-    %156: %r11 = const null
-    %157: %r4 = binary.eq %155, %156
-    %158: %r1 = const 1
-    %159: %r1 = const 0
-    %160: %r1 = select %157, %159, %158
-    %161: %r1 = const 1
-    %162: %r5 = binary.eq %160, %161
-    branch %162 -> block2 -> block1
+    %156: %r10 = load var $2: %r10
+    %157: %r3 = load cell %156: %r3
+    %158: %r3 = const 10
+    %159: %r3 = binary.add %157, %158
+    %160: %r3 = coerce %159
+    store cell %156: %r3, %160
+    %161: %r3 = load property %9.$v: %r3
+    %162: %r3 = const 2
+    %163: %r3 = binary.mul %161, %162
+    %164: %r3 = coerce %163
+    store property %9.$v: %r3, %164
+    %165: %r0 = const "abcdef"
+    store var $0: %r0, %165
+    %166: %r6 = alias %17
+    %167: %r3 = load property %166.x: %r3
+    %168: %r3 = const 20
+    %169: %r3 = binary.add %167, %168
+    %170: %r3 = coerce %169
+    store property %166.x: %r3, %170
+    %171: %r3 = binary.add %151, %164
+    %172: %r3 = coerce %171
+    %173: %r0 = load var $0: %r0
+    %174: %r0 = alias %173
+    %175: %r0 = alias %174
+    %176: %r0 = alias %175
+    %177: %r3 = host host.field "length" host-range %176
+    %178: %r3 = convert %177
+    %179: %r3 = binary.add %172, %178
+    %180: %r3 = coerce %179
+    %181: %r3 = binary.add %180, %170
+    %182: %r3 = coerce %181
+    %183: %r6 = alias %17
+    %184: %r3 = load property %183.y: %r3
+    %185: %r3 = binary.add %182, %184
+    %186: %r3 = coerce %185
+    return %186
 
 optimizer clones 3 aliased 1 forwarded 6 removed 42 adopted 0 sunk 0 numbered 0 decided 3 unboxed 0 updated 1 split 1 promoted 8 folded 3
 

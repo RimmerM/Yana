@@ -1,0 +1,28 @@
+{-
+   A failing class member made into an object at a subject the declaration binds (J219). The witness
+   entry's type is the erased `iter(T)`, which carries no failure, so before this refusal the object
+   was built, an alternative on it was refused as handling a failure that "cannot" happen, and a
+   step's failure was dropped. Built where the subject is known it is a failing site object.
+-}
+
+data Tag {id: Int}
+
+class Walks(c):
+    iter fn walk(self: c) -> (Int | Tag)
+
+data Counter {to: Int}
+
+instance Walks(Counter):
+    iter fn walk(self: Counter) -> (Int | Tag):
+        for i in 0..self.to:
+            yield i
+        return Tag {id: self.to}
+
+fn (Walks(c)) total(subject: c) -> Int:
+    let &it = walk(subject)
+    let &sum = 0
+    for x in it | t -> return t.id:
+        sum += x
+    return sum
+
+fn main() -> Int = total(Counter {to: 3})

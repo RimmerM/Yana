@@ -2560,9 +2560,22 @@ struct Structurer {
             emit(a, make<ContinueStmt>(a, label));
         };
 
+        /*
+         * The arms are **written** in reverse postorder and placed by block number. Writing one is
+         * what defines its values, and a value used in another arm must be defined by then - a
+         * constant most of all, since it is nested at its uses rather than bound. A definition
+         * dominates its uses and a dominator comes first in any reverse postorder, so that order is
+         * the one where every arm finds what it reads; block order is not. The irreducible graph
+         * `cfg.cpp`'s threading made of `iter/NestedItemObject.yana`'s `scalars` read a `const 1`
+         * of block 10 in block 2 and failed with "met a value with no expression" (R3), which a
+         * JavaScript-only refusal in the threading hid until this.
+         */
         Array<StmtList> arms;
-        for(U32 i = 0; i < count; i++) {
-            arms.push(collect(a, [&] {
+        for(U32 i = 0; i < count; i++) arms.push(StmtList {});
+
+        for(U32 position = 0; position < count; position++) {
+            auto i = flow->order[position];
+            arms[i] = collect(a, [&] {
                 for(auto instPointer: blockAt(i)->instructions(ir)) emitInst(*ir[instPointer]);
 
                 auto terminator = blockAt(i)->terminator(ir);
@@ -2578,7 +2591,7 @@ struct Structurer {
                                    emit(a, make<IfStmt>(a, condition, then, otherwise));
                                },
                                fallOut);
-            }));
+            });
         }
 
         auto loopBody = collect(a, [&] {

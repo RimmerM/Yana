@@ -523,7 +523,8 @@ LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool r
      * both of its own derived flags are then false.
      */
     auto derivedDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
-    auto derivedReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+    auto derivedReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived &&
+                          !(runDrop && ownership.dropOwnsValue());
 
     if(mir::isSumRecord(decl, type) && (derivedDrop || derivedReclaim)) {
         block = emitTeardown(*block, &argument->result - lower, type, runDrop && !derivedDrop,

@@ -1,0 +1,145 @@
+{-
+   A lambda written **inside a generic body** - C3, and what `resolve_lambda.cpp` refused by name
+   until then.
+
+   Every call of a generic is specialized, so a lambda in one is too: the lifted function and its
+   environment record share the enclosing declaration's context, and a specialization of the body
+   reaches `f.lambda(I32)` and `f.lambda.env(I32)` through the substitution it is read under. So a
+   generic called at two types holds two closure types with two bodies - `scaleSum` below is
+   `scaleSum.lambda.env(I32)` and `scaleSum.lambda.env(F64)` in the dump - and nothing is erased.
+
+   What this asserts, each against a run answer that differs if the wrong body or capture is reached:
+
+    - captures of generic-typed locals **by borrow** - `&total` written, `k` read, which a generic
+      body borrows because it cannot know `a` is `TrivialCopy` - and **by copy** where the captured
+      type is concrete (`twiceScaled`'s `k`), with the site-typed value called directly (`bump(x)`);
+    - a lambda passed to a **callback** parameter whose parameter and result mention the variables,
+      and one whose result the body decides (`describeAll`'s `String`);
+    - a lambda **inside** a lambda, both in the generic body;
+    - an **escaping** closure - returned as `(a) -> a` and stored in a record field as `() -> a` -
+      which owns what it captured, J194's rule: the parameter it captures is `->`;
+    - the spawn shape S0 wanted (`task`): a context and an entry function taken over, wrapped in a
+      closure a record holds and called later;
+    - a lambda in a **class default**, an **instance member**, an **`iter fn`** (inline; the object
+      form is `iter/LambdaGeneric.yana`, native only for the JSIR gap it meets) and a **`lens fn`**;
+    - a `@lazy` argument's thunk in a generic body, written and reached through inference - the
+      same lifting, since a thunk is a lambda nothing wrote.
+
+   `Reject.Closure.yana` holds what is still refused: a lambda in a body compiled **once**.
+-}
+
+fn (a, b) mapOne(x: a, f: (a) -> b) -> b = f(x)
+
+fn (a) applyTwice(x: a, f: (a) -> a) -> a = f(f(x))
+
+-- Two borrows. `total` is written through the capture, so it is a `&` capture and the frame sees
+-- every write; `k` is only read, and is borrowed rather than copied because whether `a` is
+-- `TrivialCopy` is the specialization's answer and the environment's layout is the generic body's.
+fn (Num(a)) scaleSum(xs: [a], k: a) -> a:
+    let &total = 0 :: a
+    let bump = (v: a): total += v * k
+    for x in items(xs):
+        bump(x)
+    return total
+
+-- The parameter mentions `a`; the result is decided by the body, which answers a `String`.
+fn (Show(a)) describeAll(xs: [a]) -> String:
+    let &out = ""
+    for x in items(xs):
+        out = out ++ mapOne(x, (v: a) -> "<{v}>")
+    return out
+
+-- A lambda inside a lambda, the inner one naming the outer one's parameter.
+fn (Num(a)) nested(x: a) -> a = applyTwice(x, (v: a) -> applyTwice(v, (w: a) -> w + v))
+
+-- Escaping: the closure leaves as a function value, so it owns what it captured.
+fn (Num(a)) adder(->by: a) -> (a) -> a = (v: a) -> v + by
+
+data Holder(a) {run: () -> a}
+
+fn (Copy(a)) hold(->value: a) -> Holder(a) = Holder {run: () -> copy(value)}
+
+-- S0's `spawn`: a context and an entry taken over, the closure over both stored and run later.
+data Task {entry: () -> Int}
+
+fn (a) task(->context: a, ->entry: (a) -> Int) -> Task = Task {entry: () -> entry(context)}
+
+class Scaled(a):
+    fn scaled(x: a, k: Int) -> a
+    fn twiceScaled(x: a, k: Int) -> a = mapOne(x, (v: a) -> scaled(scaled(v, k), k))
+
+instance Scaled(Int):
+    fn scaled(x: Int, k: Int) -> Int = x * k
+
+data Box(a) {value: a}
+
+instance (Show(a)) Show(Box(a)):
+    fn show(b: Box(a), &to: String) -> {}:
+        let wrap = (v: a) -> "Box({v})"
+        to = to ++ wrap(b.value)
+
+iter fn (a) doubled(xs: [a], f: (a) -> a) -> a:
+    for x in items(xs):
+        let g = (v: a) -> f(f(v))
+        yield g(x)
+
+lens fn (a) bracketed(x: a, f: (a) -> String, &seen: Int) -> a:
+    let render = (v: a) -> "[" ++ f(v) ++ "]"
+    seen += (truncate(length(render(x))) :: Int)
+    yield x
+    seen += (truncate(length(render(x))) :: Int)
+
+fn once(flag: Bool, @lazy value: Int) -> Int = if flag then value else 0
+
+fn (Eq(a)) lazyInGeneric(x: a, y: a) -> Int = once(x == y, 1)
+
+fn (Truth(a), Truth(b)) userAnd(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+
+fn (Truth(a)) callsUserAnd(x: a, y: Bool) -> Bool = userAnd(x, y)
+
+-- One point per check, so the answer is the count that held: 21.
+fn main() -> Int:
+    let &score = 0
+    let point = (ok: Bool) -> if ok then 1 else 0
+
+    score += point(scaleSum([1, 2, 3], 2) == 12)
+    score += point(scaleSum([1.5, 2.5] :: [F64], 2.0) == 8.0)
+    score += point(describeAll([1, 2]) == "<1><2>")
+    score += point(describeAll(["x", "y"]) == "<x><y>")
+    score += point(nested(1) == 9)
+    score += point(nested(0.5 :: F64) == 4.5)
+
+    let inc = adder(3)
+    let half = adder(0.5 :: F64)
+    score += point(inc(4) == 7)
+    score += point(half(1.0) == 1.5)
+
+    let text = hold("held")
+    let number = hold(42)
+    score += point(text.run() == "held")
+    score += point(number.run() == 42)
+
+    let first = task(40, (n: Int) -> n + 2)
+    let second = task("four", (s: String) -> truncate(length(s)) :: Int)
+    score += point(first.entry() == 42)
+    score += point(second.entry() == 4)
+
+    score += point(twiceScaled(3, 2) == 12)
+    let boxed = Box {value: "s"}
+    score += point("{Box {value: 5}} {boxed}" == "Box(5) Box(s)")
+
+    let &sum = 0
+    for v in doubled([1, 2], (n: Int) -> n + 1):
+        sum += v
+    score += point(sum == 7)
+
+    let &seen = 0
+    let r = bracketed(7, (n: Int) -> "{n}", seen)
+    score += point(r == 7)
+    score += point(seen == 6)
+
+    score += point(lazyInGeneric(1, 1) == 1)
+    score += point(lazyInGeneric("a", "b") == 0)
+    score += point(callsUserAnd(True, True))
+    score += point(!callsUserAnd(False, True))
+    return score

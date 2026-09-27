@@ -4,39 +4,28 @@ var log = 0;
 
 // 
 function summing(n, stop) {
-  var p2;
-  var p3 = 0;
+  var p2 = 0;
   B0: {
-    while (p3 < n) {
-      if (p3 === stop) {
-        p2 = { $tag: 1, Proceed: 0, Exit: 7 };
+    while (p2 < n) {
+      if (p2 === stop) {
+        log = log + 7 | 0;
         break B0;
       }
-      log = log + p3 | 0;
-      p3 = p3 + 1 | 0;
+      log = log + p2 | 0;
+      p2 = p2 + 1 | 0;
     }
     log = log + 1000 | 0;
-    p2 = { $tag: 0, Proceed: 0, Exit: 0 };
   }
-  if (p2.$tag === 1) log = log + p2.Exit | 0;
   return log;
 }
 
 function main() {
-  log = 0;
   log = 131;
-  var v18 = log;
-  log = 0;
   log = 1;
-  log = 6;
-  var v37 = log;
-  log = 0;
   log = 1;
-  log = 8;
-  var v53 = log;
   log = 0;
-  var v57 = summing(5, 3);
+  var v18 = summing(5, 3);
   log = 0;
-  return (((Math.imul(v18, 1000000) + Math.imul(v37, 100000) | 0) + Math.imul(v53, 10000) | 0) + Math.imul(v57, 1000) | 0) + summing(4, 9) | 0;
+  return (131680000 + Math.imul(v18, 1000) | 0) + summing(4, 9) | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -26,396 +26,338 @@ fn main() -> one %r0
   var $24: %r0
   var $25: %r1
   block0:
-    %13: %r1 = const "bcd"
+    %10: %r1 = const "bcd"
+    %11: %r1 = alias %10
+    %12: %r1 = alias %11
+    %13: %r1 = alias %12
     %14: %r1 = alias %13
-    %15: %r1 = alias %14
-    %16: %r1 = alias %15
-    %17: %r1 = alias %16
-    %18: %r0 = host host.field "length" host-range %17
-    %19: %r0 = convert %18
-    %20: %r0 = const 3
-    %21: %r10 = binary.eq %19, %20
-    %22: %r0 = const 1
-    %23: %r0 = const 0
-    %24: %r0 = select %21, %22, %23
-    %31: %r0 = const 2
-    %32: %r0 = binary.add %24, %31
-    %33: %r0 = coerce %32
-    %40: %r0 = const 5
-    %42: %r1 = const "xyz"
-    %45: %r1 = alias %42
-    %46: %r1 = alias %45
-    %47: %r1 = alias %46
-    %48: %r1 = alias %47
-    %49: %r0 = host host.field "length" host-range %48
-    %50: %r0 = convert %49
-    %51: %r0 = binary.add %40, %50
-    %52: %r0 = coerce %51
-    %53: %r0 = const 8
-    %54: %r10 = binary.eq %52, %53
-    %55: %r0 = const 4
-    %56: %r0 = const 0
-    %57: %r0 = select %54, %55, %56
-    %58: %r0 = binary.add %33, %57
-    %59: %r0 = coerce %58
-    %60: %r0 = const 1
-    %61: %r1 = const "a"
+    %15: %r0 = host host.field "length" host-range %14
+    %16: %r0 = convert %15
+    %17: %r0 = const 3
+    %18: %r10 = binary.eq %16, %17
+    %19: %r0 = const 1
+    %20: %r0 = const 0
+    %21: %r0 = select %18, %19, %20
+    %28: %r0 = const 2
+    %29: %r0 = binary.add %21, %28
+    %30: %r0 = coerce %29
+    %37: %r0 = const 5
+    %39: %r1 = const "xyz"
+    %42: %r1 = alias %39
+    %43: %r1 = alias %42
+    %44: %r1 = alias %43
+    %45: %r1 = alias %44
+    %46: %r0 = host host.field "length" host-range %45
+    %47: %r0 = convert %46
+    %48: %r0 = binary.add %37, %47
+    %49: %r0 = coerce %48
+    %50: %r0 = const 8
+    %51: %r10 = binary.eq %49, %50
+    %52: %r0 = const 4
+    %53: %r0 = const 0
+    %54: %r0 = select %51, %52, %53
+    %55: %r0 = binary.add %30, %54
+    %56: %r0 = coerce %55
+    %57: %r0 = const 1
+    %58: %r1 = const "a"
+    %59: %r2 = object %s0 %57, %58
+    %60: %r0 = const 2
+    %61: %r1 = const "b"
     %62: %r2 = object %s0 %60, %61
-    %63: %r0 = const 2
-    %64: %r1 = const "b"
-    %65: %r2 = object %s0 %63, %64
-    %66: %r3 = host host.array %62, %65
+    %63: %r3 = host host.array %59, %62
     jump -> block1
   block1:
-    %75: %r3 = alias %66
-    %77: %r0 = const 1
-    %78: %r0 = const 20
-    %79: %r2 = load element %75[%77]: %r2
-    store property %79.n: %r0, %78
-    jump -> block2
+    %72: %r3 = alias %63
+    %73: %r0 = const 1
+    %74: %r0 = const 20
+    %75: %r2 = load element %72[%73]: %r2
+    store property %75.n: %r0, %74
+    %65: %r3 = alias %63
+    %77: %r3 = alias %65
+    call Array(a).reclaim(R) %77
+    %78: %r0 = const 8
+    %79: %r0 = binary.add %56, %78
+    %80: %r0 = coerce %79
+    %92: %r0 = const 7
+    %93: %r1 = const "zz"
+    %97: %r1 = alias %93
+    %98: %r1 = alias %97
+    %99: %r1 = alias %98
+    %100: %r1 = alias %99
+    %101: %r0 = host host.field "length" host-range %100
+    %102: %r0 = convert %101
+    %103: %r0 = binary.add %92, %102
+    %104: %r0 = coerce %103
+    %105: %r0 = const 9
+    %106: %r10 = binary.eq %104, %105
+    %107: %r0 = const 16
+    %108: %r0 = const 0
+    %109: %r0 = select %106, %107, %108
+    %110: %r0 = binary.add %80, %109
+    %111: %r0 = coerce %110
+    %118: %r0 = const 32
+    %119: %r0 = binary.add %111, %118
+    %120: %r0 = coerce %119
+    %128: %r0 = const 1
+    %129: %r1 = const "a"
+    %130: %r2 = object %s0 %128, %129
+    %123: %r2 = alias %130
+    %132: %r0 = const 5
+    %134: %r2 = alias %123
+    store property %134.n: %r0, %132
+    %135: %r0 = load property %123.n: %r0
+    %136: %r0 = const 5
+    %137: %r10 = binary.eq %135, %136
+    %138: %r0 = const 64
+    %139: %r0 = const 0
+    %140: %r0 = select %137, %138, %139
+    %141: %r0 = binary.add %120, %140
+    %142: %r0 = coerce %141
+    %166: %r0 = const 896
+    %167: %r0 = binary.add %142, %166
+    %168: %r0 = coerce %167
+    %177: %r1 = const "abc"
+    %178: %r0 = const 5
+    %179: %r0 = const 0
+    %180: %r0 = const 0
+    %181: %r1 = const ""
+    %182: %r0 = const 0
+    %183: %r0 = const 0
+    %184: %r0 = const 0
+    %185: %r0 = const 0
+    %186: %r7 = object %s3 %179, %180, %181, %182, %183, %184, %185
+    %187: %r0 = const 0
+    %188: %r7 = alias %186
+    store property %188.$index: %r0, %187
+    %189: %r7 = alias %186
+    store property %189.source: %r1, %177
+    %190: %r7 = alias %186
+    store property %190.n: %r0, %178
+    %191: %r7 = alias %186
+    %192: %r0 = const 0
+    %196: %r7 = alias %191
+    %197: %r0 = load property %196.$index: %r0
+    %198: %r0 = const 1
+    %199: %r10 = binary.eq %197, %198
+    branch %199 -> block11 -> block9
   block2:
-    %85: %r3 = alias %66
-    %87: %r0 = const 1
-    %88: %r2 = load element %85[%87]: %r2
-    %89: %r0 = load property %88.n: %r0
-    %68: %r3 = alias %66
-    %90: %r3 = alias %68
-    call Array(a).reclaim(R) %90
-    %91: %r0 = const 20
-    %92: %r10 = binary.eq %89, %91
-    %93: %r0 = const 8
-    %94: %r0 = const 0
-    %95: %r0 = select %92, %93, %94
-    %96: %r0 = binary.add %59, %95
-    %97: %r0 = coerce %96
-    %109: %r0 = const 7
-    %110: %r1 = const "zz"
-    %114: %r1 = alias %110
-    %115: %r1 = alias %114
-    %116: %r1 = alias %115
-    %117: %r1 = alias %116
-    %118: %r0 = host host.field "length" host-range %117
-    %119: %r0 = convert %118
-    %120: %r0 = binary.add %109, %119
-    %121: %r0 = coerce %120
-    %122: %r0 = const 9
-    %123: %r10 = binary.eq %121, %122
-    %124: %r0 = const 16
-    %125: %r0 = const 0
-    %126: %r0 = select %123, %124, %125
-    %127: %r0 = binary.add %97, %126
-    %128: %r0 = coerce %127
-    %135: %r0 = const 32
-    %136: %r0 = binary.add %128, %135
-    %137: %r0 = coerce %136
-    %145: %r0 = const 1
-    %146: %r1 = const "a"
-    %147: %r2 = object %s0 %145, %146
-    %140: %r2 = alias %147
-    %149: %r0 = const 5
-    %151: %r2 = alias %140
-    store property %151.n: %r0, %149
-    %152: %r0 = load property %140.n: %r0
-    %153: %r0 = const 5
-    %154: %r10 = binary.eq %152, %153
-    %155: %r0 = const 64
-    %156: %r0 = const 0
-    %157: %r0 = select %154, %155, %156
-    %158: %r0 = binary.add %137, %157
-    %159: %r0 = coerce %158
-    %183: %r0 = const 896
-    %184: %r0 = binary.add %159, %183
-    %185: %r0 = coerce %184
-    %194: %r1 = const "abc"
-    %195: %r0 = const 5
-    %196: %r0 = const 0
-    %197: %r0 = const 0
-    %198: %r1 = const ""
-    %199: %r0 = const 0
-    %200: %r0 = const 0
-    %201: %r0 = const 0
-    %202: %r0 = const 0
-    %203: %r7 = object %s3 %196, %197, %198, %199, %200, %201, %202
-    %204: %r0 = const 0
-    %205: %r7 = alias %203
-    store property %205.$index: %r0, %204
-    %206: %r7 = alias %203
-    store property %206.source: %r1, %194
-    %207: %r7 = alias %203
-    store property %207.n: %r0, %195
-    %208: %r7 = alias %203
-    %209: %r0 = const 0
-    %213: %r7 = alias %208
-    %214: %r0 = load property %213.$index: %r0
-    %215: %r0 = const 1
-    %216: %r10 = binary.eq %214, %215
-    branch %216 -> block22 -> block20
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block3:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block4:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    jump -> block4(%192)
+  block4(%0: %r0):
+    %242: %r7 = alias %191
+    %243: %r0 = load property %242.$index: %r0
+    %244: %r0 = const 1
+    %245: %r10 = binary.eq %243, %244
+    branch %245 -> block17 -> block15
   block5:
-    %237: %r9 = const null
-    jump -> block6(%237)
-  block6(%0: %r9):
-    store var $9: %r9, %0
-    %254: %r9 = load var $9: %r9
-    %255: %r9 = const null
-    %256: %r16 = binary.eq %254, %255
-    %257: %r8 = const 1
-    %258: %r8 = const 0
-    %259: %r8 = select %256, %258, %257
-    %260: %r8 = const 1
-    %261: %r10 = binary.eq %259, %260
-    branch %261 -> block8 -> block7
+    jump -> block6(%0)
+  block6(%1: %r0):
+    %293: %r7 = alias %191
+    %294: %r0 = load property %293.$index: %r0
+    %295: %r0 = const 1
+    %296: %r10 = binary.eq %294, %295
+    branch %296 -> block23 -> block21
   block7:
-    jump -> block9(%209)
-  block8:
-    %263: %r0 = load var $9: %r0
-    jump -> block9(%263)
-  block9(%1: %r0):
-    %267: %r7 = alias %208
-    %268: %r0 = load property %267.$index: %r0
-    %269: %r0 = const 1
-    %270: %r10 = binary.eq %268, %269
-    branch %270 -> block28 -> block26
+    jump -> block8(%1)
+  block8(%2: %r0):
+    %341: %r0 = const 345
+    %342: %r10 = binary.eq %2, %341
+    %343: %r0 = const 1024
+    %344: %r0 = const 0
+    %345: %r0 = select %342, %343, %344
+    %346: %r0 = binary.add %168, %345
+    %347: %r0 = coerce %346
+    return %347
+  block9:
+    %200: %r0 = const 0
+    %201: %r10 = binary.eq %197, %200
+    branch %201 -> block10 -> block3
   block10:
-    %291: %r9 = const null
-    jump -> block11(%291)
-  block11(%2: %r9):
-    store var $10: %r9, %2
-    %308: %r9 = load var $10: %r9
-    %309: %r9 = const null
-    %310: %r16 = binary.eq %308, %309
-    %311: %r8 = const 1
-    %312: %r8 = const 0
-    %313: %r8 = select %310, %312, %311
-    %314: %r8 = const 1
-    %315: %r10 = binary.eq %313, %314
-    branch %315 -> block13 -> block12
-  block12:
-    jump -> block14(%1)
+    %202: %r7 = alias %191
+    %203: %r0 = load property %202.n: %r0
+    %204: %r0 = const 0
+    %205: %r0 = const 1
+    %206: %r7 = alias %191
+    store property %206.f4: %r0, %204
+    jump -> block12(%203, %205)
+  block11:
+    %207: %r7 = alias %191
+    %208: %r0 = load property %207.f5: %r0
+    %209: %r7 = alias %191
+    %210: %r0 = load property %209.f6: %r0
+    %211: %r7 = alias %191
+    %212: %r0 = load property %211.f4: %r0
+    %213: %r0 = binary.add %212, %210
+    %214: %r0 = coerce %213
+    store property %211.f4: %r0, %214
+    jump -> block12(%208, %210)
+  block12(%3: %r0, %4: %r0):
+    %215: %r7 = alias %191
+    %216: %r0 = load property %215.f4: %r0
+    %217: %r10 = binary.lt %216, %3
+    branch %217 -> block14 -> block13
   block13:
-    %317: %r0 = load var $10: %r0
-    %318: %r0 = const 10
-    %319: %r0 = binary.mul %1, %318
-    %320: %r0 = coerce %319
-    %321: %r0 = binary.add %320, %317
-    %322: %r0 = coerce %321
-    jump -> block14(%322)
-  block14(%3: %r0):
-    %326: %r7 = alias %208
-    %327: %r0 = load property %326.$index: %r0
-    %328: %r0 = const 1
-    %329: %r10 = binary.eq %327, %328
-    branch %329 -> block34 -> block32
+    %218: %r0 = const 2.147483647E9
+    %219: %r7 = alias %191
+    store property %219.$index: %r0, %218
+    jump -> block3
+  block14:
+    %221: %r7 = alias %191
+    %222: %r1 = load property %221.source: %r1
+    %223: %r1 = alias %222
+    %224: %r1 = alias %223
+    %225: %r1 = alias %224
+    %226: %r0 = host host.field "length" host-range %225
+    %227: %r0 = convert %226
+    %228: %r0 = binary.add %216, %227
+    %229: %r0 = coerce %228
+    %230: %r7 = alias %191
+    store property %230.$slot: %r0, %229
+    %231: %r7 = alias %191
+    store property %231.f5: %r0, %3
+    %232: %r7 = alias %191
+    store property %232.f6: %r0, %4
+    %233: %r0 = const 1
+    %234: %r7 = alias %191
+    store property %234.$index: %r0, %233
+    %235: %r0 = load property %230.$slot: %r0
+    %236: %r9 = alias %235
+    store var $9: %r9, %236
+    %238: %r0 = load var $9: %r0
+    jump -> block4(%238)
   block15:
-    %350: %r9 = const null
-    jump -> block16(%350)
-  block16(%4: %r9):
-    store var $11: %r9, %4
-    %367: %r9 = load var $11: %r9
-    %368: %r9 = const null
-    %369: %r16 = binary.eq %367, %368
-    %370: %r8 = const 1
-    %371: %r8 = const 0
-    %372: %r8 = select %369, %371, %370
-    %373: %r8 = const 1
-    %374: %r10 = binary.eq %372, %373
-    branch %374 -> block18 -> block17
+    %246: %r0 = const 0
+    %247: %r10 = binary.eq %243, %246
+    branch %247 -> block16 -> block5
+  block16:
+    %248: %r7 = alias %191
+    %249: %r0 = load property %248.n: %r0
+    %250: %r0 = const 0
+    %251: %r0 = const 1
+    %252: %r7 = alias %191
+    store property %252.f4: %r0, %250
+    jump -> block18(%249, %251)
   block17:
-    jump -> block19(%3)
-  block18:
-    %376: %r0 = load var $11: %r0
-    %377: %r0 = const 10
-    %378: %r0 = binary.mul %3, %377
-    %379: %r0 = coerce %378
-    %380: %r0 = binary.add %379, %376
-    %381: %r0 = coerce %380
-    jump -> block19(%381)
-  block19(%5: %r0):
-    %382: %r0 = const 345
-    %383: %r10 = binary.eq %5, %382
-    %384: %r0 = const 1024
-    %385: %r0 = const 0
-    %386: %r0 = select %383, %384, %385
-    %387: %r0 = binary.add %185, %386
-    %388: %r0 = coerce %387
-    return %388
-  block20:
-    %217: %r0 = const 0
-    %218: %r10 = binary.eq %214, %217
-    branch %218 -> block21 -> block5
-  block21:
-    %219: %r7 = alias %208
-    %220: %r0 = load property %219.n: %r0
-    %221: %r0 = const 0
-    %222: %r0 = const 1
-    %223: %r7 = alias %208
-    store property %223.f4: %r0, %221
-    jump -> block23(%220, %222)
-  block22:
-    %224: %r7 = alias %208
-    %225: %r0 = load property %224.f5: %r0
-    %226: %r7 = alias %208
-    %227: %r0 = load property %226.f6: %r0
-    %228: %r7 = alias %208
-    %229: %r0 = load property %228.f4: %r0
-    %230: %r0 = binary.add %229, %227
-    %231: %r0 = coerce %230
-    store property %228.f4: %r0, %231
-    jump -> block23(%225, %227)
-  block23(%6: %r0, %7: %r0):
-    %232: %r7 = alias %208
-    %233: %r0 = load property %232.f4: %r0
-    %234: %r10 = binary.lt %233, %6
-    branch %234 -> block25 -> block24
-  block24:
-    %235: %r0 = const 2.147483647E9
-    %236: %r7 = alias %208
-    store property %236.$index: %r0, %235
+    %253: %r7 = alias %191
+    %254: %r0 = load property %253.f5: %r0
+    %255: %r7 = alias %191
+    %256: %r0 = load property %255.f6: %r0
+    %257: %r7 = alias %191
+    %258: %r0 = load property %257.f4: %r0
+    %259: %r0 = binary.add %258, %256
+    %260: %r0 = coerce %259
+    store property %257.f4: %r0, %260
+    jump -> block18(%254, %256)
+  block18(%5: %r0, %6: %r0):
+    %261: %r7 = alias %191
+    %262: %r0 = load property %261.f4: %r0
+    %263: %r10 = binary.lt %262, %5
+    branch %263 -> block20 -> block19
+  block19:
+    %264: %r0 = const 2.147483647E9
+    %265: %r7 = alias %191
+    store property %265.$index: %r0, %264
     jump -> block5
+  block20:
+    %267: %r7 = alias %191
+    %268: %r1 = load property %267.source: %r1
+    %269: %r1 = alias %268
+    %270: %r1 = alias %269
+    %271: %r1 = alias %270
+    %272: %r0 = host host.field "length" host-range %271
+    %273: %r0 = convert %272
+    %274: %r0 = binary.add %262, %273
+    %275: %r0 = coerce %274
+    %276: %r7 = alias %191
+    store property %276.$slot: %r0, %275
+    %277: %r7 = alias %191
+    store property %277.f5: %r0, %5
+    %278: %r7 = alias %191
+    store property %278.f6: %r0, %6
+    %279: %r0 = const 1
+    %280: %r7 = alias %191
+    store property %280.$index: %r0, %279
+    %281: %r0 = load property %276.$slot: %r0
+    %282: %r9 = alias %281
+    store var $10: %r9, %282
+    %284: %r0 = load var $10: %r0
+    %285: %r0 = const 10
+    %286: %r0 = binary.mul %0, %285
+    %287: %r0 = coerce %286
+    %288: %r0 = binary.add %287, %284
+    %289: %r0 = coerce %288
+    jump -> block6(%289)
+  block21:
+    %297: %r0 = const 0
+    %298: %r10 = binary.eq %294, %297
+    branch %298 -> block22 -> block7
+  block22:
+    %299: %r7 = alias %191
+    %300: %r0 = load property %299.n: %r0
+    %301: %r0 = const 0
+    %302: %r0 = const 1
+    %303: %r7 = alias %191
+    store property %303.f4: %r0, %301
+    jump -> block24(%300, %302)
+  block23:
+    %304: %r7 = alias %191
+    %305: %r0 = load property %304.f5: %r0
+    %306: %r7 = alias %191
+    %307: %r0 = load property %306.f6: %r0
+    %308: %r7 = alias %191
+    %309: %r0 = load property %308.f4: %r0
+    %310: %r0 = binary.add %309, %307
+    %311: %r0 = coerce %310
+    store property %308.f4: %r0, %311
+    jump -> block24(%305, %307)
+  block24(%7: %r0, %8: %r0):
+    %312: %r7 = alias %191
+    %313: %r0 = load property %312.f4: %r0
+    %314: %r10 = binary.lt %313, %7
+    branch %314 -> block26 -> block25
   block25:
-    %238: %r7 = alias %208
-    %239: %r1 = load property %238.source: %r1
-    %240: %r1 = alias %239
-    %241: %r1 = alias %240
-    %242: %r1 = alias %241
-    %243: %r0 = host host.field "length" host-range %242
-    %244: %r0 = convert %243
-    %245: %r0 = binary.add %233, %244
-    %246: %r0 = coerce %245
-    %247: %r7 = alias %208
-    store property %247.$slot: %r0, %246
-    %248: %r7 = alias %208
-    store property %248.f5: %r0, %6
-    %249: %r7 = alias %208
-    store property %249.f6: %r0, %7
-    %250: %r0 = const 1
-    %251: %r7 = alias %208
-    store property %251.$index: %r0, %250
-    %252: %r0 = load property %247.$slot: %r0
-    %253: %r9 = alias %252
-    jump -> block6(%253)
+    %315: %r0 = const 2.147483647E9
+    %316: %r7 = alias %191
+    store property %316.$index: %r0, %315
+    jump -> block7
   block26:
-    %271: %r0 = const 0
-    %272: %r10 = binary.eq %268, %271
-    branch %272 -> block27 -> block10
-  block27:
-    %273: %r7 = alias %208
-    %274: %r0 = load property %273.n: %r0
-    %275: %r0 = const 0
-    %276: %r0 = const 1
-    %277: %r7 = alias %208
-    store property %277.f4: %r0, %275
-    jump -> block29(%274, %276)
-  block28:
-    %278: %r7 = alias %208
-    %279: %r0 = load property %278.f5: %r0
-    %280: %r7 = alias %208
-    %281: %r0 = load property %280.f6: %r0
-    %282: %r7 = alias %208
-    %283: %r0 = load property %282.f4: %r0
-    %284: %r0 = binary.add %283, %281
-    %285: %r0 = coerce %284
-    store property %282.f4: %r0, %285
-    jump -> block29(%279, %281)
-  block29(%8: %r0, %9: %r0):
-    %286: %r7 = alias %208
-    %287: %r0 = load property %286.f4: %r0
-    %288: %r10 = binary.lt %287, %8
-    branch %288 -> block31 -> block30
-  block30:
-    %289: %r0 = const 2.147483647E9
-    %290: %r7 = alias %208
-    store property %290.$index: %r0, %289
-    jump -> block10
-  block31:
-    %292: %r7 = alias %208
-    %293: %r1 = load property %292.source: %r1
-    %294: %r1 = alias %293
-    %295: %r1 = alias %294
-    %296: %r1 = alias %295
-    %297: %r0 = host host.field "length" host-range %296
-    %298: %r0 = convert %297
-    %299: %r0 = binary.add %287, %298
-    %300: %r0 = coerce %299
-    %301: %r7 = alias %208
-    store property %301.$slot: %r0, %300
-    %302: %r7 = alias %208
-    store property %302.f5: %r0, %8
-    %303: %r7 = alias %208
-    store property %303.f6: %r0, %9
-    %304: %r0 = const 1
-    %305: %r7 = alias %208
-    store property %305.$index: %r0, %304
-    %306: %r0 = load property %301.$slot: %r0
-    %307: %r9 = alias %306
-    jump -> block11(%307)
-  block32:
-    %330: %r0 = const 0
-    %331: %r10 = binary.eq %327, %330
-    branch %331 -> block33 -> block15
-  block33:
-    %332: %r7 = alias %208
-    %333: %r0 = load property %332.n: %r0
-    %334: %r0 = const 0
-    %335: %r0 = const 1
-    %336: %r7 = alias %208
-    store property %336.f4: %r0, %334
-    jump -> block35(%333, %335)
-  block34:
-    %337: %r7 = alias %208
-    %338: %r0 = load property %337.f5: %r0
-    %339: %r7 = alias %208
-    %340: %r0 = load property %339.f6: %r0
-    %341: %r7 = alias %208
-    %342: %r0 = load property %341.f4: %r0
-    %343: %r0 = binary.add %342, %340
-    %344: %r0 = coerce %343
-    store property %341.f4: %r0, %344
-    jump -> block35(%338, %340)
-  block35(%10: %r0, %11: %r0):
-    %345: %r7 = alias %208
-    %346: %r0 = load property %345.f4: %r0
-    %347: %r10 = binary.lt %346, %10
-    branch %347 -> block37 -> block36
-  block36:
-    %348: %r0 = const 2.147483647E9
-    %349: %r7 = alias %208
-    store property %349.$index: %r0, %348
-    jump -> block15
-  block37:
-    %351: %r7 = alias %208
-    %352: %r1 = load property %351.source: %r1
-    %353: %r1 = alias %352
-    %354: %r1 = alias %353
-    %355: %r1 = alias %354
-    %356: %r0 = host host.field "length" host-range %355
-    %357: %r0 = convert %356
-    %358: %r0 = binary.add %346, %357
-    %359: %r0 = coerce %358
-    %360: %r7 = alias %208
-    store property %360.$slot: %r0, %359
-    %361: %r7 = alias %208
-    store property %361.f5: %r0, %10
-    %362: %r7 = alias %208
-    store property %362.f6: %r0, %11
-    %363: %r0 = const 1
-    %364: %r7 = alias %208
-    store property %364.$index: %r0, %363
-    %365: %r0 = load property %360.$slot: %r0
-    %366: %r9 = alias %365
-    jump -> block16(%366)
+    %318: %r7 = alias %191
+    %319: %r1 = load property %318.source: %r1
+    %320: %r1 = alias %319
+    %321: %r1 = alias %320
+    %322: %r1 = alias %321
+    %323: %r0 = host host.field "length" host-range %322
+    %324: %r0 = convert %323
+    %325: %r0 = binary.add %313, %324
+    %326: %r0 = coerce %325
+    %327: %r7 = alias %191
+    store property %327.$slot: %r0, %326
+    %328: %r7 = alias %191
+    store property %328.f5: %r0, %7
+    %329: %r7 = alias %191
+    store property %329.f6: %r0, %8
+    %330: %r0 = const 1
+    %331: %r7 = alias %191
+    store property %331.$index: %r0, %330
+    %332: %r0 = load property %327.$slot: %r0
+    %333: %r9 = alias %332
+    store var $11: %r9, %333
+    %335: %r0 = load var $11: %r0
+    %336: %r0 = const 10
+    %337: %r0 = binary.mul %1, %336
+    %338: %r0 = coerce %337
+    %339: %r0 = binary.add %338, %335
+    %340: %r0 = coerce %339
+    jump -> block8(%340)
 
 fn Array(a).reclaim(R)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 137 adopted 1 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 7 promoted 48 folded 10
+optimizer clones 0 aliased 0 forwarded 0 removed 137 adopted 1 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 7 promoted 48 folded 3
 
 shape %s0 object R {n: %r0, s: %r1}
 shape %s1 object P {r: %r2, k: %r0}
@@ -440,5 +382,4 @@ rep %r12 = object %s4
 rep %r13 = parts (%r3, %r0, %r0) as %r12
 rep %r14 = number unsigned 32
 rep %r15 = object %s5
-rep %r16 = boolean
-rep %r17 = array Int32Array of %r0
+rep %r16 = array Int32Array of %r0

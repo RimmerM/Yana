@@ -24,17 +24,17 @@ function idsOf(c) {
 }
 
 function main() {
-  var v22 = sum({ $tag: 1, head: 1, tail: { $tag: 1, head: 2, tail: { $tag: 1, head: 39, tail: { $tag: 0, head: 0, tail: { $tag: 0, head: 0, tail: null } } } } });
-  var v70 = { $tag: 1, Leaf: 0, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: { $tag: 0, Just: null }, right: { $tag: 0, Just: null }, label: 0 } }, right: { $tag: 1, Just: { $tag: 0, Leaf: 20, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, right: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, label: 0 } }, label: 5 };
-  var v92 = { $tag: 1, Just: { $tag: 0, Leaf: 10, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, right: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, label: 0 } };
-  var v145 = v22 + (total({ $tag: 1, Leaf: 0, left: v92, right: { $tag: 1, Just: v70 }, label: 7 }) + total(v92.$tag === 0 ? { $tag: 0, Leaf: 0, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, right: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, label: 0 } : v92.Just) | 0) | 0;
-  var v152 = liveNodes;
-  liveNodes = v152 + 1 | 0;
-  liveNodes = v152 + 2 | 0;
-  var v171 = { $tag: 1, payload: 4, rest: { $tag: 1, payload: 5, rest: { $tag: 0, payload: 0, rest: { $tag: 0, payload: 0, rest: null } } } };
-  var v172 = idsOf(v171);
-  $td$Chain(v171);
-  return liveNodes ? -1 : v145 + v172 | 0;
+  var v20 = sum({ $tag: 1, head: 1, tail: { $tag: 1, head: 2, tail: { $tag: 1, head: 39, tail: { $tag: 0, head: 0, tail: { $tag: 0, head: 0, tail: null } } } } });
+  var v68 = { $tag: 1, Leaf: 0, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: { $tag: 0, Just: null }, right: { $tag: 0, Just: null }, label: 0 } }, right: { $tag: 1, Just: { $tag: 0, Leaf: 20, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, right: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, label: 0 } }, label: 5 };
+  var v90 = { $tag: 1, Just: { $tag: 0, Leaf: 10, left: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, right: { $tag: 0, Just: { $tag: 0, Leaf: 0, left: null, right: null, label: 0 } }, label: 0 } };
+  var v125 = v20 + (total({ $tag: 1, Leaf: 0, left: v90, right: { $tag: 1, Just: v68 }, label: 7 }) + total(v90.Just) | 0) | 0;
+  var v132 = liveNodes;
+  liveNodes = v132 + 1 | 0;
+  liveNodes = v132 + 2 | 0;
+  var v151 = { $tag: 1, payload: 4, rest: { $tag: 1, payload: 5, rest: { $tag: 0, payload: 0, rest: { $tag: 0, payload: 0, rest: null } } } };
+  var v152 = idsOf(v151);
+  $td$Chain(v151);
+  return liveNodes ? -1 : v125 + v152 | 0;
 }
 
 function $td$Chain(a0) {
@@ -43,4 +43,4 @@ function $td$Chain(a0) {
     $td$Chain(a0.rest);
   }
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

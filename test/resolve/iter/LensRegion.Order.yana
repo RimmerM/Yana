@@ -1,0 +1,64 @@
+{-
+   A lens region inside an object whose lens is **declared after the consumer** that mints it.
+
+   An object is minted while the consumer's body is read, and the producer's body is demanded then -
+   but the lens its region runs was specialized by `callTarget` (a lens is generic in its `$r`) before
+   anything had built the lens's body, so the clone kept no body and `checkSpecialization` reported
+   "the specialization around(I32) of around does not share its generic's body". A lens that is an
+   instance's member was "has no body to step" in the same position, because nothing could build an
+   instance member's body ahead of the body walk. Both are demanded where the nest is found (J188).
+
+   Every declaration below `main` is used by it: a plain lens, a generic one, and a class member.
+-}
+
+let &trace = 0 :: I32
+
+fn main() -> I32:
+    let &sum = 0 :: I32
+
+    let &plain = counted(3)
+    for x in plain:
+        sum = sum + x
+
+    let &generic = scaled(3)
+    for x in generic:
+        sum = sum + x
+
+    let &member = viaClass(Tracer {step: 5}, 2)
+    for x in member:
+        sum = sum + x
+
+    return trace + 1000 * sum
+
+iter fn counted(n: I32) -> I32:
+    for i in 0 .. n:
+        around():
+            yield i
+
+iter fn scaled(n: I32) -> I32:
+    for i in 0 .. n:
+        let v = doubled(i) in:
+            yield v
+
+iter fn (Traced(t)) viaClass(tracer: t, n: I32) -> I32:
+    for i in 0 .. n:
+        tracer.bracket():
+            yield i * 100
+
+lens fn around():
+    trace = trace + 1
+    yield {}
+    trace = trace + 10
+
+lens fn (Num(a)) doubled(x: a) -> a:
+    yield x + x
+
+data Tracer {step: I32}
+
+class Traced(t):
+    lens fn bracket(self: t)
+
+instance Traced(Tracer):
+    lens fn bracket(self: Tracer):
+        yield {}
+        trace = trace + self.step * 100

@@ -104,12 +104,12 @@ bb0:
   write.init borrow.unique (c) take %4
   %6: Config [shared call] = read borrow.shared (c) loan0
   lens.call levelIn(I32) borrow.shared %6 -> bb1
+  leave: drop (c)
 
 bb1(%7: I32 [shared call]) handover(I32 [shared call]):
   write.init borrow.unique (v) borrow.shared %7
   %10: I32 = read copy.trivial (v)
   %11: I32 = read copy.trivial (c.cold.count)
-  drop (c)
   %12: I32 = add inspect %10 inspect %11
   return take %12
 }

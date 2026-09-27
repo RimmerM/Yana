@@ -43,4 +43,4 @@ function $ctz64(v) {
   var l = Number(v & 4294967295n);
   return BigInt(l ? $ctz32(l) : 32 + $ctz32(Number(v >> 32n & 4294967295n)));
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

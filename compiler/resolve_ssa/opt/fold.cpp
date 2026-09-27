@@ -303,6 +303,16 @@ struct Folder {
     DeclPtr<mir::Type> resultType() { return opt.base[inst.results.get(opt.base, 0)]->type(); }
 
     Value* operand(Use used) { return valueOf(opt, used); }
+
+    // The `add` an operand is the result of, at the operand's own type, or null.
+    InstBinary* addedTo(Use used) {
+        auto value = valueOf(opt, used);
+        if(!value || !value->definer) return nullptr;
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Binary || ((InstBinary*)definer)->op != BinaryOp::Add) return nullptr;
+        return (InstBinary*)definer;
+    }
     DeclPtr<mir::Type> typeOf(Use used) { return operand(used)->type(); }
 
     /*
@@ -563,6 +573,17 @@ struct Folder {
             case BinaryOp::Sub:
                 if(isConstantValue(opt, binary.rhs, 0)) return operand(binary.lhs);
                 if(sameOperand(binary.lhs, binary.rhs)) return zero();
+
+                /*
+                 * `(x + y) - x` is `y`, exactly, since both operations wrap at one width. What makes
+                 * it worth a rule is a subslice: `xs[at .. at + n]` computes its length as `end -
+                 * start`, and once the clamps are decided (`opt/bounds.cpp`, J191) that is `(at + n)
+                 * - at` - the `n` the caller asked for, which is what a check on the view compares.
+                 */
+                if(auto added = addedTo(binary.lhs)) {
+                    if(sameOperand(added->lhs, binary.rhs)) return operand(added->rhs);
+                    if(sameOperand(added->rhs, binary.rhs)) return operand(added->lhs);
+                }
                 break;
             case BinaryOp::Mul:
                 if(isConstantValue(opt, binary.rhs, 1)) return operand(binary.lhs);

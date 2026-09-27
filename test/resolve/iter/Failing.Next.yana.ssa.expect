@@ -1,0 +1,1549 @@
+module ResolveTest
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+let string: [CodeUnit *3] = "at "
+
+let string'189: [CodeUnit *4] = "at 2"
+
+iter tagged.Iter of tagged {
+  $index: I32
+  $slot: I32
+  n: I32
+  failAt: I32
+  i: I32 across 0
+  $failure: Outcome(I32, Tag) across none
+}
+
+iter upTo.Iter of upTo {
+  $index: I32
+  $slot: I32
+  n: I32
+  failAt: I32
+  i: I32 across 0
+  #: String across 0
+  #: String across 0
+  $failure: Outcome(I32, String) across none
+}
+
+iter walk.Iter of walk {
+  $index: I32
+  $slot: I32
+  start: I32
+  $yielded: I32 across 0
+  at: I32 across 0
+  $failure: Outcome(I32, Tag) across none
+}
+
+fn note(digit: I64 [shared call]) -> {} {
+bb0(%0: I64 trivial):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: %I64 address = global.addr trace
+  %3: I64 trivial = load inspect %2
+  %4: I64 trivial = const 10
+  %5: I64 trivial = mul inspect %3 inspect %4
+  %6: I64 trivial = load inspect %1
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: %I64 address = global.addr trace
+  store inspect %8 consume %7
+  return
+}
+
+fn expect(case: I32 [shared call], want: I64 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I64 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I64 address = alloc frame I64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: %I64 address = global.addr trace
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = load inspect %3
+  %7: Bool trivial = ne inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I64 trivial = const 0
+  %9: %I64 address = global.addr trace
+  store inspect %9 consume %8
+  return
+
+bb3:
+  %10: %I32 address = global.addr failures
+  %11: I32 [unique call] guaranteed = load inspect %10
+  %12: I32 trivial = load inspect %2
+  call +=(I32) borrow %11 borrow %12
+  jump -> bb2
+}
+
+fn Tag.drop(value: Tag) -> {} {
+bb0(%0: Tag owned):
+  %1: %Tag address = alloc frame Tag
+  store inspect %1 consume %0
+  %2: I64 trivial = const 9
+  call note borrow %2
+  %3: %I32 address = field.addr .id inspect %1
+  %4: I32 trivial = load inspect %3
+  %5: I64 trivial = convert inspect %4
+  call note borrow %5
+  return
+}
+
+fn upTo(n: I32 [shared call], failAt: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, String) = <no body>
+
+fn tagged(n: I32 [shared call], failAt: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Tag) = <no body>
+
+fn walk(start: I32 [shared call], $body: (I32) -> Outcome(I32, I32) [shared call]) -> Outcome(I32, Tag) = <no body>
+
+fn drain(it: s [unique call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %upTo.Iter address = alloc frame upTo.Iter
+  %1: %upTo.Iter address = alloc frame upTo.Iter
+  %2: %tagged.Iter address = alloc frame tagged.Iter
+  %3: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %4: %I32 address = alloc frame I32
+  %5: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %6: %I32 address = alloc frame I32
+  %7: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %8: %tagged.Iter address = alloc frame tagged.Iter
+  %9: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %10: %walk.Iter address = alloc frame walk.Iter
+  %11: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %12: %I32 address = alloc frame I32
+  %13: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %14: %I32 address = alloc frame I32
+  %15: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %16: %I32 address = alloc frame I32
+  %17: %tagged.Iter address = alloc frame tagged.Iter
+  %18: %I32 address = alloc frame I32
+  %19: %Holder address = alloc frame Holder
+  %20: I32 trivial = const 5
+  %21: I32 trivial = const 2
+  %22: upTo.Iter owned = call upTo$new consume %20 consume %21
+  store inspect %0 consume %22
+  %23: upTo.Iter [unique call] guaranteed from{%0} = load inspect %0
+  call show'2 borrow %23
+  %24: upTo.Iter [unique call] guaranteed from{%0} = load inspect %0
+  call show'2 borrow %24
+  %25: upTo.Iter [unique call] guaranteed from{%0} = load inspect %0
+  call show'2 borrow %25
+  %26: upTo.Iter [unique call] guaranteed from{%0} = load inspect %0
+  call show'2 borrow %26
+  %27: upTo.Iter [unique call] guaranteed from{%0} = load inspect %0
+  call show'2 borrow %27
+  drop upTo.Iter inspect %0
+  %28: I32 trivial = const 1
+  %29: I64 trivial = const 1788
+  call expect borrow %28 borrow %29
+  %30: I32 trivial = const 2
+  %31: I32 trivial = const 9
+  %32: upTo.Iter owned = call upTo$new consume %30 consume %31
+  store inspect %1 consume %32
+  %33: upTo.Iter [unique call] guaranteed from{%1} = load inspect %1
+  call show'2 borrow %33
+  %34: upTo.Iter [unique call] guaranteed from{%1} = load inspect %1
+  call show'2 borrow %34
+  %35: upTo.Iter [unique call] guaranteed from{%1} = load inspect %1
+  call show'2 borrow %35
+  drop upTo.Iter inspect %1
+  %36: I32 trivial = const 2
+  %37: I64 trivial = const 18
+  call expect borrow %36 borrow %37
+  %38: I32 trivial = const 5
+  %39: I32 trivial = const 1
+  %40: tagged.Iter owned = call tagged$new consume %38 consume %39
+  store inspect %2 consume %40
+  %41: tagged.Iter [unique slot 0] guaranteed from{%2} = load inspect %2
+  %42: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call tagged$next borrow %41
+  store inspect %3 consume %42
+  %43: %U8 address = field.addr .# inspect %3
+  %44: U8 trivial = load inspect %43
+  %45: U8 trivial = const 0
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb4 -> bb1
+
+bb1:
+  %47: %U8 address = field.addr .# inspect %3
+  %48: U8 trivial = load inspect %47
+  %49: U8 trivial = const 1
+  %50: Bool trivial = eq inspect %48 inspect %49
+  branch inspect %50 -> bb5 -> bb2
+
+bb2:
+  %51: %Tag address = field.addr .Failed inspect %3
+  %52: Tag [shared call] guaranteed from{%3} = load inspect %51
+  %53: %U8 address = field.addr .# inspect %3
+  %54: U8 trivial = load inspect %53
+  %55: U8 trivial = const 2
+  %56: Bool trivial = eq inspect %54 inspect %55
+  branch inspect %56 -> bb25 -> bb26
+
+bb3:
+  %59: tagged.Iter [unique slot 0] guaranteed from{%2} = load inspect %2
+  %60: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call tagged$next borrow %59
+  store inspect %5 consume %60
+  %61: %U8 address = field.addr .# inspect %5
+  %62: U8 trivial = load inspect %61
+  %63: U8 trivial = const 0
+  %64: Bool trivial = eq inspect %62 inspect %63
+  branch inspect %64 -> bb9 -> bb6
+
+bb4:
+  %65: %I32 address = field.addr .Yield inspect %3
+  %66: %I32 address = load inspect %65
+  %67: I32 trivial = load inspect %66
+  %68: %U8 address = field.addr .# inspect %3
+  %69: U8 trivial = load inspect %68
+  %70: U8 trivial = const 2
+  %71: Bool trivial = eq inspect %69 inspect %70
+  branch inspect %71 -> bb27 -> bb28
+
+bb5:
+  %75: %U8 address = field.addr .# inspect %3
+  %76: U8 trivial = load inspect %75
+  %77: U8 trivial = const 2
+  %78: Bool trivial = eq inspect %76 inspect %77
+  branch inspect %78 -> bb29 -> bb30
+
+bb6:
+  %81: %U8 address = field.addr .# inspect %5
+  %82: U8 trivial = load inspect %81
+  %83: U8 trivial = const 1
+  %84: Bool trivial = eq inspect %82 inspect %83
+  branch inspect %84 -> bb10 -> bb7
+
+bb7:
+  %85: %Tag address = field.addr .Failed inspect %5
+  %86: Tag [shared call] guaranteed from{%5} = load inspect %85
+  %87: I64 trivial = const 7
+  call note borrow %87
+  %88: %I32 address = field.addr .id inspect %86
+  %89: I32 trivial = load inspect %88
+  %90: %U8 address = field.addr .# inspect %5
+  %91: U8 trivial = load inspect %90
+  %92: U8 trivial = const 2
+  %93: Bool trivial = eq inspect %91 inspect %92
+  branch inspect %93 -> bb31 -> bb32
+
+bb8:
+  %96: tagged.Iter [unique slot 0] guaranteed from{%2} = load inspect %2
+  %97: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call tagged$next borrow %96
+  store inspect %7 consume %97
+  %98: %U8 address = field.addr .# inspect %7
+  %99: U8 trivial = load inspect %98
+  %100: %U8 address = field.addr .# inspect %7
+  %101: U8 trivial = load inspect %100
+  %102: U8 trivial = const 2
+  %103: Bool trivial = eq inspect %101 inspect %102
+  branch inspect %103 -> bb33 -> bb34
+
+bb9:
+  %107: %I32 address = field.addr .Yield inspect %5
+  %108: %I32 address = load inspect %107
+  %109: I32 trivial = load inspect %108
+  %110: %U8 address = field.addr .# inspect %5
+  %111: U8 trivial = load inspect %110
+  %112: U8 trivial = const 2
+  %113: Bool trivial = eq inspect %111 inspect %112
+  branch inspect %113 -> bb35 -> bb36
+
+bb10:
+  %117: %U8 address = field.addr .# inspect %5
+  %118: U8 trivial = load inspect %117
+  %119: U8 trivial = const 2
+  %120: Bool trivial = eq inspect %118 inspect %119
+  branch inspect %120 -> bb37 -> bb38
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %123: I32 trivial = const 4
+  %124: I64 trivial = const 79118
+  call expect borrow %123 borrow %124
+  %125: I32 trivial = const 3
+  %126: I32 trivial = const 0
+  %127: tagged.Iter owned = call tagged$new consume %125 consume %126
+  store inspect %8 consume %127
+  %128: tagged.Iter [unique slot 0] guaranteed from{%8} = load inspect %8
+  %129: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call tagged$next borrow %128
+  store inspect %9 consume %129
+  %130: %U8 address = field.addr .# inspect %9
+  %131: U8 trivial = load inspect %130
+  %132: U8 trivial = const 2
+  %133: Bool trivial = eq inspect %131 inspect %132
+  branch inspect %133 -> bb39 -> bb40
+
+bb13:
+  %147: I64 trivial = const 8
+  call note borrow %147
+  jump -> bb12
+
+bb14:
+  %148: %U8 address = field.addr .# inspect %11
+  %149: U8 trivial = load inspect %148
+  %150: U8 trivial = const 2
+  %151: Bool trivial = eq inspect %149 inspect %150
+  branch inspect %151 -> bb41 -> bb42
+
+bb15:
+  %153: walk.Iter [unique slot 0] guaranteed from{%10} = load inspect %10
+  %154: I32 trivial = const 2
+  %155: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call walk$resume borrow %153 consume %154
+  store inspect %13 consume %155
+  %156: %U8 address = field.addr .# inspect %13
+  %157: U8 trivial = load inspect %156
+  %158: U8 trivial = const 0
+  %159: Bool trivial = eq inspect %157 inspect %158
+  branch inspect %159 -> bb19 -> bb17
+
+bb16:
+  %160: %I32 address = field.addr .Yield inspect %11
+  %161: %I32 address = load inspect %160
+  %162: I32 trivial = load inspect %161
+  %163: %U8 address = field.addr .# inspect %11
+  %164: U8 trivial = load inspect %163
+  %165: U8 trivial = const 2
+  %166: Bool trivial = eq inspect %164 inspect %165
+  branch inspect %166 -> bb43 -> bb44
+
+bb17:
+  %170: %U8 address = field.addr .# inspect %13
+  %171: U8 trivial = load inspect %170
+  %172: U8 trivial = const 2
+  %173: Bool trivial = eq inspect %171 inspect %172
+  branch inspect %173 -> bb45 -> bb46
+
+bb18:
+  %175: walk.Iter [unique slot 0] guaranteed from{%10} = load inspect %10
+  %176: I32 trivial = const -1
+  %177: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call walk$resume borrow %175 consume %176
+  store inspect %15 consume %177
+  %178: %U8 address = field.addr .# inspect %15
+  %179: U8 trivial = load inspect %178
+  %180: U8 trivial = const 0
+  %181: Bool trivial = eq inspect %179 inspect %180
+  branch inspect %181 -> bb23 -> bb20
+
+bb19:
+  %182: %I32 address = field.addr .Yield inspect %13
+  %183: %I32 address = load inspect %182
+  %184: I32 trivial = load inspect %183
+  %185: %U8 address = field.addr .# inspect %13
+  %186: U8 trivial = load inspect %185
+  %187: U8 trivial = const 2
+  %188: Bool trivial = eq inspect %186 inspect %187
+  branch inspect %188 -> bb47 -> bb48
+
+bb20:
+  %192: %U8 address = field.addr .# inspect %15
+  %193: U8 trivial = load inspect %192
+  drop walk.Iter inspect %10
+  %194: U8 trivial = const 1
+  %195: Bool trivial = eq inspect %193 inspect %194
+  branch inspect %195 -> bb24 -> bb21
+
+bb21:
+  %196: %Tag address = field.addr .Failed inspect %15
+  %197: Tag [shared call] guaranteed from{%15} = load inspect %196
+  %198: %U8 address = field.addr .# inspect %15
+  %199: U8 trivial = load inspect %198
+  %200: U8 trivial = const 2
+  %201: Bool trivial = eq inspect %199 inspect %200
+  branch inspect %201 -> bb49 -> bb50
+
+bb22:
+  %204: I32 trivial = const 16
+  %205: I64 trivial = const 13947
+  call expect borrow %204 borrow %205
+  %206: I32 trivial = const 4
+  %207: I32 trivial = const 2
+  %208: tagged.Iter owned = call tagged$new consume %206 consume %207
+  store inspect %17 consume %208
+  %209: tagged.Iter [unique call] guaranteed from{%17} = load inspect %17
+  %210: I32 trivial = call drain(tagged.Iter) borrow %209
+  drop tagged.Iter inspect %17
+  store inspect %18 consume %210
+  %211: I32 trivial = load inspect %18
+  %212: I64 trivial = convert inspect %211
+  call note borrow %212
+  %213: I32 trivial = const 32
+  %214: I64 trivial = const 179222
+  call expect borrow %213 borrow %214
+  %215: I32 trivial = const 2
+  %216: I32 trivial = const 9
+  %217: tagged.Iter owned = call tagged$new consume %215 consume %216
+  %218: I32 trivial = const 6
+  %219: Holder owned = aggregate.Holder consume %217 consume %218
+  store inspect %19 consume %219
+  %220: %tagged.Iter address = field.addr .source inspect %19
+  %221: tagged.Iter [unique call] guaranteed from{%19} = load inspect %220
+  %222: I32 trivial = call drain(tagged.Iter) borrow %221
+  drop Holder inspect %19
+  %223: I64 trivial = convert inspect %222
+  call note borrow %223
+  %224: I32 trivial = const 64
+  %225: I64 trivial = const 182
+  call expect borrow %224 borrow %225
+  %226: %I32 address = global.addr failures
+  %227: I32 trivial = load inspect %226
+  return consume %227
+
+bb23:
+  %228: %I32 address = field.addr .Yield inspect %15
+  %229: %I32 address = load inspect %228
+  %230: I32 trivial = load inspect %229
+  %231: %U8 address = field.addr .# inspect %15
+  %232: U8 trivial = load inspect %231
+  %233: U8 trivial = const 2
+  %234: Bool trivial = eq inspect %232 inspect %233
+  branch inspect %234 -> bb51 -> bb52
+
+bb24:
+  %238: %U8 address = field.addr .# inspect %15
+  %239: U8 trivial = load inspect %238
+  %240: U8 trivial = const 2
+  %241: Bool trivial = eq inspect %239 inspect %240
+  branch inspect %241 -> bb53 -> bb54
+
+bb25 cleanup:
+  %57: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %57
+  jump -> bb26
+
+bb26:
+  %58: I64 trivial = const 1
+  call note borrow %58
+  jump -> bb3
+
+bb27 cleanup:
+  %72: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %72
+  jump -> bb28
+
+bb28:
+  store inspect %4 consume %67
+  %73: I32 trivial = load inspect %4
+  %74: I64 trivial = convert inspect %73
+  call note borrow %74
+  jump -> bb3
+
+bb29 cleanup:
+  %79: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %79
+  jump -> bb30
+
+bb30:
+  %80: I64 trivial = const 8
+  call note borrow %80
+  jump -> bb3
+
+bb31 cleanup:
+  %94: %Tag address = field.addr .Failed inspect %5
+  drop Tag inspect %94
+  jump -> bb32
+
+bb32:
+  %95: I64 trivial = convert inspect %89
+  call note borrow %95
+  jump -> bb8
+
+bb33 cleanup:
+  %104: %Tag address = field.addr .Failed inspect %7
+  drop Tag inspect %104
+  jump -> bb34
+
+bb34:
+  drop tagged.Iter inspect %2
+  %105: U8 trivial = const 1
+  %106: Bool trivial = eq inspect %99 inspect %105
+  branch inspect %106 -> bb13 -> bb11
+
+bb35 cleanup:
+  %114: %Tag address = field.addr .Failed inspect %5
+  drop Tag inspect %114
+  jump -> bb36
+
+bb36:
+  store inspect %6 consume %109
+  %115: I32 trivial = load inspect %6
+  %116: I64 trivial = convert inspect %115
+  call note borrow %116
+  jump -> bb8
+
+bb37 cleanup:
+  %121: %Tag address = field.addr .Failed inspect %5
+  drop Tag inspect %121
+  jump -> bb38
+
+bb38:
+  %122: I64 trivial = const 8
+  call note borrow %122
+  jump -> bb8
+
+bb39 cleanup:
+  %134: %Tag address = field.addr .Failed inspect %9
+  drop Tag inspect %134
+  jump -> bb40
+
+bb40:
+  drop tagged.Iter inspect %8
+  %135: I64 trivial = const 3
+  call note borrow %135
+  %136: I32 trivial = const 8
+  %137: I64 trivial = const 903
+  call expect borrow %136 borrow %137
+  %138: I32 trivial = const 1
+  %139: walk.Iter owned = call walk$new consume %138
+  store inspect %10 consume %139
+  %140: walk.Iter [unique slot 0] guaranteed from{%10} = load inspect %10
+  %141: I32 trivial = const 0
+  %142: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call walk$resume borrow %140 consume %141
+  store inspect %11 consume %142
+  %143: %U8 address = field.addr .# inspect %11
+  %144: U8 trivial = load inspect %143
+  %145: U8 trivial = const 0
+  %146: Bool trivial = eq inspect %144 inspect %145
+  branch inspect %146 -> bb16 -> bb14
+
+bb41 cleanup:
+  %152: %Tag address = field.addr .Failed inspect %11
+  drop Tag inspect %152
+  jump -> bb42
+
+bb42:
+  jump -> bb15
+
+bb43 cleanup:
+  %167: %Tag address = field.addr .Failed inspect %11
+  drop Tag inspect %167
+  jump -> bb44
+
+bb44:
+  store inspect %12 consume %162
+  %168: I32 trivial = load inspect %12
+  %169: I64 trivial = convert inspect %168
+  call note borrow %169
+  jump -> bb15
+
+bb45 cleanup:
+  %174: %Tag address = field.addr .Failed inspect %13
+  drop Tag inspect %174
+  jump -> bb46
+
+bb46:
+  jump -> bb18
+
+bb47 cleanup:
+  %189: %Tag address = field.addr .Failed inspect %13
+  drop Tag inspect %189
+  jump -> bb48
+
+bb48:
+  store inspect %14 consume %184
+  %190: I32 trivial = load inspect %14
+  %191: I64 trivial = convert inspect %190
+  call note borrow %191
+  jump -> bb18
+
+bb49 cleanup:
+  %202: %Tag address = field.addr .Failed inspect %15
+  drop Tag inspect %202
+  jump -> bb50
+
+bb50:
+  %203: I64 trivial = const 7
+  call note borrow %203
+  jump -> bb22
+
+bb51 cleanup:
+  %235: %Tag address = field.addr .Failed inspect %15
+  drop Tag inspect %235
+  jump -> bb52
+
+bb52:
+  drop walk.Iter inspect %10
+  store inspect %16 consume %230
+  %236: I32 trivial = load inspect %16
+  %237: I64 trivial = convert inspect %236
+  call note borrow %237
+  jump -> bb22
+
+bb53 cleanup:
+  %242: %Tag address = field.addr .Failed inspect %15
+  drop Tag inspect %242
+  jump -> bb54
+
+bb54:
+  %243: I64 trivial = const 8
+  call note borrow %243
+  jump -> bb22
+}
+
+fn tagged$new(n: I32, failAt: I32) -> tagged.Iter {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %tagged.Iter address = alloc frame tagged.Iter
+  %3: I32 trivial = const 0
+  %4: %I32 address = field.addr .$index inspect %2
+  store inspect %4 consume %3
+  %5: %I32 address = field.addr .n inspect %2
+  store inspect %5 consume %0
+  %6: %I32 address = field.addr .failAt inspect %2
+  store inspect %6 consume %1
+  %7: tagged.Iter owned = load inspect %2
+  return consume %7
+}
+
+fn tagged$step($self: tagged.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: tagged.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = field.addr .failAt inspect %0
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = field.addr .i inspect %0
+  %64: %I32 address = field.addr .$index inspect %0
+  %65: I32 trivial = load inspect %64
+  %66: I32 trivial = const 1
+  %67: Bool trivial = eq inspect %65 inspect %66
+  branch inspect %67 -> bb16 -> bb22
+
+bb1:
+  branch inspect %2 -> bb21 -> bb3
+
+bb2:
+  %63: Bool trivial = const False
+  return consume %63
+
+bb3:
+  %7: I32 trivial = const 0
+  store inspect %5 consume %7
+  %8: I32 trivial = const 0
+  store inspect %6 consume %8
+  jump -> bb4
+
+bb4:
+  %9: I32 trivial = load inspect %6
+  %10: I32 trivial = load inspect %3
+  %11: Bool trivial = lt inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb5
+
+bb5:
+  %12: I32 trivial = load inspect %5
+  %13: Outcome(I32, Tag) owned = aggregate.Proceed consume %12
+  %14: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  store inspect %14 consume %13
+  %15: %U8 address = field.addr .# inspect %14
+  %16: U8 trivial = load inspect %15
+  %17: U8 trivial = const 1
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb12 -> bb13
+
+bb6:
+  %29: I32 trivial = load inspect %6
+  %30: I32 trivial = load inspect %4
+  %31: Bool trivial = eq inspect %29 inspect %30
+  branch inspect %31 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %32: I32 trivial = load inspect %6
+  %33: %I32 address = field.addr .$slot inspect %0
+  store inspect %33 borrow %32
+  %34: %I32 address = field.addr .$index inspect %0
+  %35: I32 trivial = const 1
+  store inspect %34 consume %35
+  %36: Bool trivial = const True
+  return consume %36
+
+bb9:
+  %39: I32 trivial = load inspect %6
+  %40: Tag owned = aggregate.Tag consume %39
+  %41: Outcome(I32, Tag) owned = aggregate.Exit consume %40
+  %42: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  store inspect %42 consume %41
+  %43: %U8 address = field.addr .# inspect %42
+  %44: U8 trivial = load inspect %43
+  %45: U8 trivial = const 1
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb17 -> bb18
+
+bb10:
+  %57: I32 trivial = load inspect %6
+  %58: I32 trivial = const 1
+  %59: I32 trivial = add inspect %57 inspect %58
+  store inspect %6 consume %59
+  jump -> bb4
+
+bb11:
+  jump -> bb5
+
+bb12:
+  branch inspect %2 -> bb14 -> bb15
+
+bb13:
+  %19: %I32 address = field.addr .$index inspect %0
+  %20: I32 trivial = const 2147483647
+  store inspect %19 consume %20
+  %21: Bool trivial = const False
+  return consume %21
+
+bb14:
+  %22: %Tag address = field.addr .Exit inspect %14
+  drop Tag inspect %22
+  %23: %I32 address = field.addr .$index inspect %0
+  %24: I32 trivial = const 2147483647
+  store inspect %23 consume %24
+  %25: Bool trivial = const False
+  return consume %25
+
+bb15:
+  %26: %I32 address = field.addr .$index inspect %0
+  %27: I32 trivial = const 2147483646
+  store inspect %26 consume %27
+  %28: Bool trivial = const False
+  return consume %28
+
+bb16:
+  %37: I32 trivial = const 0
+  %38: Bool trivial = eq inspect %1 inspect %37
+  store inspect %5 consume %1
+  branch inspect %38 -> bb10 -> bb11
+
+bb17:
+  branch inspect %2 -> bb19 -> bb20
+
+bb18:
+  %47: %I32 address = field.addr .$index inspect %0
+  %48: I32 trivial = const 2147483647
+  store inspect %47 consume %48
+  %49: Bool trivial = const False
+  return consume %49
+
+bb19:
+  %50: %Tag address = field.addr .Exit inspect %42
+  drop Tag inspect %50
+  %51: %I32 address = field.addr .$index inspect %0
+  %52: I32 trivial = const 2147483647
+  store inspect %51 consume %52
+  %53: Bool trivial = const False
+  return consume %53
+
+bb20:
+  %54: %I32 address = field.addr .$index inspect %0
+  %55: I32 trivial = const 2147483646
+  store inspect %54 consume %55
+  %56: Bool trivial = const False
+  return consume %56
+
+bb21:
+  %60: %I32 address = field.addr .$index inspect %0
+  %61: I32 trivial = const 2147483647
+  store inspect %60 consume %61
+  %62: Bool trivial = const False
+  return consume %62
+
+bb22:
+  %68: I32 trivial = const 0
+  %69: Bool trivial = eq inspect %65 inspect %68
+  branch inspect %69 -> bb1 -> bb2
+}
+
+fn tagged$drop($self: tagged.Iter) -> {} {
+bb0(%0: tagged.Iter owned):
+  %1: %tagged.Iter address = alloc frame tagged.Iter
+  store inspect %1 consume %0
+  %2: tagged.Iter [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  %4: Bool trivial = const True
+  %5: Bool trivial = call tagged$step borrow %2 consume %3 consume %4
+  return
+}
+
+fn tagged$failure($self: tagged.Iter [unique call]) -> Tag {
+bb0(%0: tagged.Iter [unique call] guaranteed):
+  %1: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  %2: %Tag address = field.addr .Exit inspect %1
+  %3: Tag owned = load inspect %2
+  %4: I32 trivial = const 2147483647
+  %5: %I32 address = field.addr .$index inspect %0
+  store inspect %5 consume %4
+  return consume %3
+}
+
+fn tagged$next($self: tagged.Iter [unique slot 0]) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] {
+bb0(%0: tagged.Iter [unique slot 0] guaranteed):
+  %1: I32 trivial = const 0
+  %2: Bool trivial = const False
+  %3: Bool trivial = call tagged$step borrow %0 consume %1 consume %2
+  branch inspect %3 -> bb1 -> bb2
+
+bb1:
+  %4: %I32 address = field.addr .$slot inspect %0
+  %5: I32 [shared slot 0] guaranteed = represent inspect %4
+  %6: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Yield inspect %5
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .$index inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = const 2147483646
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb4
+
+bb3:
+  %11: Tag owned = call tagged$failure borrow %0
+  %12: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Failed consume %11
+  return consume %12
+
+bb4:
+  %13: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Done
+  return consume %13
+}
+
+fn tagged$resume($self: tagged.Iter [unique slot 0], $v: {}) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn upTo$new(n: I32, failAt: I32) -> upTo.Iter {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %upTo.Iter address = alloc frame upTo.Iter
+  %3: I32 trivial = const 0
+  %4: %I32 address = field.addr .$index inspect %2
+  store inspect %4 consume %3
+  %5: %I32 address = field.addr .n inspect %2
+  store inspect %5 consume %0
+  %6: %I32 address = field.addr .failAt inspect %2
+  store inspect %6 consume %1
+  %7: upTo.Iter owned = load inspect %2
+  return consume %7
+}
+
+fn upTo$step($self: upTo.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: upTo.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = field.addr .failAt inspect %0
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = field.addr .i inspect %0
+  %7: %String address = field.addr . inspect %0
+  %8: %String address = field.addr . inspect %0
+  %88: %I32 address = field.addr .$index inspect %0
+  %89: I32 trivial = load inspect %88
+  %90: I32 trivial = const 1
+  %91: Bool trivial = eq inspect %89 inspect %90
+  branch inspect %91 -> bb16 -> bb24
+
+bb1:
+  branch inspect %2 -> bb23 -> bb3
+
+bb2:
+  %87: Bool trivial = const False
+  return consume %87
+
+bb3:
+  %9: I32 trivial = const 0
+  store inspect %5 consume %9
+  %10: I32 trivial = const 0
+  store inspect %6 consume %10
+  jump -> bb4
+
+bb4:
+  %11: I32 trivial = load inspect %6
+  %12: I32 trivial = load inspect %3
+  %13: Bool trivial = lt inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb5
+
+bb5:
+  %14: I32 trivial = load inspect %5
+  %15: Outcome(I32, String) owned = aggregate.Proceed consume %14
+  %16: %Outcome(I32, String) address = field.addr .$failure inspect %0
+  store inspect %16 consume %15
+  %17: %U8 address = field.addr .# inspect %16
+  %18: U8 trivial = load inspect %17
+  %19: U8 trivial = const 1
+  %20: Bool trivial = eq inspect %18 inspect %19
+  branch inspect %20 -> bb12 -> bb13
+
+bb6:
+  %31: I32 trivial = load inspect %6
+  %32: I32 trivial = load inspect %4
+  %33: Bool trivial = eq inspect %31 inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %34: I32 trivial = load inspect %6
+  %35: %I32 address = field.addr .$slot inspect %0
+  store inspect %35 borrow %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 1
+  store inspect %36 consume %37
+  %38: Bool trivial = const True
+  return consume %38
+
+bb9:
+  %41: Size trivial = const 3
+  %42: I32 trivial = load inspect %6
+  %43: Maybe(Size) trivial = call I32.showBound borrow %42
+  %44: Size trivial = call formatBound borrow %43
+  %45: Size trivial = add inspect %41 inspect %44
+  %46: String owned = call String.ofCapacity borrow %45
+  store inspect %7 consume %46
+  %47: String [unique call] guaranteed from{%7} = load inspect %7
+  %48: String owned = const String {units: Array {run: Run {items: &string, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %8 consume %48
+  %49: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  jump -> bb17
+
+bb10:
+  %81: I32 trivial = load inspect %6
+  %82: I32 trivial = const 1
+  %83: I32 trivial = add inspect %81 inspect %82
+  store inspect %6 consume %83
+  jump -> bb4
+
+bb11:
+  jump -> bb5
+
+bb12:
+  branch inspect %2 -> bb14 -> bb15
+
+bb13:
+  %21: %I32 address = field.addr .$index inspect %0
+  %22: I32 trivial = const 2147483647
+  store inspect %21 consume %22
+  %23: Bool trivial = const False
+  return consume %23
+
+bb14:
+  %24: %String address = field.addr .Exit inspect %16
+  drop String inspect %24
+  %25: %I32 address = field.addr .$index inspect %0
+  %26: I32 trivial = const 2147483647
+  store inspect %25 consume %26
+  %27: Bool trivial = const False
+  return consume %27
+
+bb15:
+  %28: %I32 address = field.addr .$index inspect %0
+  %29: I32 trivial = const 2147483646
+  store inspect %28 consume %29
+  %30: Bool trivial = const False
+  return consume %30
+
+bb16:
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %1 inspect %39
+  store inspect %5 consume %1
+  branch inspect %40 -> bb10 -> bb11
+
+bb17:
+  %51: %Array(CodeUnit) address = field.addr .units inspect %49
+  %52: %Run(CodeUnit) address = field.addr .run inspect %51
+  %53: %%CodeUnit address = field.addr .items inspect %52
+  %54: %CodeUnit trivial = load inspect %53
+  %55: %Array(CodeUnit) address = field.addr .units inspect %49
+  %56: %@bits(30) U32 address = field.addr .length inspect %55
+  %57: @bits(30) U32 trivial = load inspect %56
+  %58: I32 trivial = convert inspect %57
+  %59: Size trivial = convert inspect %58
+  %60: StringView trivial = aggregate.StringView consume %54 consume %59
+  %61: String [shared slot 0 view] guaranteed = represent inspect %60
+  jump -> bb18(borrow %61)
+
+bb18(%50: String [shared slot 0 view] guaranteed from{%8}):
+  call String.push borrow %47 borrow %50
+  drop String inspect %8
+  %62: I32 trivial = load inspect %6
+  %63: String [unique call] guaranteed from{%7} = load inspect %7
+  call I32.show borrow %62 borrow %63
+  %64: String owned = load inspect %7
+  %65: Outcome(I32, String) owned = aggregate.Exit consume %64
+  %66: %Outcome(I32, String) address = field.addr .$failure inspect %0
+  store inspect %66 consume %65
+  %67: %U8 address = field.addr .# inspect %66
+  %68: U8 trivial = load inspect %67
+  %69: U8 trivial = const 1
+  %70: Bool trivial = eq inspect %68 inspect %69
+  branch inspect %70 -> bb19 -> bb20
+
+bb19:
+  branch inspect %2 -> bb21 -> bb22
+
+bb20:
+  %71: %I32 address = field.addr .$index inspect %0
+  %72: I32 trivial = const 2147483647
+  store inspect %71 consume %72
+  %73: Bool trivial = const False
+  return consume %73
+
+bb21:
+  %74: %String address = field.addr .Exit inspect %66
+  drop String inspect %74
+  %75: %I32 address = field.addr .$index inspect %0
+  %76: I32 trivial = const 2147483647
+  store inspect %75 consume %76
+  %77: Bool trivial = const False
+  return consume %77
+
+bb22:
+  %78: %I32 address = field.addr .$index inspect %0
+  %79: I32 trivial = const 2147483646
+  store inspect %78 consume %79
+  %80: Bool trivial = const False
+  return consume %80
+
+bb23:
+  %84: %I32 address = field.addr .$index inspect %0
+  %85: I32 trivial = const 2147483647
+  store inspect %84 consume %85
+  %86: Bool trivial = const False
+  return consume %86
+
+bb24:
+  %92: I32 trivial = const 0
+  %93: Bool trivial = eq inspect %89 inspect %92
+  branch inspect %93 -> bb1 -> bb2
+}
+
+fn upTo$drop($self: upTo.Iter) -> {} {
+bb0(%0: upTo.Iter owned):
+  %1: %upTo.Iter address = alloc frame upTo.Iter
+  store inspect %1 consume %0
+  %2: upTo.Iter [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  %4: Bool trivial = const True
+  %5: Bool trivial = call upTo$step borrow %2 consume %3 consume %4
+  return
+}
+
+fn upTo$failure($self: upTo.Iter [unique call]) -> String {
+bb0(%0: upTo.Iter [unique call] guaranteed):
+  %1: %Outcome(I32, String) address = field.addr .$failure inspect %0
+  %2: %String address = field.addr .Exit inspect %1
+  %3: String owned = load inspect %2
+  %4: I32 trivial = const 2147483647
+  %5: %I32 address = field.addr .$index inspect %0
+  store inspect %5 consume %4
+  return consume %3
+}
+
+fn upTo$next($self: upTo.Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] {
+bb0(%0: upTo.Iter [unique slot 0] guaranteed):
+  %1: I32 trivial = const 0
+  %2: Bool trivial = const False
+  %3: Bool trivial = call upTo$step borrow %0 consume %1 consume %2
+  branch inspect %3 -> bb1 -> bb2
+
+bb1:
+  %4: %I32 address = field.addr .$slot inspect %0
+  %5: I32 [shared slot 0] guaranteed = represent inspect %4
+  %6: IterStep(String, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Yield inspect %5
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .$index inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = const 2147483646
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb4
+
+bb3:
+  %11: String owned = call upTo$failure borrow %0
+  %12: IterStep(String, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Failed consume %11
+  return consume %12
+
+bb4:
+  %13: IterStep(String, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Done
+  return consume %13
+}
+
+fn upTo$resume($self: upTo.Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn show'2(it: upTo.Iter [unique call]) -> {} {
+bb0(%0: upTo.Iter [unique call] guaranteed):
+  %1: %IterStep(String, I32) address = alloc frame IterStep(String, I32) [owned here shape2 .0=shared slot 0]
+  %2: %I32 address = alloc frame I32
+  %3: %String address = alloc frame String
+  %4: upTo.Iter [unique slot 0] guaranteed from{%0} = load inspect %0
+  %5: IterStep(String, I32) [owned here shape2 .0=shared slot 0] owned = call upTo$next borrow %4
+  store inspect %1 consume %5
+  %6: %U8 address = field.addr .# inspect %1
+  %7: U8 trivial = load inspect %6
+  %8: U8 trivial = const 0
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb1
+
+bb1:
+  %10: %U8 address = field.addr .# inspect %1
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 1
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb5 -> bb2
+
+bb2:
+  %14: %String address = field.addr .Failed inspect %1
+  %15: String [shared call] guaranteed from{%1} = load inspect %14
+  %16: String [shared call] guaranteed from{%1} = load inspect %15
+  jump -> bb9
+
+bb3:
+  return
+
+bb4:
+  %49: %I32 address = field.addr .Yield inspect %1
+  %50: %I32 address = load inspect %49
+  %51: I32 trivial = load inspect %50
+  %52: %U8 address = field.addr .# inspect %1
+  %53: U8 trivial = load inspect %52
+  %54: U8 trivial = const 2
+  %55: Bool trivial = eq inspect %53 inspect %54
+  branch inspect %55 -> bb15 -> bb16
+
+bb5:
+  %59: %U8 address = field.addr .# inspect %1
+  %60: U8 trivial = load inspect %59
+  %61: U8 trivial = const 2
+  %62: Bool trivial = eq inspect %60 inspect %61
+  branch inspect %62 -> bb17 -> bb18
+
+bb6:
+  jump -> bb7
+
+bb7:
+  jump -> bb3
+
+bb8:
+  %65: I64 trivial = const 7
+  call note borrow %65
+  jump -> bb7
+
+bb9:
+  %18: %Array(CodeUnit) address = field.addr .units inspect %16
+  %19: %Run(CodeUnit) address = field.addr .run inspect %18
+  %20: %%CodeUnit address = field.addr .items inspect %19
+  %21: %CodeUnit trivial = load inspect %20
+  %22: %Array(CodeUnit) address = field.addr .units inspect %16
+  %23: %@bits(30) U32 address = field.addr .length inspect %22
+  %24: @bits(30) U32 trivial = load inspect %23
+  %25: I32 trivial = convert inspect %24
+  %26: Size trivial = convert inspect %25
+  %27: StringView trivial = aggregate.StringView consume %21 consume %26
+  %28: String [shared slot 0 view] guaranteed = represent inspect %27
+  jump -> bb10(borrow %28)
+
+bb10(%17: String [shared slot 0 view] guaranteed from{%1}):
+  %29: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %3 consume %29
+  %30: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  jump -> bb11
+
+bb11:
+  %32: %Array(CodeUnit) address = field.addr .units inspect %30
+  %33: %Run(CodeUnit) address = field.addr .run inspect %32
+  %34: %%CodeUnit address = field.addr .items inspect %33
+  %35: %CodeUnit trivial = load inspect %34
+  %36: %Array(CodeUnit) address = field.addr .units inspect %30
+  %37: %@bits(30) U32 address = field.addr .length inspect %36
+  %38: @bits(30) U32 trivial = load inspect %37
+  %39: I32 trivial = convert inspect %38
+  %40: Size trivial = convert inspect %39
+  %41: StringView trivial = aggregate.StringView consume %35 consume %40
+  %42: String [shared slot 0 view] guaranteed = represent inspect %41
+  jump -> bb12(borrow %42)
+
+bb12(%31: String [shared slot 0 view] guaranteed from{%3}):
+  %43: Bool trivial = call String.== borrow %17 borrow %31
+  %44: %U8 address = field.addr .# inspect %1
+  %45: U8 trivial = load inspect %44
+  %46: U8 trivial = const 2
+  %47: Bool trivial = eq inspect %45 inspect %46
+  branch inspect %47 -> bb13 -> bb14
+
+bb13 cleanup:
+  %48: %String address = field.addr .Failed inspect %1
+  drop String inspect %48
+  jump -> bb14
+
+bb14:
+  drop String inspect %3
+  branch inspect %43 -> bb8 -> bb6
+
+bb15 cleanup:
+  %56: %String address = field.addr .Failed inspect %1
+  drop String inspect %56
+  jump -> bb16
+
+bb16:
+  store inspect %2 consume %51
+  %57: I32 trivial = load inspect %2
+  %58: I64 trivial = convert inspect %57
+  call note borrow %58
+  jump -> bb3
+
+bb17 cleanup:
+  %63: %String address = field.addr .Failed inspect %1
+  drop String inspect %63
+  jump -> bb18
+
+bb18:
+  %64: I64 trivial = const 8
+  call note borrow %64
+  jump -> bb3
+}
+
+fn walk$new(start: I32) -> walk.Iter {
+bb0(%0: I32 trivial):
+  %1: %walk.Iter address = alloc frame walk.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .start inspect %1
+  store inspect %4 consume %0
+  %5: walk.Iter owned = load inspect %1
+  return consume %5
+}
+
+fn walk$step($self: walk.Iter [unique call], $resume: Outcome(I32, I32), $cancel: Bool) -> Bool {
+bb0(%0: walk.Iter [unique call] guaranteed, %1: Outcome(I32, I32) trivial, %2: Bool trivial):
+  %4: %I32 address = field.addr .start inspect %0
+  %5: %I32 address = field.addr .$yielded inspect %0
+  %6: %I32 address = field.addr .at inspect %0
+  %7: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
+  %8: %I32 address = alloc frame I32
+  %72: %I32 address = field.addr .$index inspect %0
+  %73: I32 trivial = load inspect %72
+  %74: I32 trivial = const 1
+  %75: Bool trivial = eq inspect %73 inspect %74
+  branch inspect %75 -> bb18 -> bb24
+
+bb1:
+  branch inspect %2 -> bb23 -> bb3
+
+bb2:
+  %71: Bool trivial = const False
+  return consume %71
+
+bb3:
+  %9: I32 trivial = const 0
+  store inspect %5 consume %9
+  %10: I32 trivial = load inspect %4
+  store inspect %6 consume %10
+  jump -> bb4
+
+bb4:
+  %11: I32 trivial = load inspect %6
+  %12: I32 trivial = const 100
+  %13: Bool trivial = lt inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb5
+
+bb5:
+  %14: I32 trivial = load inspect %5
+  %15: Outcome(I32, Tag) owned = aggregate.Proceed consume %14
+  %16: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  store inspect %16 consume %15
+  %17: %U8 address = field.addr .# inspect %16
+  %18: U8 trivial = load inspect %17
+  %19: U8 trivial = const 1
+  %20: Bool trivial = eq inspect %18 inspect %19
+  branch inspect %20 -> bb14 -> bb15
+
+bb6:
+  %31: I32 trivial = load inspect %6
+  %32: %I32 address = field.addr .$slot inspect %0
+  store inspect %32 borrow %31
+  %33: %I32 address = field.addr .$index inspect %0
+  %34: I32 trivial = const 1
+  store inspect %33 consume %34
+  %35: Bool trivial = const True
+  return consume %35
+
+bb7:
+  %40: %I32 address = field.addr .Proceed inspect %7
+  %41: I32 trivial = load inspect %40
+  jump -> bb10(consume %41)
+
+bb8:
+  %42: %I32 address = field.addr .Exit inspect %7
+  %43: I32 trivial = load inspect %42
+  store inspect %5 consume %43
+  jump -> bb9
+
+bb9:
+  jump -> bb5
+
+bb10(%3: I32 trivial):
+  store inspect %8 consume %3
+  %44: I32 trivial = load inspect %8
+  %45: I32 trivial = const 0
+  %46: Bool trivial = lt inspect %44 inspect %45
+  branch inspect %46 -> bb13 -> bb11
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %47: I32 trivial = load inspect %6
+  %48: I32 trivial = load inspect %8
+  %49: I32 trivial = add inspect %47 inspect %48
+  store inspect %6 consume %49
+  jump -> bb4
+
+bb13:
+  %50: I32 trivial = const 4
+  %51: Tag owned = aggregate.Tag consume %50
+  %52: Outcome(I32, Tag) owned = aggregate.Exit consume %51
+  %53: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  store inspect %53 consume %52
+  %54: %U8 address = field.addr .# inspect %53
+  %55: U8 trivial = load inspect %54
+  %56: U8 trivial = const 1
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb19 -> bb20
+
+bb14:
+  branch inspect %2 -> bb16 -> bb17
+
+bb15:
+  %21: %I32 address = field.addr .$index inspect %0
+  %22: I32 trivial = const 2147483647
+  store inspect %21 consume %22
+  %23: Bool trivial = const False
+  return consume %23
+
+bb16:
+  %24: %Tag address = field.addr .Exit inspect %16
+  drop Tag inspect %24
+  %25: %I32 address = field.addr .$index inspect %0
+  %26: I32 trivial = const 2147483647
+  store inspect %25 consume %26
+  %27: Bool trivial = const False
+  return consume %27
+
+bb17:
+  %28: %I32 address = field.addr .$index inspect %0
+  %29: I32 trivial = const 2147483646
+  store inspect %28 consume %29
+  %30: Bool trivial = const False
+  return consume %30
+
+bb18:
+  store inspect %7 consume %1
+  %36: %U8 address = field.addr .# inspect %7
+  %37: U8 trivial = load inspect %36
+  %38: U8 trivial = const 1
+  %39: Bool trivial = eq inspect %37 inspect %38
+  branch inspect %39 -> bb8 -> bb7
+
+bb19:
+  branch inspect %2 -> bb21 -> bb22
+
+bb20:
+  %58: %I32 address = field.addr .$index inspect %0
+  %59: I32 trivial = const 2147483647
+  store inspect %58 consume %59
+  %60: Bool trivial = const False
+  return consume %60
+
+bb21:
+  %61: %Tag address = field.addr .Exit inspect %53
+  drop Tag inspect %61
+  %62: %I32 address = field.addr .$index inspect %0
+  %63: I32 trivial = const 2147483647
+  store inspect %62 consume %63
+  %64: Bool trivial = const False
+  return consume %64
+
+bb22:
+  %65: %I32 address = field.addr .$index inspect %0
+  %66: I32 trivial = const 2147483646
+  store inspect %65 consume %66
+  %67: Bool trivial = const False
+  return consume %67
+
+bb23:
+  %68: %I32 address = field.addr .$index inspect %0
+  %69: I32 trivial = const 2147483647
+  store inspect %68 consume %69
+  %70: Bool trivial = const False
+  return consume %70
+
+bb24:
+  %76: I32 trivial = const 0
+  %77: Bool trivial = eq inspect %73 inspect %76
+  branch inspect %77 -> bb1 -> bb2
+}
+
+fn walk$drop($self: walk.Iter) -> {} {
+bb0(%0: walk.Iter owned):
+  %1: %walk.Iter address = alloc frame walk.Iter
+  store inspect %1 consume %0
+  %2: walk.Iter [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  %4: Outcome(I32, I32) trivial = aggregate.Exit consume %3
+  %5: Bool trivial = const True
+  %6: Bool trivial = call walk$step borrow %2 consume %4 consume %5
+  return
+}
+
+fn walk$failure($self: walk.Iter [unique call]) -> Tag {
+bb0(%0: walk.Iter [unique call] guaranteed):
+  %1: %Outcome(I32, Tag) address = field.addr .$failure inspect %0
+  %2: %Tag address = field.addr .Exit inspect %1
+  %3: Tag owned = load inspect %2
+  %4: I32 trivial = const 2147483647
+  %5: %I32 address = field.addr .$index inspect %0
+  store inspect %5 consume %4
+  return consume %3
+}
+
+fn walk$next($self: walk.Iter [unique slot 0]) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walk$resume($self: walk.Iter [unique slot 0], $v: I32) -> IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] {
+bb0(%0: walk.Iter [unique slot 0] guaranteed, %1: I32 trivial):
+  %2: Outcome(I32, I32) trivial = aggregate.Proceed consume %1
+  %3: Bool trivial = const False
+  %4: Bool trivial = call walk$step borrow %0 consume %2 consume %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %5: %I32 address = field.addr .$slot inspect %0
+  %6: I32 [shared slot 0] guaranteed = represent inspect %5
+  %7: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Yield inspect %6
+  return consume %7
+
+bb2:
+  %8: %I32 address = field.addr .$index inspect %0
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = const 2147483646
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb4
+
+bb3:
+  %12: Tag owned = call walk$failure borrow %0
+  %13: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Failed consume %12
+  return consume %13
+
+bb4:
+  %14: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = aggregate.Done
+  return consume %14
+}
+
+fn drain(tagged.Iter)(it: tagged.Iter [unique call]) -> I32 {
+bb0(%0: tagged.Iter [unique call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %Bool address = alloc frame Bool
+  %3: %IterStep(Tag, I32) address = alloc frame IterStep(Tag, I32) [owned here shape2 .0=shared slot 0]
+  %4: %I32 address = alloc frame I32
+  %5: I32 trivial = const 0
+  store inspect %1 consume %5
+  %6: Bool trivial = const True
+  store inspect %2 consume %6
+  jump -> bb1
+
+bb1:
+  %7: Bool trivial = load inspect %2
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %8: I32 trivial = load inspect %1
+  return consume %8
+
+bb3:
+  %9: tagged.Iter [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: IterStep(Tag, I32) [owned here shape2 .0=shared slot 0] owned = call tagged$next borrow %9
+  store inspect %3 consume %10
+  %11: %U8 address = field.addr .# inspect %3
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 0
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb7 -> bb4
+
+bb4:
+  %15: %U8 address = field.addr .# inspect %3
+  %16: U8 trivial = load inspect %15
+  %17: U8 trivial = const 1
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8 -> bb5
+
+bb5:
+  %19: %Tag address = field.addr .Failed inspect %3
+  %20: Tag [shared call] guaranteed from{%3} = load inspect %19
+  %21: I64 trivial = const 7
+  call note borrow %21
+  %22: %I32 address = field.addr .id inspect %20
+  %23: I32 trivial = load inspect %22
+  %24: %U8 address = field.addr .# inspect %3
+  %25: U8 trivial = load inspect %24
+  %26: U8 trivial = const 2
+  %27: Bool trivial = eq inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb10
+
+bb6:
+  jump -> bb1
+
+bb7:
+  %31: %I32 address = field.addr .Yield inspect %3
+  %32: %I32 address = load inspect %31
+  %33: I32 trivial = load inspect %32
+  %34: %U8 address = field.addr .# inspect %3
+  %35: U8 trivial = load inspect %34
+  %36: U8 trivial = const 2
+  %37: Bool trivial = eq inspect %35 inspect %36
+  branch inspect %37 -> bb11 -> bb12
+
+bb8:
+  %43: %U8 address = field.addr .# inspect %3
+  %44: U8 trivial = load inspect %43
+  %45: U8 trivial = const 2
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb13 -> bb14
+
+bb9 cleanup:
+  %28: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %28
+  jump -> bb10
+
+bb10:
+  %29: I64 trivial = convert inspect %23
+  call note borrow %29
+  %30: Bool trivial = const False
+  store inspect %2 consume %30
+  jump -> bb6
+
+bb11 cleanup:
+  %38: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %38
+  jump -> bb12
+
+bb12:
+  store inspect %4 consume %33
+  %39: I32 trivial = load inspect %4
+  %40: I64 trivial = convert inspect %39
+  call note borrow %40
+  %41: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %42: I32 trivial = const 1
+  call +=(I32) borrow %41 borrow %42
+  jump -> bb6
+
+bb13 cleanup:
+  %47: %Tag address = field.addr .Failed inspect %3
+  drop Tag inspect %47
+  jump -> bb14
+
+bb14:
+  %48: I64 trivial = const 8
+  call note borrow %48
+  %49: Bool trivial = const False
+  store inspect %2 consume %49
+  jump -> bb6
+}
+
+entry main

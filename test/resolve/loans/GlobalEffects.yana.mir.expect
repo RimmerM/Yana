@@ -18,15 +18,15 @@ let & gLog: Array(I32)
 
 let & gNamed: Named
 
-let string'104: [CodeUnit *3] = "abc"
+let string'150: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *4] = "wxyz"
+let string'189: [CodeUnit *4] = "wxyz"
 
-let string'144: [CodeUnit *4] = "made"
+let string'190: [CodeUnit *4] = "made"
 
-let string'145: [CodeUnit *6] = "filled"
+let string'191: [CodeUnit *6] = "filled"
 
-let string'146: [CodeUnit *1] = "a"
+let string'192: [CodeUnit *1] = "a"
 
 fn Noisy.drop(value: Noisy) -> {} {
 bb0:
@@ -269,7 +269,7 @@ fn rename() -> {} {
 bb0:
   %0: Named = read copy.trivial (global gNamed)
   write.init borrow.unique (local0) take %0
-  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %2: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   write.init borrow.unique (local1) take %2
   %4: String [shared slot 0] = read borrow.shared (local1) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
@@ -284,7 +284,7 @@ fn made() -> Named {
   local local0: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  %0: String = const String {units: Array {run: Run {items: &string'190, capacity: 4, ownsHeap: 0}, length: 4}}
   write.init borrow.unique (local0) take %0
   %2: String [shared slot 0] = read borrow.shared (local0) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
@@ -300,7 +300,7 @@ fn fill(into: Named [unique call]) -> {} {
 bb0:
   %0: Named = read copy.trivial (into)
   write.init borrow.unique (local1) take %0
-  %2: String = const String {units: Array {run: Run {items: &string'145, capacity: 6, ownsHeap: 0}, length: 6}}
+  %2: String = const String {units: Array {run: Run {items: &string'191, capacity: 6, ownsHeap: 0}, length: 6}}
   write.init borrow.unique (local2) take %2
   %4: String [shared slot 0] = read borrow.shared (local2) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
@@ -334,7 +334,7 @@ bb0:
   %8: {} = call rename
   %9: Named = call made
   write.init borrow.unique (m) take %9
-  %11: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %11: String = const String {units: Array {run: Run {items: &string'192, capacity: 1, ownsHeap: 0}, length: 1}}
   write.init borrow.unique (local5) take %11
   %13: String [shared slot 0] = read borrow.shared (local5) loan0
   %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{0}
@@ -431,7 +431,7 @@ bb0:
   write.init borrow.unique ([%%23][0]) take %22
   %36: Array(I32) = read take (local1)
   write.init borrow.unique (global gLog) take %36
-  %38: String = const String {units: Array {run: Run {items: &string'104, capacity: 3, ownsHeap: 0}, length: 3}}
+  %38: String = const String {units: Array {run: Run {items: &string'150, capacity: 3, ownsHeap: 0}, length: 3}}
   write.init borrow.unique (local2) take %38
   %40: String [shared slot 0] = read borrow.shared (local2) loan0
   %41: String [shared slot 0 view] = call.derivation view(String) borrow.shared %40 roots{0}

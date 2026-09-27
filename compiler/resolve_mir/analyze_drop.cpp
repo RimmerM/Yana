@@ -40,10 +40,15 @@ enum class WalkMode: U8 {
  *
  * `state` is updated in place and is the block's exit state when this returns.
  */
-void Analysis::walkBlock(U32 index, PathState* state, int mode) {
+void Analysis::walkBlock(U32 index, PathState* state, int mode, U32 leaving) {
     auto walk = WalkMode(mode);
     auto count = nodeCount(index);
     if(!count) return;
+
+    // `leaving` names a held region, and `index` is its call's block: the walk is then asked for
+    // one thing, the release on that call's leave path from the joined `state` -
+    // `releaseLeavePaths`.
+    auto onLeave = leaving != kNoCall;
 
     /*
      * Liveness at every position, recomputed from this block's live-out.
@@ -54,9 +59,9 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
      * largest thing this analysis allocates, for an answer that is used once.
      */
     SmallArray<U64, 32> after;
-    for(U32 i = 0; i < count * pathWords; i++) after.push(0);
+    if(!onLeave) for(U32 i = 0; i < count * pathWords; i++) after.push(0);
 
-    {
+    if(!onLeave) {
         SmallArray<U64, 8> live;
         auto out = liveAt(liveOut, index);
         for(U32 w = 0; w < pathWords; w++) live.push(out[w]);
@@ -99,9 +104,37 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
         }
     }
 
-    auto liveBefore = [&](U32 position, U32 p) {
-        if(position == 0) return BitMatrix::test(liveAt(liveIn, index), p);
-        return BitMatrix::test(after.pointer() + (position - 1) * pathWords, p);
+    /*
+     * A flag says whether its path is **there**, whole - at every point, for every flagged path,
+     * whatever changed it. So a transition writes the flag of every flagged path it changes, and
+     * not only of the path it names: a take of `r` empties `r.x` too, a write of `r` fills it, and a
+     * take of `r.x` leaves `r` no longer whole. Before, only the named path's flag was written, and a
+     * member released on its own under its own flag read a flag the whole value's write never set
+     * (a leak) - or a whole value released under its flag read one its member's take never cleared
+     * (a double release).
+     *
+     * A member of a **sum** is "there" when its constructor is: a write of the sum sets every
+     * constructor's members, which is why a step releasing one where nothing proved the constructor
+     * is `guarded` by the tag - and a take out of one constructor clears the others'.
+     *
+     * Not on a leave path, which no node follows: the function is returning.
+     */
+    auto flagAt = [&](U32 position, MovePathId id, bool value) {
+        if(walk != WalkMode::Emit || onLeave || !out.flagged.get(base, id.index)) return;
+        out.flags.push(program.mir, FlagStep { index, position, id, value });
+    };
+
+    auto flagSubtree = [&](U32 position, MovePathId id, bool value) {
+        if(walk != WalkMode::Emit || onLeave || !anyFlagged) return;
+
+        SmallArray<MovePathId, 16> pending;
+        pending.push(id);
+
+        while(pending.size()) {
+            auto current = pending.pop().unwrap();
+            flagAt(position, current, value);
+            for(auto child: path(current).children.contents(base)) pending.push(child);
+        }
     };
 
     auto setSubtree = [&](MovePathId id, PathState value) {
@@ -144,7 +177,7 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
      * partially moved sum at all; without it a `Kept(->g)` would leave `Empty`'s fields owned and
      * release storage the take had just emptied.
      */
-    auto markAncestorsMoved = [&](MovePathId id) {
+    auto markAncestorsMoved = [&](U32 position, MovePathId id) {
         for(auto child = id, up = path(id).parent; up.valid(); child = up, up = path(up).parent) {
             auto field = fieldOf(child);
 
@@ -157,10 +190,12 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                     if(other == kNoField || record.constructorOf(decl, other) == proved) continue;
 
                     setSubtree(sibling, PathState::Moved);
+                    flagSubtree(position, sibling, false);
                 }
             }
 
             state[up.index] = PathState::Moved;
+            flagAt(position, up, false);
         }
     };
 
@@ -181,7 +216,7 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
      * The walk stops at the first ancestor that is not made whole, because an ancestor of *that*
      * cannot be either.
      */
-    auto markAncestorsRefilled = [&](MovePathId id) {
+    auto markAncestorsRefilled = [&](U32 position, MovePathId id) {
         for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
             if(state[up.index] == PathState::Owned) break;
 
@@ -192,41 +227,54 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
 
             if(!whole) break;
             state[up.index] = PathState::Owned;
+            flagAt(position, up, true);
         }
     };
 
-    auto flagAt = [&](U32 position, MovePathId id, bool value) {
-        if(walk != WalkMode::Emit || !out.flagged.get(base, id.index)) return;
-        out.flags.push(program.mir, FlagStep { index, position, id, value });
+    // A step of this block goes straight into the sorted list; one placed on a traversal's leave
+    // path is past the call block's terminator and is merged in by `placeDrops` (K6).
+    auto pushDrop = [&](const DropStep& step) {
+        if(!onLeave) out.drops.push(program.mir, step);
+        else leaveDrops.push(step);
     };
 
-    for(U32 position = 0; position < count; position++) {
-        auto& node = nodeAt(index, position);
-
-        /*
-         * The drops, before the node that made them due.
-         *
-         * Top down over the tree, so that a record that is still whole is released once rather than
-         * field by field: a path that is owned and dead is dropped entire, and only a path that has
-         * been partially moved is descended into to find the members that are still there.
-         *
-         * Seeded with the paths that can be due here rather than with every root. The walk visits a
-         * path when every ancestor of it is gone - `Moved` or `Uninitialized` - and releases it when
-         * it is owned there and not live; started from the roots at every position it cost every
-         * root at every node, which is nodes times paths for a body where almost every path is live
-         * at almost every node, and was 47% of `test/bench/ownership-scaling.py`'s shape C. A path
-         * can only be due where it is *not* live, so the not-live bits of the liveness row are read
-         * instead, each checked for the ancestor condition the walk would have descended through,
-         * and the survivors are pushed in reverse pre-order - roots in index order, children in
-         * list order, the order the walk always took - so that the drops a fixture reads come out
-         * as they did. What the stack still does below is descend: a path released under the
-         * teardown subject is walked into for its members, exactly as before.
-         */
+    /*
+     * The drops, before the node that made them due.
+     *
+     * Top down over the tree, so that a record that is still whole is released once rather than
+     * field by field: a path that is owned and dead is dropped entire, and only a path that has
+     * been partially moved is descended into to find the members that are still there.
+     *
+     * Seeded with the paths that can be due here rather than with every root. The walk visits a
+     * path when every ancestor of it is gone - `Moved` or `Uninitialized` - and releases it when
+     * it is owned there and not live; started from the roots at every position it cost every
+     * root at every node, which is nodes times paths for a body where almost every path is live
+     * at almost every node, and was 47% of `test/bench/ownership-scaling.py`'s shape C. A path
+     * can only be due where it is *not* live, so the not-live bits of the liveness row are read
+     * instead, each checked for the ancestor condition the walk would have descended through,
+     * and the survivors are pushed in reverse pre-order - roots in index order, children in
+     * list order, the order the walk always took - so that the drops a fixture reads come out
+     * as they did. What the stack still does below is descend: a path released under the
+     * teardown subject is walked into for its members, exactly as before.
+     *
+     * Released against `liveRow` and recorded at `(index, position)`. The call in the loop below is
+     * each node's own position with the liveness before it; the other is a traversal's leave path,
+     * `onLeave`, where the storage the region held is released after the callee's cleanup (K6).
+     */
+    auto release = [&](U32 position, Node& node, const U64* liveRow) {
         SmallArray<MovePathId, 16> pending;
-        {
-            auto liveRow = position == 0 ? liveAt(liveIn, index)
-                                         : after.pointer() + (position - 1) * pathWords;
 
+        // The sums descended into unproven - see the `Maybe` branch below - whose members' steps
+        // are `guarded`.
+        SmallArray<MovePathId, 4> unproven;
+        auto guardedBy = [&](MovePathId id) {
+            for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
+                for(auto sum: unproven) if(sum == up) return true;
+            }
+            return false;
+        };
+
+        {
             for(U32 w = 0; w < pathWords; w++) {
                 auto bits = ~liveRow[w];
                 if(w + 1 == pathWords && pathCount % 64) bits &= (U64(1) << (pathCount % 64)) - 1;
@@ -306,7 +354,7 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             auto here = state[id.index];
 
             if(here == PathState::Owned || here == PathState::Maybe) {
-                if(liveBefore(position, id.index)) continue;
+                if(BitMatrix::test(liveRow, id.index)) continue;
 
                 /*
                  * Storage this frame only lends - `lendsItsContents`, and the reason a `&` parameter
@@ -319,6 +367,23 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                  * frame ends.
                  */
                 if(lendingPath(id)) continue;
+
+                /*
+                 * What an authored `Drop` leaves of its subject is torn down **at the return**, not
+                 * where each member stops being used - `subjectOwnsMembers`, K5.
+                 *
+                 * Everywhere else a value dies at its last use. Here the members are the parts of
+                 * the value the body is tearing down, and the body is written as a statement about
+                 * that value while it is whole: `unregister(value.loop, value.fd.n)` has to run
+                 * before the descriptor closes, and a member the body never names would otherwise
+                 * be released at entry, before anything the author wrote - which is what J209's
+                 * reactor needed and what every language with authored destructors does. Passed
+                 * over rather than consumed, so the path is still owned when the walk reaches the
+                 * `return`; a move out of it in between is a use, and never meets this line.
+                 */
+                if(subjectOwnsMembers && node.kind != Node::Return && underTeardownSubject(id)) {
+                    continue;
+                }
 
                 /*
                  * The point the value stops being live with nothing in the source having said so -
@@ -383,6 +448,46 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                 }
 
                 /*
+                 * **Whole on some paths here and taken apart on others** - `splitBelow`.
+                 *
+                 * The value's own flag cannot say what to release: it is false wherever any part
+                 * of the value is missing, and on those paths the parts still there are owed. A
+                 * drop of the whole under that flag leaked them, and before the flags followed
+                 * every transition it released a member a take had already handed over. So the
+                 * value is released member by member instead, each under its own state and flag,
+                 * which is what a derived teardown does anyway - one teardown per member where the
+                 * value is whole, and exactly the members still there where it is not.
+                 *
+                 * Not for a type whose teardown is authored, which runs on the whole value and so
+                 * never has a member taken out of it on its own - except for this body's own
+                 * subject, whose members are ordinary paths (`subjectOwnsMembers`).
+                 *
+                 * A **sum** is descended too, and its members are the one thing this cannot
+                 * decide from the state: where the sum is whole, nothing proved which constructor
+                 * it holds, and every constructor's members are `Owned` and flagged present. Each
+                 * step below it is `guarded` - the conversion tests the tag first - which is the
+                 * test the sum's derived teardown would have made; where a take did prove the
+                 * constructor, the other constructors' members are `Moved` and flagged gone, and
+                 * the test is true.
+                 */
+                auto authored = [&](DeclPtr<Type> type) {
+                    auto ownership = ownershipOf(decl, type);
+                    return ownership.drop == TeardownKind::Authored ||
+                           ownership.reclaim == TeardownKind::Authored;
+                };
+
+                if(here == PathState::Maybe && splitBelow.get(id.index) &&
+                   path(id).children.size() &&
+                   !(underTeardownSubject(id) && !subjectOwnsMembers) &&
+                   (id == teardownSubject || !authored(path(id).type))) {
+                    if(isSumRecord(decl, path(id).type)) unproven.push(id);
+
+                    state[id.index] = PathState::Moved;
+                    descend(id);
+                    continue;
+                }
+
+                /*
                  * Inside the subject of a teardown, where nothing is released and the walk still has
                  * to reach the members - `Analysis::teardownSubject`.
                  *
@@ -391,7 +496,33 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                  * its members; here there is no teardown to run, so the members have to be visited
                  * one at a time for the check above to see them.
                  */
-                if(underTeardownSubject(id)) {
+                if(underTeardownSubject(id) && !(subjectOwnsMembers && id != teardownSubject)) {
+                    /*
+                     * A **sum** subject this body finishes, dying whole - `subjectOwnsMembers`.
+                     *
+                     * One step on the subject itself, which is never its type's teardown: the
+                     * conversion expands it into a tag test per constructor and its members' own
+                     * drops (`Conversion::emitDrop`), which is the derived walk without the authored
+                     * call at its head. A record subject descends instead, below, and its members are
+                     * ordinary owned paths from there on.
+                     */
+                    if(subjectOwnsMembers && isSumRecord(decl, path(id).type)) {
+                        if(here == PathState::Maybe && walk == WalkMode::Discover) {
+                            out.flagged.set(base, id.index, 1);
+                        }
+
+                        if(walk == WalkMode::Emit) {
+                            pushDrop(DropStep {
+                                index, position, path(id).place, id, here == PathState::Maybe,
+                                guardedBy(id)
+                            });
+                        }
+
+                        flagSubtree(position, id, false);
+                        setSubtree(id, PathState::Moved);
+                        continue;
+                    }
+
                     state[id.index] = PathState::Moved;
 
                     /*
@@ -413,10 +544,11 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                  * released - `Maybe('v)`, whose payload the signature borrowed.
                  *
                  * The derived teardown is generated per *type*, so it would descend into the payload
-                 * and drop storage this frame only refers to. `checkQualifiedShapes` is what makes
-                 * asking the occurrence the whole answer rather than half of one: a qualified
-                 * argument is admitted only where removing it leaves nothing to run, so there is no
-                 * residue for a shape-aware teardown to have to emit.
+                 * and drop storage this frame only refers to. Asking the occurrence is the whole
+                 * answer here and not half of one: what a qualified argument leaves behind is
+                 * `residueOwnership`'s fold, and the step placed for it is expanded by the SSA
+                 * conversion into drops of the surviving members (`emitResidueDrop`, J187), so this
+                 * walk places one drop per value exactly as it does for any other.
                  */
                 if(hasTeardownAt(decl, body.place(base, path(id).place)->occurrence)) {
                     if(walk == WalkMode::Emit) checkDisposalPermission(node.source, id);
@@ -445,13 +577,14 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                     }
 
                     if(walk == WalkMode::Emit) {
-                        out.drops.push(program.mir, DropStep {
-                            index, position, path(id).place, id, here == PathState::Maybe
+                        pushDrop(DropStep {
+                            index, position, path(id).place, id, here == PathState::Maybe,
+                            guardedBy(id)
                         });
                     }
                 }
 
-                flagAt(position, id, false);
+                flagSubtree(position, id, false);
                 setSubtree(id, PathState::Moved);
                 continue;
             }
@@ -460,6 +593,39 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             // descended into.
             descend(id);
         }
+    };
+
+    /*
+     * The leave path of the call ending this block, from its joined state: released against what
+     * the regions *outside* it still hold, exactly as the drop walk asks at a position - so a path
+     * lent to two nested traversals goes after the outer one's cleanup, and the outermost call
+     * releases whatever is left.
+     */
+    if(onLeave) {
+        SmallArray<U64, 8> outside;
+        for(U32 w = 0; w < pathWords; w++) outside.push(0);
+
+        auto region = body.region(base, ContinuationId(leaving))->parent;
+        for(auto at = region; at.valid(); at = body.region(base, at)->parent) {
+            if(at.index < regionCall.size() && regionCall[at.index] != kNoCall) {
+                useHeld(outside.pointer(), at.index);
+            }
+        }
+
+        for(Size slot = 0; slot < heldRegions.size(); slot++) {
+            if(heldRegions[slot] != leaving) continue;
+            release(count, *leaveNode[slot], outside.pointer());
+            break;
+        }
+
+        return;
+    }
+
+    for(U32 position = 0; position < count; position++) {
+        auto& node = nodeAt(index, position);
+
+        release(position, node, position == 0 ? liveAt(liveIn, index)
+                                              : after.pointer() + (position - 1) * pathWords);
 
         /*
          * And the obligation the hole carries, asked where the frame lets go of the reference.
@@ -603,8 +769,8 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             }
 
             setSubtree(id, PathState::Moved);
-            markAncestorsMoved(id);
-            flagAt(position, id, false);
+            flagSubtree(position, id, false);
+            markAncestorsMoved(position, id);
         });
 
         forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
@@ -714,9 +880,36 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             }
 
             setSubtree(id, PathState::Owned);
-            markAncestorsRefilled(id);
-            flagAt(position, id, true);
+            flagSubtree(position, id, true);
+            markAncestorsRefilled(position, id);
         });
+
+        /*
+         * A `return` inside a traversal's region: what the regions around it still hold is
+         * released on each call site's **leave path**, after that callee's cleanup (K6).
+         *
+         * `computeLiveness` keeps a region's held storage live at the returning block, so the drops
+         * above passed it over; before K6 they did not, and `drop (note)` ran ahead of the lens's
+         * cleanup, which then read the freed value (J210 section 4).
+         *
+         * The leave path is a **join**: every `return` inside the region reaches it, after the
+         * callee's cleanup, and they need not agree. `consume(p.b); return 1` beside `return 2`
+         * leaves `p.b` gone on one and owned on the other, and a held path is not frozen either -
+         * only the storage the loan names is, and its siblings may move. So this `return`'s state
+         * is met into the innermost enclosing region's join rather than released here, and
+         * `releaseLeavePaths` releases each join once, from the met state, under the flags - where
+         * the first version released per `return` and folded the repeats by place, which dropped
+         * `p` whole on one path and `p.a` again for the other (R1).
+         */
+        if(walk != WalkMode::Fixpoint && node.kind == Node::Return && heldRegions.size()) {
+            auto at = this->block(index)->region;
+            for(; at.valid(); at = body.region(base, at)->parent) {
+                if(at.index < regionCall.size() && regionCall[at.index] != kNoCall) {
+                    joinLeave(at.index, state, node);
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -834,11 +1027,45 @@ void Analysis::computeInitialization() {
  * blocks the walk reaches before the block whose conditional drop is the reason the flag exists.
  */
 void Analysis::placeDrops() {
+    /*
+     * Which paths can be partly there - `splitBelow`. A take or a write of a path is what changes
+     * its presence apart from its parent's, so every strict ancestor of one is marked. Read off the
+     * nodes rather than off the states, because the states meet: a value taken whole on one path,
+     * taken apart on a second and untouched on a third is `Maybe` with every member `Maybe`, and
+     * only the body can say the members do not follow the whole.
+     */
+    splitBelow.reset(pathCount);
+    for(U32 b = 0; pathCount && b < blockCount; b++) {
+        for(U32 n = 0, count = nodeCount(b); n < count; n++) {
+            auto& node = nodeAt(b, n);
+
+            forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
+                if(operand.source() != SourceKind::Place) return;
+
+                auto index = operand.placeId().index;
+                MovePathId id;
+                if(role == OperandRole::WriteTarget) id = exact[index];
+                else if(role == OperandRole::ReadSource && operand.mode() == UseMode::Take) {
+                    id = exact[index].valid() ? exact[index] : cover[index];
+                }
+
+                if(!id.valid()) return;
+                for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
+                    splitBelow.add(up.index);
+                }
+            });
+        }
+    }
+
     for(auto walk: { WalkMode::Discover, WalkMode::Emit }) {
         // Nothing to discover where nothing is tracked: the first round exists to find the paths
         // whose drop is conditional, and a body with no paths has none. The second still runs, for
         // the overwrite releases of the places that never had one.
         if(walk == WalkMode::Discover && !pathCount) continue;
+
+        leaveDrops.clear();
+        leaveState.clear();
+        leaveNode.clear();
 
         for(U32 index = 0; index < blockCount; index++) {
             if(!reached.get(index)) continue;
@@ -850,6 +1077,9 @@ void Analysis::placeDrops() {
             walkBlock(index, state.pointer(), int(walk));
         }
 
+        releaseLeavePaths(int(walk));
+        if(walk == WalkMode::Emit) mergeLeaveDrops();
+
         /*
          * A flagged path's flag starts false, and a flagged *parameter*'s starts true.
          *
@@ -859,16 +1089,144 @@ void Analysis::placeDrops() {
          */
         if(walk != WalkMode::Discover) continue;
 
+        anyFlagged = false;
         for(U32 p = 0; p < pathCount; p++) {
             if(!out.flagged.get(base, p)) continue;
+            anyFlagged = true;
 
+            // Of the root, as `computeInitialization` asks it: a parameter's members arrive as the
+            // parameter does. Asked of the path's own place, a member of an owned parameter - a
+            // teardown subject's `self.x` consumed on one path (R1) - started gone and was never
+            // released on the path that kept it.
             auto place = body.place(base, path(MovePathId(p)).place);
+            while(place->parent) place = base[place->parent];
+
             auto owned = place->kind == Place::Local &&
                          body.local(base, LocalId(place->payload))->isParameter();
 
             out.flags.push(program.mir, FlagStep { 0, FlagStep::kEntry, MovePathId(p), owned });
         }
     }
+}
+
+/*
+ * One `return`'s state, met into its region's leave join - `walkBlock`'s `return` case.
+ */
+void Analysis::joinLeave(U32 region, const PathState* state, Node& node) {
+    if(!leaveNode.size()) {
+        for(Size i = 0; i < heldRegions.size(); i++) leaveNode.push(nullptr);
+        for(Size i = 0; i < heldRegions.size() * pathCount; i++) {
+            leaveState.push(PathState::Uninitialized);
+        }
+    }
+
+    for(Size slot = 0; slot < heldRegions.size(); slot++) {
+        if(heldRegions[slot] != region) continue;
+
+        auto joined = leaveState.pointer() + slot * pathCount;
+        auto first = !leaveNode[slot];
+        for(U32 p = 0; p < pathCount; p++) {
+            joined[p] = first ? state[p] : meetState(joined[p], state[p]);
+        }
+
+        if(first) leaveNode[slot] = &node;
+        return;
+    }
+}
+
+/*
+ * Each leave join released once, innermost first - K6, made a join by R1.
+ *
+ * What a call's leave path leaves is what the next enclosing call's leave path is entered with,
+ * beside the `return`s directly inside that one, so a region is released after every region nested
+ * in it: deepest first, the depth being the number of held regions around it.
+ *
+ * No flag is written on a leave path, and none needs to be: the function is returning, and what
+ * an inner leave path releases is storage only it held, which is gone - not merely unflagged - at
+ * every `return` that meets it in the outer join.
+ */
+void Analysis::releaseLeavePaths(int mode) {
+    if(!leaveNode.size()) return;
+
+    auto outerHeld = [&](U32 region) {
+        auto at = body.region(base, ContinuationId(region))->parent;
+        for(; at.valid(); at = body.region(base, at)->parent) {
+            if(at.index < regionCall.size() && regionCall[at.index] != kNoCall) return at.index;
+        }
+        return kNoCall;
+    };
+
+    SmallArray<U32, 8> order, depth;
+    for(Size slot = 0; slot < heldRegions.size(); slot++) {
+        U32 d = 0;
+        for(auto at = heldRegions[slot]; at != kNoCall; at = outerHeld(at)) d++;
+
+        // Deepest first; insertion, since a body has a handful of these.
+        Size j = order.size();
+        order.push(U32(slot));
+        depth.push(d);
+        for(; j > 0 && depth[j - 1] < d; j--) {
+            order[j] = order[j - 1];
+            depth[j] = depth[j - 1];
+        }
+        order[j] = U32(slot);
+        depth[j] = d;
+    }
+
+    SmallArray<PathState, 64> state;
+    for(U32 p = 0; p < pathCount; p++) state.push(PathState::Uninitialized);
+
+    for(auto slot: order) {
+        if(!leaveNode[slot]) continue;
+
+        auto region = heldRegions[slot];
+        auto joined = leaveState.pointer() + slot * pathCount;
+        for(U32 p = 0; p < pathCount; p++) state[p] = joined[p];
+
+        walkBlock(regionCall[region], state.pointer(), mode, region);
+
+        auto outer = outerHeld(region);
+        if(outer != kNoCall) joinLeave(outer, state.pointer(), *leaveNode[slot]);
+    }
+}
+
+/*
+ * The steps placed on traversals' leave paths, merged into the sorted list - `releaseLeavePaths`.
+ *
+ * They are found after every block has been walked and belong to the calls' blocks, so they arrive
+ * out of order - one release per call, since the leave path is a join. Each sits at the call
+ * block's node count, past its terminator, which is the one position no ordinary step has: the
+ * conversion reads it where it emits the call's leave path. Sorted by block, keeping the order each
+ * call's release placed them in.
+ */
+void Analysis::mergeLeaveDrops() {
+    if(!leaveDrops.size()) return;
+
+    Array<DropStep> unique;
+    for(auto& step: leaveDrops) unique.push(step);
+
+    // Stable by block: insertion, since a body has a handful of these.
+    for(Size i = 1; i < unique.size(); i++) {
+        auto held = unique[i];
+        auto j = i;
+        for(; j > 0 && unique[j - 1].block > held.block; j--) unique[j] = unique[j - 1];
+        unique[j] = held;
+    }
+
+    Array<DropStep> merged;
+    Size next = 0;
+    for(auto step: out.drops.contents(base)) {
+        while(next < unique.size() && (unique[next].block < step.block ||
+                                       (unique[next].block == step.block &&
+                                        unique[next].position < step.position))) {
+            merged.push(unique[next++]);
+        }
+        merged.push(step);
+    }
+    while(next < unique.size()) merged.push(unique[next++]);
+
+    for(Size i = out.drops.size(); i < merged.size(); i++) out.drops.push(program.mir, DropStep());
+    for(Size i = 0; i < merged.size(); i++) out.drops.set(base, U32(i), merged[i]);
 }
 
 bool analyzeBody(Context& context, Program& program, Function& function,

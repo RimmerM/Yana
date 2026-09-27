@@ -1,14 +1,14 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "ann"
+let string'188: [CodeUnit *3] = "ann"
 
-let string'143: [CodeUnit *3] = "bob"
+let string'189: [CodeUnit *3] = "bob"
 
-let string'144: [CodeUnit *2] = "cy"
+let string'190: [CodeUnit *2] = "cy"
 
-let string'145: [CodeUnit *3] = "bob"
+let string'191: [CodeUnit *3] = "bob"
 
-let string'146: [CodeUnit *3] = "bob"
+let string'192: [CodeUnit *3] = "bob"
 
 lens fn eachOf(xs: Array(String) [shared call view], $body: (String) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -108,10 +108,10 @@ fn main() -> I32 {
   local byTemporary: I32
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
-  %1: String = const String {units: Array {run: Run {items: &string'143, capacity: 3, ownsHeap: 0}, length: 3}}
-  %2: String = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
-  %3: String = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
+  %1: String = const String {units: Array {run: Run {items: &string'189, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'190, capacity: 2, ownsHeap: 0}, length: 2}}
+  %3: String = const String {units: Array {run: Run {items: &string'191, capacity: 3, ownsHeap: 0}, length: 3}}
   %4: %String = run.slots String *4
   %5: Size = bitcast inspect %4
   %6: Size = const 0
@@ -135,7 +135,7 @@ bb0:
   write.init borrow.unique (names) take %23
   %25: Array(String) [shared call] = read borrow.shared (names) loan0
   %26: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %25 roots{0}
-  %27: String = const String {units: Array {run: Run {items: &string'146, capacity: 3, ownsHeap: 0}, length: 3}}
+  %27: String = const String {units: Array {run: Run {items: &string'192, capacity: 3, ownsHeap: 0}, length: 3}}
   write.init borrow.unique (local2) take %27
   %29: String [shared slot 0] = read borrow.shared (local2) loan1
   %30: String [shared slot 0 view] = call.derivation view(String) borrow.shared %29 roots{1}

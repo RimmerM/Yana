@@ -41,31 +41,33 @@ function main() {
   var v306 = opaque({ $tag: 0, Circle: 200, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
   if (v306.$tag === 0 && v306.Circle >= 100) {
     var v322 = opaque({ $tag: 0, Circle: 2, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
-    p12 = v322.$tag === 0 && v322.Circle >= 100 ? 2 : v322.$tag === 0 ? 1 : 0;
+    var v323 = v322.$tag;
+    p12 = v323 === 0 && v322.Circle >= 100 ? 2 : v323 === 0 ? 1 : 0;
     p8 = p12 === 1 ? 1 : 0;
   } else {
     p8 = 0;
   }
-  var v342 = v297 + (p8 ? 1024 : 0);
-  var v351 = opaque({ $tag: 2, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
-  var v371 = v342 + ((v351.$tag === 0 && v351.Circle >= 100 ? 2 : v351.$tag === 0 ? 1 : 0) === 0 ? 2048 : 0);
-  var v380 = opaque({ $tag: 2, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
-  var v381 = v380.$tag;
+  var v341 = v297 + (p8 ? 1024 : 0);
+  var v350 = opaque({ $tag: 2, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
+  var v351 = v350.$tag;
+  var v369 = v341 + ((v351 === 0 && v350.Circle >= 100 ? 2 : v351 === 0 ? 1 : 0) === 0 ? 2048 : 0);
+  var v378 = opaque({ $tag: 2, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 0 });
+  var v379 = v378.$tag;
   B16: {
     B17: {
-      if (v381 !== 2) {
-        if (computed({ $tag: v381, Circle: v380.Circle, width: v380.width, height: v380.height, from: v380.from, to: v380.to, Poly: v380.Poly }) === 0) break B17;
+      if (v379 !== 2) {
+        if (computed({ $tag: v379, Circle: v378.Circle, width: v378.width, height: v378.height, from: v378.from, to: v378.to, Poly: v378.Poly }) === 0) break B17;
         p9 = 0;
         break B16;
       }
     }
-    var v399 = opaque({ $tag: 4, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 1 });
-    var v400 = v399.$tag;
-    p13 = v400 === 2 ? 0 : computed({ $tag: v400, Circle: v399.Circle, width: v399.width, height: v399.height, from: v399.from, to: v399.to, Poly: v399.Poly });
+    var v397 = opaque({ $tag: 4, Circle: 0, width: 0, height: 0, from: 0, to: 0, Poly: 1 });
+    var v398 = v397.$tag;
+    p13 = v398 === 2 ? 0 : computed({ $tag: v398, Circle: v397.Circle, width: v397.width, height: v397.height, from: v397.from, to: v397.to, Poly: v397.Poly });
     p9 = p13 === 5 ? 1 : 0;
   }
-  return v371 + (p9 ? 4096 : 0);
+  return v369 + (p9 ? 4096 : 0);
 }
 var $m = [1, 4, 0, 2, 5];
 var $m$1 = [0, 1, 2, 1, 1];
-main();
+(globalThis.process ?? {}).exitCode = main();

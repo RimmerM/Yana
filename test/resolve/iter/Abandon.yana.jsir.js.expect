@@ -41,65 +41,60 @@ function main() {
   if (9 !== trace) return 2;
   if (objectBreak() !== 9) return 3;
   trace = 0;
-  var v58 = { $index: 1, $slot: 0, n: 3, i: 0 };
-  if (!(v58.$slot === null)) {
-    noisy$drop(v58);
-  } else {
-    noisy$drop(v58);
-  }
+  noisy$drop({ $index: 1, $slot: 0, n: 3, i: 0 });
   if (trace !== 9) return 4;
   trace = 0;
   noisy$drop({ $index: 0, $slot: 0, n: 3, i: 0 });
   if (trace) return 5;
-  var v112 = { $index: 0, $slot: 0, n: 3, i: 0 };
-  var v118 = { $index: v112.$index, $slot: v112.$slot, n: v112.n, i: v112.i };
-  var v119 = { $index: v118.$index, $slot: v118.$slot, n: v118.n, i: v118.i };
+  var v101 = { $index: 0, $slot: 0, n: 3, i: 0 };
+  var v107 = { $index: v101.$index, $slot: v101.$slot, n: v101.n, i: v101.i };
+  var v108 = { $index: v107.$index, $slot: v107.$slot, n: v107.n, i: v107.i };
   var p1 = 0;
-  L3: for (;;) {
-    var v132 = v112.$index;
-    B4: {
-      if (v132 === 1) {
-        v112.i = v112.i + 1 | 0;
+  L2: for (;;) {
+    var v121 = v101.$index;
+    B3: {
+      if (v121 === 1) {
+        v101.i = v101.i + 1 | 0;
       } else {
-        if (v132 === 0) {
-          v112.i = 0;
-          break B4;
+        if (v121 === 0) {
+          v101.i = 0;
+          break B3;
         }
-        break L3;
+        break L2;
       }
     }
-    var v141 = v112.i;
-    if (v141 < v112.n) {
-      v112.$slot = v141;
-      v112.$index = 1;
-      p1 = (Math.imul(p1, 10) + v141 | 0) + 1 | 0;
-      continue L3;
+    var v130 = v101.i;
+    if (v130 < v101.n) {
+      v101.$slot = v130;
+      v101.$index = 1;
+      p1 = (Math.imul(p1, 10) + v130 | 0) + 1 | 0;
+      continue L2;
     }
-    v112.$index = 2147483647;
-    break L3;
+    v101.$index = 2147483647;
+    break L2;
   }
-  L5: for (;;) {
-    var v157 = v119.$index;
-    B6: {
-      if (v157 === 1) {
-        v119.i = v119.i + 1 | 0;
+  L4: for (;;) {
+    var v146 = v108.$index;
+    B5: {
+      if (v146 === 1) {
+        v108.i = v108.i + 1 | 0;
       } else {
-        if (v157 === 0) {
-          v119.i = 0;
-          break B6;
+        if (v146 === 0) {
+          v108.i = 0;
+          break B5;
         }
-        break L5;
+        break L4;
       }
     }
-    var v166 = v119.i;
-    if (v166 < v119.n) {
-      v119.$slot = v166;
-      v119.$index = 1;
-      p1 = (Math.imul(p1, 10) + v166 | 0) + 1 | 0;
-      continue L5;
+    var v155 = v108.i;
+    if (v155 < v108.n) {
+      v108.$slot = v155;
+      v108.$index = 1;
+      p1 = (Math.imul(p1, 10) + v155 | 0) + 1 | 0;
+      continue L4;
     }
-    v119.$index = 2147483647;
-    break L5;
+    v108.$index = 2147483647;
+    break L4;
   }
   return p1 !== 123123 ? 6 : 0;
 }
@@ -113,4 +108,4 @@ function noisy$drop($self) {
     if (v7 === 0) $self.$index = 2147483647;
   }
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -1,0 +1,34 @@
+{-
+   `@layout(c)` records are as large as C's `sizeof` says, tail padding included - K5.
+
+   A record's size here normally stops at its last field and the padding after it is the stride's,
+   so a containing record may use it (`LayoutPin.yana`'s `Ordered` was 17 bytes). Under the C pin the
+   padding is the record's: `struct msghdr` is 56 bytes and the kernel copies all of them (J207), and
+   a C struct nested in another is placed at its `sizeof`, so the field after it is where C puts it.
+   `@layout(packed)` keeps its size exactly.
+-}
+
+import Native
+
+@layout(c)
+data Tail {wide: I64, narrow: I8}
+
+@layout(c)
+data Nest {inner: Tail, tag: I8}
+
+@layout(packed)
+data Tight {wide: I64, narrow: I8}
+
+data Plain {wide: I64, narrow: I8}
+
+fn main() -> I32:
+    if sizeOf(Tail {wide: 0, narrow: 0}) != 16 then return 1
+    if sizeOf([Tail {wide: 0, narrow: 0}] :: [Tail *3]) != 48 then return 2
+    if sizeOf(Nest {inner: Tail {wide: 0, narrow: 0}, tag: 0}) != 24 then return 3
+    if sizeOf(Tight {wide: 0, narrow: 0}) != 9 then return 4
+    if sizeOf(Plain {wide: 0, narrow: 0}) != 9 then return 5
+    let n = Nest {inner: Tail {wide: 1, narrow: 2}, tag: 3}
+    let at = bitcast(addressOf(n)) :: USize
+    let tag = bitcast(addressOf(n.tag)) :: USize
+    if tag - at != 16 then return 6
+    return 0

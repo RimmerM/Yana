@@ -8,23 +8,17 @@ function Guard_drop(value) {
 }
 
 function main() {
-  var p2;
   Guard_drop(1);
   Guard_drop(2);
   Guard_drop(3);
   Guard_drop(4);
-  var v72 = { $v: 5 };
-  var s3 = { $o: v72, $k: "$v" };
-  if (!(s3 === null)) {
-    p2 = s3.$o[s3.$k];
-    Guard_drop(v72.$v);
-  } else {
-    Guard_drop(v72.$v);
-    p2 = 0;
-  }
+  var v46 = { $v: 5 };
+  var s3 = { $o: v46, $k: "$v" };
+  var v55 = s3.$o[s3.$k];
+  Guard_drop(v46.$v);
   Guard_drop(6);
   Guard_drop(7);
   Guard_drop(8);
-  return ((((37 + p2 | 0) + 12 | 0) + 21 | 0) + 16 | 0) + trace | 0;
+  return ((((37 + v55 | 0) + 12 | 0) + 21 | 0) + 16 | 0) + trace | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

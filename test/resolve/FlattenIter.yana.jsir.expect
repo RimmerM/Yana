@@ -236,22 +236,21 @@ fn nested.cont(one %r5, one %r0) -> one %r0 env
     %6: %r11 = binary.gt %4, %5
     branch %6 -> block2 -> block1
   block1:
-    %15: %r0 = load cell %3: %r0
-    %16: %r0 = binary.add %15, %1
-    %17: %r0 = coerce %16
-    store cell %3: %r0, %17
-    %18: %r0 = const 0
-    return %18
+    %14: %r0 = load cell %3: %r0
+    %15: %r0 = binary.add %14, %1
+    %16: %r0 = coerce %15
+    store cell %3: %r0, %16
+    %17: %r0 = const 0
+    return %17
   block2:
     %7: %r0 = load cell %3: %r0
-    %8: %r0 = load cell %2: %r0
-    %9: %r0 = const 1
-    %10: %r0 = binary.sub %8, %9
-    %11: %r0 = coerce %10
-    %12: %r0 = call nested %11
-    %13: %r0 = binary.add %7, %12
-    %14: %r0 = coerce %13
-    store cell %3: %r0, %14
+    %8: %r0 = const 1
+    %9: %r0 = binary.sub %4, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = call nested %10
+    %12: %r0 = binary.add %7, %11
+    %13: %r0 = coerce %12
+    store cell %3: %r0, %13
     jump -> block1
 
 fn Array(a).reclaim(I32)(one %r8) -> omitted

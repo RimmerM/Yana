@@ -112,10 +112,16 @@
  *    self-recursive function does not converge at all. The same refusal is what makes a *recursive
  *    adaptor chain* stop: a `for` whose body reaches its own function puts the outlined continuation
  *    in the cycle too, since the `fun.value` naming it is an edge of this graph.
- *  - **a callee that may suspend**, read off its published `Summary`. It answers false for every
- *    function today - nothing in this stage is a suspension point - so this is a row rather than a
- *    case, and it is here because the milestone that makes one true is not the milestone that would
- *    think to look here.
+ *  - **not a callee that may suspend**, which was a row here until E5 (J220). The one suspension
+ *    point this stage has is `stackSwitch` (`summary.cpp`'s `suspendsAt`), and a stack switch
+ *    suspends the whole stack at an instruction: the frames on it stay where they are, so a copy of
+ *    the switching body in its caller's frame suspends exactly as the call did. Refusing it took
+ *    `lib/Net`'s `park`/`yieldNow` family out of line once the summary started answering, for no
+ *    gain - `ab -k -c 50` on `benchmark/net/HttpServer.yana` read 464k against 467k requests/s,
+ *    inside the run-to-run spread, and without the row the program is byte-identical to before.
+ *    A **stackless** suspension (P10's, a continuation captured at a call) is the kind that needs
+ *    the callee's frame separate; when one exists the summary has to say which kind it is, and that
+ *    kind is refused here.
  *  - **a `return` in a region that is not the body's own.** A region may be left only for its
  *    declared `destination`, so a `return` inside a cleanup arm would become a jump out of the arm
  *    to somewhere the arm does not rejoin at. Nothing produces one - a cleanup arm is a drop and a
@@ -1866,9 +1872,7 @@ struct Inliner {
         // the callee's own environment, numbered against that declaration's schema.
         if(callee->form == mir::GenForm::Erased && mir::isGeneric(decl(), callee->gen)) return false;
 
-        // A suspension has no representation at this tier, so this is a row rather than a case - see
-        // the file comment.
-        if(callee->summary.suspension().get(true)) return false;
+        // A suspension is deliberately *not* read here - see the file comment's row, and E5 (J220).
 
         return !recursive.getValue(pointer.offset);
     }

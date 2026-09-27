@@ -105,26 +105,23 @@ fn main() -> one %r0
     %41: %r0 = binary.add %29, %40
     %42: %r0 = coerce %41
     %43: %r0 = const 5
-    %44: %r0 = const 8
-    %45: %r0 = const 0
-    %46: %r0 = const 1
-    jump -> block9(%45)
+    %44: %r0 = const 0
+    %45: %r0 = const 1
+    jump -> block9(%44)
   block9(%2: %r0):
-    %47: %r1 = binary.lt %2, %43
-    %48: %r1 = binary.lt %2, %44
-    %49: %r1 = binary.and %47, %48
-    branch %49 -> block11 -> block10
+    %46: %r1 = binary.lt %2, %43
+    branch %46 -> block10 -> block11
   block10:
-    %50: %r0 = const 10000
-    %51: %r0 = binary.mul %2, %50
-    %52: %r0 = coerce %51
-    %53: %r0 = binary.add %42, %52
-    %54: %r0 = coerce %53
-    return %54
+    %52: %r0 = binary.add %2, %45
+    %53: %r0 = coerce %52
+    jump -> block9(%53)
   block11:
-    %55: %r0 = binary.add %2, %46
-    %56: %r0 = coerce %55
-    jump -> block9(%56)
+    %47: %r0 = const 10000
+    %48: %r0 = binary.mul %2, %47
+    %49: %r0 = coerce %48
+    %50: %r0 = binary.add %42, %49
+    %51: %r0 = coerce %50
+    return %51
 
 optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 

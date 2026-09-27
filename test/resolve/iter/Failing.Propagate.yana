@@ -1,0 +1,110 @@
+{-
+   `?` on a failing traversal - C4, P6: `for x in f(...)?:` and `let x = f(...)? in:` propagate the
+   traversal's failure from the enclosing function, the exit `x?` takes, converted by one `Widen`
+   step (J204). Analysis-External-Iterators.md §2.3 designed the `for` form.
+
+   Covered: an internal `iter fn` into a `Result` through a `Widen` instance; a `| {}` failure into a
+   `Maybe`; a failing `iter fn` propagating another's failure through its own `| E`; a held object
+   (`for x in it?:`); a skipping lens in both `let` forms; and the two alternative spellings J198
+   found unparsed, `| return False in:` and `| else -> return in:`.
+
+   `?:` right after an operand and before a line end is the suffix and the block's colon; a spaced
+   `a ?: b` is still the operator a program may define (`Fixity.yana`), which `orElse` uses.
+-}
+
+data Inner = Inner {code: Int}
+data Outer = Wrapped(Inner) | Other
+
+instance Widen(Inner, Outer):
+    fn widen(->from: Inner) -> Outer = Wrapped(from)
+
+infixr 4 ?:
+fn ?:(->value: Maybe(Int), fallback: Int) -> Int = match value:
+    Just(v) -> v
+    Nothing -> fallback
+
+iter fn upTo(n: Int) -> (Int | Inner):
+    for i in 1..=n:
+        if i == 4 then return Inner {code: 40 + n}
+        yield i
+
+-- A failing iterator taking its producer's failure as its own.
+iter fn doubled(n: Int) -> (Int | Inner):
+    for x in upTo(n)?:
+        yield x * 2
+
+fn sumWide(n: Int) -> Result(Outer, Int):
+    let &total = 0
+    for x in doubled(n)?:
+        total += x
+    return Ok(total)
+
+iter fn untilTwo(n: Int) -> (Int | {}):
+    for i in 1..=n:
+        if i == 3 then return {}
+        yield i
+
+fn firstSum(n: Int) -> Maybe(Int):
+    let &total = 0
+    for x in untilTwo(n)?:
+        total += x
+    return Just(total)
+
+fn objectSum(n: Int) -> Result(Inner, Int):
+    let &it = upTo(n)
+    let &total = 0
+    for x in it?:
+        total += x
+    return Ok(total)
+
+lens fn opened(ok: Bool) -> (Int | Inner):
+    if !ok then return Inner {code: 5}
+    yield 7
+
+fn scoped(ok: Bool) -> Result(Outer, Int):
+    let w = opened(ok)? in:
+        return Ok(w)
+    return Ok(0)
+
+fn flat(ok: Bool) -> Result(Inner, Int):
+    let w = opened(ok)?
+    return Ok(w + 1)
+
+fn fallbackFalse(ok: Bool) -> Bool:
+    let w = opened(ok) | return False in:
+        if w != 7 then return False
+    return True
+
+fn bareReturn(ok: Bool, &into: Int):
+    let w = opened(ok) | else -> return in:
+        into += w
+
+fn wide(r: Result(Outer, Int)) -> Int = match r:
+    Ok(v) -> v
+    Err(Wrapped(e)) -> 1000 * e.code
+    Err(Other) -> -1
+
+fn inner(r: Result(Inner, Int)) -> Int = match r:
+    Ok(v) -> v
+    Err(e) -> 1000 * e.code
+
+fn orElse(m: Maybe(Int)) -> Int = copy(m) ?: -1
+
+fn main() -> Int:
+    let &sum = 0
+    sum += wide(sumWide(3))              -- 2 + 4 + 6 = 12
+    sum += wide(sumWide(5))              -- 45000
+    sum += orElse(firstSum(2))           -- 3
+    sum += orElse(firstSum(5))           -- -1
+    sum += inner(objectSum(3))           -- 6
+    sum += inner(objectSum(6))           -- 46000
+    sum += wide(scoped(True))            -- 7
+    sum += wide(scoped(False))           -- 5000
+    sum += inner(flat(True))             -- 8
+    sum += inner(flat(False))            -- 5000
+    if fallbackFalse(True) then sum += 100
+    if !fallbackFalse(False) then sum += 200
+    let &into = 0
+    bareReturn(True, into)
+    bareReturn(False, into)
+    return sum + into                    -- 101035 + 300 + 7 = 101342

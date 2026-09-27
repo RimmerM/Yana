@@ -1,0 +1,107 @@
+{-
+   An object built in a **generic body at the body's own type variables** - P16, J223.
+
+   `let &it = repeat(x, n)` inside `fn (a) whole(->x: a, n: Int)` has no concrete producer to mint a
+   record from, so the body holds an *open* record - `repeat(a).Iter`, minted from the producer read
+   at `a` and sharing `whole`'s context, as a lambda's environment does (J205) - and every analysis
+   of the body reads its signatures. Each specialization of `whole` replaces it with the record
+   minted at its own `a`: `repeat(I32).Iter` holds the captured number by value and owes nothing,
+   `repeat(Tag).Iter` owns a `Tag` and has a teardown. The body's `drop (it)` is the specialization's
+   question, so the first specialization drops nothing and the second releases its `Tag` once,
+   whichever way the object ends - run to the end, abandoned after one step, never stepped.
+
+   A `Tag` counts its releases; `main` answers the cases that did not match, and zero.
+-}
+
+let &drops = 0
+let &failures = 0
+
+data Tag {id: Int, name: String}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        drops += 1
+
+iter fn (a) repeat(->keep: a, to: Int) -> Int:
+    for i in 0..to:
+        yield i
+
+iter fn (a) labelled(->keep: a, to: Int) -> (Int | String):
+    for i in 0..to:
+        yield i
+    if to > 2 then return "long {to}"
+
+fn expect(case: Int, got: Int, want: Int):
+    if got != want then failures += case
+
+-- `for` over the object, to the end.
+fn (a) whole(->x: a, n: Int) -> Int:
+    let &it = repeat(x, n)
+    let &sum = 0
+    for v in it:
+        sum += v
+    return sum
+
+-- One step, then abandoned: the teardown ends the loop inside the producer.
+fn (a) first(->x: a, n: Int) -> Int:
+    let &it = repeat(x, n)
+    if it.next() is Just(v) then return v + 10
+    return -1
+
+-- Two objects of one producer at two of the body's variables, stepped alternately.
+fn (a, b) zipped(->x: a, ->y: b, n: Int) -> Int:
+    let &left = repeat(x, n)
+    let &right = repeat(y, n + 1)
+    let &sum = 0
+    while True:
+        let Just(l) = left.next() | return sum
+        let Just(r) = right.next() | return sum
+        sum += l * r
+    return sum
+
+-- A failing object, handed to a function generic in what it steps - which specializes at the record
+-- each caller's specialization built.
+@specialize fn (IterateFailing(c, Int, String, {})) drain(&it: c) -> Int:
+    let &sum = 0
+    while True:
+        match it.next():
+            IterStep.Yield(v) -> sum += v
+            IterStep.Done -> return sum
+            IterStep.Failed(->e) -> return -sum - (truncate(length(e)) :: Int)
+    return sum
+
+fn (a) handed(->x: a, n: Int) -> Int:
+    let &it = labelled(x, n)
+    return drain(it)
+
+-- The failure through a `for`'s alternative.
+fn (a) looped(->x: a, n: Int) -> Int:
+    let &it = labelled(x, n)
+    let &sum = 0
+    for v in it:
+        sum += v
+    | e -> sum = 100 + (truncate(length(e)) :: Int)
+    return sum
+
+-- Built and never stepped.
+fn (a) idle(->x: a) -> Int:
+    let &it = repeat(x, 3)
+    return 7
+
+fn tag(id: Int) = Tag {id: id, name: "tag {id}"}
+
+fn main() -> Int:
+    expect(1, whole(1, 4), 6)
+    expect(2, whole(tag(1), 4), 6)
+    expect(4, first(2.5, 3), 10)
+    expect(8, first(tag(2), 3), 10)
+    expect(16, first(tag(3), 0), -1)
+    expect(32, zipped(3, tag(4), 3), 5)
+    expect(64, zipped(tag(5), "s", 2), 1)
+    expect(128, handed(1, 2), 1)
+    expect(256, handed(tag(6), 4), -12)
+    expect(512, looped("w", 3), 106)
+    expect(1024, looped(tag(7), 2), 1)
+    expect(2048, idle(tag(8)), 7)
+    expect(4096, drops, 8)
+    return failures

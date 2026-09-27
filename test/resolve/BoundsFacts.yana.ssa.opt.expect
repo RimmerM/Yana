@@ -1,0 +1,470 @@
+module ResolveTest
+
+fn decodeHeader(bytes$items: %U8, bytes$length: Size) -> Maybe(Header) {
+bb0(%86: %U8 trivial, %87: Size trivial):
+  %88: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %89: %%U8 address = field.addr .items inspect %88
+  store inspect %89 consume %86
+  %90: %Size address = field.addr .length inspect %88
+  store inspect %90 consume %87
+  %5: Size trivial = const 9
+  %6: Bool trivial = ne inspect %87 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %131: Size trivial = const 9
+  %94: %U8 [owned here shape6 .*=shared slot 0] trivial = represent inspect %86
+  %127: Size trivial = const 0
+  %24: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %94 inspect %127
+  %25: U8 [shared slot 0] guaranteed = load inspect %24
+  %26: U8 trivial = load inspect %25
+  %42: Size trivial = metric stride U8
+  %44: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %94 inspect %42
+  %45: U8 [shared slot 0] guaranteed = load inspect %44
+  %46: U8 trivial = load inspect %45
+  %48: Size trivial = const 2
+  %95: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %96: %%U8 address = field.addr .items inspect %95
+  store inspect %96 consume %86
+  %97: %Size address = field.addr .length inspect %95
+  store inspect %97 consume %131
+  %132: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %133: %%U8 address = field.addr .items inspect %132
+  store inspect %133 consume %86
+  %134: %Size address = field.addr .length inspect %132
+  store inspect %134 consume %131
+  %102: Size trivial = metric stride U8
+  %103: Size trivial = mul inspect %48 inspect %102
+  %104: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %86 inspect %103
+  %105: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %104
+  %106: U16 trivial = load inspect %105
+  %145: %Endian address = global.addr Target.byteOrder
+  %146: %U8 address = field.addr .# inspect %145
+  %147: U8 trivial = load inspect %146
+  %148: U8 trivial = const 1
+  %149: Bool trivial = eq inspect %147 inspect %148
+  %150: U16 trivial = byteswap inspect %106
+  %151: U16 trivial = select inspect %149 inspect %106 inspect %150
+  %50: Size trivial = const 4
+  %65: Size trivial = metric stride U8
+  %66: Size trivial = mul inspect %50 inspect %65
+  %67: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %94 inspect %66
+  %68: U8 [shared slot 0] guaranteed = load inspect %67
+  %69: U8 trivial = load inspect %68
+  %71: Size trivial = const 5
+  %111: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %112: %%U8 address = field.addr .items inspect %111
+  store inspect %112 consume %86
+  %113: %Size address = field.addr .length inspect %111
+  store inspect %113 consume %131
+  %152: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %153: %%U8 address = field.addr .items inspect %152
+  store inspect %153 consume %86
+  %154: %Size address = field.addr .length inspect %152
+  store inspect %154 consume %131
+  %118: Size trivial = metric stride U8
+  %119: Size trivial = mul inspect %71 inspect %118
+  %120: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %86 inspect %119
+  %121: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %120
+  %122: U32 trivial = load inspect %121
+  %170: U32 trivial = byteswap inspect %122
+  %171: U32 trivial = select inspect %149 inspect %122 inspect %170
+  %73: Header trivial = aggregate.Header consume %26 consume %46 consume %151 consume %69 consume %171
+  %74: Maybe(Header) trivial = aggregate.Just consume %73
+  return consume %74
+
+bb3:
+  %75: Maybe(Header) trivial = aggregate.Nothing
+  return consume %75
+}
+
+fn bodyLength(bytes$items: %U8, bytes$length: Size) -> U32 {
+bb0(%38: %U8 trivial, %39: Size trivial):
+  %40: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %41: %%U8 address = field.addr .items inspect %40
+  store inspect %41 consume %38
+  %42: %Size address = field.addr .length inspect %40
+  store inspect %42 consume %39
+  %5: Size trivial = const 9
+  %6: Bool trivial = lt inspect %39 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %8: Size trivial = const 5
+  %44: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %45: %%U8 address = field.addr .items inspect %44
+  store inspect %45 consume %38
+  %46: %Size address = field.addr .length inspect %44
+  store inspect %46 consume %39
+  %61: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %62: %%U8 address = field.addr .items inspect %61
+  store inspect %62 consume %38
+  %63: %Size address = field.addr .length inspect %61
+  store inspect %63 consume %39
+  %51: Size trivial = metric stride U8
+  %52: Size trivial = mul inspect %8 inspect %51
+  %53: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %38 inspect %52
+  %54: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %53
+  %55: U32 trivial = load inspect %54
+  %74: %Endian address = global.addr Target.byteOrder
+  %75: %U8 address = field.addr .# inspect %74
+  %76: U8 trivial = load inspect %75
+  %77: U8 trivial = const 1
+  %78: Bool trivial = eq inspect %76 inspect %77
+  %79: U32 trivial = byteswap inspect %55
+  %80: U32 trivial = select inspect %78 inspect %55 inspect %79
+  %10: Size trivial = const 8
+  %59: %U8 [owned here shape6 .*=shared slot 0] trivial = represent inspect %38
+  %25: Size trivial = metric stride U8
+  %26: Size trivial = mul inspect %10 inspect %25
+  %27: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %59 inspect %26
+  %28: U8 [shared slot 0] guaranteed = load inspect %27
+  %29: U8 trivial = load inspect %28
+  %30: U32 trivial = convert inspect %29
+  %31: U32 trivial = add inspect %80 inspect %30
+  return consume %31
+
+bb3:
+  %32: U32 trivial = const 0
+  return consume %32
+}
+
+fn window(bytes$items: %U8, bytes$length: Size, from: Size [shared call]) -> U32 {
+bb0(%25: %U8 trivial, %26: Size trivial, %31: Size [shared call] trivial):
+  %27: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %28: %%U8 address = field.addr .items inspect %27
+  store inspect %28 consume %25
+  %29: %Size address = field.addr .length inspect %27
+  store inspect %29 consume %26
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %31
+  %4: Size trivial = load inspect %2
+  %45: Size trivial = const 0
+  %46: Bool trivial = lt inspect %4 inspect %45
+  %47: Size trivial = const 0
+  %48: Size trivial = select inspect %46 inspect %47 inspect %4
+  %51: Bool trivial = gt inspect %48 inspect %26
+  %52: Size trivial = select inspect %51 inspect %26 inspect %48
+  %53: Bool trivial = lt inspect %26 inspect %52
+  %54: Size trivial = select inspect %53 inspect %52 inspect %26
+  %55: Bool trivial = gt inspect %54 inspect %26
+  %56: Size trivial = select inspect %55 inspect %26 inspect %54
+  %59: Size trivial = metric stride U8
+  %60: Size trivial = mul inspect %52 inspect %59
+  %61: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %25 inspect %60
+  %62: Size trivial = sub inspect %56 inspect %52
+  %63: ArrayView(U8) trivial = aggregate.ArrayView consume %61 consume %62
+  %14: Size trivial = const 4
+  %15: Bool trivial = lt inspect %62 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  %65: %U8 trivial = represent inspect %61
+  %32: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %33: %%U8 address = field.addr .items inspect %32
+  store inspect %33 consume %65
+  %34: %Size address = field.addr .length inspect %32
+  store inspect %34 consume %62
+  %67: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %68: %%U8 address = field.addr .items inspect %67
+  store inspect %68 consume %65
+  %69: %Size address = field.addr .length inspect %67
+  store inspect %69 consume %62
+  %66: Size trivial = const 0
+  %41: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %65 inspect %66
+  %42: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %41
+  %43: U32 trivial = load inspect %42
+  %80: %Endian address = global.addr Target.byteOrder
+  %81: %U8 address = field.addr .# inspect %80
+  %82: U8 trivial = load inspect %81
+  %83: U8 trivial = const 1
+  %84: Bool trivial = eq inspect %82 inspect %83
+  %85: U32 trivial = byteswap inspect %43
+  %86: U32 trivial = select inspect %84 inspect %43 inspect %85
+  return consume %86
+
+bb3:
+  %19: U32 trivial = const 0
+  return consume %19
+}
+
+fn survives(bytes$items: %U8, bytes$length: Size) -> U32 {
+bb0(%39: %U8 trivial, %40: Size trivial):
+  %41: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %42: %%U8 address = field.addr .items inspect %41
+  store inspect %42 consume %39
+  %43: %Size address = field.addr .length inspect %41
+  store inspect %43 consume %40
+  %5: Size trivial = const 4
+  %6: Bool trivial = lt inspect %40 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %8: Size trivial = const 3
+  %45: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %46: %%U8 address = field.addr .items inspect %45
+  store inspect %46 consume %39
+  %47: %Size address = field.addr .length inspect %45
+  store inspect %47 consume %40
+  %50: Size trivial = const 2
+  %61: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %62: %%U8 address = field.addr .items inspect %61
+  store inspect %62 consume %39
+  %63: %Size address = field.addr .length inspect %61
+  store inspect %63 consume %40
+  %69: USize trivial = bitcast inspect %8
+  %70: Size trivial = sub inspect %40 inspect %50
+  %71: USize trivial = bitcast inspect %70
+  %72: Bool trivial = gt inspect %69 inspect %71
+  branch inspect %72 -> bb18 -> bb17
+
+bb3:
+  %33: U32 trivial = const 0
+  return consume %33
+
+bb8:
+  %60: %U8 [owned here shape6 .*=shared slot 0] trivial = represent inspect %39
+  %26: Size trivial = metric stride U8
+  %27: Size trivial = mul inspect %11 inspect %26
+  %28: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %60 inspect %27
+  %29: U8 [shared slot 0] guaranteed = load inspect %28
+  %30: U8 trivial = load inspect %29
+  %31: U32 trivial = convert inspect %30
+  %32: U32 trivial = add inspect %10 inspect %31
+  return consume %32
+
+bb10:
+  %81: Size trivial = const 134
+  %82: Syscall trivial = const SysExit
+  %87: U16 trivial = bitcast inspect %82
+  %88: I32 trivial = convert inspect %87
+  %89: USize trivial = convert inspect %88
+  %84: USize trivial = bitcast inspect %81
+  %85: Size trivial = native syscall inspect %89 inspect %84
+  unreachable
+
+bb17:
+  %52: Size trivial = metric stride U8
+  %53: Size trivial = mul inspect %8 inspect %52
+  %54: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %39 inspect %53
+  %55: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %54
+  %56: U16 trivial = load inspect %55
+  %74: %Endian address = global.addr Target.byteOrder
+  %75: %U8 address = field.addr .# inspect %74
+  %76: U8 trivial = load inspect %75
+  %77: U8 trivial = const 1
+  %78: Bool trivial = eq inspect %76 inspect %77
+  %79: U16 trivial = byteswap inspect %56
+  %80: U16 trivial = select inspect %78 inspect %56 inspect %79
+  %10: U32 trivial = convert inspect %80
+  %11: Size trivial = const 4
+  %16: USize trivial = bitcast inspect %11
+  %21: USize trivial = bitcast inspect %40
+  %22: Bool trivial = ge inspect %16 inspect %21
+  branch inspect %22 -> bb10 -> bb8
+
+bb18:
+  %73: Size trivial = const 134
+  %90: Syscall trivial = const SysExit
+  %91: U16 trivial = bitcast inspect %90
+  %92: I32 trivial = convert inspect %91
+  %93: USize trivial = convert inspect %92
+  %94: USize trivial = bitcast inspect %73
+  %95: Size trivial = native syscall inspect %93 inspect %94
+  unreachable
+}
+
+fn notDominating(bytes$items: %U8, bytes$length: Size) -> U32 {
+bb0(%33: %U8 trivial, %34: Size trivial):
+  %35: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %36: %%U8 address = field.addr .items inspect %35
+  store inspect %36 consume %33
+  %37: %Size address = field.addr .length inspect %35
+  store inspect %37 consume %34
+  %2: U32 trivial = const 0
+  %7: Size trivial = const 9
+  %8: Bool trivial = lt inspect %34 inspect %7
+  %32: U32 trivial = const 1
+  %43: U32 trivial = select inspect %8 inspect %32 inspect %2
+  %10: Size trivial = const 8
+  %15: USize trivial = bitcast inspect %10
+  %20: USize trivial = bitcast inspect %34
+  %21: Bool trivial = ge inspect %15 inspect %20
+  branch inspect %21 -> bb10 -> bb8
+
+bb8:
+  %41: %U8 [owned here shape6 .*=shared slot 0] trivial = represent inspect %33
+  %25: Size trivial = metric stride U8
+  %26: Size trivial = mul inspect %10 inspect %25
+  %27: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %41 inspect %26
+  %28: U8 [shared slot 0] guaranteed = load inspect %27
+  %29: U8 trivial = load inspect %28
+  %30: U32 trivial = convert inspect %29
+  %31: U32 trivial = add inspect %43 inspect %30
+  return consume %31
+
+bb10:
+  %44: Size trivial = const 134
+  %45: Syscall trivial = const SysExit
+  %49: U16 trivial = bitcast inspect %45
+  %50: I32 trivial = convert inspect %49
+  %51: USize trivial = convert inspect %50
+  %47: USize trivial = bitcast inspect %44
+  %48: Size trivial = native syscall inspect %51 inspect %47
+  unreachable
+}
+
+fn otherView(bytes$items: %U8, bytes$length: Size, other$items: %U8, other$length: Size) -> U32 {
+bb0(%30: %U8 trivial, %31: Size trivial, %36: %U8 trivial, %37: Size trivial):
+  %32: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %33: %%U8 address = field.addr .items inspect %32
+  store inspect %33 consume %30
+  %34: %Size address = field.addr .length inspect %32
+  store inspect %34 consume %31
+  %38: %Array(U8) address = alloc frame Array(U8) [shared call view]
+  %39: %%U8 address = field.addr .items inspect %38
+  store inspect %39 consume %36
+  %40: %Size address = field.addr .length inspect %38
+  store inspect %40 consume %37
+  %6: Size trivial = const 9
+  %7: Bool trivial = lt inspect %37 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: Size trivial = const 8
+  %13: USize trivial = bitcast inspect %8
+  %18: USize trivial = bitcast inspect %31
+  %19: Bool trivial = ge inspect %13 inspect %18
+  branch inspect %19 -> bb10 -> bb8
+
+bb3:
+  %29: U32 trivial = const 0
+  return consume %29
+
+bb8:
+  %44: %U8 [owned here shape6 .*=shared slot 0] trivial = represent inspect %30
+  %23: Size trivial = metric stride U8
+  %24: Size trivial = mul inspect %8 inspect %23
+  %25: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %44 inspect %24
+  %26: U8 [shared slot 0] guaranteed = load inspect %25
+  %27: U8 trivial = load inspect %26
+  %28: U32 trivial = convert inspect %27
+  return consume %28
+
+bb10:
+  %45: Size trivial = const 134
+  %46: Syscall trivial = const SysExit
+  %50: U16 trivial = bitcast inspect %46
+  %51: I32 trivial = convert inspect %50
+  %52: USize trivial = convert inspect %51
+  %48: USize trivial = bitcast inspect %45
+  %49: Size trivial = native syscall inspect %52 inspect %48
+  unreachable
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Array(U8) address = alloc frame Array(U8)
+  %2: %Maybe(Header) address = alloc frame Maybe(Header)
+  %3: %Header address = alloc frame Header
+  %6: U8 trivial = const 4
+  %7: U8 trivial = const 0
+  %8: U8 trivial = const 0
+  %9: U8 trivial = const 7
+  %10: U8 trivial = const 5
+  %11: U8 trivial = const 0
+  %12: U8 trivial = const 0
+  %13: U8 trivial = const 1
+  %14: U8 trivial = const 2
+  %15: %U8 trivial = run.slots U8 *9 frame
+  %19: @bits(30) U32 trivial = const 9
+  %198: @bits(2) U32 trivial = const 0
+  %199: Run(U8) owned = aggregate.Run consume %15 consume %19 consume %198
+  %22: @bits(30) U32 trivial = const 9
+  %23: Array(U8) owned = aggregate.Array consume %199 consume %22
+  store inspect %0 consume %23
+  %24: Size trivial = const 0
+  %25: %U8 address = element.addr inspect %15 inspect %24
+  store inspect %25 consume %6
+  %26: Size trivial = const 1
+  %27: %U8 address = element.addr inspect %15 inspect %26
+  store inspect %27 consume %7
+  %28: Size trivial = const 2
+  %29: %U8 address = element.addr inspect %15 inspect %28
+  store inspect %29 consume %8
+  %30: Size trivial = const 3
+  %31: %U8 address = element.addr inspect %15 inspect %30
+  store inspect %31 consume %9
+  %32: Size trivial = const 4
+  %33: %U8 address = element.addr inspect %15 inspect %32
+  store inspect %33 consume %10
+  %34: Size trivial = const 5
+  %35: %U8 address = element.addr inspect %15 inspect %34
+  store inspect %35 consume %11
+  %36: Size trivial = const 6
+  %37: %U8 address = element.addr inspect %15 inspect %36
+  store inspect %37 consume %12
+  %38: Size trivial = const 7
+  %39: %U8 address = element.addr inspect %15 inspect %38
+  store inspect %39 consume %13
+  %40: Size trivial = const 8
+  %41: %U8 address = element.addr inspect %15 inspect %40
+  store inspect %41 consume %14
+  %202: Size trivial = const 9
+  %139: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %101: Maybe(Header) trivial = call decodeHeader consume %15 consume %202
+  store inspect %2 consume %101
+  %46: %U8 address = field.addr .# inspect %2
+  %47: U8 trivial = load inspect %46
+  %48: U8 trivial = const 1
+  %49: Bool trivial = eq inspect %47 inspect %48
+  branch inspect %49 -> bb2 -> bb1
+
+bb1:
+  %50: I32 trivial = const 1
+  return consume %50
+
+bb2:
+  %51: %Header address = field.addr .Just inspect %2
+  %52: Header trivial = copy inspect %51
+  store inspect %3 consume %52
+  %53: %U8 address = field.addr .version inspect %3
+  %54: U8 trivial = load inspect %53
+  %55: U32 trivial = convert inspect %54
+  %56: %U8 address = field.addr .flags inspect %3
+  %57: U8 trivial = load inspect %56
+  %58: U32 trivial = convert inspect %57
+  %59: U32 trivial = add inspect %55 inspect %58
+  %60: %U16 address = field.addr .stream inspect %3
+  %61: U16 trivial = load inspect %60
+  %62: U32 trivial = convert inspect %61
+  %63: U32 trivial = add inspect %59 inspect %62
+  %64: %U8 address = field.addr .operation inspect %3
+  %65: U8 trivial = load inspect %64
+  %66: U32 trivial = convert inspect %65
+  %67: U32 trivial = add inspect %63 inspect %66
+  %68: %U32 address = field.addr .length inspect %3
+  %69: U32 trivial = load inspect %68
+  %70: U32 trivial = add inspect %67 inspect %69
+  %147: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %106: U32 trivial = call bodyLength consume %15 consume %202
+  %75: U32 trivial = add inspect %70 inspect %106
+  %155: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %78: Size trivial = const 5
+  %111: U32 trivial = call window consume %15 consume %202 borrow %78
+  %80: U32 trivial = add inspect %75 inspect %111
+  %163: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %116: U32 trivial = call survives consume %15 consume %202
+  %84: U32 trivial = add inspect %80 inspect %116
+  %171: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %121: U32 trivial = call notDominating consume %15 consume %202
+  %88: U32 trivial = add inspect %84 inspect %121
+  %179: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %187: ArrayView(U8) trivial = aggregate.ArrayView consume %15 consume %202
+  %130: U32 trivial = call otherView consume %15 consume %202 consume %15 consume %202
+  %94: U32 trivial = add inspect %88 inspect %130
+  %96: I32 trivial = bitcast inspect %94
+  return consume %96
+}
+
+entry main

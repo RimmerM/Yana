@@ -1,5 +1,8 @@
 #include "pass.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 /*
  * The graph itself: the branches that decide nothing, the blocks nothing reaches, and the block
  * boundaries with nothing on either side of them - README.md's section B, "One `cleanCfg`".
@@ -129,6 +132,28 @@ EqualityTest recognizeEqualityTest(OptContext& opt, Value& condition) {
 }
 
 namespace {
+
+/*
+ * The firing counter for J192's sum rows, printed at exit when `YANA_COUNT_CARRIER` is set - the
+ * `YANA_COUNT_BOUNDS` arrangement: debug builds only, a measurement a slice takes rather than
+ * something a build reports.
+ */
+#if defined(_DEBUG) || defined(DEBUG)
+struct CarrierThreads {
+    U64 edges = 0;
+    U64 stores = 0;
+
+    ~CarrierThreads() {
+        if(!getenv("YANA_COUNT_CARRIER")) return;
+        fprintf(stderr, "carrier: %llu edges threaded past a stored tag, %llu stores replayed\n", (unsigned long long)edges, (unsigned long long)stores);
+    }
+};
+
+CarrierThreads carrierThreads;
+#define countThread(field) (carrierThreads.field++)
+#else
+#define countThread(field) ((void)0)
+#endif
 
 /*
  * A block argument that says nothing, taken back out: one every incoming edge answers with the same
@@ -1230,7 +1255,10 @@ struct CfgCleaner {
  * cannot, because the value is decided at a *merge* rather than under the arm that decided it.
  *
  * What the extra instructions cost is two conditions rather than one. Every instruction the join
- * holds besides its terminator must be **pure**, since a threaded edge skips all of them, and its
+ * holds besides its terminator must be **pure** or a plain read, since a threaded edge skips all of
+ * them - or, since J192, a store the predecessor performs itself before it jumps (`replayable`),
+ * which is what a sum's join holds: `?` stores the `Result` it was handed and tests its tag
+ * (`storedTag`) - and its
  * results must be read **only inside the join**, since a join every predecessor goes round is
  * deleted with everything defined in it. An arm's edge operand defined in the join is refused for
  * the second reason read forwards: it would name, at the predecessor, a value only the join defines.
@@ -1312,6 +1340,11 @@ struct BranchThreader {
         Inst* compare = nullptr;
         U64 constant = 0;
         bool equal = true;
+
+        // Set where what is compared is the **tag** of the sum the argument holds, read back out of
+        // the storage the join stored it into - `storedTag` below. A predecessor's answer is then
+        // the constructor it built rather than a constant it handed over.
+        InstFieldAddress* tag = nullptr;
     };
 
     Maybe<JoinTest> readTest(Block& join, InstBranch& branch, Value& argument) {
@@ -1324,9 +1357,113 @@ struct BranchThreader {
         if(!definer->block || opt.base[definer->block] != &join) return Nothing();
 
         auto test = recognizeEqualityTest(opt, *condition);
-        if(test.shape != EqualityShape::Recognized || test.subject != &argument) return Nothing();
+        if(test.shape != EqualityShape::Recognized) return Nothing();
+        if(test.subject == &argument) return Just(JoinTest { test.compare, test.constant, test.equal });
 
-        return Just(JoinTest { test.compare, test.constant, test.equal });
+        auto tag = storedTag(join, *test.subject, argument);
+        if(!tag) return Nothing();
+
+        return Just(JoinTest { test.compare, test.constant, test.equal, tag });
+    }
+
+    /*
+     * The tag read of a sum the join has just stored - J192, and the shape `?` leaves behind an
+     * inlined callee's two returns.
+     *
+     * `take` returns `Err(Short)` on one path and `Ok(view)` on the other; the returns meet as one
+     * `Result` block argument, the join stores it into the frame slot `?` works on, and tests the
+     * tag it just stored: `store %slot, %arg`, `load (field.addr .# %slot)`, `eq`, `branch`. Each
+     * predecessor built its `Result` with an `aggregate` whose constructor is standing on the
+     * instruction, so each already knows which arm it selects - it is the constant-argument shape
+     * this pass was written for with the constant spelled as a constructor, and one store and one
+     * load in between.
+     *
+     * The load must read the tag of **the very address** the argument was stored to, with nothing
+     * but pure instructions and plain reads between the store and it, so that what it reads is what
+     * the store wrote. `forwardMemory` answers the same read once the store stands in the
+     * predecessor, and that is what the redirected arm then sees: the store is replayed there (see
+     * `replayable`), and a sole predecessor's table carries it into the arm, so `.Ok` reads back the
+     * view with its length.
+     *
+     * **Rejected: forwarding the tag and the payload across the join as block arguments.** The tag
+     * is a constant per edge and would carry, but the payload is not: the `Err` edge has no view to
+     * hand over, and this tier has no undefined value to hand in its place. Scalar replacement in
+     * `promote` fails on the same point one step earlier - the slot is read by field, and there is
+     * no value-level projection to read a field of a promoted sum with. Duplicating the join's store
+     * into each predecessor needs neither.
+     */
+    InstFieldAddress* storedTag(Block& join, Value& subject, Value& argument) {
+        if(!subject.definer) return nullptr;
+
+        auto read = opt.base[subject.definer];
+        if(read->kind != Inst::Load || ((InstLoad*)read)->isVolatile) return nullptr;
+        if(!read->block || opt.base[read->block] != &join) return nullptr;
+
+        auto address = opt.base[((InstLoad*)read)->address.value()];
+        if(!address->definer) return nullptr;
+
+        auto projection = opt.base[address->definer];
+        if(projection->kind != Inst::FieldAddress) return nullptr;
+
+        auto& tag = (InstFieldAddress&)*projection;
+        if(tag.field != InstFieldAddress::kDiscriminant) return nullptr;
+        if(tag.property != InstFieldAddress::kNoProperty) return nullptr;
+
+        auto slot = opt.base[tag.base.value()];
+        if(argument.occurrence.type != tag.record) return nullptr;
+
+        // The store of the argument into the slot, and nothing that writes between it and the read.
+        auto stored = false;
+        for(auto pointer: join.instructions(opt.base)) {
+            auto inst = opt.base[pointer];
+            if(inst == read) return stored ? &tag : nullptr;
+
+            if(inst->kind == Inst::Store) {
+                auto& store = (InstStore&)*inst;
+                stored = !store.isVolatile && opt.base[store.address.value()] == slot
+                         && opt.base[store.value.value()] == &argument;
+                continue;
+            }
+
+            if(stored && !isPure(*inst) && !isPlainRead(*inst)) stored = false;
+        }
+
+        return nullptr;
+    }
+
+    // A read that changes nothing: a load that hands nothing over. An `Owned` load is a handover and
+    // empties the slot it reads (`memory.cpp`'s `writtenThrough`).
+    bool isPlainRead(Inst& inst) {
+        if(inst.kind != Inst::Load || ((InstLoad&)inst).isVolatile) return false;
+        if(!inst.results.size()) return false;
+
+        return opt.base[inst.results.get(opt.base, 0)]->convention != Convention::Owned;
+    }
+
+    /*
+     * A store the join holds that a redirected predecessor can perform itself - J192.
+     *
+     * A threaded edge skips the join, so its pure instructions and plain reads simply do not
+     * happen, and nothing is lost: their results are read only inside the join. A store is an
+     * effect, so the predecessor performs it before it jumps - the join's tail duplicated rather
+     * than skipped. That is sound where the store names nothing the predecessor lacks: its address
+     * is defined above the join (and so above every predecessor), its value is either one of the
+     * join's arguments - replaced by what the predecessor supplied - or defined above as well, and
+     * it is **untracked**, since a store consumes its value and a duplicated consumption of an owner
+     * is the linear question the note above declines.
+     */
+    bool replayable(Block& join, Inst& inst) {
+        if(inst.kind != Inst::Store) return false;
+
+        auto& store = (InstStore&)inst;
+        if(store.isVolatile || !store.address.isSet() || !store.value.isSet()) return false;
+
+        auto address = opt.base[store.address.value()];
+        auto value = opt.base[store.value.value()];
+        if(definedIn(join, *address)) return false;
+        if(isTracked(value->convention)) return false;
+
+        return argumentIndex(join, *value) || !definedIn(join, *value);
     }
 
     // Which arm the value a predecessor hands over selects.
@@ -1346,7 +1483,8 @@ struct BranchThreader {
      * Whether everything the join computes stays inside it - the condition the extra instructions
      * cost, in its two halves.
      *
-     * A threaded edge **skips** the join, so nothing it holds may be anything but pure; and a join
+     * A threaded edge **skips** the join, so nothing it holds may be anything but pure, a plain read,
+     * or a store the redirect performs at the predecessor instead (`replayable`); and a join
      * every predecessor goes round is **deleted**, so nothing it defines may be read from outside.
      * The block argument is included in the second half rather than tested by use count, which is
      * what makes "the argument's one reader is the branch" the special case it always was.
@@ -1355,7 +1493,7 @@ struct BranchThreader {
         for(Size i = 0; i < join.instructionCount(); i++) {
             auto inst = opt.base[join.instructionAt(opt.base, i)];
             if(isTerminator(inst->kind)) continue;
-            if(!isPure(*inst)) return false;
+            if(!isPure(*inst) && !isPlainRead(*inst) && !replayable(join, *inst)) return false;
 
             for(auto resultPointer: inst->results.contents(opt.base)) {
                 auto result = opt.base[resultPointer];
@@ -1401,14 +1539,29 @@ struct BranchThreader {
      * predecessor at all - the one statement of "this edge is one that goes round", read twice: once
      * by the strand test below and once by the walk that performs the redirect.
      */
-    Maybe<U64> movedConstant(Block& join, Block& from, Size tested) {
+    Maybe<U64> movedConstant(Block& join, Block& from, const JoinTest& test, Size tested) {
         auto end = from.terminator(opt.base);
         if(!end || end->kind != Inst::Jump || from.region != join.region) return Nothing();
 
         auto supplied = ((InstJump&)*end).to.arguments.get(opt.base, tested);
         if(!supplied.isSet()) return Nothing();
 
-        return constantValueOf(opt, opt.base[supplied.value()]);
+        auto value = opt.base[supplied.value()];
+        if(!test.tag) return constantValueOf(opt, value);
+
+        // The tag of the constructor the predecessor built - `RecordCon::value`, which is what a
+        // tag word holds (`simplify`'s discriminant answer). A negative pinned value is left alone
+        // rather than widened to agree with the comparison's constant.
+        if(!value->definer || opt.base[value->definer]->kind != Inst::Aggregate) return Nothing();
+
+        auto& built = (InstAggregate&)*opt.base[value->definer];
+        auto& declared = *(mir::RecordType*)opt.decl[test.tag->record];
+        if(built.constructor >= declared.cons.size()) return Nothing();
+
+        auto arm = declared.cons.get(opt.decl, built.constructor);
+        if(built.components.size() != arm.count || arm.value < 0) return Nothing();
+
+        return Just(U64(arm.value));
     }
 
     // What `from` hands the join as its argument number `index`, or null where it hands over
@@ -1472,7 +1625,7 @@ struct BranchThreader {
         Size toFalse = 0;
 
         for(Size i = 0; i < join.predecessorCount(); i++) {
-            auto constant = movedConstant(join, *opt.base[join.predecessorAt(opt.base, i)], tested);
+            auto constant = movedConstant(join, *opt.base[join.predecessorAt(opt.base, i)], test, tested);
             if(!constant) continue;
 
             movable++;
@@ -1549,7 +1702,7 @@ struct BranchThreader {
         for(Size i = 0; i < join.predecessorCount();) {
             auto from = opt.base[join.predecessorAt(opt.base, i)];
 
-            auto constant = movedConstant(join, *from, tested);
+            auto constant = movedConstant(join, *from, test.unwrap(), tested);
             if(!constant) { i++; continue; }
 
             auto end = from->terminator(opt.base);
@@ -1571,9 +1724,27 @@ struct BranchThreader {
                 arguments.push(Use(SsaPtr<Value>(supplied - opt.base), used.kind()));
             }
 
+            // The join's stores, performed here before the jump that now skips them - `replayable`.
+            for(auto pointer: join.instructions(opt.base)) {
+                auto inst = opt.base[pointer];
+                if(inst->kind != Inst::Store) continue;
+
+                auto& store = (InstStore&)*inst;
+                auto value = store.value;
+                if(auto index = argumentIndex(join, *opt.base[value.value()])) {
+                    auto supplied = suppliedTo(join, *from, index.unwrap());
+                    value = Use(SsaPtr<Value>(supplied - opt.base), value.kind());
+                }
+
+                editor.setInsertBefore(*end);
+                editor.addStore(inst->source, store.address, value);
+                countThread(stores);
+            }
+
             editor.replaceTerminator(*from, editor.makeJump(end->source, *opt.base[arm.target],
                                                             arguments.pointer(), arguments.size()));
             threaded = true;
+            if(test.unwrap().tag) countThread(edges);
         }
 
         /*
@@ -1599,10 +1770,26 @@ struct BranchThreader {
         SmallArray<Block*, 32> blocks;
         for(auto pointer: opt.body->blocks.contents(opt.base)) blocks.push(opt.base[pointer]);
 
+        auto threaded = false;
         for(auto block: blocks) {
             if(block->deleted) continue;
-            thread(*block);
+            threaded |= thread(*block);
         }
+
+        /*
+         * And what a thread left with no way in, swept - the case `wouldStrand` cannot see.
+         *
+         * `wouldStrand` counts an arm's predecessors, and a **loop** reached only through the join
+         * has more of them than the join's own edges: its back edge. An iterator object's teardown is
+         * the shape - `f$drop` inlines the step with the resume answer a constant, the join below the
+         * loop is the one that tests it, and the one predecessor handing over that constant goes
+         * round it to the exit. The loop is then dead and correctly so, but every block of it is still
+         * in the body, and an unreachable block is checked structurally: the verifier reported every
+         * operand in it (J185, found by the lens-region release block that made the resume path a
+         * plain jump). Declining would keep the dead loop in every teardown; the sweep is
+         * `cleanCfg`'s own, as `endNonReturningBlocks` and `dischargeChecks` already call it.
+         */
+        if(threaded) removeUnreachableBlocks(opt);
     }
 };
 

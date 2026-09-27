@@ -5,21 +5,19 @@ fn area(one %r3) -> one %r2
     %4: %r5 = binary.eq %2, %3
     branch %4 -> block5 -> block1
   block1:
-    %8: %r1 = load property %0.$tag: %r1
-    %9: %r1 = const 0
-    %10: %r5 = binary.eq %8, %9
-    branch %10 -> block7 -> block2
+    %8: %r1 = const 0
+    %9: %r5 = binary.eq %2, %8
+    branch %9 -> block7 -> block2
   block2:
-    %11: %r1 = alias %8
-    %12: %r1 = const 1
-    %13: %r5 = binary.eq %11, %12
-    branch %13 -> block8 -> block3
+    %10: %r1 = const 1
+    %11: %r5 = binary.eq %2, %10
+    branch %11 -> block8 -> block3
   block3:
-    %17: %r2 = load property %0.width: %r2
-    %18: %r2 = load property %0.height: %r2
-    %19: %r2 = binary.mul %17, %18
-    %20: %r2 = coerce %19
-    jump -> block4(%20)
+    %15: %r2 = load property %0.width: %r2
+    %16: %r2 = load property %0.height: %r2
+    %17: %r2 = binary.mul %15, %16
+    %18: %r2 = coerce %17
+    jump -> block4(%18)
   block4(%1: %r2):
     return %1
   block5:
@@ -28,22 +26,22 @@ fn area(one %r3) -> one %r2
     %7: %r5 = binary.ge %5, %6
     branch %7 -> block6 -> block1
   block6:
-    %26: %r2 = const 100
-    jump -> block4(%26)
-  block7:
-    %25: %r2 = load property %0.Circle: %r2
-    jump -> block4(%25)
-  block8:
-    %14: %r2 = load property %0.width: %r2
-    %15: %r2 = const 11
-    %16: %r5 = binary.ge %14, %15
-    branch %16 -> block9 -> block3
-  block9:
-    %21: %r2 = load property %0.height: %r2
-    %22: %r2 = const 10
-    %23: %r2 = binary.mul %21, %22
-    %24: %r2 = coerce %23
+    %24: %r2 = const 100
     jump -> block4(%24)
+  block7:
+    %23: %r2 = load property %0.Circle: %r2
+    jump -> block4(%23)
+  block8:
+    %12: %r2 = load property %0.width: %r2
+    %13: %r2 = const 11
+    %14: %r5 = binary.ge %12, %13
+    branch %14 -> block9 -> block3
+  block9:
+    %19: %r2 = load property %0.height: %r2
+    %20: %r2 = const 10
+    %21: %r2 = binary.mul %19, %20
+    %22: %r2 = coerce %21
+    jump -> block4(%22)
 
 fn nested(one %r4) -> one %r2
   block0(%0: %r4):
@@ -101,20 +99,16 @@ fn pairValue(one %r6) -> one %r2
     %5: %r5 = binary.eq %3, %4
     branch %5 -> block5 -> block1
   block1:
-    %10: %r1 = load property %0.f0: %r1
-    %11: %r1 = alias %10
-    %12: %r1 = const 0
-    %13: %r5 = binary.eq %11, %12
-    branch %13 -> block7 -> block2
+    %10: %r1 = const 0
+    %11: %r5 = binary.eq %3, %10
+    branch %11 -> block7 -> block2
   block2:
-    %18: %r1 = load property %0.f0: %r1
-    %19: %r1 = alias %18
-    %20: %r1 = const 1
-    %21: %r5 = binary.eq %19, %20
-    branch %21 -> block9 -> block3
+    %16: %r1 = const 1
+    %17: %r5 = binary.eq %3, %16
+    branch %17 -> block9 -> block3
   block3:
-    %22: %r2 = const 5
-    jump -> block4(%22)
+    %18: %r2 = const 5
+    jump -> block4(%18)
   block4(%1: %r2):
     return %1
   block5:
@@ -124,23 +118,23 @@ fn pairValue(one %r6) -> one %r2
     %9: %r5 = binary.eq %7, %8
     branch %9 -> block6 -> block1
   block6:
-    %28: %r2 = const 1
-    jump -> block4(%28)
+    %24: %r2 = const 1
+    jump -> block4(%24)
   block7:
-    %14: %r5 = load property %0.f1: %r5
-    %15: %r5 = alias %14
-    %16: %r1 = const 0
-    %17: %r5 = binary.eq %15, %16
-    branch %17 -> block8 -> block2
+    %12: %r5 = load property %0.f1: %r5
+    %13: %r5 = alias %12
+    %14: %r1 = const 0
+    %15: %r5 = binary.eq %13, %14
+    branch %15 -> block8 -> block2
   block8:
-    %27: %r2 = const 2
-    jump -> block4(%27)
+    %23: %r2 = const 2
+    jump -> block4(%23)
   block9:
-    %23: %r5 = load property %0.f1: %r5
-    %24: %r2 = const 3
-    %25: %r2 = const 4
-    %26: %r2 = select %23, %24, %25
-    jump -> block4(%26)
+    %19: %r5 = load property %0.f1: %r5
+    %20: %r2 = const 3
+    %21: %r2 = const 4
+    %22: %r2 = select %19, %20, %21
+    jump -> block4(%22)
 
 fn firstOrRest(one %r4) -> one %r2
   var $0: %r1
@@ -401,7 +395,7 @@ fn main() -> one %r2
     %188: %r2 = coerce %187
     return %188
 
-optimizer clones 0 aliased 0 forwarded 0 removed 26 adopted 0 sunk 0 numbered 6 decided 0 unboxed 0 updated 0 split 0 promoted 6 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 26 adopted 0 sunk 0 numbered 3 decided 0 unboxed 0 updated 0 split 0 promoted 6 folded 0
 
 shape %s0 object Shape {$tag: %r1 tag, Circle: %r2, width: %r2, height: %r2}
 shape %s1 object <tuple> {f0: %r1, f1: %r5}

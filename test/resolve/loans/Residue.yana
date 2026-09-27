@@ -1,0 +1,91 @@
+{-
+   A qualified type argument beside one that owns - P15, J187.
+
+   Until J187 a qualification was admitted only where the members it left behind owed nothing, so
+   `Maybe('[U8])` declared and `Result(String, '[U8])` did not: a derived teardown is generated per
+   type, and `Result`'s would have released the view. Now what is left is released member by member
+   where the value dies (`convert.cpp`'s `emitResidueDrop`) and the borrowed position is left alone.
+
+   - `take` is the concrete carrier, with `?` over it (`sum`) and a `match` that drops it.
+   - `Pair(Guard, '[U8])` is a single-constructor record: its `Guard` is released and its view is not,
+     including when the value is moved into `consume` and dies there.
+   - `Split(Guard, '[U8])` is a sum whose constructors differ: `Both` owns a `Guard` and borrows the
+     view, `Only` owns one, `Neither` owns nothing - two tag tests where it dies.
+   - `firstOf`'s `Maybe('[U8])` leaves nothing behind and is the trivial value it always was.
+
+   Every `Guard` adds its id to `trace` when released, so one released twice or not at all changes
+   the answer.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data Buf {bytes: [U8], at: Size}
+
+fn take(&self: Buf, count: Size) -> Result(String, '[U8]):
+    if length(self.bytes) - self.at < count then return Err("short by {count}")
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+fn sum(&b: Buf) -> Result(String, I32):
+    let h = b.take(2)?
+    return Ok((h[0] :: I32) + (h[1] :: I32))
+
+fn carriers() -> I32:
+    let &b = Buf {bytes: [1, 2, 3] :: [U8], at: 0}
+    let &total = 0 :: I32
+    if sum(b) is Ok(v) then total += v                         -- 3
+    match sum(b):
+        Ok(v) -> total += v * 1000
+        Err(e) -> total += 10
+    match b.take(5):
+        Ok(_) -> total += 2000
+        Err(_) -> total += 20
+    let dropped = b.take(9)
+    return total                                                -- 33
+
+data Pair(a, b) {x: a, y: b}
+
+fn pair(->g: Guard, bytes: '[U8]) -> Pair(Guard, '[U8]) = Pair {x: g, y: bytes}
+
+fn consume(->p: Pair(Guard, '[U8])) -> I32 = p.y[1] :: I32
+
+fn pairs() -> I32:
+    let bytes = [7, 8, 9] :: [U8]
+    let p = pair(Guard {id: 1000}, bytes)
+    let q = pair(Guard {id: 2000}, bytes[1..3])
+    return (p.y[0] :: I32) + consume(q)                         -- 7 + 9
+
+data Split(a, b) = Both {own: a, view: b} | Only(a) | Neither
+
+fn split(n: I32, bytes: '[U8]) -> Split(Guard, '[U8]):
+    if n == 0 then return Both {own: Guard {id: 1}, view: bytes}
+    if n == 1 then return Only(Guard {id: 10})
+    return Neither
+
+fn sums() -> I32:
+    let bytes = [7, 8, 9] :: [U8]
+    let &total = 0 :: I32
+    for n in 0..3:
+        match split(n, bytes):
+            Both {own: _, view} -> total += (view[2] :: I32)     -- 9
+            Only(_) -> total += 100
+            Neither -> total += 20
+    let unused = split(1, bytes)
+    return total                                                -- 129
+
+fn firstOf(bytes: '[U8]) -> Maybe('[U8]) = if length(bytes) > 0 then Just(bytes[0..1]) else Nothing
+
+fn main() -> I32:
+    let bytes = [4, 5] :: [U8]
+    let &total = carriers() + pairs() + sums()
+    if firstOf(bytes) is Just(b) then total += (b[0] :: I32)    -- 4
+
+    -- 33 + 16 + 129 + 4, beside 1000 + 2000 + 1 + 10 + 10 released once each.
+    return total * 10000 + trace

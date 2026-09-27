@@ -22,19 +22,14 @@ fn strided(parts %r4, one %r0) -> one %r0
     %17: %r0 = load property %16.a: %r0
     %18: %r0 = binary.add %5, %17
     %19: %r0 = coerce %18
-    jump -> block6
+    %20: %r1 = alias %16
+    %21: %r0 = load property %20.e: %r0
+    %22: %r0 = binary.add %19, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = binary.add %4, %3
+    %25: %r0 = coerce %24
+    jump -> block1(%25, %23)
   block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block6:
-    %25: %r1 = alias %16
-    %26: %r0 = load property %25.e: %r0
-    %27: %r0 = binary.add %19, %26
-    %28: %r0 = coerce %27
-    %29: %r0 = binary.add %4, %3
-    %30: %r0 = coerce %29
-    jump -> block1(%30, %28)
-  block7:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -69,14 +64,14 @@ fn main() -> one %r0
     %28: %r9 = binary.ne %26, %27
     branch %28 -> block5 -> block4
   block3:
-    %105: %r0 = binary.mul %0, %13
-    %106: %r0 = coerce %105
-    %108: %r2 = alias %7
-    %109: %r12 = load property %108.length: %r12
-    %110: %r0 = convert %109
-    %111: %r0 = binary.add %110, %15
-    %112: %r0 = coerce %111
-    jump -> block19
+    %98: %r0 = binary.mul %0, %13
+    %99: %r0 = coerce %98
+    %101: %r2 = alias %7
+    %102: %r12 = load property %101.length: %r12
+    %103: %r0 = convert %102
+    %104: %r0 = binary.add %103, %15
+    %105: %r0 = coerce %104
+    jump -> block17
   block4:
     %29: %r2 = alias %7
     %30: %r2 = alias %29
@@ -87,122 +82,115 @@ fn main() -> one %r0
     %36: %r0 = const 0
     %37: %r0 = const 6
     %38: %r0 = const 2
+    %39: %r10 = convert %33
+    %40: %r2 = alias %30
     jump -> block12(%35, %36)
   block5:
-    %103: %r2 = alias %7
-    call Array(a).reclaim(Cell) %103
-    %104: %r0 = const -1
-    return %104
+    %96: %r2 = alias %7
+    call Array(a).reclaim(Cell) %96
+    %97: %r0 = const -1
+    return %97
   block6:
-    %42: %r0 = const 0
-    %43: %r0 = const 1
-    %44: %r0 = call strided %30, %33, %42, %43
-    %45: %r0 = const 165
-    %46: %r9 = binary.ne %44, %45
-    branch %46 -> block9 -> block8
+    %44: %r0 = const 0
+    %45: %r0 = const 1
+    %46: %r0 = call strided %30, %33, %44, %45
+    %47: %r0 = const 165
+    %48: %r9 = binary.ne %46, %47
+    branch %48 -> block9 -> block8
   block7:
+    %82: %r2 = alias %7
+    call Array(a).reclaim(Cell) %82
+    %83: %r0 = const -2
+    return %83
+  block8:
+    %49: %r2 = alias %7
+    %50: %r2 = alias %49
+    %51: %r2 = alias %49
+    %52: %r12 = load property %51.length: %r12
+    %53: %r0 = convert %52
+    %54: %r0 = const 0
+    %55: %r0 = const 9
+    %56: %r0 = call strided %50, %53, %54, %55
+    %57: %r0 = const 0
+    %58: %r9 = binary.ne %56, %57
+    branch %58 -> block11 -> block10
+  block9:
     %80: %r2 = alias %7
     call Array(a).reclaim(Cell) %80
-    %81: %r0 = const -2
+    %81: %r0 = const -3
     return %81
-  block8:
-    %47: %r2 = alias %7
-    %48: %r2 = alias %47
-    %49: %r2 = alias %47
-    %50: %r12 = load property %49.length: %r12
-    %51: %r0 = convert %50
-    %52: %r0 = const 0
-    %53: %r0 = const 9
-    %54: %r0 = call strided %48, %51, %52, %53
-    %55: %r0 = const 0
-    %56: %r9 = binary.ne %54, %55
-    branch %56 -> block11 -> block10
-  block9:
+  block10:
+    %59: %r2 = alias %7
+    %60: %r2 = alias %59
+    %61: %r2 = alias %59
+    %62: %r12 = load property %61.length: %r12
+    %63: %r0 = convert %62
+    %64: %r0 = const 0
+    %65: %r0 = const 2
+    %66: %r0 = call strided %60, %63, %64, %65
+    %67: %r2 = alias %7
+    %68: %r2 = alias %67
+    %69: %r2 = alias %67
+    %70: %r12 = load property %69.length: %r12
+    %71: %r0 = convert %70
+    %72: %r0 = const 0
+    %73: %r0 = const 3
+    %74: %r0 = call strided %68, %71, %72, %73
+    %75: %r2 = alias %7
+    call Array(a).reclaim(Cell) %75
+    %76: %r0 = binary.add %66, %74
+    %77: %r0 = coerce %76
+    return %77
+  block11:
     %78: %r2 = alias %7
     call Array(a).reclaim(Cell) %78
-    %79: %r0 = const -3
+    %79: %r0 = const -4
     return %79
-  block10:
-    %57: %r2 = alias %7
-    %58: %r2 = alias %57
-    %59: %r2 = alias %57
-    %60: %r12 = load property %59.length: %r12
-    %61: %r0 = convert %60
-    %62: %r0 = const 0
-    %63: %r0 = const 2
-    %64: %r0 = call strided %58, %61, %62, %63
-    %65: %r2 = alias %7
-    %66: %r2 = alias %65
-    %67: %r2 = alias %65
-    %68: %r12 = load property %67.length: %r12
-    %69: %r0 = convert %68
-    %70: %r0 = const 0
-    %71: %r0 = const 3
-    %72: %r0 = call strided %66, %69, %70, %71
-    %73: %r2 = alias %7
-    call Array(a).reclaim(Cell) %73
-    %74: %r0 = binary.add %64, %72
-    %75: %r0 = coerce %74
-    return %75
-  block11:
-    %76: %r2 = alias %7
-    call Array(a).reclaim(Cell) %76
-    %77: %r0 = const -4
-    return %77
   block12(%1: %r0, %2: %r0):
-    %39: %r9 = binary.lt %1, %37
-    branch %39 -> block14 -> block13
+    %41: %r9 = binary.lt %1, %37
+    branch %41 -> block14 -> block13
   block13:
-    %40: %r0 = const 66
-    %41: %r9 = binary.ne %2, %40
-    branch %41 -> block7 -> block6
+    %42: %r0 = const 66
+    %43: %r9 = binary.ne %2, %42
+    branch %43 -> block7 -> block6
   block14:
-    %82: %r10 = convert %1
-    %83: %r10 = convert %33
-    %84: %r9 = binary.ge %82, %83
-    branch %84 -> block18 -> block15
+    %84: %r10 = convert %1
+    %85: %r9 = binary.ge %84, %39
+    branch %85 -> block16 -> block15
   block15:
-    %85: %r2 = alias %30
-    %86: %r0 = alias %1
-    %87: %r0 = coerce %86
-    %88: %r1 = load element %85[%87]: %r1
-    %89: %r0 = load property %88.a: %r0
-    %90: %r0 = binary.add %2, %89
-    %91: %r0 = coerce %90
-    jump -> block16
+    %86: %r1 = load element %40[%1]: %r1
+    %87: %r0 = load property %86.a: %r0
+    %88: %r0 = binary.add %2, %87
+    %89: %r0 = coerce %88
+    %90: %r1 = alias %86
+    %91: %r0 = load property %90.e: %r0
+    %92: %r0 = binary.add %89, %91
+    %93: %r0 = coerce %92
+    %94: %r0 = binary.add %1, %38
+    %95: %r0 = coerce %94
+    jump -> block12(%95, %93)
   block16:
-    %97: %r1 = alias %88
-    %98: %r0 = load property %97.e: %r0
-    %99: %r0 = binary.add %91, %98
-    %100: %r0 = coerce %99
-    %101: %r0 = binary.add %1, %38
-    %102: %r0 = coerce %101
-    jump -> block12(%102, %100)
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block17:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %114: %r2 = alias %101
+    %100: %r1 = object %s1 %0, %10, %11, %12, %99, %14
+    store element %114[%103]: %r1, %100
+    %115: %r10 = convert %105
+    %116: %r12 = convert %115
+    %117: %r2 = alias %7
+    store property %117.length: %r12, %116
+    %118: %r0 = binary.add %0, %16
+    %119: %r0 = coerce %118
+    jump -> block1(%119)
   block18:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %110: %r0 = host host.field "length" host-range %107
+    %111: %r9 = binary.le %105, %110
+    branch %111 -> block17 -> block19
   block19:
-    %121: %r2 = alias %108
-    %107: %r1 = object %s1 %0, %10, %11, %12, %106, %14
-    store element %121[%110]: %r1, %107
-    %122: %r10 = convert %112
-    %123: %r12 = convert %122
-    %124: %r2 = alias %7
-    store property %124.length: %r12, %123
-    %125: %r0 = binary.add %0, %16
-    %126: %r0 = coerce %125
-    jump -> block1(%126)
-  block20:
-    %117: %r0 = host host.field "length" host-range %114
-    %118: %r9 = binary.le %112, %117
-    branch %118 -> block19 -> block21
-  block21:
-    %119: %r6 = const "$v"
-    call growJsArray(Cell) %4, %119, %112
-    jump -> block19
+    %112: %r6 = const "$v"
+    call growJsArray(Cell) %4, %112, %105
+    jump -> block17
 
 fn Array(a).reclaim(Cell)(one %r2) -> omitted
   var $0: %r2
@@ -228,7 +216,7 @@ fn growJsArray(Cell)(parts %r8, one %r0) -> omitted
     store element %0[%1]: %r2, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 1 numbered 25 decided 3 unboxed 1 updated 0 split 0 promoted 12 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 1 numbered 18 decided 1 unboxed 1 updated 0 split 0 promoted 12 folded 0
 
 shape %s0 object ArrayView {items: %r2, length: %r0, offset: %r0}
 shape %s1 object Cell {a: %r0, b: %r0, c: %r0, d: %r0, e: %r0, f: %r0}

@@ -49,47 +49,28 @@ fn tagOf(one %r1) -> one %r2
 fn main() -> one %r2
   var $0: %r1
   var $1: %r1
-  var $2: %r5
   block0:
-    %1: %r0 = const 1
+    %0: %r0 = const 1
+    %1: %r1 = alias %0
     %2: %r1 = alias %1
     %3: %r1 = alias %2
-    %4: %r1 = alias %3
-    %5: %r2 = call tagOf %4
-    %6: %r2 = const 100
-    %7: %r2 = binary.mul %5, %6
-    %8: %r2 = coerce %7
-    %9: %r1 = const null
+    %4: %r2 = call tagOf %3
+    %5: %r2 = const 100
+    %6: %r2 = binary.mul %4, %5
+    %7: %r2 = coerce %6
+    %8: %r1 = const null
+    %9: %r1 = alias %8
     %10: %r1 = alias %9
-    %11: %r1 = alias %10
-    %12: %r2 = call tagOf %11
-    %13: %r2 = const 10
-    %14: %r2 = binary.mul %12, %13
-    %15: %r2 = coerce %14
-    %16: %r2 = binary.add %8, %15
-    %17: %r2 = coerce %16
-    %18: %r2 = const 7
-    %19: %r5 = alias %18
-    store var $2: %r5, %19
-    %20: %r5 = load var $2: %r5
-    %21: %r5 = const null
-    %22: %r3 = binary.eq %20, %21
-    %23: %r0 = const 1
-    %24: %r0 = const 0
-    %25: %r0 = select %22, %24, %23
-    %26: %r0 = const 1
-    %27: %r4 = binary.eq %25, %26
-    branch %27 -> block2 -> block1
-  block1:
-    %28: %r2 = const 0
-    jump -> block3(%28)
-  block2:
-    %30: %r2 = load var $2: %r2
-    jump -> block3(%30)
-  block3(%0: %r2):
-    %31: %r2 = binary.add %17, %0
-    %32: %r2 = coerce %31
-    return %32
+    %11: %r2 = call tagOf %10
+    %12: %r2 = const 10
+    %13: %r2 = binary.mul %11, %12
+    %14: %r2 = coerce %13
+    %15: %r2 = binary.add %7, %14
+    %16: %r2 = coerce %15
+    %17: %r2 = const 7
+    %19: %r2 = binary.add %16, %17
+    %20: %r2 = coerce %19
+    return %20
 
 optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2 folded 0
 

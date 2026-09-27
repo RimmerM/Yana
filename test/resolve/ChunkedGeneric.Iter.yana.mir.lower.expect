@@ -73,57 +73,56 @@ main<complex>(): I32 {
     unreachable 
   }
 
+  b_40 {
+    %v_41 = cmp_ilt %v_42, 2: I32
+    je %v_41, b_38, b_43
+  }
+
   b_38 {
-    %v_40 = phi [b_41, %v_42], [b_35, 0]: I32
-    %v_43 = phi [b_41, %v_44], [b_35, 0]: I32
-    %v_45 = sext %v_40: I64
-    %v_46 = cmp_ge %v_45, 2: I32
-    je %v_46, b_17, b_41
+    %v_44 = phi [b_40, %v_42], [b_35, 0]: I32
+    %v_45 = phi [b_40, %v_46], [b_35, 0]: I32
+    %v_47 = sext %v_44: I64
+    %v_48 = shl %v_47, 2: I64
+    %v_49 = add %v_2, %v_48: Ptr
+    %v_50 = loads %v_49, 4: I32
+    %v_46 = add %v_45, %v_50: I32
+    %v_42 = add %v_44, 1: I32
+    jmp b_40
   }
 
-  b_41 {
-    %v_47 = shl %v_45, 2: I64
-    %v_48 = add %v_2, %v_47: Ptr
-    %v_49 = loads %v_48, 4: I32
-    %v_44 = add %v_43, %v_49: I32
-    %v_42 = add %v_40, 1: I32
-    %v_50 = cmp_ilt %v_42, 2: I32
-    je %v_50, b_38, b_51
-  }
-
-  b_51 {
-    %v_52 = add %v_28, %v_44: I32
-    ret %v_52
+  b_43 {
+    %v_51 = add %v_28, %v_46: I32
+    ret %v_51
   }
 }
 
 Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 

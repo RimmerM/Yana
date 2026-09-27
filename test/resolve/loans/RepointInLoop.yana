@@ -1,0 +1,46 @@
+{-
+   A local holding a borrow, re-pointed inside a loop - K8, J219 §4.
+
+   `x` holds a run lent from `b` before the loop and is replaced by a fresh one inside it, on some
+   passes (`refilled`) or on every one (`everyPass`). The replacing `b.grab()` was refused as "b is
+   already borrowed exclusively": the old loan reaches the latch along the path that did not
+   replace it, so it was carried round the back edge and up through the block that had. A loan is
+   now live across an edge only where a local still to be read, or a value the edge hands over,
+   holds it (`computeLoanExtents`), and at the end of the replacing block nothing holds the old one.
+
+   `Reject.RepointInLoop.yana` is the same loop with the old run still read after the replacement,
+   which stays refused. `main` answers both sums and the grabs.
+-}
+
+data Buf {bytes: [U8], at: Size}
+
+fn grab(&self: 'Buf) -> '[U8]:
+    self.at += 1
+    return self.bytes[0..self.at]
+
+data Run {bytes: '[U8], at: Size}
+
+fn refilled(&b: Buf) -> Size:
+    let &x = Run {bytes: b.grab(), at: 0}
+    let &sum = 0 :: Size
+    while sum < 20:
+        if x.at == length(x.bytes):
+            x = Run {bytes: b.grab(), at: 0}
+        sum += (x.bytes[x.at] :: Size)
+        x = {x | at: x.at + 1}
+    return sum
+
+fn everyPass(&b: Buf) -> Size:
+    let &x = Run {bytes: b.grab(), at: 0}
+    let &sum = length(x.bytes)
+    for _ in 0..3:
+        x = Run {bytes: b.grab(), at: 0}
+        sum += length(x.bytes)
+    return sum
+
+fn main() -> Int:
+    let &b = Buf {bytes: [1, 2, 3, 4, 5, 6, 7, 8, 9], at: 0}
+    let first = refilled(b)
+    b.at = 0
+    let second = everyPass(b)
+    return truncate(first * 2 + second + b.at) :: Int

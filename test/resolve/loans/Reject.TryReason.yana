@@ -1,0 +1,18 @@
+{-
+   `?` on a carrier whose *reason* is the qualified position - `Result(s'[U8], Size)`.
+
+   The exit hands the enclosing function its error and nothing else, and an error that is a borrow
+   would take the loan out with it. So it is refused at the `?`, by name, rather than rebuilt: the
+   payload read that `resolveQualifiedTry` does for the proceeding case has no counterpart for a
+   reason, whose type the enclosing function's own carrier decides.
+-}
+
+data Buf {bytes: [U8], at: Size}
+data Fail = Short
+
+fn reason(b: s'Buf) -> Result(s'[U8], Size) = Err(b.bytes[0..1])
+
+fn outer(b: Buf) -> Result(Fail, Size):
+    let n = reason(b)?
+    return Ok(n)
+

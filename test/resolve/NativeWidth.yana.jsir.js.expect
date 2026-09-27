@@ -11,4 +11,4 @@ function normalizedU8(x) {
 function main() {
   return 16383 + (widenedUnsigned(-1) === 18446744073709551615n ? 16384 : 0) + (normalizedU8(300) === 44 ? 32768 : 0);
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

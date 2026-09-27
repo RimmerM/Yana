@@ -1,0 +1,73 @@
+module ResolveTest
+
+class Pick(c -> k, v): probe
+
+class Probe(c): probe
+
+instance Pick(Array(I32), Size, I32): Array(I32).probe
+
+instance Probe(Array(I32)): Array(I32).probe
+
+fn probe(xs: c [shared call], value: v [shared call]) -> k = <no body>
+
+fn probe'2(xs: c [shared call], value: U8 [shared call]) -> Size = <no body>
+
+fn Array(I32).probe(xs: Array(I32) [shared call view], value: I32 [shared call]) -> Size {
+bb0:
+  %0: Size = const 1
+  return take %0
+}
+
+fn Array(I32).probe'2(xs: Array(I32) [shared call view], value: U8 [shared call]) -> Size {
+bb0:
+  %0: Size = const 3
+  return take %0
+}
+
+fn main() -> I32 {
+  local & local0: Array(I32) object1
+  local xs: Array(I32) object1
+  local small: U8
+  local wide: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: %I32 = run.slots I32 *2
+  %3: Size = bitcast inspect %2
+  %4: Size = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  %6: {} = call checkCondition borrow.shared %5
+  %7: @bits(30) U32 = const 2
+  %8: @bits(2) U32 = const 1
+  %9: Run(I32) = aggregate.Run take %2 take %7 take %8
+  %10: @bits(30) U32 = const 2
+  %11: Array(I32) = aggregate.Array take %9 take %10
+  write.init borrow.unique (local0) take %11
+  %13: Size = const 0
+  write.init borrow.unique ([%%2][0]) take %0
+  %15: Size = const 1
+  write.init borrow.unique ([%%2][1]) take %1
+  %17: Array(I32) = read take (local0)
+  write.init borrow.unique (xs) take %17
+  %19: U8 = const 7
+  write.init borrow.unique (small) take %19
+  %21: I32 = const 7
+  write.init borrow.unique (wide) take %21
+  %23: Array(I32) [shared call] = read borrow.shared (xs) loan0
+  %24: U8 = const 7
+  %25: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %23 roots{0}
+  %26: Size = call probe'2(Array(I32)) borrow.shared %25 borrow.shared %24
+  %27: Size = const 10
+  %28: Size = mul inspect %26 inspect %27
+  %29: Array(I32) [shared call] = read borrow.shared (xs) loan1
+  %30: I32 = const 7
+  %31: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %29 roots{1}
+  %32: Size = call probe(Array(I32), Size, I32) borrow.shared %31 borrow.shared %30
+  drop (xs)
+  %33: Size = add inspect %28 inspect %32
+  %34: I32 = convert inspect %33
+  return take %34
+}
+
+entry main

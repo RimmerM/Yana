@@ -401,6 +401,7 @@ bb0:
   lens.call global(I32) borrow.shared %96 -> bb2
 
 bb1:
+  drop (a)
   %110: I32 = read copy.trivial (total)
   return take %110
 
@@ -412,7 +413,6 @@ bb2(%97: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 vie
   %103: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %102 borrow.shared %101 roots{20, 22}
   write.init borrow.unique (local10) borrow.shared %103
   %105: I32 = read copy.trivial (local10)
-  drop (a)
   %106: I32 = const 1000000
   %107: I32 = mul inspect %105 inspect %106
   %108: {} = call +=(I32) borrow.unique %100 borrow.shared %107

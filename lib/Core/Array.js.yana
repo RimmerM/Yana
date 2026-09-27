@@ -137,6 +137,12 @@ fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
 -- The same clamping, and the window moves rather than the base. `items` is the whole host array in
 -- every slice of it, which is why `values` has no JS body: what a caller may read is `offset` up to
 -- `offset + length` and nothing outside it.
+--
+-- `@inline`, which the native body does not need: the JS inliner's budget left this a call, so the
+-- bounds facts at the call site never met the clamps, and a view the caller had proven was checked
+-- again on every read (J191). Inlined, the clamps the facts decide are folded and the rest are four
+-- selects in place of a call.
+@inline
 @builtin(slice)
 pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     let &start = from :: Size
@@ -149,7 +155,9 @@ pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
 
     return ArrayView {items: self.items, length: end - start, offset: self.offset + start}
 
--- The same window at the caller's own capability - see the note beside the native one.
+-- The same window at the caller's own capability - see the note beside the native one, and the
+-- `@inline` above.
+@inline
 @builtin(sliceMut)
 pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &'[a]:
     let &start = from :: Size

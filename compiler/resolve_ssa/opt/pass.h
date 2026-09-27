@@ -421,6 +421,14 @@ void threadBranches(OptContext& opt);
  */
 void decideBranchConditions(OptContext& opt);
 
+/*
+ * A comparison a dominating branch arm already answers, decided - `opt/bounds.cpp`, J189. The
+ * facts are the arms' comparisons on the path from the entry, and what they decide is chiefly the
+ * bounds check behind a finite decoder's one length test. Immediately in front of the graph
+ * cleanup, so that a decided check's branch is folded in the same round.
+ */
+void decideBoundedComparisons(OptContext& opt);
+
 // The third of `cleanCfg`'s three rewrites on its own - the blocks nothing reaches, and the edges
 // and values they owned. Exported for `dischargeChecks`, which runs where `cleanCfg` does not and
 // strands a block that holds a call; one implementation reached two ways, rather than a second

@@ -18,15 +18,13 @@ main<complex>(): I32 {
     store %v_2, 0, 1
     call_complex teardown(Maybe(Token)), %v_2
     store %v_1, 1, 1
-    %v_3 = add %v_1, 4: Ptr
-    store %v_3, 0, 4
     call_complex teardown(Outcome(Token, {})), %v_1
     call_complex Token.drop
-    call_complex Token.drop
-    %v_4 = loads @dropped, 4: I32
-    %v_5 = add %v_4, 1: I32
+    %v_3 = loads @dropped, 4: I32
+    %v_4 = add %v_3, 2: I32
+    store @dropped, %v_4, 4
+    %v_5 = add %v_3, 3: I32
     store @dropped, %v_5, 4
-    call_complex Token.drop
     jmp b_6
   }
 

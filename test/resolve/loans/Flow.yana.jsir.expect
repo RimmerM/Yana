@@ -54,7 +54,7 @@ fn main() -> one %r0
     %15: %r0 = const 0
     %16: %r0 = const 3
     %17: %r0 = const 1
-    jump -> block17(%14, %15)
+    jump -> block7(%14, %15)
   block1:
     %24: %r0 = const 1
     %25: %r0 = alias %24
@@ -66,10 +66,10 @@ fn main() -> one %r0
     %36: %r0 = const 0
     %37: %r0 = const 3
     %38: %r0 = const 1
-    jump -> block20(%36)
+    jump -> block10(%36)
   block2:
-    %201: %r0 = const -1
-    return %201
+    %176: %r0 = const -1
+    return %176
   block3:
     %46: %r0 = const 1
     %47: %r0 = const 1
@@ -80,10 +80,10 @@ fn main() -> one %r0
     %54: %r0 = const 3
     %55: %r0 = const 1
     %56: %r0 = const 1
-    jump -> block23(%50, %51)
+    jump -> block13(%50, %51)
   block4:
-    %195: %r0 = const -3
-    return %195
+    %170: %r0 = const -3
+    return %170
   block5:
     %63: %r0 = const 1
     %64: %r0 = alias %63
@@ -103,150 +103,125 @@ fn main() -> one %r0
     call Guard.drop %95
     %99: %r0 = const 1
     %101: %r0 = const 2
-    jump -> block29
+    jump -> block19
   block6:
-    %187: %r0 = const -4
-    return %187
-  block7:
-    %115: %r0 = const 1
-    %117: %r0 = const 2
-    jump -> block30
-  block8:
-    %186: %r0 = const -9
-    return %186
-  block9:
-    %131: %r0 = const 3
-    %133: %r0 = const 4
-    jump -> block31
-  block10:
-    %185: %r0 = const -10
-    return %185
-  block11:
-    %147: %r0 = const 3
-    %149: %r0 = const 4
-    jump -> block32
-  block12:
-    %184: %r0 = const -11
-    return %184
-  block13:
-    %163: %r0 = const 3
-    %165: %r0 = const 4
-    jump -> block33
-  block14:
-    %183: %r0 = const -12
-    return %183
-  block15:
-    %176: %r0 = load global trace: %r0
-    %177: %r0 = const 18
-    %178: %r4 = binary.ne %176, %177
-    %179: %r0 = const -14
-    %180: %r0 = const 100
-    %181: %r0 = select %178, %179, %180
-    return %181
-  block16:
-    %182: %r0 = const -13
-    return %182
-  block17(%0: %r0, %1: %r0):
+    %162: %r0 = const -4
+    return %162
+  block7(%0: %r0, %1: %r0):
     %18: %r4 = binary.lt %0, %16
-    branch %18 -> block19 -> block18
-  block18:
+    branch %18 -> block9 -> block8
+  block8:
     %12: %r0 = alias %11
     %20: %r0 = alias %12
     call Guard.drop %20
     %21: %r0 = const 3
     %22: %r4 = binary.ne %1, %21
     branch %22 -> block2 -> block1
-  block19:
-    %203: %r0 = binary.add %1, %0
-    %204: %r0 = coerce %203
-    %205: %r0 = binary.add %0, %17
-    %206: %r0 = coerce %205
-    jump -> block17(%206, %204)
-  block20(%2: %r0):
+  block9:
+    %178: %r0 = binary.add %1, %0
+    %179: %r0 = coerce %178
+    %180: %r0 = binary.add %0, %17
+    %181: %r0 = coerce %180
+    jump -> block7(%181, %179)
+  block10(%2: %r0):
     %40: %r0 = load var $18: %r0
     %41: %r4 = binary.lt %40, %37
-    branch %41 -> block22 -> block21
-  block21:
+    branch %41 -> block12 -> block11
+  block11:
     %34: %r0 = alias %33
     %43: %r0 = alias %34
     call Guard.drop %43
     %44: %r0 = const 3
     %45: %r4 = binary.ne %2, %44
     branch %45 -> block4 -> block3
-  block22:
-    %196: %r0 = binary.add %2, %40
-    %197: %r0 = coerce %196
-    %198: %r0 = binary.add %40, %38
-    %199: %r0 = coerce %198
-    store var $18: %r0, %199
-    jump -> block20(%197)
-  block23(%3: %r0, %4: %r0):
+  block12:
+    %171: %r0 = binary.add %2, %40
+    %172: %r0 = coerce %171
+    %173: %r0 = binary.add %40, %38
+    %174: %r0 = coerce %173
+    store var $18: %r0, %174
+    jump -> block10(%172)
+  block13(%3: %r0, %4: %r0):
     %57: %r4 = binary.lt %3, %52
-    branch %57 -> block25 -> block24
-  block24:
+    branch %57 -> block15 -> block14
+  block14:
     %48: %r0 = alias %47
     %59: %r0 = alias %48
     call Guard.drop %59
     %60: %r0 = const 6
     %61: %r4 = binary.ne %4, %60
     branch %61 -> block6 -> block5
-  block25:
-    jump -> block26(%4, %53)
-  block26(%5: %r0, %6: %r0):
-    %188: %r4 = binary.lt %6, %54
-    branch %188 -> block28 -> block27
-  block27:
-    %189: %r0 = binary.add %3, %56
-    %190: %r0 = coerce %189
-    jump -> block23(%190, %5)
-  block28:
-    %191: %r0 = binary.add %5, %46
-    %192: %r0 = coerce %191
-    %193: %r0 = binary.add %6, %55
-    %194: %r0 = coerce %193
-    jump -> block26(%192, %194)
-  block29:
+  block15:
+    jump -> block16(%4, %53)
+  block16(%5: %r0, %6: %r0):
+    %163: %r4 = binary.lt %6, %54
+    branch %163 -> block18 -> block17
+  block17:
+    %164: %r0 = binary.add %3, %56
+    %165: %r0 = coerce %164
+    jump -> block13(%165, %5)
+  block18:
+    %166: %r0 = binary.add %5, %46
+    %167: %r0 = coerce %166
+    %168: %r0 = binary.add %6, %55
+    %169: %r0 = coerce %168
+    jump -> block16(%167, %169)
+  block19:
     %100: %r0 = alias %99
-    %108: %r0 = alias %100
-    call Guard.drop %108
+    %106: %r0 = alias %100
+    call Guard.drop %106
     %102: %r0 = alias %101
-    %109: %r0 = alias %102
-    call Guard.drop %109
-    jump -> block7
-  block30:
-    %116: %r0 = alias %115
-    %124: %r0 = alias %116
-    call Guard.drop %124
-    %118: %r0 = alias %117
-    %125: %r0 = alias %118
-    call Guard.drop %125
-    jump -> block9
-  block31:
-    %132: %r0 = alias %131
-    %140: %r0 = alias %132
-    call Guard.drop %140
-    %134: %r0 = alias %133
-    %141: %r0 = alias %134
-    call Guard.drop %141
-    jump -> block11
-  block32:
+    %107: %r0 = alias %102
+    call Guard.drop %107
+    %111: %r0 = const 1
+    %113: %r0 = const 2
+    jump -> block20
+  block20:
+    %112: %r0 = alias %111
+    %118: %r0 = alias %112
+    call Guard.drop %118
+    %114: %r0 = alias %113
+    %119: %r0 = alias %114
+    call Guard.drop %119
+    %123: %r0 = const 3
+    %125: %r0 = const 4
+    jump -> block21
+  block21:
+    %124: %r0 = alias %123
+    %130: %r0 = alias %124
+    call Guard.drop %130
+    %126: %r0 = alias %125
+    %131: %r0 = alias %126
+    call Guard.drop %131
+    %135: %r0 = const 3
+    %137: %r0 = const 4
+    jump -> block22
+  block22:
+    %136: %r0 = alias %135
+    %142: %r0 = alias %136
+    call Guard.drop %142
+    %138: %r0 = alias %137
+    %143: %r0 = alias %138
+    call Guard.drop %143
+    %147: %r0 = const 3
+    %149: %r0 = const 4
+    jump -> block23
+  block23:
     %148: %r0 = alias %147
-    %156: %r0 = alias %148
-    call Guard.drop %156
+    %154: %r0 = alias %148
+    call Guard.drop %154
     %150: %r0 = alias %149
-    %157: %r0 = alias %150
-    call Guard.drop %157
-    jump -> block13
-  block33:
-    %164: %r0 = alias %163
-    %172: %r0 = alias %164
-    call Guard.drop %172
-    %166: %r0 = alias %165
-    %173: %r0 = alias %166
-    call Guard.drop %173
-    jump -> block15
+    %155: %r0 = alias %150
+    call Guard.drop %155
+    %156: %r0 = load global trace: %r0
+    %157: %r0 = const 18
+    %158: %r4 = binary.ne %156, %157
+    %159: %r0 = const -14
+    %160: %r0 = const 100
+    %161: %r0 = select %158, %159, %160
+    return %161
 
-optimizer clones 0 aliased 0 forwarded 0 removed 138 adopted 0 sunk 0 numbered 5 decided 5 unboxed 0 updated 0 split 13 promoted 23 folded 5
+optimizer clones 0 aliased 0 forwarded 0 removed 118 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 13 promoted 18 folded 0
 
 shape %s0 object Box {inner: %r0, n: %r0}
 shape %s1 object Pair {left: %r0, right: %r0}

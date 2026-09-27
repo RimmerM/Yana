@@ -1,0 +1,1954 @@
+module ResolveTest
+
+let string'188: [CodeUnit *0] = ""
+
+let string'189: [CodeUnit *1] = "<"
+
+let string'190: [CodeUnit *1] = ">"
+
+let string'191: [CodeUnit *4] = "Box("
+
+let string'192: [CodeUnit *1] = ")"
+
+let string'193: [CodeUnit *1] = "["
+
+let string'194: [CodeUnit *1] = "]"
+
+let string'195: [CodeUnit *6] = "<1><2>"
+
+let string'196: [CodeUnit *1] = "x"
+
+let string'197: [CodeUnit *1] = "y"
+
+let string'198: [CodeUnit *6] = "<x><y>"
+
+let string'199: [CodeUnit *4] = "held"
+
+let string'200: [CodeUnit *4] = "held"
+
+let string'201: [CodeUnit *4] = "four"
+
+let string'202: [CodeUnit *1] = "s"
+
+let string'203: [CodeUnit *1] = " "
+
+let string'204: [CodeUnit *13] = "Box(5) Box(s)"
+
+let string'205: [CodeUnit *1] = "a"
+
+let string'206: [CodeUnit *1] = "b"
+
+fn scaled(x: a [shared call], k: I32 [shared call]) -> a = <no body>
+
+fn twiceScaled(x: a [shared call], k: I32 [shared call]) -> a = <no body>
+
+fn mapOne(x: a [shared call], f: (a) -> b [shared call]) -> b = <no body>
+
+fn applyTwice(x: a [shared call], f: (a) -> a [shared call]) -> a = <no body>
+
+fn scaleSum(xs: Array(a) [shared call view], k: a [shared call]) -> a = <no body>
+
+fn describeAll(xs: Array(a) [shared call view]) -> String = <no body>
+
+fn nested(x: a [shared call]) -> a = <no body>
+
+fn adder(by: a) -> (a) -> a = <no body>
+
+fn hold(value: a) -> Holder(a) = <no body>
+
+fn task(context: a, entry: (a) -> I32) -> Task = <no body>
+
+fn I32.scaled(x: I32 [shared call], k: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = mul inspect %4 inspect %5
+  return consume %6
+}
+
+fn Box(a).show(b: Box(a) [shared call], to: String [unique call]) -> {} = <no body>
+
+fn doubled(xs: Array(a) [shared call view], f: (a) -> a [shared call], $body: (a) -> I32 [shared call]) -> I32 = <no body>
+
+fn bracketed(x: a [shared call], f: (a) -> String [shared call], seen: I32 [unique call], $body: (a) -> $r [shared call]) -> $r = <no body>
+
+fn once(flag: Bool [shared call], value: () -> I32 [shared call]) -> I32 {
+bb0(%0: Bool trivial, %1: () -> I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %0
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: I32 trivial = const 0
+  jump -> bb2(consume %5)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %6: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %7: I32 trivial = call [value #0] inspect %6
+  jump -> bb2(consume %7)
+}
+
+fn lazyInGeneric(x: a [shared call], y: a [shared call]) -> I32 = <no body>
+
+fn userAnd(lhs: a [shared call], rhs: () -> b [shared call]) -> Bool = <no body>
+
+fn callsUserAnd(x: a [shared call], y: Bool [shared call]) -> Bool = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %main.lambda.env address = alloc frame main.lambda.env
+  %2: %Array(I32) address = alloc frame Array(I32)
+  %3: %Array(I32) address = alloc frame Array(I32)
+  %4: %Array(F64) address = alloc frame Array(F64)
+  %5: %Array(F64) address = alloc frame Array(F64)
+  %6: %Array(I32) address = alloc frame Array(I32)
+  %7: %Array(I32) address = alloc frame Array(I32)
+  %8: %String address = alloc frame String
+  %9: %String address = alloc frame String
+  %10: %Array(String) address = alloc frame Array(String)
+  %11: %Array(String) address = alloc frame Array(String)
+  %12: %String address = alloc frame String
+  %13: %String address = alloc frame String
+  %14: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %15: %(F64) -> F64 address = alloc frame (F64) -> F64
+  %16: %Holder(String) address = alloc frame Holder(String)
+  %17: %Holder(I32) address = alloc frame Holder(I32)
+  %18: %String address = alloc frame String
+  %19: %String address = alloc frame String
+  %20: %Task address = alloc frame Task
+  %21: %Task address = alloc frame Task
+  %22: %Box(String) address = alloc frame Box(String)
+  %23: %Box(I32) address = alloc frame Box(I32)
+  %24: %String address = alloc frame String
+  %25: %String address = alloc frame String
+  %26: %String address = alloc frame String
+  %27: %String address = alloc frame String
+  %28: %I32 address = alloc frame I32
+  %29: %Array(I32) address = alloc frame Array(I32)
+  %30: %Array(I32) address = alloc frame Array(I32)
+  %31: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape9 .0=unique call]
+  %32: %I32 address = alloc frame I32
+  %33: %(I32) -> String address = alloc frame (I32) -> String [owned here shape9 .0=unique call]
+  %34: %String address = alloc frame String
+  %35: %String address = alloc frame String
+  %36: I32 trivial = const 0
+  store inspect %0 consume %36
+  %37: main.lambda.env trivial = aggregate.main.lambda.env
+  store inspect %1 consume %37
+  %38: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %39: main.lambda.env trivial = copy inspect %1
+  %40: I32 trivial = const 1
+  %41: I32 trivial = const 2
+  %42: I32 trivial = const 3
+  %43: %I32 trivial = run.slots I32 *3 heap
+  %44: Size trivial = bitcast inspect %43
+  %45: Size trivial = const 0
+  %46: Bool trivial = eq inspect %44 inspect %45
+  call checkCondition borrow %46
+  %47: @bits(30) U32 trivial = const 3
+  %48: @bits(2) U32 trivial = const 1
+  %49: Run(I32) owned = aggregate.Run consume %43 consume %47 consume %48
+  %50: @bits(30) U32 trivial = const 3
+  %51: Array(I32) owned = aggregate.Array consume %49 consume %50
+  store inspect %2 consume %51
+  %52: Size trivial = const 0
+  %53: %I32 address = element.addr inspect %43 inspect %52
+  store inspect %53 consume %40
+  %54: Size trivial = const 1
+  %55: %I32 address = element.addr inspect %43 inspect %54
+  store inspect %55 consume %41
+  %56: Size trivial = const 2
+  %57: %I32 address = element.addr inspect %43 inspect %56
+  store inspect %57 consume %42
+  %58: Array(I32) owned = load inspect %2
+  store inspect %3 consume %58
+  %59: Array(I32) [shared slot 0] guaranteed from{%3} = load inspect %3
+  %60: Array(I32) [shared slot 0 view] guaranteed from{%3} = call Array(a).elements(I32) borrow %59
+  %61: I32 trivial = const 2
+  %62: I32 trivial = call scaleSum(I32) borrow %60 borrow %61
+  drop Array(I32) inspect %3
+  %63: I32 trivial = const 12
+  %64: Bool trivial = eq inspect %62 inspect %63
+  %65: I32 trivial = call main.lambda borrow %39 borrow %64
+  call +=(I32) borrow %38 borrow %65
+  %66: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %67: main.lambda.env trivial = copy inspect %1
+  %68: F64 trivial = const 1.5
+  %69: F64 trivial = const 2.5
+  %70: %F64 trivial = run.slots F64 *2 heap
+  %71: Size trivial = bitcast inspect %70
+  %72: Size trivial = const 0
+  %73: Bool trivial = eq inspect %71 inspect %72
+  call checkCondition borrow %73
+  %74: @bits(30) U32 trivial = const 2
+  %75: @bits(2) U32 trivial = const 1
+  %76: Run(F64) owned = aggregate.Run consume %70 consume %74 consume %75
+  %77: @bits(30) U32 trivial = const 2
+  %78: Array(F64) owned = aggregate.Array consume %76 consume %77
+  store inspect %4 consume %78
+  %79: Size trivial = const 0
+  %80: %F64 address = element.addr inspect %70 inspect %79
+  store inspect %80 consume %68
+  %81: Size trivial = const 1
+  %82: %F64 address = element.addr inspect %70 inspect %81
+  store inspect %82 consume %69
+  %83: Array(F64) owned = load inspect %4
+  store inspect %5 consume %83
+  %84: Array(F64) [shared slot 0] guaranteed from{%5} = load inspect %5
+  %85: Array(F64) [shared slot 0 view] guaranteed from{%5} = call Array(a).elements(F64) borrow %84
+  %86: F64 trivial = const 2
+  %87: F64 trivial = call scaleSum(F64) borrow %85 borrow %86
+  drop Array(F64) inspect %5
+  %88: F64 trivial = const 8
+  %89: Bool trivial = eq inspect %87 inspect %88
+  %90: I32 trivial = call main.lambda borrow %67 borrow %89
+  call +=(I32) borrow %66 borrow %90
+  %91: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %92: main.lambda.env trivial = copy inspect %1
+  %93: I32 trivial = const 1
+  %94: I32 trivial = const 2
+  %95: %I32 trivial = run.slots I32 *2 heap
+  %96: Size trivial = bitcast inspect %95
+  %97: Size trivial = const 0
+  %98: Bool trivial = eq inspect %96 inspect %97
+  call checkCondition borrow %98
+  %99: @bits(30) U32 trivial = const 2
+  %100: @bits(2) U32 trivial = const 1
+  %101: Run(I32) owned = aggregate.Run consume %95 consume %99 consume %100
+  %102: @bits(30) U32 trivial = const 2
+  %103: Array(I32) owned = aggregate.Array consume %101 consume %102
+  store inspect %6 consume %103
+  %104: Size trivial = const 0
+  %105: %I32 address = element.addr inspect %95 inspect %104
+  store inspect %105 consume %93
+  %106: Size trivial = const 1
+  %107: %I32 address = element.addr inspect %95 inspect %106
+  store inspect %107 consume %94
+  %108: Array(I32) owned = load inspect %6
+  store inspect %7 consume %108
+  %109: Array(I32) [shared slot 0] guaranteed from{%7} = load inspect %7
+  %110: Array(I32) [shared slot 0 view] guaranteed from{%7} = call Array(a).elements(I32) borrow %109
+  %111: String owned = call describeAll(I32) borrow %110
+  drop Array(I32) inspect %7
+  store inspect %8 consume %111
+  %112: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  jump -> bb3
+
+bb1:
+  drop Array(I32) inspect %30
+  %391: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %392: main.lambda.env trivial = copy inspect %1
+  %393: I32 trivial = load inspect %28
+  %394: I32 trivial = const 7
+  %395: Bool trivial = eq inspect %393 inspect %394
+  %396: I32 trivial = call main.lambda borrow %392 borrow %395
+  call +=(I32) borrow %391 borrow %396
+  %397: I32 trivial = const 0
+  store inspect %32 consume %397
+  %398: I32 [unique call] guaranteed from{%32} = load inspect %32
+  %399: I32 trivial = const 7
+  %400: (I32) -> String [owned here shape9 .0=unique call] affine = fun.value main.lambda'5
+  store inspect %33 consume %400
+  %401: (I32) -> String [shared call shape9 .0=unique call] guaranteed from{%33} = load inspect %33
+  %402: I32 [unique slot 0] guaranteed = load inspect %0
+  %403: main.lambda.env [unique slot 1] guaranteed = load inspect %1
+  %404: main.cont.env affine = aggregate.main.cont.env borrow %402 borrow %403
+  %405: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value main.cont borrow %404
+  %406: I32 trivial = call bracketed(I32, I32) borrow %399 borrow %401 borrow %398 borrow %405
+  jump -> bb2
+
+bb2:
+  %407: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %408: main.lambda.env trivial = copy inspect %1
+  %409: I32 trivial = load inspect %32
+  %410: I32 trivial = const 6
+  %411: Bool trivial = eq inspect %409 inspect %410
+  %412: I32 trivial = call main.lambda borrow %408 borrow %411
+  call +=(I32) borrow %407 borrow %412
+  %413: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %414: main.lambda.env trivial = copy inspect %1
+  %415: I32 trivial = const 1
+  %416: I32 trivial = const 1
+  %417: I32 trivial = call lazyInGeneric(I32) borrow %415 borrow %416
+  %418: I32 trivial = const 1
+  %419: Bool trivial = eq inspect %417 inspect %418
+  %420: I32 trivial = call main.lambda borrow %414 borrow %419
+  call +=(I32) borrow %413 borrow %420
+  %421: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %422: main.lambda.env trivial = copy inspect %1
+  %423: String owned = const String {units: Array {run: Run {items: &string'205, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %34 consume %423
+  %424: String [shared slot 0] guaranteed from{%34} = load inspect %34
+  jump -> bb21
+
+bb3:
+  %114: %Array(CodeUnit) address = field.addr .units inspect %112
+  %115: %Run(CodeUnit) address = field.addr .run inspect %114
+  %116: %%CodeUnit address = field.addr .items inspect %115
+  %117: %CodeUnit trivial = load inspect %116
+  %118: %Array(CodeUnit) address = field.addr .units inspect %112
+  %119: %@bits(30) U32 address = field.addr .length inspect %118
+  %120: @bits(30) U32 trivial = load inspect %119
+  %121: I32 trivial = convert inspect %120
+  %122: Size trivial = convert inspect %121
+  %123: StringView trivial = aggregate.StringView consume %117 consume %122
+  %124: String [shared slot 0 view] guaranteed = represent inspect %123
+  jump -> bb4(borrow %124)
+
+bb4(%113: String [shared slot 0 view] guaranteed from{%8}):
+  %125: String owned = const String {units: Array {run: Run {items: &string'195, capacity: 6, ownsHeap: 0}, length: 6}}
+  store inspect %9 consume %125
+  %126: String [shared slot 0] guaranteed from{%9} = load inspect %9
+  jump -> bb5
+
+bb5:
+  %128: %Array(CodeUnit) address = field.addr .units inspect %126
+  %129: %Run(CodeUnit) address = field.addr .run inspect %128
+  %130: %%CodeUnit address = field.addr .items inspect %129
+  %131: %CodeUnit trivial = load inspect %130
+  %132: %Array(CodeUnit) address = field.addr .units inspect %126
+  %133: %@bits(30) U32 address = field.addr .length inspect %132
+  %134: @bits(30) U32 trivial = load inspect %133
+  %135: I32 trivial = convert inspect %134
+  %136: Size trivial = convert inspect %135
+  %137: StringView trivial = aggregate.StringView consume %131 consume %136
+  %138: String [shared slot 0 view] guaranteed = represent inspect %137
+  jump -> bb6(borrow %138)
+
+bb6(%127: String [shared slot 0 view] guaranteed from{%9}):
+  %139: Bool trivial = call String.== borrow %113 borrow %127
+  drop String inspect %8
+  drop String inspect %9
+  %140: I32 trivial = call main.lambda borrow %92 borrow %139
+  call +=(I32) borrow %91 borrow %140
+  %141: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %142: main.lambda.env trivial = copy inspect %1
+  %143: String owned = const String {units: Array {run: Run {items: &string'196, capacity: 1, ownsHeap: 0}, length: 1}}
+  %144: String owned = const String {units: Array {run: Run {items: &string'197, capacity: 1, ownsHeap: 0}, length: 1}}
+  %145: %String trivial = run.slots String *2 heap
+  %146: Size trivial = bitcast inspect %145
+  %147: Size trivial = const 0
+  %148: Bool trivial = eq inspect %146 inspect %147
+  call checkCondition borrow %148
+  %149: @bits(30) U32 trivial = const 2
+  %150: @bits(2) U32 trivial = const 1
+  %151: Run(String) owned = aggregate.Run consume %145 consume %149 consume %150
+  %152: @bits(30) U32 trivial = const 2
+  %153: Array(String) owned = aggregate.Array consume %151 consume %152
+  store inspect %10 consume %153
+  %154: Size trivial = const 0
+  %155: %String address = element.addr inspect %145 inspect %154
+  store inspect %155 consume %143
+  %156: Size trivial = const 1
+  %157: %String address = element.addr inspect %145 inspect %156
+  store inspect %157 consume %144
+  %158: Array(String) owned = load inspect %10
+  store inspect %11 consume %158
+  %159: Array(String) [shared slot 0] guaranteed from{%11} = load inspect %11
+  %160: Array(String) [shared slot 0 view] guaranteed from{%11} = call Array(a).elements(String) borrow %159
+  %161: String owned = call describeAll(String) borrow %160
+  drop Array(String) inspect %11
+  store inspect %12 consume %161
+  %162: String [shared slot 0] guaranteed from{%12} = load inspect %12
+  jump -> bb7
+
+bb7:
+  %164: %Array(CodeUnit) address = field.addr .units inspect %162
+  %165: %Run(CodeUnit) address = field.addr .run inspect %164
+  %166: %%CodeUnit address = field.addr .items inspect %165
+  %167: %CodeUnit trivial = load inspect %166
+  %168: %Array(CodeUnit) address = field.addr .units inspect %162
+  %169: %@bits(30) U32 address = field.addr .length inspect %168
+  %170: @bits(30) U32 trivial = load inspect %169
+  %171: I32 trivial = convert inspect %170
+  %172: Size trivial = convert inspect %171
+  %173: StringView trivial = aggregate.StringView consume %167 consume %172
+  %174: String [shared slot 0 view] guaranteed = represent inspect %173
+  jump -> bb8(borrow %174)
+
+bb8(%163: String [shared slot 0 view] guaranteed from{%12}):
+  %175: String owned = const String {units: Array {run: Run {items: &string'198, capacity: 6, ownsHeap: 0}, length: 6}}
+  store inspect %13 consume %175
+  %176: String [shared slot 0] guaranteed from{%13} = load inspect %13
+  jump -> bb9
+
+bb9:
+  %178: %Array(CodeUnit) address = field.addr .units inspect %176
+  %179: %Run(CodeUnit) address = field.addr .run inspect %178
+  %180: %%CodeUnit address = field.addr .items inspect %179
+  %181: %CodeUnit trivial = load inspect %180
+  %182: %Array(CodeUnit) address = field.addr .units inspect %176
+  %183: %@bits(30) U32 address = field.addr .length inspect %182
+  %184: @bits(30) U32 trivial = load inspect %183
+  %185: I32 trivial = convert inspect %184
+  %186: Size trivial = convert inspect %185
+  %187: StringView trivial = aggregate.StringView consume %181 consume %186
+  %188: String [shared slot 0 view] guaranteed = represent inspect %187
+  jump -> bb10(borrow %188)
+
+bb10(%177: String [shared slot 0 view] guaranteed from{%13}):
+  %189: Bool trivial = call String.== borrow %163 borrow %177
+  drop String inspect %12
+  drop String inspect %13
+  %190: I32 trivial = call main.lambda borrow %142 borrow %189
+  call +=(I32) borrow %141 borrow %190
+  %191: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %192: main.lambda.env trivial = copy inspect %1
+  %193: I32 trivial = const 1
+  %194: I32 trivial = call nested(I32) borrow %193
+  %195: I32 trivial = const 9
+  %196: Bool trivial = eq inspect %194 inspect %195
+  %197: I32 trivial = call main.lambda borrow %192 borrow %196
+  call +=(I32) borrow %191 borrow %197
+  %198: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %199: main.lambda.env trivial = copy inspect %1
+  %200: F64 trivial = const 0.5
+  %201: F64 trivial = call nested(F64) borrow %200
+  %202: F64 trivial = const 4.5
+  %203: Bool trivial = eq inspect %201 inspect %202
+  %204: I32 trivial = call main.lambda borrow %199 borrow %203
+  call +=(I32) borrow %198 borrow %204
+  %205: I32 trivial = const 3
+  %206: (I32) -> I32 owned = call adder(I32) consume %205
+  store inspect %14 consume %206
+  %207: F64 trivial = const 0.5
+  %208: (F64) -> F64 owned = call adder(F64) consume %207
+  store inspect %15 consume %208
+  %209: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %210: main.lambda.env trivial = copy inspect %1
+  %211: (I32) -> I32 [shared call] guaranteed from{%14} = load inspect %14
+  %212: I32 trivial = const 4
+  %213: I32 trivial = call [value #0] inspect %211 borrow %212
+  drop (I32) -> I32 inspect %14
+  %214: I32 trivial = const 7
+  %215: Bool trivial = eq inspect %213 inspect %214
+  %216: I32 trivial = call main.lambda borrow %210 borrow %215
+  call +=(I32) borrow %209 borrow %216
+  %217: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %218: main.lambda.env trivial = copy inspect %1
+  %219: (F64) -> F64 [shared call] guaranteed from{%15} = load inspect %15
+  %220: F64 trivial = const 1
+  %221: F64 trivial = call [value #0] inspect %219 borrow %220
+  drop (F64) -> F64 inspect %15
+  %222: F64 trivial = const 1.5
+  %223: Bool trivial = eq inspect %221 inspect %222
+  %224: I32 trivial = call main.lambda borrow %218 borrow %223
+  call +=(I32) borrow %217 borrow %224
+  %225: String owned = const String {units: Array {run: Run {items: &string'199, capacity: 4, ownsHeap: 0}, length: 4}}
+  %226: Holder(String) owned = call hold(String) consume %225
+  store inspect %16 consume %226
+  %227: I32 trivial = const 42
+  %228: Holder(I32) owned = call hold(I32) consume %227
+  store inspect %17 consume %228
+  %229: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %230: main.lambda.env trivial = copy inspect %1
+  %231: %() -> String address = field.addr .run inspect %16
+  %232: () -> String [shared call] guaranteed from{%16} = load inspect %231
+  %233: String owned = call [value #0] inspect %232
+  drop Holder(String) inspect %16
+  store inspect %18 consume %233
+  %234: String [shared slot 0] guaranteed from{%18} = load inspect %18
+  jump -> bb11
+
+bb11:
+  %236: %Array(CodeUnit) address = field.addr .units inspect %234
+  %237: %Run(CodeUnit) address = field.addr .run inspect %236
+  %238: %%CodeUnit address = field.addr .items inspect %237
+  %239: %CodeUnit trivial = load inspect %238
+  %240: %Array(CodeUnit) address = field.addr .units inspect %234
+  %241: %@bits(30) U32 address = field.addr .length inspect %240
+  %242: @bits(30) U32 trivial = load inspect %241
+  %243: I32 trivial = convert inspect %242
+  %244: Size trivial = convert inspect %243
+  %245: StringView trivial = aggregate.StringView consume %239 consume %244
+  %246: String [shared slot 0 view] guaranteed = represent inspect %245
+  jump -> bb12(borrow %246)
+
+bb12(%235: String [shared slot 0 view] guaranteed from{%18}):
+  %247: String owned = const String {units: Array {run: Run {items: &string'200, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %19 consume %247
+  %248: String [shared slot 0] guaranteed from{%19} = load inspect %19
+  jump -> bb13
+
+bb13:
+  %250: %Array(CodeUnit) address = field.addr .units inspect %248
+  %251: %Run(CodeUnit) address = field.addr .run inspect %250
+  %252: %%CodeUnit address = field.addr .items inspect %251
+  %253: %CodeUnit trivial = load inspect %252
+  %254: %Array(CodeUnit) address = field.addr .units inspect %248
+  %255: %@bits(30) U32 address = field.addr .length inspect %254
+  %256: @bits(30) U32 trivial = load inspect %255
+  %257: I32 trivial = convert inspect %256
+  %258: Size trivial = convert inspect %257
+  %259: StringView trivial = aggregate.StringView consume %253 consume %258
+  %260: String [shared slot 0 view] guaranteed = represent inspect %259
+  jump -> bb14(borrow %260)
+
+bb14(%249: String [shared slot 0 view] guaranteed from{%19}):
+  %261: Bool trivial = call String.== borrow %235 borrow %249
+  drop String inspect %18
+  drop String inspect %19
+  %262: I32 trivial = call main.lambda borrow %230 borrow %261
+  call +=(I32) borrow %229 borrow %262
+  %263: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %264: main.lambda.env trivial = copy inspect %1
+  %265: %() -> I32 address = field.addr .run inspect %17
+  %266: () -> I32 [shared call] guaranteed from{%17} = load inspect %265
+  %267: I32 trivial = call [value #0] inspect %266
+  drop Holder(I32) inspect %17
+  %268: I32 trivial = const 42
+  %269: Bool trivial = eq inspect %267 inspect %268
+  %270: I32 trivial = call main.lambda borrow %264 borrow %269
+  call +=(I32) borrow %263 borrow %270
+  %271: I32 trivial = const 40
+  %272: (I32) -> I32 [owned here shape9 .0=unique call] affine = fun.value main.lambda'2
+  %273: Task owned = call task(I32) consume %271 consume %272
+  store inspect %20 consume %273
+  %274: String owned = const String {units: Array {run: Run {items: &string'201, capacity: 4, ownsHeap: 0}, length: 4}}
+  %275: (String) -> I32 [owned here shape9 .0=unique call] affine = fun.value main.lambda'3
+  %276: Task owned = call task(String) consume %274 consume %275
+  store inspect %21 consume %276
+  %277: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %278: main.lambda.env trivial = copy inspect %1
+  %279: %() -> I32 address = field.addr .entry inspect %20
+  %280: () -> I32 [shared call] guaranteed from{%20} = load inspect %279
+  %281: I32 trivial = call [value #0] inspect %280
+  drop Task inspect %20
+  %282: I32 trivial = const 42
+  %283: Bool trivial = eq inspect %281 inspect %282
+  %284: I32 trivial = call main.lambda borrow %278 borrow %283
+  call +=(I32) borrow %277 borrow %284
+  %285: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %286: main.lambda.env trivial = copy inspect %1
+  %287: %() -> I32 address = field.addr .entry inspect %21
+  %288: () -> I32 [shared call] guaranteed from{%21} = load inspect %287
+  %289: I32 trivial = call [value #0] inspect %288
+  drop Task inspect %21
+  %290: I32 trivial = const 4
+  %291: Bool trivial = eq inspect %289 inspect %290
+  %292: I32 trivial = call main.lambda borrow %286 borrow %291
+  call +=(I32) borrow %285 borrow %292
+  %293: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %294: main.lambda.env trivial = copy inspect %1
+  %295: I32 trivial = const 2
+  %296: I32 trivial = const 3
+  %297: I32 trivial = call twiceScaled(I32) borrow %296 borrow %295
+  %298: I32 trivial = const 12
+  %299: Bool trivial = eq inspect %297 inspect %298
+  %300: I32 trivial = call main.lambda borrow %294 borrow %299
+  call +=(I32) borrow %293 borrow %300
+  %301: String owned = const String {units: Array {run: Run {items: &string'202, capacity: 1, ownsHeap: 0}, length: 1}}
+  %302: Box(String) owned = aggregate.Box consume %301
+  store inspect %22 consume %302
+  %303: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %304: main.lambda.env trivial = copy inspect %1
+  %305: I32 trivial = const 5
+  %306: Box(I32) trivial = aggregate.Box consume %305
+  store inspect %23 consume %306
+  %307: Size trivial = const 1
+  %308: Box(I32) trivial = copy inspect %23
+  %309: Maybe(Size) trivial = call showBound(Box(I32)) borrow %308
+  %310: Size trivial = call formatBound borrow %309
+  %311: Size trivial = add inspect %307 inspect %310
+  %312: Box(String) [shared call] guaranteed from{%22} = load inspect %22
+  %313: Maybe(Size) trivial = call showBound(Box(String)) borrow %312
+  %314: Size trivial = call formatBound borrow %313
+  %315: Size trivial = add inspect %311 inspect %314
+  %316: String owned = call String.ofCapacity borrow %315
+  store inspect %24 consume %316
+  %317: Box(I32) trivial = copy inspect %23
+  %318: String [unique call] guaranteed from{%24} = load inspect %24
+  call Box(a).show(I32) borrow %317 borrow %318
+  %319: String [unique call] guaranteed from{%24} = load inspect %24
+  %320: String owned = const String {units: Array {run: Run {items: &string'203, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %25 consume %320
+  %321: String [shared slot 0] guaranteed from{%25} = load inspect %25
+  jump -> bb15
+
+bb15:
+  %323: %Array(CodeUnit) address = field.addr .units inspect %321
+  %324: %Run(CodeUnit) address = field.addr .run inspect %323
+  %325: %%CodeUnit address = field.addr .items inspect %324
+  %326: %CodeUnit trivial = load inspect %325
+  %327: %Array(CodeUnit) address = field.addr .units inspect %321
+  %328: %@bits(30) U32 address = field.addr .length inspect %327
+  %329: @bits(30) U32 trivial = load inspect %328
+  %330: I32 trivial = convert inspect %329
+  %331: Size trivial = convert inspect %330
+  %332: StringView trivial = aggregate.StringView consume %326 consume %331
+  %333: String [shared slot 0 view] guaranteed = represent inspect %332
+  jump -> bb16(borrow %333)
+
+bb16(%322: String [shared slot 0 view] guaranteed from{%25}):
+  call String.push borrow %319 borrow %322
+  drop String inspect %25
+  %334: Box(String) [shared call] guaranteed from{%22} = load inspect %22
+  %335: String [unique call] guaranteed from{%24} = load inspect %24
+  call Box(a).show(String) borrow %334 borrow %335
+  drop Box(String) inspect %22
+  %336: String owned = load inspect %24
+  store inspect %26 consume %336
+  %337: String [shared slot 0] guaranteed from{%26} = load inspect %26
+  jump -> bb17
+
+bb17:
+  %339: %Array(CodeUnit) address = field.addr .units inspect %337
+  %340: %Run(CodeUnit) address = field.addr .run inspect %339
+  %341: %%CodeUnit address = field.addr .items inspect %340
+  %342: %CodeUnit trivial = load inspect %341
+  %343: %Array(CodeUnit) address = field.addr .units inspect %337
+  %344: %@bits(30) U32 address = field.addr .length inspect %343
+  %345: @bits(30) U32 trivial = load inspect %344
+  %346: I32 trivial = convert inspect %345
+  %347: Size trivial = convert inspect %346
+  %348: StringView trivial = aggregate.StringView consume %342 consume %347
+  %349: String [shared slot 0 view] guaranteed = represent inspect %348
+  jump -> bb18(borrow %349)
+
+bb18(%338: String [shared slot 0 view] guaranteed from{%26}):
+  %350: String owned = const String {units: Array {run: Run {items: &string'204, capacity: 13, ownsHeap: 0}, length: 13}}
+  store inspect %27 consume %350
+  %351: String [shared slot 0] guaranteed from{%27} = load inspect %27
+  jump -> bb19
+
+bb19:
+  %353: %Array(CodeUnit) address = field.addr .units inspect %351
+  %354: %Run(CodeUnit) address = field.addr .run inspect %353
+  %355: %%CodeUnit address = field.addr .items inspect %354
+  %356: %CodeUnit trivial = load inspect %355
+  %357: %Array(CodeUnit) address = field.addr .units inspect %351
+  %358: %@bits(30) U32 address = field.addr .length inspect %357
+  %359: @bits(30) U32 trivial = load inspect %358
+  %360: I32 trivial = convert inspect %359
+  %361: Size trivial = convert inspect %360
+  %362: StringView trivial = aggregate.StringView consume %356 consume %361
+  %363: String [shared slot 0 view] guaranteed = represent inspect %362
+  jump -> bb20(borrow %363)
+
+bb20(%352: String [shared slot 0 view] guaranteed from{%27}):
+  %364: Bool trivial = call String.== borrow %338 borrow %352
+  drop String inspect %26
+  drop String inspect %27
+  %365: I32 trivial = call main.lambda borrow %304 borrow %364
+  call +=(I32) borrow %303 borrow %365
+  %366: I32 trivial = const 0
+  store inspect %28 consume %366
+  %367: I32 trivial = const 1
+  %368: I32 trivial = const 2
+  %369: %I32 trivial = run.slots I32 *2 heap
+  %370: Size trivial = bitcast inspect %369
+  %371: Size trivial = const 0
+  %372: Bool trivial = eq inspect %370 inspect %371
+  call checkCondition borrow %372
+  %373: @bits(30) U32 trivial = const 2
+  %374: @bits(2) U32 trivial = const 1
+  %375: Run(I32) owned = aggregate.Run consume %369 consume %373 consume %374
+  %376: @bits(30) U32 trivial = const 2
+  %377: Array(I32) owned = aggregate.Array consume %375 consume %376
+  store inspect %29 consume %377
+  %378: Size trivial = const 0
+  %379: %I32 address = element.addr inspect %369 inspect %378
+  store inspect %379 consume %367
+  %380: Size trivial = const 1
+  %381: %I32 address = element.addr inspect %369 inspect %380
+  store inspect %381 consume %368
+  %382: Array(I32) owned = load inspect %29
+  store inspect %30 consume %382
+  %383: Array(I32) [shared slot 0] guaranteed from{%30} = load inspect %30
+  %384: Array(I32) [shared slot 0 view] guaranteed from{%30} = call Array(a).elements(I32) borrow %383
+  %385: (I32) -> I32 [owned here shape9 .0=unique call] affine = fun.value main.lambda'4
+  store inspect %31 consume %385
+  %386: (I32) -> I32 [shared call shape9 .0=unique call] guaranteed from{%31} = load inspect %31
+  %387: I32 [unique slot 0] guaranteed = load inspect %28
+  %388: main.cont'2.env affine = aggregate.main.cont'2.env borrow %387
+  %389: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value main.cont'2 borrow %388
+  %390: I32 trivial = call doubled(I32) borrow %384 borrow %386 borrow %389
+  jump -> bb1
+
+bb21:
+  %426: %Array(CodeUnit) address = field.addr .units inspect %424
+  %427: %Run(CodeUnit) address = field.addr .run inspect %426
+  %428: %%CodeUnit address = field.addr .items inspect %427
+  %429: %CodeUnit trivial = load inspect %428
+  %430: %Array(CodeUnit) address = field.addr .units inspect %424
+  %431: %@bits(30) U32 address = field.addr .length inspect %430
+  %432: @bits(30) U32 trivial = load inspect %431
+  %433: I32 trivial = convert inspect %432
+  %434: Size trivial = convert inspect %433
+  %435: StringView trivial = aggregate.StringView consume %429 consume %434
+  %436: String [shared slot 0 view] guaranteed = represent inspect %435
+  jump -> bb22(borrow %436)
+
+bb22(%425: String [shared slot 0 view] guaranteed from{%34}):
+  %437: String owned = const String {units: Array {run: Run {items: &string'206, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %35 consume %437
+  %438: String [shared slot 0] guaranteed from{%35} = load inspect %35
+  jump -> bb23
+
+bb23:
+  %440: %Array(CodeUnit) address = field.addr .units inspect %438
+  %441: %Run(CodeUnit) address = field.addr .run inspect %440
+  %442: %%CodeUnit address = field.addr .items inspect %441
+  %443: %CodeUnit trivial = load inspect %442
+  %444: %Array(CodeUnit) address = field.addr .units inspect %438
+  %445: %@bits(30) U32 address = field.addr .length inspect %444
+  %446: @bits(30) U32 trivial = load inspect %445
+  %447: I32 trivial = convert inspect %446
+  %448: Size trivial = convert inspect %447
+  %449: StringView trivial = aggregate.StringView consume %443 consume %448
+  %450: String [shared slot 0 view] guaranteed = represent inspect %449
+  jump -> bb24(borrow %450)
+
+bb24(%439: String [shared slot 0 view] guaranteed from{%35}):
+  %451: I32 trivial = call lazyInGeneric(String) borrow %425 borrow %439
+  drop String inspect %34
+  drop String inspect %35
+  %452: I32 trivial = const 0
+  %453: Bool trivial = eq inspect %451 inspect %452
+  %454: I32 trivial = call main.lambda borrow %422 borrow %453
+  call +=(I32) borrow %421 borrow %454
+  %455: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %456: main.lambda.env trivial = copy inspect %1
+  %457: Bool trivial = const True
+  %458: Bool trivial = const True
+  %459: Bool trivial = call callsUserAnd(Bool) borrow %457 borrow %458
+  %460: I32 trivial = call main.lambda borrow %456 borrow %459
+  call +=(I32) borrow %455 borrow %460
+  %461: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %462: main.lambda.env trivial = copy inspect %1
+  %463: Bool trivial = const False
+  %464: Bool trivial = const True
+  %465: Bool trivial = call callsUserAnd(Bool) borrow %463 borrow %464
+  %466: Bool trivial = not inspect %465
+  %467: I32 trivial = call main.lambda borrow %462 borrow %466
+  call +=(I32) borrow %461 borrow %467
+  %468: I32 trivial = load inspect %0
+  return consume %468
+}
+
+fn scaleSum.lambda(scaleSum.lambda.env: scaleSum.lambda.env [shared call], v: a [shared call]) -> {} = <no body>
+
+fn describeAll.lambda(describeAll.lambda.env: describeAll.lambda.env [unique call], v: a [shared call]) -> String = <no body>
+
+fn nested.lambda(nested.lambda.env: nested.lambda.env [unique call], v: a [shared call]) -> a = <no body>
+
+fn nested.lambda.lambda(nested.lambda.lambda.env: nested.lambda.lambda.env [unique call], w: a [shared call]) -> a = <no body>
+
+fn adder.lambda(adder.lambda.env: adder.lambda.env [unique call], v: a [shared call]) -> a = <no body>
+
+fn hold.lambda(hold.lambda.env: hold.lambda.env [unique call]) -> a = <no body>
+
+fn task.lambda(task.lambda.env: task.lambda.env [unique call]) -> I32 = <no body>
+
+fn twiceScaled.lambda(twiceScaled.lambda.env: twiceScaled.lambda.env [unique call], v: a [shared call]) -> a = <no body>
+
+fn Box(a).show.lambda(Box(a).show.lambda.env: Box(a).show.lambda.env [shared call], v: a [shared call]) -> String = <no body>
+
+fn doubled.lambda(doubled.lambda.env: doubled.lambda.env [shared call], v: a [shared call]) -> a = <no body>
+
+fn bracketed.lambda(bracketed.lambda.env: bracketed.lambda.env [shared call], v: a [shared call]) -> String = <no body>
+
+fn lazyInGeneric.thunk(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env [unique call]) -> I32 = <no body>
+
+fn callsUserAnd.thunk(callsUserAnd.thunk.env: callsUserAnd.thunk.env [unique call]) -> Bool = <no body>
+
+fn main.lambda(main.lambda.env: main.lambda.env [shared call], ok: Bool [shared call]) -> I32 {
+bb0(%0: main.lambda.env [shared call] guaranteed, %1: Bool trivial):
+  %3: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %1
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: I32 trivial = const 0
+  jump -> bb2(consume %5)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %6: I32 trivial = const 1
+  jump -> bb2(consume %6)
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], n: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 2
+  %5: I32 trivial = add inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'3(main.lambda'3.env: main.lambda'3.env [unique call], s: String [shared call view]) -> I32 {
+bb0(%0: main.lambda'3.env [unique call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: String [shared call view] guaranteed from{%1} = load inspect %1
+  %3: Size trivial = call String.length borrow %2
+  %4: I32 trivial = convert inspect %3
+  return consume %4
+}
+
+fn main.lambda'4(main.lambda'4.env: main.lambda'4.env [unique call], n: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'4.env [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'5(main.lambda'5.env: main.lambda'5.env [unique call], n: I32 [shared call]) -> String {
+bb0(%0: main.lambda'5.env [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %String address = alloc frame String
+  store inspect %2 borrow %1
+  %4: Size trivial = const 0
+  %5: I32 trivial = load inspect %2
+  %6: Maybe(Size) trivial = call I32.showBound borrow %5
+  %7: Size trivial = call formatBound borrow %6
+  %8: Size trivial = add inspect %4 inspect %7
+  %9: String owned = call String.ofCapacity borrow %8
+  store inspect %3 consume %9
+  %10: I32 trivial = load inspect %2
+  %11: String [unique call] guaranteed from{%3} = load inspect %3
+  call I32.show borrow %10 borrow %11
+  %12: String owned = load inspect %3
+  return consume %12
+}
+
+fn scaleSum(I32)(xs: Array(I32) [shared call view], k: I32 [shared call]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  %4: %scaleSum.lambda.env(I32) address = alloc frame scaleSum.lambda.env(I32)
+  store inspect %2 borrow %1
+  %5: I64 trivial = const 0
+  %6: I32 trivial = call I32.fromInt borrow %5
+  store inspect %3 consume %6
+  %7: I32 [unique slot 0] guaranteed from{%3} = load inspect %3
+  %8: I32 [shared slot 1] guaranteed from{%2} = load inspect %2
+  %9: scaleSum.lambda.env(I32) affine = aggregate.scaleSum.lambda.env borrow %7 borrow %8
+  store inspect %4 consume %9
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %11: scaleSum.lambda.env(I32) [unique slot 0] guaranteed = load inspect %4
+  %12: I32 [unique slot 1] guaranteed = load inspect %3
+  %13: I32 [unique slot 2] guaranteed = load inspect %2
+  %14: Array(I32) [unique slot 3 view] guaranteed = load inspect %0
+  %15: scaleSum(I32).cont.env affine = aggregate.scaleSum(I32).cont.env borrow %11 borrow %12 borrow %13 borrow %14
+  %16: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value scaleSum(I32).cont borrow %15
+  %17: I32 trivial = call items(Array(I32), I32) borrow %10 borrow %16
+  jump -> bb1
+
+bb1:
+  %18: I32 trivial = load inspect %3
+  return consume %18
+}
+
+fn scaleSum(F64)(xs: Array(F64) [shared call view], k: F64 [shared call]) -> F64 {
+bb0(%0: Array(F64) [shared call view] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %F64 address = alloc frame F64
+  %4: %scaleSum.lambda.env(F64) address = alloc frame scaleSum.lambda.env(F64)
+  store inspect %2 borrow %1
+  %5: I64 trivial = const 0
+  %6: F64 trivial = call F64.fromInt borrow %5
+  store inspect %3 consume %6
+  %7: F64 [unique slot 0] guaranteed from{%3} = load inspect %3
+  %8: F64 [shared slot 1] guaranteed from{%2} = load inspect %2
+  %9: scaleSum.lambda.env(F64) affine = aggregate.scaleSum.lambda.env borrow %7 borrow %8
+  store inspect %4 consume %9
+  %10: Array(F64) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %11: scaleSum.lambda.env(F64) [unique slot 0] guaranteed = load inspect %4
+  %12: F64 [unique slot 1] guaranteed = load inspect %3
+  %13: F64 [unique slot 2] guaranteed = load inspect %2
+  %14: Array(F64) [unique slot 3 view] guaranteed = load inspect %0
+  %15: scaleSum(F64).cont.env affine = aggregate.scaleSum(F64).cont.env borrow %11 borrow %12 borrow %13 borrow %14
+  %16: (F64) -> I32 [owned here shape10 .0=shared call] affine = fun.value scaleSum(F64).cont borrow %15
+  %17: I32 trivial = call items(Array(F64), F64) borrow %10 borrow %16
+  jump -> bb1
+
+bb1:
+  %18: F64 trivial = load inspect %3
+  return consume %18
+}
+
+fn describeAll(I32)(xs: Array(I32) [shared call view]) -> String {
+bb0(%0: Array(I32) [shared call view] guaranteed):
+  %1: %String address = alloc frame String
+  %2: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 0, ownsHeap: 0}, length: 0}}
+  store inspect %1 consume %2
+  %3: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %4: String [unique slot 0] guaranteed = load inspect %1
+  %5: Array(I32) [unique slot 1 view] guaranteed = load inspect %0
+  %6: describeAll(I32).cont.env affine = aggregate.describeAll(I32).cont.env borrow %4 borrow %5
+  %7: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value describeAll(I32).cont borrow %6
+  %8: I32 trivial = call items(Array(I32), I32) borrow %3 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: String owned = load inspect %1
+  return consume %9
+}
+
+fn describeAll(String)(xs: Array(String) [shared call view]) -> String {
+bb0(%0: Array(String) [shared call view] guaranteed):
+  %1: %String address = alloc frame String
+  %2: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 0, ownsHeap: 0}, length: 0}}
+  store inspect %1 consume %2
+  %3: Array(String) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %4: String [unique slot 0] guaranteed = load inspect %1
+  %5: Array(String) [unique slot 1 view] guaranteed = load inspect %0
+  %6: describeAll(String).cont.env affine = aggregate.describeAll(String).cont.env borrow %4 borrow %5
+  %7: (String) -> I32 [owned here shape10 .0=shared call] affine = fun.value describeAll(String).cont borrow %6
+  %8: I32 trivial = call items(Array(String), String) borrow %3 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: String owned = load inspect %1
+  return consume %9
+}
+
+fn nested(I32)(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape9 .0=unique call]
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  %4: (I32) -> I32 [owned here shape9 .0=unique call] affine = fun.value nested.lambda(I32)
+  store inspect %2 consume %4
+  %5: (I32) -> I32 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
+  %6: I32 trivial = call applyTwice(I32) borrow %3 borrow %5
+  return consume %6
+}
+
+fn nested(F64)(x: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %(F64) -> F64 address = alloc frame (F64) -> F64 [owned here shape9 .0=unique call]
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: (F64) -> F64 [owned here shape9 .0=unique call] affine = fun.value nested.lambda(F64)
+  store inspect %2 consume %4
+  %5: (F64) -> F64 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
+  %6: F64 trivial = call applyTwice(F64) borrow %3 borrow %5
+  return consume %6
+}
+
+fn adder(I32)(by: I32) -> (I32) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  %2: %adder.lambda.env(I32) address = alloc frame adder.lambda.env(I32)
+  store inspect %1 consume %0
+  %3: I32 trivial = load inspect %1
+  %4: adder.lambda.env(I32) trivial = aggregate.adder.lambda.env consume %3
+  store inspect %2 consume %4
+  %5: adder.lambda.env(I32) trivial = load inspect %2
+  %6: (I32) -> I32 owned = fun.value adder.lambda(I32) consume %5
+  return consume %6
+}
+
+fn adder(F64)(by: F64) -> (F64) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64
+  %2: %adder.lambda.env(F64) address = alloc frame adder.lambda.env(F64)
+  store inspect %1 consume %0
+  %3: F64 trivial = load inspect %1
+  %4: adder.lambda.env(F64) trivial = aggregate.adder.lambda.env consume %3
+  store inspect %2 consume %4
+  %5: adder.lambda.env(F64) trivial = load inspect %2
+  %6: (F64) -> F64 owned = fun.value adder.lambda(F64) consume %5
+  return consume %6
+}
+
+fn hold(String)(value: String) -> Holder(String) {
+bb0(%0: String owned):
+  %1: %String address = alloc frame String
+  %2: %hold.lambda.env(String) address = alloc frame hold.lambda.env(String)
+  store inspect %1 consume %0
+  %3: String owned = load inspect %1
+  %4: hold.lambda.env(String) owned = aggregate.hold.lambda.env consume %3
+  store inspect %2 consume %4
+  %5: hold.lambda.env(String) owned = load inspect %2
+  %6: () -> String owned = fun.value hold.lambda(String) consume %5
+  %7: Holder(String) owned = aggregate.Holder consume %6
+  return consume %7
+}
+
+fn hold(I32)(value: I32) -> Holder(I32) {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  %2: %hold.lambda.env(I32) address = alloc frame hold.lambda.env(I32)
+  store inspect %1 consume %0
+  %3: I32 trivial = load inspect %1
+  %4: hold.lambda.env(I32) trivial = aggregate.hold.lambda.env consume %3
+  store inspect %2 consume %4
+  %5: hold.lambda.env(I32) trivial = load inspect %2
+  %6: () -> I32 owned = fun.value hold.lambda(I32) consume %5
+  %7: Holder(I32) owned = aggregate.Holder consume %6
+  return consume %7
+}
+
+fn task(I32)(context: I32, entry: (I32) -> I32) -> Task {
+bb0(%0: I32 trivial, %1: (I32) -> I32 owned):
+  %2: %I32 address = alloc frame I32
+  %3: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %4: %task.lambda.env(I32) address = alloc frame task.lambda.env(I32)
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %5: (I32) -> I32 owned = load inspect %3
+  %6: I32 trivial = load inspect %2
+  %7: task.lambda.env(I32) owned = aggregate.task.lambda.env consume %5 consume %6
+  store inspect %4 consume %7
+  %8: task.lambda.env(I32) owned = load inspect %4
+  %9: () -> I32 owned = fun.value task.lambda(I32) consume %8
+  %10: Task owned = aggregate.Task consume %9
+  return consume %10
+}
+
+fn task(String)(context: String, entry: (String) -> I32) -> Task {
+bb0(%0: String owned, %1: (String) -> I32 owned):
+  %2: %String address = alloc frame String
+  %3: %(String) -> I32 address = alloc frame (String) -> I32
+  %4: %task.lambda.env(String) address = alloc frame task.lambda.env(String)
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %5: (String) -> I32 owned = load inspect %3
+  %6: String owned = load inspect %2
+  %7: task.lambda.env(String) owned = aggregate.task.lambda.env consume %5 consume %6
+  store inspect %4 consume %7
+  %8: task.lambda.env(String) owned = load inspect %4
+  %9: () -> I32 owned = fun.value task.lambda(String) consume %8
+  %10: Task owned = aggregate.Task consume %9
+  return consume %10
+}
+
+fn twiceScaled(I32)(x: I32 [shared call], k: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %twiceScaled.lambda.env(I32) address = alloc frame twiceScaled.lambda.env(I32)
+  %5: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape10 .0=shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: I32 trivial = load inspect %2
+  %7: I32 trivial = load inspect %3
+  %8: twiceScaled.lambda.env(I32) trivial = aggregate.twiceScaled.lambda.env consume %7
+  store inspect %4 consume %8
+  %9: twiceScaled.lambda.env(I32) [shared call] guaranteed from{%4} = load inspect %4
+  %10: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value twiceScaled.lambda(I32) inspect %9
+  store inspect %5 consume %10
+  %11: (I32) -> I32 [shared call shape10 .0=shared call] guaranteed from{%4, %5} = load inspect %5
+  %12: I32 trivial = call mapOne(I32, I32) borrow %6 borrow %11
+  return consume %12
+}
+
+fn Box(a).show(I32)(b: Box(I32) [shared call], to: String [unique call]) -> {} {
+bb0(%0: Box(I32) [shared call] guaranteed, %1: String [unique call] guaranteed):
+  %2: %Box(a).show.lambda.env(I32) address = alloc frame Box(a).show.lambda.env(I32)
+  %3: Box(a).show.lambda.env(I32) trivial = aggregate.Box(a).show.lambda.env
+  store inspect %2 consume %3
+  %4: String owned = load inspect %1
+  %5: Box(a).show.lambda.env(I32) trivial = copy inspect %2
+  %6: %I32 address = field.addr .value inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: String owned = call Box(a).show.lambda(I32) borrow %5 borrow %7
+  %9: String owned = call String.++ consume %4 consume %8
+  store inspect %1 consume %9
+  return
+}
+
+fn Box(a).show(String)(b: Box(String) [shared call], to: String [unique call]) -> {} {
+bb0(%0: Box(String) [shared call] guaranteed, %1: String [unique call] guaranteed):
+  %2: %Box(a).show.lambda.env(String) address = alloc frame Box(a).show.lambda.env(String)
+  %3: Box(a).show.lambda.env(String) trivial = aggregate.Box(a).show.lambda.env
+  store inspect %2 consume %3
+  %4: String owned = load inspect %1
+  %5: Box(a).show.lambda.env(String) trivial = copy inspect %2
+  %6: %String address = field.addr .value inspect %0
+  %7: String [shared call] guaranteed from{%0} = load inspect %6
+  %8: String [shared call view] guaranteed from{%0} = call String.view borrow %7
+  %9: String owned = call Box(a).show.lambda(String) borrow %5 borrow %8
+  %10: String owned = call String.++ consume %4 consume %9
+  store inspect %1 consume %10
+  return
+}
+
+fn doubled(I32)(xs: Array(I32) [shared call view], f: (I32) -> I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: (I32) -> I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 0
+  store inspect %3 consume %4
+  %5: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %6: (I32) -> I32 [unique slot 0] guaranteed = load inspect %1
+  %7: Array(I32) [unique slot 1 view] guaranteed = load inspect %0
+  %8: (I32) -> I32 [unique slot 2] guaranteed = load inspect %2
+  %9: I32 [unique slot 3] guaranteed = load inspect %3
+  %10: doubled(I32).cont.env affine = aggregate.doubled(I32).cont.env borrow %6 borrow %7 borrow %8 borrow %9
+  %11: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value doubled(I32).cont borrow %10
+  %12: I32 trivial = call items(Array(I32), I32) borrow %5 borrow %11
+  jump -> bb1
+
+bb1:
+  %13: I32 trivial = load inspect %3
+  return consume %13
+}
+
+fn bracketed(I32, I32)(x: I32 [shared call], f: (I32) -> String [shared call], seen: I32 [unique call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: (I32) -> String [shared call] guaranteed, %2: I32 [unique call] guaranteed, %3: (I32) -> I32 [shared call] guaranteed):
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32
+  %6: %bracketed.lambda.env(I32, I32) address = alloc frame bracketed.lambda.env(I32, I32)
+  %7: %String address = alloc frame String
+  %8: %String address = alloc frame String
+  store inspect %4 borrow %0
+  %9: (I32) -> String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %10: bracketed.lambda.env(I32, I32) trivial = aggregate.bracketed.lambda.env borrow %9
+  store inspect %6 consume %10
+  %11: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %12: bracketed.lambda.env(I32, I32) trivial = copy inspect %6
+  %13: I32 trivial = load inspect %4
+  %14: String owned = call bracketed.lambda(I32, I32) borrow %12 borrow %13
+  store inspect %7 consume %14
+  %15: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  jump -> bb1
+
+bb1:
+  %17: %Array(CodeUnit) address = field.addr .units inspect %15
+  %18: %Run(CodeUnit) address = field.addr .run inspect %17
+  %19: %%CodeUnit address = field.addr .items inspect %18
+  %20: %CodeUnit trivial = load inspect %19
+  %21: %Array(CodeUnit) address = field.addr .units inspect %15
+  %22: %@bits(30) U32 address = field.addr .length inspect %21
+  %23: @bits(30) U32 trivial = load inspect %22
+  %24: I32 trivial = convert inspect %23
+  %25: Size trivial = convert inspect %24
+  %26: StringView trivial = aggregate.StringView consume %20 consume %25
+  %27: String [shared slot 0 view] guaranteed = represent inspect %26
+  jump -> bb2(borrow %27)
+
+bb2(%16: String [shared slot 0 view] guaranteed from{%7}):
+  %28: Size trivial = call String.length borrow %16
+  drop String inspect %7
+  %29: I32 trivial = convert inspect %28
+  call +=(I32) borrow %11 borrow %29
+  %30: I32 trivial = load inspect %4
+  %31: (I32) -> I32 [shared call] guaranteed from{%3} = load inspect %3
+  %32: I32 trivial = call [value #0] inspect %31 borrow %30
+  store inspect %5 consume %32
+  %33: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %34: bracketed.lambda.env(I32, I32) trivial = copy inspect %6
+  %35: I32 trivial = load inspect %4
+  %36: String owned = call bracketed.lambda(I32, I32) borrow %34 borrow %35
+  store inspect %8 consume %36
+  %37: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  jump -> bb3
+
+bb3:
+  %39: %Array(CodeUnit) address = field.addr .units inspect %37
+  %40: %Run(CodeUnit) address = field.addr .run inspect %39
+  %41: %%CodeUnit address = field.addr .items inspect %40
+  %42: %CodeUnit trivial = load inspect %41
+  %43: %Array(CodeUnit) address = field.addr .units inspect %37
+  %44: %@bits(30) U32 address = field.addr .length inspect %43
+  %45: @bits(30) U32 trivial = load inspect %44
+  %46: I32 trivial = convert inspect %45
+  %47: Size trivial = convert inspect %46
+  %48: StringView trivial = aggregate.StringView consume %42 consume %47
+  %49: String [shared slot 0 view] guaranteed = represent inspect %48
+  jump -> bb4(borrow %49)
+
+bb4(%38: String [shared slot 0 view] guaranteed from{%8}):
+  %50: Size trivial = call String.length borrow %38
+  drop String inspect %8
+  %51: I32 trivial = convert inspect %50
+  call +=(I32) borrow %33 borrow %51
+  %52: I32 trivial = load inspect %5
+  return consume %52
+}
+
+fn lazyInGeneric(I32)(x: I32 [shared call], y: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = load inspect %3
+  %7: Bool trivial = call I32.== borrow %5 borrow %6
+  %8: () -> I32 [owned here shape9 .0=unique call] affine = fun.value lazyInGeneric.thunk(I32)
+  store inspect %4 consume %8
+  %9: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%4} = load inspect %4
+  %10: I32 trivial = call once borrow %7 borrow %9
+  return consume %10
+}
+
+fn lazyInGeneric(String)(x: String [shared call view], y: String [shared call view]) -> I32 {
+bb0(%0: String [shared call view] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %3: String [shared call view] guaranteed from{%0} = load inspect %0
+  %4: String [shared call view] guaranteed from{%1} = load inspect %1
+  %5: Bool trivial = call String.== borrow %3 borrow %4
+  %6: () -> I32 [owned here shape9 .0=unique call] affine = fun.value lazyInGeneric.thunk(String)
+  store inspect %2 consume %6
+  %7: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
+  %8: I32 trivial = call once borrow %5 borrow %7
+  return consume %8
+}
+
+fn callsUserAnd(Bool)(x: Bool [shared call], y: Bool [shared call]) -> Bool {
+bb0(%0: Bool trivial, %1: Bool trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %callsUserAnd.thunk.env(Bool) address = alloc frame callsUserAnd.thunk.env(Bool)
+  %5: %() -> Bool address = alloc frame () -> Bool [owned here shape10 .0=shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: Bool trivial = load inspect %2
+  %7: Bool trivial = load inspect %3
+  %8: callsUserAnd.thunk.env(Bool) trivial = aggregate.callsUserAnd.thunk.env consume %7
+  store inspect %4 consume %8
+  %9: callsUserAnd.thunk.env(Bool) [shared call] guaranteed from{%4} = load inspect %4
+  %10: () -> Bool [owned here shape10 .0=shared call] affine = fun.value callsUserAnd.thunk(Bool) inspect %9
+  store inspect %5 consume %10
+  %11: () -> Bool [shared call shape10 .0=shared call] guaranteed from{%4, %5} = load inspect %5
+  %12: Bool trivial = call userAnd(Bool, Bool) borrow %6 borrow %11
+  return consume %12
+}
+
+fn scaleSum.lambda(I32)(scaleSum.lambda.env: scaleSum.lambda.env(I32) [shared call], v: I32 [shared call]) -> {} {
+bb0(%0: scaleSum.lambda.env(I32) [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: %I32 address = field.addr .total inspect %0
+  %5: %I32 address = load inspect %4
+  %6: I32 [unique slot 0] guaranteed from{%0} = load inspect %5
+  %7: I32 trivial = load inspect %2
+  %8: %I32 address = field.addr .k inspect %0
+  %9: %I32 address = load inspect %8
+  %10: I32 [shared slot 1] guaranteed from{%0} = load inspect %9
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = call I32.* borrow %7 borrow %11
+  store inspect %3 consume %12
+  %13: I32 trivial = load inspect %3
+  call +=(I32) borrow %6 borrow %13
+  return
+}
+
+fn scaleSum.lambda(F64)(scaleSum.lambda.env: scaleSum.lambda.env(F64) [shared call], v: F64 [shared call]) -> {} {
+bb0(%0: scaleSum.lambda.env(F64) [shared call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %F64 address = alloc frame F64
+  store inspect %2 borrow %1
+  %4: %F64 address = field.addr .total inspect %0
+  %5: %F64 address = load inspect %4
+  %6: F64 [unique slot 0] guaranteed from{%0} = load inspect %5
+  %7: F64 trivial = load inspect %2
+  %8: %F64 address = field.addr .k inspect %0
+  %9: %F64 address = load inspect %8
+  %10: F64 [shared slot 1] guaranteed from{%0} = load inspect %9
+  %11: F64 trivial = load inspect %10
+  %12: F64 trivial = call F64.* borrow %7 borrow %11
+  store inspect %3 consume %12
+  %13: F64 trivial = load inspect %3
+  call +=(F64) borrow %6 borrow %13
+  return
+}
+
+fn describeAll.lambda(I32)(describeAll.lambda.env: describeAll.lambda.env(I32) [unique call], v: I32 [shared call]) -> String {
+bb0(%0: describeAll.lambda.env(I32) [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %String address = alloc frame String
+  %4: %String address = alloc frame String
+  %5: %String address = alloc frame String
+  store inspect %2 borrow %1
+  %6: Size trivial = const 2
+  %7: I32 trivial = load inspect %2
+  %8: Maybe(Size) trivial = call I32.showBound borrow %7
+  %9: Size trivial = call formatBound borrow %8
+  %10: Size trivial = add inspect %6 inspect %9
+  %11: String owned = call String.ofCapacity borrow %10
+  store inspect %3 consume %11
+  %12: String [unique call] guaranteed from{%3} = load inspect %3
+  %13: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %4 consume %13
+  %14: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  jump -> bb1
+
+bb1:
+  %16: %Array(CodeUnit) address = field.addr .units inspect %14
+  %17: %Run(CodeUnit) address = field.addr .run inspect %16
+  %18: %%CodeUnit address = field.addr .items inspect %17
+  %19: %CodeUnit trivial = load inspect %18
+  %20: %Array(CodeUnit) address = field.addr .units inspect %14
+  %21: %@bits(30) U32 address = field.addr .length inspect %20
+  %22: @bits(30) U32 trivial = load inspect %21
+  %23: I32 trivial = convert inspect %22
+  %24: Size trivial = convert inspect %23
+  %25: StringView trivial = aggregate.StringView consume %19 consume %24
+  %26: String [shared slot 0 view] guaranteed = represent inspect %25
+  jump -> bb2(borrow %26)
+
+bb2(%15: String [shared slot 0 view] guaranteed from{%4}):
+  call String.push borrow %12 borrow %15
+  drop String inspect %4
+  %27: I32 trivial = load inspect %2
+  %28: String [unique call] guaranteed from{%3} = load inspect %3
+  call I32.show borrow %27 borrow %28
+  %29: String [unique call] guaranteed from{%3} = load inspect %3
+  %30: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %5 consume %30
+  %31: String [shared slot 0] guaranteed from{%5} = load inspect %5
+  jump -> bb3
+
+bb3:
+  %33: %Array(CodeUnit) address = field.addr .units inspect %31
+  %34: %Run(CodeUnit) address = field.addr .run inspect %33
+  %35: %%CodeUnit address = field.addr .items inspect %34
+  %36: %CodeUnit trivial = load inspect %35
+  %37: %Array(CodeUnit) address = field.addr .units inspect %31
+  %38: %@bits(30) U32 address = field.addr .length inspect %37
+  %39: @bits(30) U32 trivial = load inspect %38
+  %40: I32 trivial = convert inspect %39
+  %41: Size trivial = convert inspect %40
+  %42: StringView trivial = aggregate.StringView consume %36 consume %41
+  %43: String [shared slot 0 view] guaranteed = represent inspect %42
+  jump -> bb4(borrow %43)
+
+bb4(%32: String [shared slot 0 view] guaranteed from{%5}):
+  call String.push borrow %29 borrow %32
+  drop String inspect %5
+  %44: String owned = load inspect %3
+  return consume %44
+}
+
+fn mapOne(I32, String)(x: I32 [shared call], f: (I32) -> String [shared call]) -> String {
+bb0(%0: I32 trivial, %1: (I32) -> String [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: (I32) -> String [shared call] guaranteed from{%1} = load inspect %1
+  %4: I32 trivial = load inspect %2
+  %5: String owned = call [value #0] inspect %3 borrow %4
+  return consume %5
+}
+
+fn describeAll.lambda(String)(describeAll.lambda.env: describeAll.lambda.env(String) [unique call], v: String [shared call view]) -> String {
+bb0(%0: describeAll.lambda.env(String) [unique call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  %4: %String address = alloc frame String
+  %5: Size trivial = const 2
+  %6: String [shared call view] guaranteed from{%1} = load inspect %1
+  %7: Maybe(Size) trivial = call String.showBound borrow %6
+  %8: Size trivial = call formatBound borrow %7
+  %9: Size trivial = add inspect %5 inspect %8
+  %10: String owned = call String.ofCapacity borrow %9
+  store inspect %2 consume %10
+  %11: String [unique call] guaranteed from{%2} = load inspect %2
+  %12: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %3 consume %12
+  %13: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  jump -> bb1
+
+bb1:
+  %15: %Array(CodeUnit) address = field.addr .units inspect %13
+  %16: %Run(CodeUnit) address = field.addr .run inspect %15
+  %17: %%CodeUnit address = field.addr .items inspect %16
+  %18: %CodeUnit trivial = load inspect %17
+  %19: %Array(CodeUnit) address = field.addr .units inspect %13
+  %20: %@bits(30) U32 address = field.addr .length inspect %19
+  %21: @bits(30) U32 trivial = load inspect %20
+  %22: I32 trivial = convert inspect %21
+  %23: Size trivial = convert inspect %22
+  %24: StringView trivial = aggregate.StringView consume %18 consume %23
+  %25: String [shared slot 0 view] guaranteed = represent inspect %24
+  jump -> bb2(borrow %25)
+
+bb2(%14: String [shared slot 0 view] guaranteed from{%3}):
+  call String.push borrow %11 borrow %14
+  drop String inspect %3
+  %26: String [shared call view] guaranteed from{%1} = load inspect %1
+  %27: String [unique call] guaranteed from{%2} = load inspect %2
+  call String.show borrow %26 borrow %27
+  %28: String [unique call] guaranteed from{%2} = load inspect %2
+  %29: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %4 consume %29
+  %30: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  jump -> bb3
+
+bb3:
+  %32: %Array(CodeUnit) address = field.addr .units inspect %30
+  %33: %Run(CodeUnit) address = field.addr .run inspect %32
+  %34: %%CodeUnit address = field.addr .items inspect %33
+  %35: %CodeUnit trivial = load inspect %34
+  %36: %Array(CodeUnit) address = field.addr .units inspect %30
+  %37: %@bits(30) U32 address = field.addr .length inspect %36
+  %38: @bits(30) U32 trivial = load inspect %37
+  %39: I32 trivial = convert inspect %38
+  %40: Size trivial = convert inspect %39
+  %41: StringView trivial = aggregate.StringView consume %35 consume %40
+  %42: String [shared slot 0 view] guaranteed = represent inspect %41
+  jump -> bb4(borrow %42)
+
+bb4(%31: String [shared slot 0 view] guaranteed from{%4}):
+  call String.push borrow %28 borrow %31
+  drop String inspect %4
+  %43: String owned = load inspect %2
+  return consume %43
+}
+
+fn mapOne(String, String)(x: String [shared call view], f: (String) -> String [shared call]) -> String {
+bb0(%0: String [shared call view] guaranteed, %1: (String) -> String [shared call] guaranteed):
+  %2: (String) -> String [shared call] guaranteed from{%1} = load inspect %1
+  %3: String [shared call view] guaranteed from{%0} = load inspect %0
+  %4: String owned = call [value #0] inspect %2 borrow %3
+  return consume %4
+}
+
+fn nested.lambda(I32)(nested.lambda.env: nested.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 {
+bb0(%0: nested.lambda.env(I32) [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %nested.lambda.lambda.env(I32) address = alloc frame nested.lambda.lambda.env(I32)
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape10 .0=shared call]
+  store inspect %2 borrow %1
+  %5: I32 trivial = load inspect %2
+  %6: I32 [shared slot 0] guaranteed from{%2} = load inspect %2
+  %7: nested.lambda.lambda.env(I32) trivial = aggregate.nested.lambda.lambda.env borrow %6
+  store inspect %3 consume %7
+  %8: nested.lambda.lambda.env(I32) [shared call] guaranteed from{%2, %3} = load inspect %3
+  %9: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value nested.lambda.lambda(I32) inspect %8
+  store inspect %4 consume %9
+  %10: (I32) -> I32 [shared call shape10 .0=shared call] guaranteed from{%2, %3, %4} = load inspect %4
+  %11: I32 trivial = call applyTwice(I32) borrow %5 borrow %10
+  return consume %11
+}
+
+fn applyTwice(I32)(x: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  %4: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %5: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %6: I32 trivial = load inspect %2
+  %7: I32 trivial = call [value #0] inspect %5 borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = call [value #0] inspect %4 borrow %8
+  return consume %9
+}
+
+fn nested.lambda(F64)(nested.lambda.env: nested.lambda.env(F64) [unique call], v: F64 [shared call]) -> F64 {
+bb0(%0: nested.lambda.env(F64) [unique call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %nested.lambda.lambda.env(F64) address = alloc frame nested.lambda.lambda.env(F64)
+  %4: %(F64) -> F64 address = alloc frame (F64) -> F64 [owned here shape10 .0=shared call]
+  store inspect %2 borrow %1
+  %5: F64 trivial = load inspect %2
+  %6: F64 [shared slot 0] guaranteed from{%2} = load inspect %2
+  %7: nested.lambda.lambda.env(F64) trivial = aggregate.nested.lambda.lambda.env borrow %6
+  store inspect %3 consume %7
+  %8: nested.lambda.lambda.env(F64) [shared call] guaranteed from{%2, %3} = load inspect %3
+  %9: (F64) -> F64 [owned here shape10 .0=shared call] affine = fun.value nested.lambda.lambda(F64) inspect %8
+  store inspect %4 consume %9
+  %10: (F64) -> F64 [shared call shape10 .0=shared call] guaranteed from{%2, %3, %4} = load inspect %4
+  %11: F64 trivial = call applyTwice(F64) borrow %5 borrow %10
+  return consume %11
+}
+
+fn applyTwice(F64)(x: F64 [shared call], f: (F64) -> F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial, %1: (F64) -> F64 [shared call] guaranteed):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %F64 address = alloc frame F64
+  store inspect %2 borrow %0
+  %4: (F64) -> F64 [shared call] guaranteed from{%1} = load inspect %1
+  %5: (F64) -> F64 [shared call] guaranteed from{%1} = load inspect %1
+  %6: F64 trivial = load inspect %2
+  %7: F64 trivial = call [value #0] inspect %5 borrow %6
+  store inspect %3 consume %7
+  %8: F64 trivial = load inspect %3
+  %9: F64 trivial = call [value #0] inspect %4 borrow %8
+  return consume %9
+}
+
+fn adder.lambda(I32)(adder.lambda.env: adder.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 {
+bb0(%0: adder.lambda.env(I32) [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .by inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = call I32.+ borrow %3 borrow %5
+  return consume %6
+}
+
+fn adder.lambda(F64)(adder.lambda.env: adder.lambda.env(F64) [unique call], v: F64 [shared call]) -> F64 {
+bb0(%0: adder.lambda.env(F64) [unique call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  store inspect %2 borrow %1
+  %3: F64 trivial = load inspect %2
+  %4: %F64 address = field.addr .by inspect %0
+  %5: F64 trivial = load inspect %4
+  %6: F64 trivial = call F64.+ borrow %3 borrow %5
+  return consume %6
+}
+
+fn hold.lambda(String)(hold.lambda.env: hold.lambda.env(String) [unique call]) -> String {
+bb0(%0: hold.lambda.env(String) [unique call] guaranteed):
+  %1: %String address = field.addr .value inspect %0
+  %2: String [shared call] guaranteed from{%0} = load inspect %1
+  %3: String [shared call view] guaranteed from{%0} = call String.view borrow %2
+  %4: String owned = call String.copy borrow %3
+  return consume %4
+}
+
+fn hold.lambda(I32)(hold.lambda.env: hold.lambda.env(I32) [unique call]) -> I32 {
+bb0(%0: hold.lambda.env(I32) [unique call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = call a.copy(I32) borrow %2
+  return consume %3
+}
+
+fn task.lambda(I32)(task.lambda.env: task.lambda.env(I32) [unique call]) -> I32 {
+bb0(%0: task.lambda.env(I32) [unique call] guaranteed):
+  %1: %(I32) -> I32 address = field.addr .entry inspect %0
+  %2: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %1
+  %3: %I32 address = field.addr .context inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = call [value #0] inspect %2 borrow %4
+  return consume %5
+}
+
+fn task.lambda(String)(task.lambda.env: task.lambda.env(String) [unique call]) -> I32 {
+bb0(%0: task.lambda.env(String) [unique call] guaranteed):
+  %1: %(String) -> I32 address = field.addr .entry inspect %0
+  %2: (String) -> I32 [shared call] guaranteed from{%0} = load inspect %1
+  %3: %String address = field.addr .context inspect %0
+  %4: String [shared call] guaranteed from{%0} = load inspect %3
+  %5: String [shared call view] guaranteed from{%0} = call String.view borrow %4
+  %6: I32 trivial = call [value #0] inspect %2 borrow %5
+  return consume %6
+}
+
+fn twiceScaled.lambda(I32)(twiceScaled.lambda.env: twiceScaled.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 {
+bb0(%0: twiceScaled.lambda.env(I32) [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: %I32 address = field.addr .k inspect %0
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = call I32.scaled borrow %4 borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = load inspect %3
+  %9: %I32 address = field.addr .k inspect %0
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = call I32.scaled borrow %8 borrow %10
+  return consume %11
+}
+
+fn mapOne(I32, I32)(x: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = call [value #0] inspect %3 borrow %4
+  return consume %5
+}
+
+fn Box(a).show.lambda(I32)(Box(a).show.lambda.env: Box(a).show.lambda.env(I32) [shared call], v: I32 [shared call]) -> String {
+bb0(%0: Box(a).show.lambda.env(I32) [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %String address = alloc frame String
+  %4: %String address = alloc frame String
+  %5: %String address = alloc frame String
+  store inspect %2 borrow %1
+  %6: Size trivial = const 5
+  %7: I32 trivial = load inspect %2
+  %8: Maybe(Size) trivial = call I32.showBound borrow %7
+  %9: Size trivial = call formatBound borrow %8
+  %10: Size trivial = add inspect %6 inspect %9
+  %11: String owned = call String.ofCapacity borrow %10
+  store inspect %3 consume %11
+  %12: String [unique call] guaranteed from{%3} = load inspect %3
+  %13: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %4 consume %13
+  %14: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  jump -> bb1
+
+bb1:
+  %16: %Array(CodeUnit) address = field.addr .units inspect %14
+  %17: %Run(CodeUnit) address = field.addr .run inspect %16
+  %18: %%CodeUnit address = field.addr .items inspect %17
+  %19: %CodeUnit trivial = load inspect %18
+  %20: %Array(CodeUnit) address = field.addr .units inspect %14
+  %21: %@bits(30) U32 address = field.addr .length inspect %20
+  %22: @bits(30) U32 trivial = load inspect %21
+  %23: I32 trivial = convert inspect %22
+  %24: Size trivial = convert inspect %23
+  %25: StringView trivial = aggregate.StringView consume %19 consume %24
+  %26: String [shared slot 0 view] guaranteed = represent inspect %25
+  jump -> bb2(borrow %26)
+
+bb2(%15: String [shared slot 0 view] guaranteed from{%4}):
+  call String.push borrow %12 borrow %15
+  drop String inspect %4
+  %27: I32 trivial = load inspect %2
+  %28: String [unique call] guaranteed from{%3} = load inspect %3
+  call I32.show borrow %27 borrow %28
+  %29: String [unique call] guaranteed from{%3} = load inspect %3
+  %30: String owned = const String {units: Array {run: Run {items: &string'192, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %5 consume %30
+  %31: String [shared slot 0] guaranteed from{%5} = load inspect %5
+  jump -> bb3
+
+bb3:
+  %33: %Array(CodeUnit) address = field.addr .units inspect %31
+  %34: %Run(CodeUnit) address = field.addr .run inspect %33
+  %35: %%CodeUnit address = field.addr .items inspect %34
+  %36: %CodeUnit trivial = load inspect %35
+  %37: %Array(CodeUnit) address = field.addr .units inspect %31
+  %38: %@bits(30) U32 address = field.addr .length inspect %37
+  %39: @bits(30) U32 trivial = load inspect %38
+  %40: I32 trivial = convert inspect %39
+  %41: Size trivial = convert inspect %40
+  %42: StringView trivial = aggregate.StringView consume %36 consume %41
+  %43: String [shared slot 0 view] guaranteed = represent inspect %42
+  jump -> bb4(borrow %43)
+
+bb4(%32: String [shared slot 0 view] guaranteed from{%5}):
+  call String.push borrow %29 borrow %32
+  drop String inspect %5
+  %44: String owned = load inspect %3
+  return consume %44
+}
+
+fn Box(a).show.lambda(String)(Box(a).show.lambda.env: Box(a).show.lambda.env(String) [shared call], v: String [shared call view]) -> String {
+bb0(%0: Box(a).show.lambda.env(String) [shared call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  %4: %String address = alloc frame String
+  %5: Size trivial = const 5
+  %6: String [shared call view] guaranteed from{%1} = load inspect %1
+  %7: Maybe(Size) trivial = call String.showBound borrow %6
+  %8: Size trivial = call formatBound borrow %7
+  %9: Size trivial = add inspect %5 inspect %8
+  %10: String owned = call String.ofCapacity borrow %9
+  store inspect %2 consume %10
+  %11: String [unique call] guaranteed from{%2} = load inspect %2
+  %12: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %3 consume %12
+  %13: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  jump -> bb1
+
+bb1:
+  %15: %Array(CodeUnit) address = field.addr .units inspect %13
+  %16: %Run(CodeUnit) address = field.addr .run inspect %15
+  %17: %%CodeUnit address = field.addr .items inspect %16
+  %18: %CodeUnit trivial = load inspect %17
+  %19: %Array(CodeUnit) address = field.addr .units inspect %13
+  %20: %@bits(30) U32 address = field.addr .length inspect %19
+  %21: @bits(30) U32 trivial = load inspect %20
+  %22: I32 trivial = convert inspect %21
+  %23: Size trivial = convert inspect %22
+  %24: StringView trivial = aggregate.StringView consume %18 consume %23
+  %25: String [shared slot 0 view] guaranteed = represent inspect %24
+  jump -> bb2(borrow %25)
+
+bb2(%14: String [shared slot 0 view] guaranteed from{%3}):
+  call String.push borrow %11 borrow %14
+  drop String inspect %3
+  %26: String [shared call view] guaranteed from{%1} = load inspect %1
+  %27: String [unique call] guaranteed from{%2} = load inspect %2
+  call String.show borrow %26 borrow %27
+  %28: String [unique call] guaranteed from{%2} = load inspect %2
+  %29: String owned = const String {units: Array {run: Run {items: &string'192, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %4 consume %29
+  %30: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  jump -> bb3
+
+bb3:
+  %32: %Array(CodeUnit) address = field.addr .units inspect %30
+  %33: %Run(CodeUnit) address = field.addr .run inspect %32
+  %34: %%CodeUnit address = field.addr .items inspect %33
+  %35: %CodeUnit trivial = load inspect %34
+  %36: %Array(CodeUnit) address = field.addr .units inspect %30
+  %37: %@bits(30) U32 address = field.addr .length inspect %36
+  %38: @bits(30) U32 trivial = load inspect %37
+  %39: I32 trivial = convert inspect %38
+  %40: Size trivial = convert inspect %39
+  %41: StringView trivial = aggregate.StringView consume %35 consume %40
+  %42: String [shared slot 0 view] guaranteed = represent inspect %41
+  jump -> bb4(borrow %42)
+
+bb4(%31: String [shared slot 0 view] guaranteed from{%4}):
+  call String.push borrow %28 borrow %31
+  drop String inspect %4
+  %43: String owned = load inspect %2
+  return consume %43
+}
+
+fn doubled.lambda(I32)(doubled.lambda.env: doubled.lambda.env(I32) [shared call], v: I32 [shared call]) -> I32 {
+bb0(%0: doubled.lambda.env(I32) [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: %(I32) -> I32 address = field.addr .f inspect %0
+  %5: %(I32) -> I32 address = load inspect %4
+  %6: (I32) -> I32 [shared slot 0] guaranteed from{%0} = load inspect %5
+  %7: %(I32) -> I32 address = field.addr .f inspect %0
+  %8: %(I32) -> I32 address = load inspect %7
+  %9: (I32) -> I32 [shared slot 0] guaranteed from{%0} = load inspect %8
+  %10: I32 trivial = load inspect %2
+  %11: I32 trivial = call [value #0] inspect %9 borrow %10
+  store inspect %3 consume %11
+  %12: I32 trivial = load inspect %3
+  %13: I32 trivial = call [value #0] inspect %6 borrow %12
+  return consume %13
+}
+
+fn bracketed.lambda(I32, I32)(bracketed.lambda.env: bracketed.lambda.env(I32, I32) [shared call], v: I32 [shared call]) -> String {
+bb0(%0: bracketed.lambda.env(I32, I32) [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %(I32) -> String address = field.addr .f inspect %0
+  %4: %(I32) -> String address = load inspect %3
+  %5: (I32) -> String [shared slot 0] guaranteed from{%0} = load inspect %4
+  %6: I32 trivial = load inspect %2
+  %7: String owned = call [value #0] inspect %5 borrow %6
+  %8: String owned = const String {units: Array {run: Run {items: &string'193, capacity: 1, ownsHeap: 0}, length: 1}}
+  %9: String owned = call String.++ consume %8 consume %7
+  %10: String owned = const String {units: Array {run: Run {items: &string'194, capacity: 1, ownsHeap: 0}, length: 1}}
+  %11: String owned = call String.++ consume %9 consume %10
+  return consume %11
+}
+
+fn lazyInGeneric.thunk(I32)(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env(I32) [unique call]) -> I32 {
+bb0(%0: lazyInGeneric.thunk.env(I32) [unique call] guaranteed):
+  %1: I32 trivial = const 1
+  return consume %1
+}
+
+fn lazyInGeneric.thunk(String)(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env(String) [unique call]) -> I32 {
+bb0(%0: lazyInGeneric.thunk.env(String) [unique call] guaranteed):
+  %1: I32 trivial = const 1
+  return consume %1
+}
+
+fn callsUserAnd.thunk(Bool)(callsUserAnd.thunk.env: callsUserAnd.thunk.env(Bool) [unique call]) -> Bool {
+bb0(%0: callsUserAnd.thunk.env(Bool) [unique call] guaranteed):
+  %1: %Bool address = field.addr .y inspect %0
+  %2: Bool trivial = load inspect %1
+  return consume %2
+}
+
+fn userAnd(Bool, Bool)(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
+bb0(%0: Bool trivial, %1: () -> Bool [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %Bool address = alloc frame Bool
+  store inspect %3 borrow %0
+  %5: Bool trivial = load inspect %3
+  %6: Bool trivial = call Bool.truthy borrow %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: Bool trivial = const False
+  jump -> bb2(consume %7)
+
+bb2(%2: Bool trivial):
+  return consume %2
+
+bb3:
+  %8: () -> Bool [shared call] guaranteed from{%1} = load inspect %1
+  %9: Bool trivial = call [value #0] inspect %8
+  store inspect %4 consume %9
+  %10: Bool trivial = load inspect %4
+  %11: Bool trivial = call Bool.truthy borrow %10
+  jump -> bb2(consume %11)
+}
+
+fn nested.lambda.lambda(I32)(nested.lambda.lambda.env: nested.lambda.lambda.env(I32) [unique call], w: I32 [shared call]) -> I32 {
+bb0(%0: nested.lambda.lambda.env(I32) [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .v inspect %0
+  %5: %I32 address = load inspect %4
+  %6: I32 [shared slot 0] guaranteed from{%0} = load inspect %5
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = call I32.+ borrow %3 borrow %7
+  return consume %8
+}
+
+fn nested.lambda.lambda(F64)(nested.lambda.lambda.env: nested.lambda.lambda.env(F64) [unique call], w: F64 [shared call]) -> F64 {
+bb0(%0: nested.lambda.lambda.env(F64) [unique call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  store inspect %2 borrow %1
+  %3: F64 trivial = load inspect %2
+  %4: %F64 address = field.addr .v inspect %0
+  %5: %F64 address = load inspect %4
+  %6: F64 [shared slot 0] guaranteed from{%0} = load inspect %5
+  %7: F64 trivial = load inspect %6
+  %8: F64 trivial = call F64.+ borrow %3 borrow %7
+  return consume %8
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = field.addr .score inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %main.lambda.env address = field.addr .point inspect %0
+  %5: %main.lambda.env address = load inspect %4
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %6 borrow %1
+  %7: I32 [unique call] guaranteed from{%3} = load inspect %3
+  %8: main.lambda.env trivial = copy inspect %5
+  %9: I32 trivial = load inspect %6
+  %10: I32 trivial = const 7
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: I32 trivial = call main.lambda borrow %8 borrow %11
+  call +=(I32) borrow %7 borrow %12
+  %13: I32 trivial = const 0
+  return consume %13
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = field.addr .sum inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 [unique call] guaranteed from{%3} = load inspect %3
+  %6: I32 trivial = load inspect %4
+  call +=(I32) borrow %5 borrow %6
+  %7: I32 trivial = const 0
+  return consume %7
+}
+
+fn scaleSum(I32).cont(scaleSum(I32).cont.env: scaleSum(I32).cont.env [unique call], $handed: I32 [shared slot 0]) -> I32 {
+bb0(%0: scaleSum(I32).cont.env [unique call] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: %scaleSum.lambda.env(I32) address = field.addr .bump inspect %0
+  %3: %scaleSum.lambda.env(I32) address = load inspect %2
+  %4: %I32 address = field.addr .total inspect %0
+  %5: %I32 address = load inspect %4
+  %6: %I32 address = field.addr .k inspect %0
+  %7: %I32 address = load inspect %6
+  %8: %Array(I32) address = field.addr .xs inspect %0
+  %9: %Array(I32) address = load inspect %8
+  %10: scaleSum.lambda.env(I32) [shared call] guaranteed from{%3, %5, %7} = load inspect %3
+  %11: I32 [shared slot 0] guaranteed from{%1, %9} = load inspect %1
+  %12: I32 trivial = load inspect %11
+  call scaleSum.lambda(I32) borrow %10 borrow %12
+  %13: I32 trivial = const 0
+  return consume %13
+}
+
+fn scaleSum(F64).cont(scaleSum(F64).cont.env: scaleSum(F64).cont.env [unique call], $handed: F64 [shared slot 0]) -> I32 {
+bb0(%0: scaleSum(F64).cont.env [unique call] guaranteed, %1: F64 [shared slot 0] guaranteed):
+  %2: %scaleSum.lambda.env(F64) address = field.addr .bump inspect %0
+  %3: %scaleSum.lambda.env(F64) address = load inspect %2
+  %4: %F64 address = field.addr .total inspect %0
+  %5: %F64 address = load inspect %4
+  %6: %F64 address = field.addr .k inspect %0
+  %7: %F64 address = load inspect %6
+  %8: %Array(F64) address = field.addr .xs inspect %0
+  %9: %Array(F64) address = load inspect %8
+  %10: scaleSum.lambda.env(F64) [shared call] guaranteed from{%3, %5, %7} = load inspect %3
+  %11: F64 [shared slot 0] guaranteed from{%1, %9} = load inspect %1
+  %12: F64 trivial = load inspect %11
+  call scaleSum.lambda(F64) borrow %10 borrow %12
+  %13: I32 trivial = const 0
+  return consume %13
+}
+
+fn describeAll(I32).cont(describeAll(I32).cont.env: describeAll(I32).cont.env [unique call], $handed: I32 [shared slot 0]) -> I32 {
+bb0(%0: describeAll(I32).cont.env [unique call] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: %String address = field.addr .out inspect %0
+  %3: %String address = load inspect %2
+  %4: %Array(I32) address = field.addr .xs inspect %0
+  %5: %Array(I32) address = load inspect %4
+  %6: %(I32) -> String address = alloc frame (I32) -> String [owned here shape9 .0=unique call]
+  %7: String owned = load inspect %3
+  %8: I32 [shared slot 0] guaranteed from{%1, %5} = load inspect %1
+  %9: (I32) -> String [owned here shape9 .0=unique call] affine = fun.value describeAll.lambda(I32)
+  store inspect %6 consume %9
+  %10: (I32) -> String [shared call shape9 .0=unique call] guaranteed from{%6} = load inspect %6
+  %11: I32 trivial = load inspect %8
+  %12: String owned = call mapOne(I32, String) borrow %11 borrow %10
+  %13: String owned = call String.++ consume %7 consume %12
+  store inspect %3 consume %13
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn describeAll(String).cont(describeAll(String).cont.env: describeAll(String).cont.env [unique call], $handed: String [shared slot 0 view]) -> I32 {
+bb0(%0: describeAll(String).cont.env [unique call] guaranteed, %1: String [shared slot 0 view] guaranteed):
+  %2: %String address = field.addr .out inspect %0
+  %3: %String address = load inspect %2
+  %4: %Array(String) address = field.addr .xs inspect %0
+  %5: %Array(String) address = load inspect %4
+  %6: %(String) -> String address = alloc frame (String) -> String [owned here shape9 .0=unique call]
+  %7: String owned = load inspect %3
+  %8: String [shared slot 0 view] guaranteed from{%1, %5} = load inspect %1
+  %9: (String) -> String [owned here shape9 .0=unique call] affine = fun.value describeAll.lambda(String)
+  store inspect %6 consume %9
+  %10: (String) -> String [shared call shape9 .0=unique call] guaranteed from{%6} = load inspect %6
+  %11: String owned = call mapOne(String, String) borrow %8 borrow %10
+  %12: String owned = call String.++ consume %7 consume %11
+  store inspect %3 consume %12
+  %13: I32 trivial = const 0
+  return consume %13
+}
+
+fn doubled(I32).cont(doubled(I32).cont.env: doubled(I32).cont.env [unique call], $handed: I32 [shared slot 0]) -> I32 {
+bb0(%0: doubled(I32).cont.env [unique call] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: %(I32) -> I32 address = field.addr .f inspect %0
+  %3: %(I32) -> I32 address = load inspect %2
+  %4: %Array(I32) address = field.addr .xs inspect %0
+  %5: %Array(I32) address = load inspect %4
+  %6: %(I32) -> I32 address = field.addr .$body inspect %0
+  %7: %(I32) -> I32 address = load inspect %6
+  %8: %I32 address = field.addr .$yielded inspect %0
+  %9: %I32 address = load inspect %8
+  %10: %doubled.lambda.env(I32) address = alloc frame doubled.lambda.env(I32)
+  %11: %I32 address = alloc frame I32
+  %12: (I32) -> I32 [shared slot 0] guaranteed from{%3} = load inspect %3
+  %13: doubled.lambda.env(I32) trivial = aggregate.doubled.lambda.env borrow %12
+  store inspect %10 consume %13
+  %14: doubled.lambda.env(I32) trivial = copy inspect %10
+  %15: I32 [shared slot 0] guaranteed from{%1, %5} = load inspect %1
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = call doubled.lambda(I32) borrow %14 borrow %16
+  store inspect %11 consume %17
+  %18: I32 trivial = load inspect %11
+  %19: (I32) -> I32 [shared call] guaranteed from{%7} = load inspect %7
+  %20: I32 trivial = call [value #0] inspect %19 borrow %18
+  %21: I32 trivial = const 0
+  %22: Bool trivial = eq inspect %20 inspect %21
+  store inspect %9 consume %20
+  branch inspect %22 -> bb1 -> bb2
+
+bb1:
+  %23: I32 trivial = const 0
+  return consume %23
+
+bb2:
+  %24: I32 trivial = const 2
+  return consume %24
+}
+
+entry main

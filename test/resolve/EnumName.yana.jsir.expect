@@ -50,211 +50,175 @@ fn main() -> one %r3
   var $1: %r2
   var $2: %r2
   var $3: %r2
-  var $4: %r2
-  var $5: %r2
   block0:
-    %4: %r1 = const 1
-    %5: %r0 = map %4 [0 => "Red", 1 => "Green", else "Blue"]
-    %6: %r0 = const "Green"
+    %2: %r1 = const 1
+    %3: %r0 = map %2 [0 => "Red", 1 => "Green", else "Blue"]
+    %4: %r0 = const "Green"
+    %5: %r0 = alias %3
+    %6: %r0 = alias %4
     %7: %r0 = alias %5
     %8: %r0 = alias %6
-    %9: %r0 = alias %7
-    %10: %r0 = alias %8
-    %11: %r4 = host host.binary "===" %9, %10
-    %12: %r4 = unary.not %11
-    branch %12 -> block2 -> block1
+    %9: %r4 = host host.binary "===" %7, %8
+    %10: %r4 = unary.not %9
+    branch %10 -> block2 -> block1
   block1:
-    %14: %r1 = const 2
-    %15: %r0 = map %14 [0 => "FromStart", 1 => "FromCurrent", else "FromEnd"]
-    %16: %r0 = const "FromEnd"
+    %12: %r1 = const 2
+    %13: %r0 = map %12 [0 => "FromStart", 1 => "FromCurrent", else "FromEnd"]
+    %14: %r0 = const "FromEnd"
+    %15: %r0 = alias %13
+    %16: %r0 = alias %14
     %17: %r0 = alias %15
     %18: %r0 = alias %16
-    %19: %r0 = alias %17
-    %20: %r0 = alias %18
-    %21: %r4 = host host.binary "===" %19, %20
-    %22: %r4 = unary.not %21
-    branch %22 -> block4 -> block3
+    %19: %r4 = host host.binary "===" %17, %18
+    %20: %r4 = unary.not %19
+    branch %20 -> block4 -> block3
   block2:
-    %150: %r3 = const 1
-    return %150
+    %130: %r3 = const 1
+    return %130
   block3:
-    %23: %r0 = const "Blue"
-    %24: %r2 = call colourOfName %23
-    %25: %r2 = alias %24
-    %26: %r2 = const null
-    %27: %r5 = binary.eq %25, %26
-    %28: %r1 = const 1
+    %21: %r0 = const "Blue"
+    %22: %r2 = call colourOfName %21
+    %23: %r2 = alias %22
+    %24: %r2 = const null
+    %25: %r5 = binary.eq %23, %24
+    %26: %r1 = const 1
+    %27: %r1 = const 0
+    %28: %r1 = select %25, %27, %26
     %29: %r1 = const 0
-    %30: %r1 = select %27, %29, %28
-    %31: %r1 = const 0
-    %32: %r4 = binary.eq %30, %31
-    branch %32 -> block6 -> block5
+    %30: %r4 = binary.eq %28, %29
+    branch %30 -> block6 -> block5
   block4:
-    %149: %r3 = const 2
-    return %149
+    %129: %r3 = const 2
+    return %129
   block5:
-    %33: %r0 = const "Purple"
-    %34: %r2 = call colourOfName %33
-    %35: %r2 = alias %34
-    %36: %r2 = const null
-    %37: %r5 = binary.eq %35, %36
-    %38: %r1 = const 1
-    %39: %r1 = const 0
-    %40: %r1 = select %37, %39, %38
-    %41: %r1 = const 1
-    %42: %r4 = binary.eq %40, %41
-    branch %42 -> block8 -> block7
+    %31: %r0 = const "Purple"
+    %32: %r2 = call colourOfName %31
+    %33: %r2 = alias %32
+    %34: %r2 = const null
+    %35: %r5 = binary.eq %33, %34
+    %36: %r1 = const 1
+    %37: %r1 = const 0
+    %38: %r1 = select %35, %37, %36
+    %39: %r1 = const 1
+    %40: %r4 = binary.eq %38, %39
+    branch %40 -> block8 -> block7
   block6:
-    %148: %r3 = const 3
-    return %148
+    %128: %r3 = const 3
+    return %128
   block7:
-    %43: %r0 = const "Bleu"
-    %44: %r2 = call colourOfName %43
-    %45: %r2 = alias %44
-    %46: %r2 = const null
-    %47: %r5 = binary.eq %45, %46
-    %48: %r1 = const 1
-    %49: %r1 = const 0
-    %50: %r1 = select %47, %49, %48
-    %51: %r1 = const 1
-    %52: %r4 = binary.eq %50, %51
-    branch %52 -> block10 -> block9
+    %41: %r0 = const "Bleu"
+    %42: %r2 = call colourOfName %41
+    %43: %r2 = alias %42
+    %44: %r2 = const null
+    %45: %r5 = binary.eq %43, %44
+    %46: %r1 = const 1
+    %47: %r1 = const 0
+    %48: %r1 = select %45, %47, %46
+    %49: %r1 = const 1
+    %50: %r4 = binary.eq %48, %49
+    branch %50 -> block10 -> block9
   block8:
-    %147: %r3 = const 4
-    return %147
+    %127: %r3 = const 4
+    return %127
   block9:
-    %54: %r1 = const 0
-    %55: %r0 = map %54 [0 => "Low", else "High"]
-    %56: %r0 = const "Low"
+    %52: %r1 = const 0
+    %53: %r0 = map %52 [0 => "Low", else "High"]
+    %54: %r0 = const "Low"
+    %55: %r0 = alias %53
+    %56: %r0 = alias %54
     %57: %r0 = alias %55
     %58: %r0 = alias %56
-    %59: %r0 = alias %57
-    %60: %r0 = alias %58
-    %61: %r4 = host host.binary "===" %59, %60
-    %62: %r4 = unary.not %61
-    branch %62 -> block12 -> block11
+    %59: %r4 = host host.binary "===" %57, %58
+    %60: %r4 = unary.not %59
+    branch %60 -> block12 -> block11
   block10:
-    %146: %r3 = const 5
-    return %146
+    %126: %r3 = const 5
+    return %126
   block11:
-    %63: %r0 = const "High"
-    %64: %r0 = alias %63
-    %65: %r0 = alias %64
-    %66: %r0 = const "Low"
+    %61: %r0 = const "High"
+    %62: %r0 = alias %61
+    %63: %r0 = alias %62
+    %64: %r0 = const "Low"
+    %65: %r0 = alias %63
+    %66: %r0 = alias %64
     %67: %r0 = alias %65
     %68: %r0 = alias %66
-    %69: %r0 = alias %67
-    %70: %r0 = alias %68
-    %71: %r4 = host host.binary "===" %69, %70
-    branch %71 -> block23 -> block20
+    %69: %r4 = host host.binary "===" %67, %68
+    branch %69 -> block21 -> block18
   block12:
-    %145: %r3 = const 6
-    return %145
+    %125: %r3 = const 6
+    return %125
   block13:
-    %94: %r0 = const "Red"
-    %95: %r0 = alias %94
-    %96: %r0 = alias %95
-    %97: %r0 = const "Low"
-    %98: %r0 = alias %96
-    %99: %r0 = alias %97
-    %100: %r0 = alias %98
-    %101: %r0 = alias %99
-    %102: %r4 = host host.binary "===" %100, %101
-    branch %102 -> block28 -> block25
+    %84: %r0 = const "Red"
+    %85: %r0 = alias %84
+    %86: %r0 = alias %85
+    %87: %r0 = const "Low"
+    %88: %r0 = alias %86
+    %89: %r0 = alias %87
+    %90: %r0 = alias %88
+    %91: %r0 = alias %89
+    %92: %r4 = host host.binary "===" %90, %91
+    branch %92 -> block25 -> block22
   block14:
-    %144: %r3 = const 7
-    return %144
+    %124: %r3 = const 8
+    return %124
   block15:
-    %125: %r0 = const "Red"
-    %126: %r2 = call colourOfName %125
-    store var $5: %r2, %126
-    %127: %r2 = load var $5: %r2
-    %128: %r2 = const null
-    %129: %r5 = binary.eq %127, %128
-    %130: %r1 = const 1
-    %131: %r1 = const 0
-    %132: %r1 = select %129, %131, %130
-    %133: %r1 = const 1
-    %134: %r4 = binary.eq %132, %133
-    branch %134 -> block19 -> block17
-  block16:
-    %143: %r3 = const 8
-    return %143
-  block17:
-    %135: %r3 = const 9
-    jump -> block18(%135)
-  block18(%0: %r3):
+    %110: %r3 = const 9
+    jump -> block16(%110)
+  block16(%0: %r3):
     return %0
-  block19:
-    %137: %r1 = load var $5: %r1
-    %138: %r3 = const 10
-    %139: %r1 = convert %137
-    %140: %r3 = convert %139
-    %141: %r3 = binary.add %138, %140
-    %142: %r3 = coerce %141
-    jump -> block18(%142)
-  block20:
-    %72: %r0 = alias %64
-    %73: %r0 = const "High"
+  block17:
+    %112: %r1 = load var $3: %r1
+    %113: %r3 = const 10
+    %114: %r1 = convert %112
+    %115: %r3 = convert %114
+    %116: %r3 = binary.add %113, %115
+    %117: %r3 = coerce %116
+    jump -> block16(%117)
+  block18:
+    %70: %r0 = alias %62
+    %71: %r0 = const "High"
+    %72: %r0 = alias %70
+    %73: %r0 = alias %71
     %74: %r0 = alias %72
     %75: %r0 = alias %73
-    %76: %r0 = alias %74
-    %77: %r0 = alias %75
-    %78: %r4 = host host.binary "===" %76, %77
-    branch %78 -> block22 -> block21
+    %76: %r4 = host host.binary "===" %74, %75
+    branch %76 -> block20 -> block19
+  block19:
+    %77: %r3 = const 7
+    return %77
+  block20:
+    jump -> block13
   block21:
-    %79: %r2 = const null
-    jump -> block24(%79)
+    jump -> block13
   block22:
-    %81: %r1 = const 1
-    %82: %r2 = alias %81
-    jump -> block24(%82)
+    %93: %r0 = alias %85
+    %94: %r0 = const "High"
+    %95: %r0 = alias %93
+    %96: %r0 = alias %94
+    %97: %r0 = alias %95
+    %98: %r0 = alias %96
+    %99: %r4 = host host.binary "===" %97, %98
+    branch %99 -> block24 -> block23
   block23:
-    %84: %r1 = const 0
-    %85: %r2 = alias %84
-    jump -> block24(%85)
-  block24(%1: %r2):
-    %86: %r2 = alias %1
-    %87: %r2 = const null
-    %88: %r5 = binary.eq %86, %87
-    %89: %r1 = const 1
-    %90: %r1 = const 0
-    %91: %r1 = select %88, %90, %89
-    %92: %r1 = const 0
-    %93: %r4 = binary.eq %91, %92
-    branch %93 -> block14 -> block13
+    %100: %r0 = const "Red"
+    %101: %r2 = call colourOfName %100
+    store var $3: %r2, %101
+    %102: %r2 = load var $3: %r2
+    %103: %r2 = const null
+    %104: %r5 = binary.eq %102, %103
+    %105: %r1 = const 1
+    %106: %r1 = const 0
+    %107: %r1 = select %104, %106, %105
+    %108: %r1 = const 1
+    %109: %r4 = binary.eq %107, %108
+    branch %109 -> block17 -> block15
+  block24:
+    jump -> block14
   block25:
-    %103: %r0 = alias %95
-    %104: %r0 = const "High"
-    %105: %r0 = alias %103
-    %106: %r0 = alias %104
-    %107: %r0 = alias %105
-    %108: %r0 = alias %106
-    %109: %r4 = host host.binary "===" %107, %108
-    branch %109 -> block27 -> block26
-  block26:
-    %110: %r2 = const null
-    jump -> block29(%110)
-  block27:
-    %112: %r1 = const 1
-    %113: %r2 = alias %112
-    jump -> block29(%113)
-  block28:
-    %115: %r1 = const 0
-    %116: %r2 = alias %115
-    jump -> block29(%116)
-  block29(%2: %r2):
-    %117: %r2 = alias %2
-    %118: %r2 = const null
-    %119: %r5 = binary.eq %117, %118
-    %120: %r1 = const 1
-    %121: %r1 = const 0
-    %122: %r1 = select %119, %121, %120
-    %123: %r1 = const 1
-    %124: %r4 = binary.eq %122, %123
-    branch %124 -> block16 -> block15
+    jump -> block14
 
-optimizer clones 0 aliased 0 forwarded 0 removed 16 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5 folded 10
+optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3 folded 10
 
 rep %r0 = string
 rep %r1 = number unsigned 8

@@ -1,0 +1,25 @@
+{-
+   `?` on a qualified carrier whose `Try` instance is **concrete** in what it proceeds with.
+
+   `resolveQualifiedTry` proceeds with the qualified field read straight out of the operand and asks
+   the instance about every other case only for its reason - sound where the instance is generic in
+   the proceeding type, since it cannot make an `a` out of a case holding none. This instance can: its
+   `None` proceeds with a fresh `[U8]`, which the structural route read as "never proceeds" and
+   compiled to an `unreachable` (the review of J184 - a trap natively, a wrong answer under
+   `-no-ir-opt`). So it is refused by name.
+-}
+
+data Opt(a) = None | Some(a)
+
+instance Try(Opt([U8]), [U8], {}):
+    fn toOutcome(->value: Opt([U8])) -> Outcome([U8], {}) = match value:
+        Some(->inner) -> Proceed(inner)
+        None -> Proceed([9, 9, 9] :: [U8])
+
+    fn fromExit(->reason: {}) -> Opt([U8]) = None
+
+fn pick(xs: [U8], ok: Bool) -> Opt('[U8]) = if ok then Some(xs[0..2]) else None
+
+fn use(xs: [U8], ok: Bool) -> Maybe(Size):
+    let v = pick(xs, ok)?
+    return Just(length(v))

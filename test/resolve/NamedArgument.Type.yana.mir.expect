@@ -149,14 +149,17 @@ bb0:
 
 fn lambdaParameter() -> I32 {
   local twice: lambdaParameter.lambda.env
+  local local1: (I32) -> I32 [owned here shape8 .0=unique call]
 
 bb0:
   %0: lambdaParameter.lambda.env = aggregate.lambdaParameter.lambda.env
   write.init borrow.unique (twice) take %0
   %2: lambdaParameter.lambda.env = read copy.trivial (twice)
   %3: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value lambdaParameter.lambda'2
-  %4: I32 = call borrow.shared %2 borrow.shared %3
-  return take %4
+  write.init borrow.unique (local1) take %3
+  %5: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %6: I32 = call borrow.shared %2 borrow.shared %5
+  return take %6
 }
 
 fn viaAlias(op: (I32, I32) -> I32 [shared call]) -> I32 {

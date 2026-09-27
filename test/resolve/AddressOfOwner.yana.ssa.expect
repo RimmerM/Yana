@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *5] = "hello"
+let string'188: [CodeUnit *5] = "hello"
 
-let string'143: [CodeUnit *6] = " world"
+let string'189: [CodeUnit *6] = " world"
 
 fn main() -> I32 {
 bb0:
@@ -13,8 +13,8 @@ bb0:
   %5: %Array(I32) address = alloc frame Array(I32)
   %6: %Array(I32) address = alloc frame Array(I32)
   %7: %%Array(I32) address = alloc frame %Array(I32) [owned here shape6 .*=shared slot 0]
-  %8: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
-  %9: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 6, ownsHeap: 0}, length: 6}}
+  %8: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 5, ownsHeap: 0}, length: 5}}
+  %9: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 6, ownsHeap: 0}, length: 6}}
   %10: String owned = call String.++ consume %8 consume %9
   store inspect %1 consume %10
   %11: String [shared slot 0] guaranteed from{%1} = load inspect %1

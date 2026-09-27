@@ -1,30 +1,30 @@
 module ResolveTest
 
-let string'142: [CodeUnit *5] = "green"
+let string'188: [CodeUnit *5] = "green"
 
-let string'143: [CodeUnit *3] = "red"
+let string'189: [CodeUnit *3] = "red"
 
-let string'144: [CodeUnit *5] = "green"
+let string'190: [CodeUnit *5] = "green"
 
-let string'145: [CodeUnit *4] = "blue"
+let string'191: [CodeUnit *4] = "blue"
 
-let string'146: [CodeUnit *4] = "abcd"
+let string'192: [CodeUnit *4] = "abcd"
 
-let string'147: [CodeUnit *2] = "ab"
+let string'193: [CodeUnit *2] = "ab"
 
-let string'148: [CodeUnit *3] = "cde"
+let string'194: [CodeUnit *3] = "cde"
 
-let string'149: [CodeUnit *5] = "green"
+let string'195: [CodeUnit *5] = "green"
 
-let string'150: [CodeUnit *3] = "red"
+let string'196: [CodeUnit *3] = "red"
 
-let string'151: [CodeUnit *3] = "red"
+let string'197: [CodeUnit *3] = "red"
 
-let string'152: [CodeUnit *5] = "green"
+let string'198: [CodeUnit *5] = "green"
 
-let string'153: [CodeUnit *4] = "blue"
+let string'199: [CodeUnit *4] = "blue"
 
-let string'154: [CodeUnit *5] = "mauve"
+let string'200: [CodeUnit *5] = "mauve"
 
 fn matches(name$units: %CodeUnit, name$length: Size) -> Bool {
 bb0(%27: %CodeUnit trivial, %28: Size trivial):
@@ -33,7 +33,7 @@ bb0(%27: %CodeUnit trivial, %28: Size trivial):
   store inspect %30 consume %27
   %31: %Size address = field.addr .length inspect %29
   store inspect %31 consume %28
-  %56: %CodeUnit trivial = const &string'142
+  %56: %CodeUnit trivial = const &string'188
   %59: Size trivial = const 5
   %15: StringView trivial = aggregate.StringView consume %56 consume %59
   %34: %String address = alloc frame String [shared call view]
@@ -81,7 +81,7 @@ bb0(%83: %CodeUnit trivial, %84: Size trivial):
   store inspect %86 consume %83
   %87: %Size address = field.addr .length inspect %85
   store inspect %87 consume %84
-  %158: %CodeUnit trivial = const &string'143
+  %158: %CodeUnit trivial = const &string'189
   %166: Size trivial = const 3
   %17: StringView trivial = aggregate.StringView consume %158 consume %166
   %90: %String address = alloc frame String [shared call view]
@@ -98,7 +98,7 @@ bb0(%83: %CodeUnit trivial, %84: Size trivial):
   branch inspect %105 -> bb1 -> bb19
 
 bb1:
-  %160: %CodeUnit trivial = const &string'144
+  %160: %CodeUnit trivial = const &string'190
   %168: Size trivial = const 5
   %33: StringView trivial = aggregate.StringView consume %160 consume %168
   %113: %String address = alloc frame String [shared call view]
@@ -119,7 +119,7 @@ bb3:
   return consume %36
 
 bb4:
-  %162: %CodeUnit trivial = const &string'145
+  %162: %CodeUnit trivial = const &string'191
   %170: Size trivial = const 4
   %50: StringView trivial = aggregate.StringView consume %162 consume %170
   %136: %String address = alloc frame String [shared call view]
@@ -173,7 +173,7 @@ bb30:
 
 fn width() -> I32 {
 bb0:
-  %22: %CodeUnit trivial = const &string'146
+  %22: %CodeUnit trivial = const &string'192
   %25: Size trivial = const 4
   %13: StringView trivial = aggregate.StringView consume %22 consume %25
   %26: I32 trivial = const 4
@@ -183,12 +183,12 @@ bb0:
 fn grown(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %2: %String address = alloc frame String
-  %3: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 2, ownsHeap: 0}, length: 2}}
+  %3: String owned = const String {units: Array {run: Run {items: &string'193, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %2 consume %3
   %4: String owned = load inspect %2
   %30: %String address = alloc frame String
   store inspect %30 consume %4
-  %49: %CodeUnit trivial = const &string'148
+  %49: %CodeUnit trivial = const &string'194
   %52: Size trivial = const 3
   %41: StringView trivial = aggregate.StringView consume %49 consume %52
   %42: Size trivial = call String.length consume %49 consume %52
@@ -224,12 +224,12 @@ bb0(%0: I32 trivial):
 fn main() -> I32 {
 bb0:
   %187: %String address = alloc frame String
-  %188: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 2, ownsHeap: 0}, length: 2}}
+  %188: String owned = const String {units: Array {run: Run {items: &string'193, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %187 consume %188
   %189: String owned = load inspect %187
   %190: %String address = alloc frame String
   store inspect %190 consume %189
-  %191: %CodeUnit trivial = const &string'148
+  %191: %CodeUnit trivial = const &string'194
   %192: Size trivial = const 3
   %193: StringView trivial = aggregate.StringView consume %191 consume %192
   %195: String [unique call] guaranteed from{%190} = load inspect %190
@@ -258,7 +258,7 @@ bb0:
   %308: I32 trivial = const 1
   %307: I32 trivial = const 10
   %38: I32 trivial = const 0
-  %217: %CodeUnit trivial = const &string'148
+  %217: %CodeUnit trivial = const &string'194
   %218: Size trivial = const 3
   %338: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %217
   jump -> bb1(inspect %23, inspect %24)
@@ -277,7 +277,7 @@ bb3:
 bb4:
   %39: I32 trivial = call opaque borrow %38
   %213: %String address = alloc frame String
-  %214: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 2, ownsHeap: 0}, length: 2}}
+  %214: String owned = const String {units: Array {run: Run {items: &string'193, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %213 consume %214
   %215: String owned = load inspect %213
   %216: %String address = alloc frame String
@@ -317,7 +317,7 @@ bb7:
   return consume %47
 
 bb8:
-  %309: %CodeUnit trivial = const &string'149
+  %309: %CodeUnit trivial = const &string'195
   %322: Size trivial = const 5
   %60: StringView trivial = aggregate.StringView consume %309 consume %322
   %245: %String address = alloc frame String [shared call view]
@@ -325,7 +325,7 @@ bb8:
   store inspect %246 consume %309
   %247: %Size address = field.addr .length inspect %245
   store inspect %247 consume %322
-  %248: %CodeUnit trivial = const &string'142
+  %248: %CodeUnit trivial = const &string'188
   %249: Size trivial = const 5
   %250: StringView trivial = aggregate.StringView consume %248 consume %249
   %251: %String address = alloc frame String [shared call view]
@@ -352,7 +352,7 @@ bb10:
   return consume %64
 
 bb11:
-  %311: %CodeUnit trivial = const &string'150
+  %311: %CodeUnit trivial = const &string'196
   %324: Size trivial = const 3
   %77: StringView trivial = aggregate.StringView consume %311 consume %324
   %275: %String address = alloc frame String [shared call view]
@@ -360,7 +360,7 @@ bb11:
   store inspect %276 consume %311
   %277: %Size address = field.addr .length inspect %275
   store inspect %277 consume %324
-  %278: %CodeUnit trivial = const &string'142
+  %278: %CodeUnit trivial = const &string'188
   %279: Size trivial = const 5
   %280: StringView trivial = aggregate.StringView consume %278 consume %279
   %281: %String address = alloc frame String [shared call view]
@@ -373,7 +373,7 @@ bb11:
   store inspect %286 consume %278
   %287: %Size address = field.addr .length inspect %285
   store inspect %287 consume %279
-  %313: %CodeUnit trivial = const &string'151
+  %313: %CodeUnit trivial = const &string'197
   %326: Size trivial = const 3
   %93: StringView trivial = aggregate.StringView consume %313 consume %326
   %341: %String address = alloc frame String [shared call view]
@@ -381,7 +381,7 @@ bb11:
   store inspect %342 consume %313
   %343: %Size address = field.addr .length inspect %341
   store inspect %343 consume %326
-  %344: %CodeUnit trivial = const &string'143
+  %344: %CodeUnit trivial = const &string'189
   %345: Size trivial = const 3
   %346: StringView trivial = aggregate.StringView consume %344 consume %345
   %347: %String address = alloc frame String [shared call view]
@@ -408,7 +408,7 @@ bb13:
   return consume %80
 
 bb17:
-  %315: %CodeUnit trivial = const &string'152
+  %315: %CodeUnit trivial = const &string'198
   %328: Size trivial = const 5
   %111: StringView trivial = aggregate.StringView consume %315 consume %328
   %394: %String address = alloc frame String [shared call view]
@@ -416,7 +416,7 @@ bb17:
   store inspect %395 consume %315
   %396: %Size address = field.addr .length inspect %394
   store inspect %396 consume %328
-  %397: %CodeUnit trivial = const &string'143
+  %397: %CodeUnit trivial = const &string'189
   %398: Size trivial = const 3
   %399: StringView trivial = aggregate.StringView consume %397 consume %398
   %400: %String address = alloc frame String [shared call view]
@@ -429,7 +429,7 @@ bb17:
   store inspect %404 consume %397
   %405: %Size address = field.addr .length inspect %403
   store inspect %405 consume %398
-  %412: %CodeUnit trivial = const &string'144
+  %412: %CodeUnit trivial = const &string'190
   %413: Size trivial = const 5
   %414: StringView trivial = aggregate.StringView consume %412 consume %413
   %415: %String address = alloc frame String [shared call view]
@@ -452,7 +452,7 @@ bb17:
   branch inspect %1325 -> bb223 -> bb73
 
 bb20:
-  %317: %CodeUnit trivial = const &string'153
+  %317: %CodeUnit trivial = const &string'199
   %330: Size trivial = const 4
   %129: StringView trivial = aggregate.StringView consume %317 consume %330
   %447: %String address = alloc frame String [shared call view]
@@ -460,7 +460,7 @@ bb20:
   store inspect %448 consume %317
   %449: %Size address = field.addr .length inspect %447
   store inspect %449 consume %330
-  %450: %CodeUnit trivial = const &string'143
+  %450: %CodeUnit trivial = const &string'189
   %451: Size trivial = const 3
   %452: StringView trivial = aggregate.StringView consume %450 consume %451
   %453: %String address = alloc frame String [shared call view]
@@ -473,7 +473,7 @@ bb20:
   store inspect %457 consume %450
   %458: %Size address = field.addr .length inspect %456
   store inspect %458 consume %451
-  %465: %CodeUnit trivial = const &string'144
+  %465: %CodeUnit trivial = const &string'190
   %466: Size trivial = const 5
   %467: StringView trivial = aggregate.StringView consume %465 consume %466
   %468: %String address = alloc frame String [shared call view]
@@ -486,7 +486,7 @@ bb20:
   store inspect %472 consume %465
   %473: %Size address = field.addr .length inspect %471
   store inspect %473 consume %466
-  %480: %CodeUnit trivial = const &string'145
+  %480: %CodeUnit trivial = const &string'191
   %481: Size trivial = const 4
   %482: StringView trivial = aggregate.StringView consume %480 consume %481
   %483: %String address = alloc frame String [shared call view]
@@ -509,7 +509,7 @@ bb20:
   branch inspect %1510 -> bb254 -> bb253
 
 bb23:
-  %319: %CodeUnit trivial = const &string'154
+  %319: %CodeUnit trivial = const &string'200
   %332: Size trivial = const 5
   %147: StringView trivial = aggregate.StringView consume %319 consume %332
   %500: %String address = alloc frame String [shared call view]
@@ -517,7 +517,7 @@ bb23:
   store inspect %501 consume %319
   %502: %Size address = field.addr .length inspect %500
   store inspect %502 consume %332
-  %503: %CodeUnit trivial = const &string'143
+  %503: %CodeUnit trivial = const &string'189
   %504: Size trivial = const 3
   %505: StringView trivial = aggregate.StringView consume %503 consume %504
   %506: %String address = alloc frame String [shared call view]
@@ -530,7 +530,7 @@ bb23:
   store inspect %510 consume %503
   %511: %Size address = field.addr .length inspect %509
   store inspect %511 consume %504
-  %518: %CodeUnit trivial = const &string'144
+  %518: %CodeUnit trivial = const &string'190
   %519: Size trivial = const 5
   %520: StringView trivial = aggregate.StringView consume %518 consume %519
   %521: %String address = alloc frame String [shared call view]
@@ -561,7 +561,7 @@ bb28:
   return consume %156
 
 bb58:
-  %359: %CodeUnit trivial = const &string'144
+  %359: %CodeUnit trivial = const &string'190
   %360: Size trivial = const 5
   %361: StringView trivial = aggregate.StringView consume %359 consume %360
   %362: %String address = alloc frame String [shared call view]
@@ -574,7 +574,7 @@ bb58:
   store inspect %366 consume %359
   %367: %Size address = field.addr .length inspect %365
   store inspect %367 consume %360
-  %374: %CodeUnit trivial = const &string'145
+  %374: %CodeUnit trivial = const &string'191
   %375: Size trivial = const 4
   %376: StringView trivial = aggregate.StringView consume %374 consume %375
   %377: %String address = alloc frame String [shared call view]
@@ -591,7 +591,7 @@ bb58:
   return consume %116
 
 bb73:
-  %427: %CodeUnit trivial = const &string'145
+  %427: %CodeUnit trivial = const &string'191
   %428: Size trivial = const 4
   %429: StringView trivial = aggregate.StringView consume %427 consume %428
   %430: %String address = alloc frame String [shared call view]
@@ -608,7 +608,7 @@ bb73:
   return consume %134
 
 bb97:
-  %533: %CodeUnit trivial = const &string'145
+  %533: %CodeUnit trivial = const &string'191
   %534: Size trivial = const 4
   %535: StringView trivial = aggregate.StringView consume %533 consume %534
   %536: %String address = alloc frame String [shared call view]
@@ -621,7 +621,7 @@ bb97:
   store inspect %540 consume %533
   %541: %Size address = field.addr .length inspect %539
   store inspect %541 consume %534
-  %239: %CodeUnit trivial = const &string'146
+  %239: %CodeUnit trivial = const &string'192
   %240: Size trivial = const 4
   %241: StringView trivial = aggregate.StringView consume %239 consume %240
   %242: I32 trivial = const 4

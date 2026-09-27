@@ -1,0 +1,47 @@
+{-
+   The borrowed side of a carrier that also owns - P15, J187 - still holds its loan.
+
+   Admitting `Result(String, '[U8])` releases the error where the value dies; it does not change
+   what the view is. `concrete` writes `b` while `h`, bound by `?` out of `take`'s result, is still
+   read; `generic` is the same in a body generic in the error, which is `TryCarrier.Source.yana`'s
+   `header` with the write moved before the last use; and `dangling` returns a view of its own local
+   beside an owned error.
+-}
+
+data Buf {bytes: [U8], at: Size}
+
+fn take(&self: Buf, count: Size) -> Result(String, '[U8]):
+    if length(self.bytes) - self.at < count then return Err("short")
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+fn concrete(&b: Buf) -> Result(String, U8):
+    let h = b.take(2)?
+    b.at = 0
+    return Ok(h[0])
+
+class Source(s -> e):
+    fn readSome(&self: s, &into: [U8]) -> Result(e, Size)
+
+data ReadFailure(e) = ReadError(e) | Ended
+
+data Input(s, e) {source: s, buffer: [U8], begin: Size, end: Size, ended: Bool}
+
+fn (Source(s, e)) takeInput(&self: 'Input(s, e), count: Size) -> Result(ReadFailure(e), '[U8]):
+    if self.end - self.begin < count then return Err(Ended)
+    let start = self.begin
+    self.begin += count
+    return Ok(self.buffer[start..start + count])
+
+fn (Source(s, e)) generic(&input: Input(s, e)) -> Result(ReadFailure(e), U8):
+    let bytes = input.takeInput(2)?
+    input.ended = True
+    return Ok(bytes[0])
+
+fn dangling(b: '[U8]) -> Result(String, '[U8]):
+    if length(b) == 0 then return Err("empty")
+    let local = [1, 2] :: [U8]
+    return Ok(local[0..1])
+
+fn main() -> I32 = 0

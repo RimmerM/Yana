@@ -1,5 +1,8 @@
 #include "pass.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 /*
  * Storage: a read answered by a write above it, a second read answered by the first, a write nothing
  * reads, and an allocation nothing reads at all - README.md's section A rows for `forwardPlaces` and
@@ -85,6 +88,28 @@
 namespace ssa {
 
 namespace {
+
+/*
+ * The firing counter for J192's sum rows, printed at exit when `YANA_COUNT_CARRIER` is set - the
+ * `YANA_COUNT_BOUNDS` arrangement: debug builds only, a measurement a slice takes rather than
+ * something a build reports.
+ */
+#if defined(_DEBUG) || defined(DEBUG)
+struct CarrierReads {
+    U64 tags = 0;
+    U64 fields = 0;
+
+    ~CarrierReads() {
+        if(!getenv("YANA_COUNT_CARRIER")) return;
+        fprintf(stderr, "carrier: %llu tag reads, %llu field reads of a stored sum answered\n", (unsigned long long)tags, (unsigned long long)fields);
+    }
+};
+
+CarrierReads carrierReads;
+#define countCarrier(field) (carrierReads.field++)
+#else
+#define countCarrier(field) ((void)0)
+#endif
 
 /*
  * One fact about one piece of storage: what is at an address, and the store that put it there.
@@ -295,8 +320,12 @@ struct Forwarder {
         SmallArray<AddressStep, 8> leftPath;
         SmallArray<AddressStep, 8> rightPath;
 
+        // The second names taken off at each link, as `linkOf` does for `sameAddress`: a borrow of a
+        // record and the record are one piece of storage, and a root that roots nowhere (a
+        // parameter's) is only comparable once both paths have reached it the same way (J191).
         auto walk = [&](Value* address, SmallArray<AddressStep, 8>& path) {
             while(address) {
+                address = throughNames(address);
                 Value* base = nullptr;
                 auto step = addressStepOf(opt, *address, base);
                 if(!step) return address;
@@ -531,8 +560,20 @@ struct Forwarder {
                 continue;
             }
 
+            if(!root && !known[i].global && writesNothingUnrooted(inst, known[i].address)) {
+                if(touches(inst, known[i].address)) known[i].pending = nullptr;
+                continue;
+            }
+
+            /*
+             * An entry that roots nowhere is asked `mayAlias` as a rooted one is, since J191: the walk
+             * compares paths from one root, and two fields of one record reached through a
+             * parameter are two pieces of storage whatever the parameter points at - `self.at +=
+             * count` does not write `length(self.bytes)`. Two different roots that are not
+             * allocations of this body still may meet, which is `mayAlias`' own answer.
+             */
             if(!root || mayWriteStorage(opt, contained, inst, *root)) {
-                if(!root || !written || mayAlias(known[i].address, written)) {
+                if(!written || mayAlias(known[i].address, written)) {
                     U32 field = 0;
 
                     /*
@@ -553,6 +594,43 @@ struct Forwarder {
 
             if(touches(inst, known[i].address)) known[i].pending = nullptr;
         }
+    }
+
+    /*
+     * Whether an instruction certainly leaves alone an entry that roots nowhere - a field of a
+     * parameter, a record reached through a pointer - which `forgetWritten` otherwise ends at every
+     * instruction that is not pure. Three kinds, each for a reason `mayWriteStorage` already states
+     * for a rooted entry: an `alloc` makes new storage, an `aggregate` writes none, a read that is not
+     * a handover writes nothing, and neither does a terminator (`ends`' own argument).
+     *
+     * And a store into a **contained** allocation - `addressMayReach`'s rule read the other way
+     * round: a contained allocation is named only by projections of its own address, so storage the
+     * entry reaches through a parameter is not inside it unless the entry's address is one of those
+     * names carried over an edge, which `addressMayName` asks.
+     *
+     * Without these, the `branch` that ends a block ended every fact about a parameter's fields
+     * before a successor could inherit it, and an inlined callee's view of its argument - an
+     * `alloc`, two stores and an `aggregate` - ended them inside the block. J190 recorded the result
+     * as "an owned array's length read through a shared record is reloaded per block"; `take`'s
+     * `self.at` and `length(self.bytes)` were loaded again behind the `need` test that had just read
+     * them (J191).
+     */
+    bool writesNothingUnrooted(Inst& inst, Value* address) {
+        if(inst.kind == Inst::Alloc || inst.kind == Inst::Aggregate || isTerminator(inst.kind)) return true;
+
+        if(inst.kind == Inst::Load) {
+            auto& load = (InstLoad&)inst;
+            if(load.isVolatile || !inst.results.size()) return false;
+            return !isTracked(opt.base[inst.results.get(opt.base, 0)]->convention);
+        }
+
+        if(inst.kind != Inst::Store || ((InstStore&)inst).isVolatile) return false;
+
+        auto target = allocationRoot(opt, opt.base[((InstStore&)inst).address.value()]);
+        if(!target || !target->definer || opt.base[target->definer]->kind != Inst::Alloc) return false;
+        if(!contained[*target]) return false;
+
+        return !addressMayName(opt, address, *target);
     }
 
     /*
@@ -667,7 +745,24 @@ struct Forwarder {
      * block table had no entry for.
      */
     Value* throughNames(Value* address) {
-        for(U32 i = 0; address && address->definer && i < kAggregateDepth; i++) {
+        // Twice the projection bound, since J192: every restatement of a borrow is one more load,
+        // and `?`'s payload on JavaScript reaches a `length` through three of them and a block
+        // argument - five names for one view, where the walk stopped at four.
+        for(U32 i = 0; address && i < kAggregateDepth * 2; i++) {
+            /*
+             * A block argument with one way in is the value its one edge supplies, renamed - J192.
+             * `?` hands the payload it read to its continuation as an argument, so the borrow a
+             * later `length(h)` reads through is that argument and not the load behind it; a join
+             * `cleanCfg` may not fold (a region's rejoin point, or two loans) keeps it standing.
+             */
+            if(!address->definer) {
+                auto supplied = soleSupplied(*address);
+                if(!supplied) break;
+
+                address = supplied;
+                continue;
+            }
+
             auto inst = opt.base[address->definer];
 
             if(inst->kind == Inst::Load) {
@@ -691,6 +786,29 @@ struct Forwarder {
         return address;
     }
 
+    // What the one edge into a block hands its argument, or null where the value is not a block
+    // argument, or its block has more than one way in or is entered by anything but a `jump`.
+    Value* soleSupplied(Value& argument) {
+        if(!argument.block) return nullptr;
+
+        auto block = opt.base[argument.block];
+        if(block->predecessorCount() != 1 || block == opt.base[opt.body->entry]) return nullptr;
+
+        Size position = ~Size(0);
+        for(Size i = 0; i < block->argumentCount(); i++) {
+            if(opt.base[block->argumentAt(opt.base, i)] == &argument) position = i;
+        }
+
+        auto end = opt.base[block->predecessorAt(opt.base, 0)]->terminator(opt.base);
+        if(position == ~Size(0) || !end || end->kind != Inst::Jump) return nullptr;
+
+        auto& jump = (InstJump&)*end;
+        if(position >= jump.to.arguments.size()) return nullptr;
+
+        auto supplied = jump.to.arguments.get(opt.base, position);
+        return supplied.isSet() ? opt.base[supplied.value()] : nullptr;
+    }
+
     /*
      * The component of an **`Aggregate` still in hand** that a field address names - the third
      * answer a read can have, beside the block table and the constant one.
@@ -706,10 +824,18 @@ struct Forwarder {
      *
      * Three restrictions, and each is a rule already stated in this file:
      *
-     *  - **a single-constructor record only**, which is `separateFields`' condition and has its
-     *    reason: a sum keeps one flat field list with a range per constructor and may fold its tag
-     *    into a niche of the payload, so which storage a field occupies is `lower/repr.cpp`'s answer
-     *    and a **target's**. A `property` address and a discriminant are refused there and here;
+     *  - **the stored constructor's own fields** (and, in `tryAggregateTag`, its tag). This was
+     *    "a single-constructor record only" until J192, on `separateFields`' reason: a sum keeps one
+     *    flat field list with a range per constructor and may fold its tag into a niche of the
+     *    payload, so which storage a field occupies is `lower/repr.cpp`'s answer and a target's. That
+     *    reason is about a **kill** - writing one index of a sum says nothing about another - and
+     *    `narrowWritten` still refuses a sum for it, so any write into a sum's storage drops the
+     *    whole entry. A *read* of an entry that survived is a question about the value, not the
+     *    layout: the storage holds `C(a, b)`, so a field of `C` is its component and the tag is
+     *    `C`'s number, wherever the target put them - `simplify`'s `tryAggregateField` answers the
+     *    same question of the same instruction on the same argument. A field of another
+     *    constructor has nothing standing for it and is declined. It is what hands `?` the view
+     *    `take` built (J192): the `Ok(view)` a threaded join stored, read back as `.Ok`;
      *  - **`isForwardable`**, at the call site - `Trivial` at both ends with agreeing occurrences,
      *    which is what makes handing the component to the reader a renaming rather than a second
      *    owner or a different representation;
@@ -717,22 +843,182 @@ struct Forwarder {
      *    is what reads a field of a nested record - `field.addr .items (field.addr .run %xs)`, the
      *    shape every container header has.
      */
-    Value* aggregateComponent(Value* address, U32 depth) {
+    Value* aggregateComponent(Value* address, U32 depth, bool throughCopies = false) {
+        AddressStep projection;
+        auto built = heldAggregate(address, depth, projection);
+        if(!built || projection.field == InstFieldAddress::kDiscriminant) return nullptr;
+
+        auto arm = storedArm(*built, projection.of);
+        if(!arm) return nullptr;
+
+        auto first = arm.unwrap().first;
+        if(projection.field < first || projection.field >= U16(first + arm.unwrap().count)) return nullptr;
+
+        auto index = U16(projection.field - first);
+        auto used = built->components.get(opt.base, index);
+        if(!used.isSet()) return nullptr;
+
+        if(undecidedFlag(*built, index)) return nullptr;
+
+        if(((mir::RecordType*)opt.decl[projection.of])->layout != mir::RecordLayout::Single) {
+            countCarrier(fields);
+        }
+
+        if(throughCopies) {
+            if(auto copied = copies.getValue(copyKey(*built, index))) return copied.unwrap();
+        }
+
+        return opt.base[used.value()];
+    }
+
+    /*
+     * What a **borrowed component** held when its aggregate copied it - K4, J203's G1.
+     *
+     * `LimitedInput.take` is `let run = self.parent.take(count)?` and then `Ok(run)`: the second `Ok`
+     * is built from a borrow of the first's payload (`aggregate.Ok borrow %87`, where `%87` is a
+     * load of a block argument that is a load of `.Ok` of the first carrier's slot). What the second
+     * slot holds is therefore the *content* of storage the component names, and a read of its
+     * `.length` asked `heldAggregate` for an aggregate and got a name. `throughNames` peels a name
+     * off an *address*; this is the same peel applied to a *component*, which is the one place the
+     * walk met a name where it expected a value.
+     *
+     * Settled when the aggregate is walked, and not when a read later asks, because that is when
+     * the bytes were copied: the storage the name reaches may be written between the copy and the
+     * read, and the table at the read would then answer with the newer contents. At the aggregate
+     * the block table is exactly what the copy read. Keyed by the aggregate and the component
+     * rather than by the name, so the answer is about this copy and nothing else. The answer is
+     * itself looked through, so a third wrap reads the second's memo and a chain costs one lookup
+     * per wrap.
+     *
+     * Only for `heldAggregate`'s nested base (`throughCopies`), where the answer is taken apart
+     * again; a load asking for the whole component is still answered with the component itself.
+     */
+    HashMap<U64, Value*> copies;
+
+    static U64 copyKey(InstAggregate& built, U16 index) {
+        return (U64(reinterpret_cast<Size>(&built)) << 8) ^ U64(index);
+    }
+
+    void noteCopies(InstAggregate& built) {
+        for(U16 i = 0; i < built.components.size() && i < 256; i++) {
+            auto used = built.components.get(opt.base, i);
+            if(!used.isSet()) continue;
+
+            auto component = opt.base[used.value()];
+            if(component->convention != Convention::Guaranteed) continue;
+            if(component->definer && opt.base[component->definer]->kind != Inst::Load) continue;
+
+            auto named = throughNames(component);
+            if(!named || named == component) continue;
+
+            reading = &built;
+            auto entry = entryFor(named);
+            Value* held = nullptr;
+            if(entry && !entry->stale) held = entry->value;
+            else if(!entry) held = aggregateComponent(named, 1, true);
+            if(!entry && !held) held = storedAggregate(named);
+            reading = nullptr;
+
+            if(!held || held == component) continue;
+            if(held->occurrence.type != component->occurrence.type) continue;
+
+            *copies.add(copyKey(built, i)).value = held;
+        }
+    }
+
+    // Which constructor an aggregate built, where its components are that constructor's fields -
+    // `simplify`'s `tryAggregateField` asks the lowering's question the same way.
+    Maybe<mir::RecordCon> storedArm(InstAggregate& built, DeclPtr<mir::Type> type) {
+        auto& declared = *(mir::RecordType*)opt.decl[type];
+        if(built.constructor >= declared.cons.size()) return Nothing();
+
+        auto arm = declared.cons.get(opt.decl, built.constructor);
+        if(built.components.size() != arm.count) return Nothing();
+
+        return Just(arm);
+    }
+
+    /*
+     * A read of a sum's **tag** out of storage holding a known constructor - the other half of
+     * `aggregateComponent`'s sum row, and `simplify`'s discriminant answer read through memory.
+     * `RecordCon::value` rather than the index, for the reason given there: the value is what is
+     * stored, and a `@value(n)` pins it.
+     */
+    bool tryAggregateTag(Inst& inst) {
+        auto& load = (InstLoad&)inst;
+        if(!inst.results.size()) return false;
+
+        auto result = opt.base[inst.results.get(opt.base, 0)];
+        if(result->convention != Convention::Trivial) return false;
+        if(opt.decl[result->occurrence.type]->kind != mir::Type::Int) return false;
+
+        AddressStep projection;
+        reading = &inst;
+        auto built = heldAggregate(opt.base[load.address.value()], 0, projection);
+        reading = nullptr;
+        if(!built || projection.field != InstFieldAddress::kDiscriminant) return false;
+
+        auto arm = storedArm(*built, projection.of);
+        if(!arm) return false;
+
+        auto tag = makeConstant(opt, inst, result->occurrence.type, U64(arm.unwrap().value));
+        if(!tag) return false;
+
+        countCarrier(tags);
+        auto editor = opt.ir();
+        editor.replaceAllUses(*result, *tag);
+        editor.eraseInst(inst);
+        return true;
+    }
+
+    /*
+     * A view restated from an aggregate nothing can write - the second name a stored component
+     * often is. `take`'s `Ok(bytes[at .. at + n])` stores `represent (aggregate.ArrayView ...)`, so
+     * the component `.Ok` answers is the `represent`, and a read of `.length` through it is a read
+     * of the aggregate's second component.
+     *
+     * Every restatement of the aggregate has to be **shared**, because a `represent` moves no byte:
+     * its lowering answers the operand's address, so a unique restatement is a way to write the
+     * storage the components were read from. A trivial aggregate nothing restates as unique is a
+     * value in the plain sense, and the bytes a store copied out of it are its components.
+     */
+    Value* restatedAggregate(Value* held) {
+        if(!held || !held->definer) return held;
+
+        auto inst = opt.base[held->definer];
+        if(inst->kind != Inst::Unary || ((InstUnary*)inst)->op != mir::UnaryOp::Represent) return held;
+
+        auto inner = opt.base[((InstUnary*)inst)->value.value()];
+        if(!inner->definer || opt.base[inner->definer]->kind != Inst::Aggregate) return held;
+        if(inner->convention != Convention::Trivial) return held;
+
+        for(auto pointer: inner->uses(opt.base)) {
+            auto user = opt.base[pointer];
+            if(user->kind != Inst::Unary || ((InstUnary*)user)->op != mir::UnaryOp::Represent) return held;
+
+            auto restated = user->results.size() ? opt.base[user->results.get(opt.base, 0)] : nullptr;
+            if(!restated || restated->occurrence.contract.access() == mir::Access::Unique) return held;
+        }
+
+        return inner;
+    }
+
+    // The aggregate standing for the record `address` is a field of, and the projection taken -
+    // the walk `aggregateComponent` and `tryAggregateTag` share.
+    InstAggregate* heldAggregate(Value* address, U32 depth, AddressStep& projection) {
         if(depth > kAggregateDepth || !address) return nullptr;
 
         Value* base = nullptr;
         auto step = addressStepOf(opt, *address, base);
         if(!step || !base) return nullptr;
 
-        auto projection = step.unwrap();
+        projection = step.unwrap();
         if(projection.kind != Inst::FieldAddress) return nullptr;
         if(projection.property != InstFieldAddress::kNoProperty) return nullptr;
-        if(projection.field == InstFieldAddress::kDiscriminant) return nullptr;
         if(!projection.of) return nullptr;
 
         auto declared = opt.decl[projection.of];
         if(declared->kind != mir::Type::Record) return nullptr;
-        if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return nullptr;
 
         base = throughNames(base);
 
@@ -741,8 +1027,11 @@ struct Forwarder {
         if(entry && projection.field >= 32 && entry->stale) return nullptr;
         if(entry && entry->crossed) componentCrossed = true;
 
-        auto held = entry ? entry->value : aggregateComponent(base, depth + 1);
+        auto held = entry ? entry->value : aggregateComponent(base, depth + 1, true);
         if(!entry && !held) held = storedAggregate(base);
+
+        // A stored view is usually its `represent` rather than its aggregate (J192).
+        if(held && held->occurrence.type != projection.of) held = restatedAggregate(held);
         if(!held || !held->definer) return nullptr;
 
         auto definer = opt.base[held->definer];
@@ -756,16 +1045,7 @@ struct Forwarder {
          */
         if(projection.of != held->occurrence.type) return nullptr;
 
-        auto& built = (InstAggregate&)*definer;
-        if(built.constructor != 0) return nullptr;
-        if(projection.field >= built.components.size()) return nullptr;
-
-        auto used = built.components.get(opt.base, projection.field);
-        if(!used.isSet()) return nullptr;
-
-        if(undecidedFlag(built, projection.field)) return nullptr;
-
-        return opt.base[used.value()];
+        return (InstAggregate*)definer;
     }
 
     /*
@@ -863,7 +1143,8 @@ struct Forwarder {
     }
 
     // The load `tryAggregateForward` is answering, for `storedAggregate`'s dominance question, and
-    // the tree it asks - read the first time a fill is in play, since the pass edits no edge.
+    // the tree it asks - read the first time a fill is in play, since the pass edits no edge. Set
+    // up front since J191, because `quietAbove` asks it of every join.
     Inst* reading = nullptr;
     Dominators* dominators = nullptr;
 
@@ -936,6 +1217,7 @@ struct Forwarder {
         auto entry = entryFor(address);
         if(!entry || !entry->value || entry->stale || !isForwardable(*result, *entry->value)) {
             if(tryAggregateForward(inst)) return true;
+            if(tryAggregateTag(inst)) return true;
             return tryConstantForward(inst);
         }
 
@@ -1158,9 +1440,15 @@ struct Forwarder {
         known.clear();
 
         auto incoming = block.incoming(opt.base);
-        if(incoming.size() != 1) return;
+        U32 from = 0;
+        if(incoming.size() == 1) {
+            from = opt.base[incoming[0]]->index.index;
+        } else if(auto above = quietAbove(block)) {
+            from = above.unwrap();
+        } else {
+            return;
+        }
 
-        auto from = opt.base[incoming[0]]->index.index;
         if(from >= ended.size() || !ended[from]) return;
 
         for(U32 i = 0; i < endCount[from]; i++) {
@@ -1169,6 +1457,63 @@ struct Forwarder {
             fact.inherited = true;
             known.push(fact);
         }
+    }
+
+    /*
+     * A join's immediate dominator, where every path from it to the join is **quiet** - J191.
+     *
+     * The rule above carries a table over one edge; a join has several, and each path into it may
+     * have written what the dominator's table says. But where none of the blocks between them does
+     * anything but compute and read, every path arrives with the dominator's storage untouched, so
+     * the join may start where the dominator ended. What this is for is the `&&` join: `need(b, at,
+     * k)` inlined puts one between a record's fields read for the test and the same fields read for
+     * the subslice behind it, and `take`'s bounds facts never met the slice's clamps because
+     * `self.at` and `length(self.bytes)` were each loaded twice (J190 found the gap).
+     *
+     * Quiet is conservative on purpose: a pure instruction or a plain read, nothing else - no store,
+     * no call, no drop, no volatile access. A block the backward walk reaches twice is fine; the join
+     * itself reached from its own predecessors is a loop, and declined, since then the region holds
+     * the path round the loop and not only the paths into it. Bounded, because the shape it is for is
+     * two or three blocks.
+     */
+    Maybe<U32> quietAbove(Block& block) {
+        auto top = dominators->idom[block.index.index];
+        if(!dominators->isReachable(block.index.index) || top == block.index.index) return Nothing();
+
+        SmallArray<U32, 16> pending;
+        SmallArray<U32, 16> seen;
+        for(auto pointer: block.incoming(opt.base)) pending.push(opt.base[pointer]->index.index);
+
+        while(pending.size()) {
+            auto index = pending[pending.size() - 1];
+            pending.pop();
+
+            if(index == top) continue;
+            if(index == block.index.index || !dominators->isReachable(index)) return Nothing();
+
+            auto again = false;
+            for(auto each: seen) again |= each == index;
+            if(again) continue;
+            if(seen.size() >= 12) return Nothing();
+            seen.push(index);
+
+            auto region = opt.body->block(opt.base, BlockId(index));
+            for(auto pointer: region->instructions(opt.base)) {
+                auto& inst = *opt.base[pointer];
+                if(isTerminator(inst.kind) || isPure(inst)) continue;
+
+                if(inst.kind == Inst::Load && !((InstLoad&)inst).isVolatile && inst.results.size()) {
+                    auto convention = opt.base[inst.results.get(opt.base, 0)]->convention;
+                    if(convention == Convention::Trivial || convention == Convention::Guaranteed) continue;
+                }
+
+                return Nothing();
+            }
+
+            for(auto pointer: region->incoming(opt.base)) pending.push(opt.base[pointer]->index.index);
+        }
+
+        return Just(top);
     }
 
     void finish(Block& block) {
@@ -1191,6 +1536,8 @@ struct Forwarder {
             // An instruction an earlier rewrite in this walk took out - the erase leaves the table
             // entry standing, so what says it is gone is that it is in no block.
             if(!inst.block) continue;
+
+            if(inst.kind == Inst::Aggregate) noteCopies((InstAggregate&)inst);
 
             if(inst.kind == Inst::Load) {
                 if(((InstLoad&)inst).isVolatile) {
@@ -1558,7 +1905,9 @@ void findAddressedGlobals(OptContext& opt) {
 }
 
 void forwardMemory(OptContext& opt) {
+    auto& dominators = dominatorsOf(opt);
     Forwarder forwarder { opt, containedOf(opt) };
+    forwarder.dominators = &dominators;
 
     auto count = U32(opt.body->blocks.size());
     forwarder.endFirst.resize(count);
@@ -1568,7 +1917,7 @@ void forwardMemory(OptContext& opt) {
     // Reverse postorder first, so that a block's sole predecessor has finished before it starts -
     // see `Forwarder::ends`. What the order leaves out is unreachable and starts empty.
     SmallArray<U32, 64> order;
-    for(auto index: dominatorsOf(opt).order) order.push(index);
+    for(auto index: dominators.order) order.push(index);
 
     IndexSet visited;
     visited.reset(count);

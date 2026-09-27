@@ -1,0 +1,42 @@
+{-
+   `?` on a traversal, refused - C4. A traversal that cannot fail has nothing to propagate (the
+   internal and the object form); `?` beside a written alternative says twice where the failure goes;
+   a function whose result has no `Try` instance cannot be left through `?`; and neither can an
+   `iter fn` that declared no `| E` of its own.
+-}
+
+data Inner = Inner {code: Int}
+
+iter fn plain(n: Int) -> Int:
+    for i in 0..n:
+        yield i
+
+iter fn upTo(n: Int) -> (Int | Inner):
+    for i in 0..n:
+        if i == 3 then return Inner {code: i}
+        yield i
+
+fn noFailure() -> Result(Inner, Int):
+    for x in plain(3)?:
+        print("{x}")
+    return Ok(0)
+
+fn both() -> Result(Inner, Int):
+    for x in upTo(3)? | e -> return Err(e):
+        print("{x}")
+    return Ok(0)
+
+fn intResult() -> Int:
+    for x in upTo(3)?:
+        print("{x}")
+    return 0
+
+iter fn transparent(n: Int) -> Int:
+    for x in upTo(n)?:
+        yield x
+
+fn objectPlain() -> Result(Inner, Int):
+    let &it = plain(3)
+    for x in it?:
+        print("{x}")
+    return Ok(0)

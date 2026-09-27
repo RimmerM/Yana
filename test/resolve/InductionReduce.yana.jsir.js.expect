@@ -4,116 +4,104 @@ function sumCells(xs$0, xs$1, xs$2) {
   var p3 = 0n;
   var p4 = 0;
   while (p4 < xs$1) {
-    if (p4 >>> 0 >= xs$1 >>> 0) throw $t;
-    var v15 = xs$0[xs$2 + p4 | 0];
-    p3 = BigInt.asIntN(64, BigInt.asIntN(64, p3 + v15.a) + v15.c);
+    var v12 = xs$0[xs$2 + p4 | 0];
+    p3 = BigInt.asIntN(64, BigInt.asIntN(64, p3 + v12.a) + v12.c);
     p4 = p4 + 1 | 0;
   }
   return p3;
 }
 
 function main() {
-  var v33 = [{ a: 1n, b: 2n, c: 3n }, { a: 10n, b: 20n, c: 30n }, { a: 100n, b: 200n, c: 300n }];
-  var v48 = [{ a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }];
-  var v61 = [{ w: 1n, x: 2n, y: 3n, z: 4n }, { w: 10n, x: 20n, y: 30n, z: 40n }];
-  var v69 = new BigInt64Array([1n, 2n, 3n, 4n, 5n]);
-  var v79 = sumCells(v33, 3, 0) === 444n ? 1 : 0;
+  var p14, p13, p19, p18;
+  var v32 = [{ a: 1n, b: 2n, c: 3n }, { a: 10n, b: 20n, c: 30n }, { a: 100n, b: 200n, c: 300n }];
+  var v47 = [{ a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }];
+  var v60 = [{ w: 1n, x: 2n, y: 3n, z: 4n }, { w: 10n, x: 20n, y: 30n, z: 40n }];
+  var v68 = new BigInt64Array([1n, 2n, 3n, 4n, 5n]);
+  var v78 = sumCells(v32, 3, 0) === 444n ? 1 : 0;
   var p0 = 0n;
   var p1 = 0;
   while (p1 < 2) {
-    if (p1 >>> 0 >= 2) throw $t;
-    var v346 = v61[p1 | 0];
-    p0 = BigInt.asIntN(64, BigInt.asIntN(64, p0 + v346.w) + v346.z);
+    var v288 = v60[p1];
+    p0 = BigInt.asIntN(64, BigInt.asIntN(64, p0 + v288.w) + v288.z);
     p1 = p1 + 1 | 0;
   }
-  var v92 = p0 === 55n ? v79 + 1 : v79;
+  var v92 = p0 === 55n ? v78 + 1 : v78;
   var p2 = 0n;
   var p3 = 0;
   while (p3 < 3) {
-    if (p3 >>> 0 >= 3) throw $t;
-    var v324 = p3 | 0;
-    p2 = BigInt.asIntN(64, p2 + BigInt.asIntN(64, v33[v324].a * v48[v324].b));
+    p2 = BigInt.asIntN(64, p2 + BigInt.asIntN(64, v32[p3].a * v47[p3].b));
     p3 = p3 + 1 | 0;
   }
-  var v107 = p2 === 555n ? v92 + 1 : v92;
+  var v108 = p2 === 555n ? v92 + 1 : v92;
   var p4 = 0n;
   var p5 = 2;
   while (p5 >= 0) {
-    if (p5 >>> 0 >= 3) throw $t;
-    p4 = BigInt.asIntN(64, p4 + v33[p5 | 0].b);
+    p4 = BigInt.asIntN(64, p4 + v32[p5].b);
     p5 = p5 - 1 | 0;
   }
-  var v121 = p4 === 222n ? v107 + 1 : v107;
+  var v120 = p4 === 222n ? v108 + 1 : v108;
   var p6 = 0n;
   var p7 = 0;
   while (p7 < 5) {
-    if (p7 >>> 0 >= 5) throw $t;
-    p6 = BigInt.asIntN(64, p6 + v69[p7 | 0]);
+    p6 = BigInt.asIntN(64, p6 + v68[p7]);
     p7 = p7 + 1 | 0;
   }
-  var v134 = p6 === 15n ? v121 + 1 : v121;
+  var v134 = p6 === 15n ? v120 + 1 : v120;
   var p8 = 0n;
   var p9 = 0;
   while (p9 < 3) {
-    if (p9 >>> 0 >= 3) throw $t;
-    p8 = BigInt.asIntN(64, p8 + v33[p9 | 0].c);
+    p8 = BigInt.asIntN(64, p8 + v32[p9].c);
     p9 = p9 + 1 | 0;
   }
   var v146 = p8 === 333n ? v134 + 1 : v134;
-  var p16 = 0n;
-  var p17 = 0;
-  while (p17 < 3) {
-    if (p17 >>> 0 >= 3) throw $t;
-    p16 = BigInt.asIntN(64, p16 + v33[p17 | 0].c);
-    p17 = p17 + 1 | 0;
+  var p15 = 0n;
+  var p16 = 0;
+  while (p16 < 3) {
+    p15 = BigInt.asIntN(64, p15 + v32[p16].c);
+    p16 = p16 + 1 | 0;
   }
-  var v158 = p16 === 333n ? v146 + 1 : v146;
-  var p12 = 0n;
+  var v158 = p15 === 333n ? v146 + 1 : v146;
+  var p10 = 0n;
   var p11 = 2;
-  while (p11 >= 0) {
-    var v167 = BigInt.asIntN(64, p12 * 10n);
-    if (p11 >>> 0 >= 3) throw $t;
-    var v178 = BigInt.asIntN(64, v167 + v33[p11 | 0].a);
+  L6: for (;;) {
+    var v166 = BigInt.asIntN(64, p10 * 10n);
+    if (p11 >>> 0 >= 3) break L6;
+    var v173 = BigInt.asIntN(64, v166 + v32[p11].a);
     if (p11 >= 1) {
       p11 = p11 - 1 | 0;
-      p12 = v178;
-      continue;
+      p10 = v173;
+      continue L6;
     }
-    p12 = v178;
-    break;
-  }
-  var v185 = p12 === 10101n ? v158 + 1 : v158;
-  var p20 = 0n;
-  var p19 = 0;
-  while (p19 < 3) {
-    var v194 = BigInt.asIntN(64, p20 * 10n);
-    if (p19 >>> 0 >= 3) throw $t;
-    var v205 = BigInt.asIntN(64, v194 + v33[p19 | 0].a);
-    if ((3 - p19 | 0) > 2) {
-      p19 = p19 + 2 | 0;
-      p20 = v205;
-      continue;
+    var v180 = v173 === 10101n ? v158 + 1 : v158;
+    p19 = 0n;
+    p18 = 0;
+    while (p18 < 3) {
+      var v194 = BigInt.asIntN(64, BigInt.asIntN(64, p19 * 10n) + v32[p18].a);
+      if ((3 - p18 | 0) > 2) {
+        p18 = p18 + 2 | 0;
+        p19 = v194;
+        continue;
+      }
+      p19 = v194;
+      break;
     }
-    p20 = v205;
-    break;
-  }
-  var v214 = p20 === 110n ? v185 + 1 : v185;
-  var p15 = 0n;
-  var p14 = 0;
-  while (p14 <= 2) {
-    var v223 = BigInt.asIntN(64, p15 * 10n);
-    if (p14 >>> 0 >= 3) throw $t;
-    var v234 = BigInt.asIntN(64, v223 + v33[p14 | 0].a);
-    if ((2 - p14 | 0) >= 1) {
-      p14 = p14 + 1 | 0;
-      p15 = v234;
-      continue;
+    var v203 = p19 === 110n ? v180 + 1 : v180;
+    p14 = 0n;
+    p13 = 0;
+    while (p13 <= 2) {
+      var v217 = BigInt.asIntN(64, BigInt.asIntN(64, p14 * 10n) + v32[p13].a);
+      if ((2 - p13 | 0) >= 1) {
+        p13 = p13 + 1 | 0;
+        p14 = v217;
+        continue;
+      }
+      p14 = v217;
+      break;
     }
-    p15 = v234;
-    break;
+    var v226 = p14 === 300n ? v203 + 1 : v203;
+    return (sumCells([], 0, 0) === 0n ? v226 + 1 : v226) + 3;
   }
-  var v243 = p15 === 300n ? v214 + 1 : v214;
-  return (sumCells([], 0, 0) === 0n ? v243 + 1 : v243) + 3;
+  throw $t;
 }
 var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

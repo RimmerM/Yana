@@ -10,62 +10,60 @@ function walked() {
   var p4 = 0;
   var p3 = 0;
   while (p3 <= 5) {
-    var v27 = p4 + p3 | 0;
+    var v25 = p4 + p3 | 0;
     if ((5 - p3 | 0) >= 1) {
       p3 = p3 + 1 | 0;
-      p4 = v27;
+      p4 = v25;
       continue;
     }
-    p4 = v27;
+    p4 = v25;
     break;
   }
-  var v35 = (p0 + p4 | 0) + 7 | 0;
+  var v33 = (p0 + p4 | 0) + 7 | 0;
   var p5 = 0;
   var p6 = 0;
   while (p6 < 4) {
     p5 = Math.imul(p5, 10) + p6 | 0;
     p6 = p6 + 1 | 0;
   }
-  var v43 = v35 + p5 | 0;
-  var p9 = 0;
+  var v41 = v33 + p5 | 0;
+  var p7 = 0;
   var p8 = 3;
-  while (p8 >= 0) {
-    var v53 = Math.imul(p9, 10) + p8 | 0;
+  L3: for (;;) {
+    var v49 = Math.imul(p7, 10) + p8 | 0;
     if (p8 >= 1) {
       p8 = p8 - 1 | 0;
-      p9 = v53;
-      continue;
+      p7 = v49;
+      continue L3;
     }
-    p9 = v53;
-    break;
+    break L3;
   }
-  var v56 = v43 + p9 | 0;
-  var p12 = 0;
+  var v52 = v41 + v49 | 0;
   var p11 = 0;
-  while (p11 < 9) {
-    var v66 = Math.imul(p12, 10) + p11 | 0;
-    if ((9 - p11 | 0) > 2) {
-      p11 = p11 + 2 | 0;
-      p12 = v66;
+  var p10 = 0;
+  while (p10 < 9) {
+    var v62 = Math.imul(p11, 10) + p10 | 0;
+    if ((9 - p10 | 0) > 2) {
+      p10 = p10 + 2 | 0;
+      p11 = v62;
       continue;
     }
-    p12 = v66;
+    p11 = v62;
     break;
   }
-  var v71 = v56 + p12 | 0;
-  var p15 = 0;
-  var p14 = 8;
-  while (p14 >= 0) {
-    var v81 = Math.imul(p15, 10) + p14 | 0;
-    if (p14 >= 2) {
-      p14 = p14 - 2 | 0;
-      p15 = v81;
-      continue;
+  var v67 = v52 + p11 | 0;
+  var p12 = 0;
+  var p13 = 8;
+  L5: for (;;) {
+    var v75 = Math.imul(p12, 10) + p13 | 0;
+    if (p13 >= 2) {
+      p13 = p13 - 2 | 0;
+      p12 = v75;
+      continue L5;
     }
-    p15 = v81;
-    break;
+    break L5;
   }
-  return v71 + p15 | 0;
+  return v67 + v75 | 0;
 }
 
 function stopped() {
@@ -142,4 +140,4 @@ function main() {
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

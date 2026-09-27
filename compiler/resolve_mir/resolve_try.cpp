@@ -100,6 +100,7 @@ bool Resolver::carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& 
 
         out.proceeds = open.arguments[1];
         out.reason = open.arguments[2];
+        out.instance = open.instance;
         return true;
     }
 
@@ -110,6 +111,7 @@ bool Resolver::carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& 
 
     out.proceeds = found.arguments[1];
     out.reason = found.arguments[2];
+    out.instance = found.instance;
     return true;
 }
 
@@ -132,21 +134,301 @@ Node* Resolver::outcomePayload(Builder& builder, Place& outcome, U16 constructor
     return readPlace(builder, source, *place, bindingRequest(Access::Owned));
 }
 
-// Whether the outcome the caller is holding took its `Exit` arm - one discriminant read and one
+// Whether a sum the caller is holding is in one constructor - one discriminant read and one
 // comparison, which is `resolveConstructorPattern`'s test with the constructor already decided.
-Node* Resolver::outcomeIsExit(Builder& builder, Place& outcome, LocationId source) {
-    auto tag = tagTypeOf(decl(), program.types, outcome.occurrence.type);
+Node* Resolver::constructorIs(Builder& builder, Place& value, U16 constructor, LocationId source) {
+    auto tag = tagTypeOf(decl(), program.types, value.occurrence.type);
     if(!tag) return nullptr;
 
-    auto place = builder.discriminantPlace(outcome);
+    auto place = builder.discriminantPlace(value);
     auto read = readPlace(builder, source, *place, inspectRequest());
     if(!read) return nullptr;
 
-    auto& record = *(RecordType*)decl()[outcome.occurrence.type];
-    auto arm = record.cons.get(decl(), kOutcomeExit);
+    auto& record = *(RecordType*)decl()[value.occurrence.type];
+    auto arm = record.cons.get(decl(), constructor);
 
     auto number = builder.addConst(source, intConstant(tag, U64(arm.value)));
     return builder.addBinary(source, BinaryOp::Eq, *read, *number);
+}
+
+// Whether the outcome the caller is holding took its `Exit` arm.
+Node* Resolver::outcomeIsExit(Builder& builder, Place& outcome, LocationId source) {
+    return constructorIs(builder, outcome, kOutcomeExit, source);
+}
+
+/*
+ * `?` over a carrier whose occurrence **qualifies a type argument** - `Result(Fail, '[U8])`,
+ * `Maybe('[U8])`, `Maybe(&'Entry)` - which is what a `take` over a buffer answers (P1 of
+ * Implementation-Streams.md).
+ *
+ * `Try`'s members cannot be handed such a value. `Maybe('v)` *is* `Maybe(v)` - the same interning
+ * and the same instance - but the tick takes a member away, so the two are laid out differently
+ * (`qualifiesInterior`), and `toOutcome(->value: Result(e, a))` was compiled for the layout that owns
+ * its payload. `checkCarriedOrigins` refused the call, rightly.
+ *
+ * **Why not origin-polymorphic instances.** That would have Core state `Try` once for both layouts,
+ * and the language has no way to say it: a type variable binds only a logical type and each
+ * occurrence states its own contract (Analysis-Borrows-Revised.md §2.4), and an instance head is
+ * keyed on the logical type, so `Result(e, s'a)` is the same head as `Result(e, a)` and a second
+ * instance for it would overlap the first. Making it work means specializing a body per
+ * *qualification* as well as per type - the qualification becoming a generic argument, which §2.4
+ * rules out and which every generic function would then want (`isOk(r)` over a qualified `r` is
+ * refused by the same check, and is not this slice). So the operator carries the origins instead.
+ *
+ * **What this does instead**: the payload never passes through `toOutcome`. The operand is held,
+ * and split on its own constructors, as a `match` would:
+ *
+ *  - the one constructor holding the qualified position **proceeds**, and what it proceeds with is
+ *    that field read straight out of the held operand - so it is a borrow whose origins are the
+ *    operand's, exactly what `let Ok(b) = x | ...` would have bound, and the loan it carries lives
+ *    until the last use of whatever `x?` was bound to;
+ *  - every other constructor holds nothing qualified, so it is rebuilt at the **unqualified** layout
+ *    (`relayoutConstructor`) and handed to the instance's own `toOutcome`, which is what says what
+ *    it exits carrying - `{}` for `Nothing`, the field for `Err`. The instance is still the one
+ *    authority on the reason; only the decision "the borrow proceeds" is structural.
+ *
+ * That decision is parametricity rather than a guess: an instance generic in `a` cannot produce an
+ * `a` from a constructor that holds none, and cannot see inside the one that does. The shapes where
+ * it would be a guess are refused below by name - two constructors carrying the borrow, or another
+ * constructor holding a value of the proceeding type, or the qualified position being the *reason*.
+ * That last is the rule that the error `?` leaves with never carries a loan out of the function.
+ *
+ * **And only an instance generic in what it proceeds with.** `instance Try(Opt([U8]), [U8], {})`
+ * is concrete, so its `toOutcome` *can* make a `[U8]` out of `None` - and did, in the review of
+ * J184: the structural route answered "never proceeds" for that arm, and the program trapped on the
+ * `unreachable` below (native), read a wrong `Nothing` (`-no-ir-opt`) or carried on silently (JS).
+ * Where the head's proceeding argument is not a type variable the argument above does not hold, and
+ * the `?` is refused by name rather than guessed; the promise of a requirement is parametric by
+ * construction, since a body cannot see which instance will serve it.
+ */
+Node* Resolver::resolveQualifiedTry(Builder& builder, Node& value, const TryShape& carried,
+                                    const TryShape& leaving, DeclPtr<Type> hint, Request wanted,
+                                    LocationId source) {
+    auto occurrence = valueOccurrence(value);
+    auto& record = *(RecordType*)decl()[occurrence.type];
+    auto count = U16(record.cons.size());
+
+    U16 proceeding = count;
+    auto ambiguous = false;
+    auto reasonBorrows = false;
+
+    for(U16 c = 0; c < count; c++) {
+        auto arm = record.cons.get(decl(), c);
+
+        auto qualified = false;
+        auto holdsProceeds = false;
+        for(U16 i = 0; i < arm.count; i++) {
+            auto field = record.field(decl(), U16(arm.first + i));
+            if(fieldPosition(decl(), occurrence.shape, field.index) && ownsField(field)) qualified = true;
+            if(sameType(field.occurrence.type, carried.proceeds)) holdsProceeds = true;
+        }
+
+        if(!qualified) {
+            if(holdsProceeds) ambiguous = true;
+            continue;
+        }
+
+        if(arm.count != 1 || !holdsProceeds) {
+            reasonBorrows = true;
+            continue;
+        }
+
+        if(proceeding != count) ambiguous = true;
+        proceeding = c;
+    }
+
+    if(reasonBorrows) {
+        context.diagnostics.error("`?` on %@ would leave carrying a borrow - the position this type qualifies is not the %@ it proceeds with, so the reason it exits with refers to somebody else's storage and would take that loan out of this function. Give the error a type that owns what it holds"_v,
+                                  source, typeText(context, decl(), occurrence.type),
+                                  typeText(context, decl(), carried.proceeds));
+        return nullptr;
+    }
+
+    if(carried.instance) {
+        auto& instance = *decl()[carried.instance];
+        auto head = instance.args.size() == 3 ? instance.args.get(decl(), 1) : nullptr;
+
+        if(!head || decl()[head]->kind != Type::Variable) {
+            context.diagnostics.error("`?` on %@ goes through an instance of `Try` that names %@ in its head, so it may proceed from a case that holds none - and the borrow this type qualifies could not be what it proceeds with. Match on it instead, or declare the instance generic in what it proceeds with"_v,
+                                      source, typeText(context, decl(), occurrence.type),
+                                      typeText(context, decl(), carried.proceeds));
+            return nullptr;
+        }
+    }
+
+    if(ambiguous || proceeding == count) {
+        context.diagnostics.error("`?` on %@ cannot tell which of its cases carries the borrow it proceeds with - exactly one constructor may hold the qualified %@ and no other may hold one. Match on it instead"_v,
+                                  source, typeText(context, decl(), occurrence.type),
+                                  typeText(context, decl(), carried.proceeds));
+        return nullptr;
+    }
+
+    auto held = hold(builder, value, source);
+    if(!held) return nullptr;
+
+    // The constructors that exit first, since each has a test to make, and the proceeding one last as
+    // whatever is left - `armsValue`'s order, as in `resolveTry`.
+    SmallArray<U16, 4> order;
+    for(U16 c = 0; c < count; c++) {
+        if(c != proceeding) order.push(c);
+    }
+    order.push(proceeding);
+
+    return armsValue(builder, source, count, hint, true,
+        [&](U32 index, Block* onFail, DeclPtr<Type> armHint, Carry& carry) -> Node* {
+            auto constructor = order[index];
+
+            if(constructor != proceeding) {
+                auto is = constructorIs(builder, *held, constructor, source);
+                if(!is) return nullptr;
+
+                failIfNot(builder, *is, *onFail, carry, source);
+
+                auto rebuilt = relayoutConstructor(builder, *held, constructor, nullptr, source);
+                if(!rebuilt) return nullptr;
+
+                Node* operand[1] = { rebuilt };
+                auto outcome = applyMember(builder, intrinsic::Known::carrier, kTryToOutcome,
+                                           operand, 1, source);
+                if(!outcome) return nullptr;
+
+                auto asked = hold(builder, *outcome, source);
+                if(!asked) return nullptr;
+
+                // The `Proceed` side is the parametricity argument above, stated where the
+                // optimizer can use it rather than read as a payload that is not there.
+                auto exiting = outcomeIsExit(builder, *asked, source);
+                if(!exiting) return nullptr;
+
+                auto never = builder.addBlock(StringId());
+                carry.declare(builder, *never);
+                failIfNot(builder, *exiting, *never, carry, source);
+
+                auto reason = outcomePayload(builder, *asked, kOutcomeExit, source);
+                if(reason) emitCarrierExit(builder, *reason, leaving, source);
+
+                builder.setBlock(*never);
+                builder.addUnreachable(source);
+                return nullptr;
+            }
+
+            auto arm = record.cons.get(decl(), proceeding);
+            auto place = builder.fieldPlace(*held, arm.first);
+            if(!place) return nullptr;
+
+            // At the field's own contract, which is what the qualification says it is - a shared
+            // borrow reads as one, and an exclusive one (`Maybe(&'v)`) keeps its capability, as
+            // `resolveMatch`'s binding of the same payload does.
+            auto contract = place->occurrence.contract;
+            auto proceeded = contract.isOwned()
+                ? readPlace(builder, source, *place, bindingRequest(Access::Owned))
+                : readPlace(builder, source, *place, requestOf(contract));
+            if(!proceeded || !armHint) return proceeded;
+
+            return coerce(builder, *proceeded, armHint, source, "a value"_v, wanted.access,
+                          wanted.establishes);
+        });
+}
+
+/*
+ * One constructor of a held carrier, rebuilt at another interior shape - moved field by field.
+ *
+ * What moves a value between `Maybe('v)`'s layout and `Maybe(v)`'s where that is possible at all,
+ * which is in a constructor that holds none of the positions the two disagree about: its fields are
+ * the same members either way, and only their offsets in the flat sum differ.
+ */
+Node* Resolver::relayoutConstructor(Builder& builder, Place& held, U16 constructor,
+                                    DeclPtr<OwnershipSchema> shape, LocationId source) {
+    auto& record = *(RecordType*)decl()[held.occurrence.type];
+    auto arm = record.cons.get(decl(), constructor);
+
+    SmallArray<Node*, 4> fields;
+    for(U16 i = 0; i < arm.count; i++) {
+        auto place = builder.fieldPlace(held, U16(arm.first + i));
+        if(!place) return nullptr;
+
+        auto read = readPlace(builder, source, *place, bindingRequest(Access::Owned));
+        if(!read) return nullptr;
+
+        fields.push(read);
+    }
+
+    return builder.addAggregate(source, held.occurrence.type, constructor, fields.pointer(),
+                                fields.size(), shape);
+}
+
+/*
+ * The exit rebuilt at a **qualified** result - `fn next(&self: Input) -> Result(Fail, '[U8])`
+ * propagating a `Result(Fail, Size)`.
+ *
+ * `fromExit` is the instance's and answers the unqualified layout, which was returned as it was
+ * until P1: a value laid out as `Result(Fail, [U8])` leaving a function that declared the other
+ * one. Native happened to read the error back correctly; the JavaScript verifier refused the
+ * return. What the exit carries is the reason and nothing else, so the carrier `fromExit` built is
+ * in a constructor that holds no qualified position - the same parametricity `resolveQualifiedTry`
+ * rests on - and is moved into the result's own shape constructor by constructor. The constructors
+ * that do hold one cannot be what `fromExit` built, and are `unreachable`.
+ */
+bool Resolver::emitQualifiedExit(Builder& builder, Node& carrier, LocationId source) {
+    auto& function = *currentFunction;
+    auto shape = function.result.shape;
+
+    auto held = hold(builder, carrier, source);
+    if(!held) return false;
+
+    auto& record = *(RecordType*)decl()[function.result.type];
+    auto count = U16(record.cons.size());
+
+    SmallArray<U16, 4> plain;
+    auto anyQualified = false;
+
+    for(U16 c = 0; c < count; c++) {
+        auto arm = record.cons.get(decl(), c);
+
+        auto qualified = false;
+        for(U16 i = 0; i < arm.count; i++) {
+            auto field = record.field(decl(), U16(arm.first + i));
+            if(fieldPosition(decl(), shape, field.index) && ownsField(field)) qualified = true;
+        }
+
+        if(qualified) anyQualified = true;
+        else plain.push(c);
+    }
+
+    Carry carry(*this, source);
+
+    for(Size i = 0; i < plain.size(); i++) {
+        auto last = i + 1 == plain.size() && !anyQualified;
+        Block* next = nullptr;
+
+        if(!last) {
+            auto is = constructorIs(builder, *held, plain[i], source);
+            if(!is) return false;
+
+            next = builder.addBlock(StringId());
+            carry.declare(builder, *next);
+            failIfNot(builder, *is, *next, carry, source);
+        }
+
+        auto rebuilt = relayoutConstructor(builder, *held, plain[i], shape, source);
+        if(rebuilt) {
+            rebuilt = coerce(builder, *rebuilt, function.result.type, source, "a returned value"_v,
+                             function.result.contract.access());
+        }
+
+        if(!rebuilt || !checkResultContract(*rebuilt, source)) return false;
+
+        releaseHeld(builder, nullptr, source);
+        builder.addReturn(source, *rebuilt);
+
+        if(next) {
+            builder.setBlock(*next);
+            carry.arrive(builder, *next, 0);
+        }
+    }
+
+    if(anyQualified) builder.addUnreachable(source);
+    return true;
 }
 
 /*
@@ -192,6 +474,9 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
                                function.result.type);
     if(!carrier) return false;
 
+    // A result that qualifies a type argument is rebuilt into its own layout - see the definition.
+    if(qualifiesInterior(decl(), function.result)) return emitQualifiedExit(builder, *carrier, source);
+
     carrier = coerce(builder, *carrier, function.result.type, source, "a returned value"_v,
                      function.result.contract.access());
     if(!carrier) return false;
@@ -219,8 +504,10 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
 bool Resolver::canLeaveWithCarrier(LocationId source) {
     auto& function = *currentFunction;
 
-    if(function.iterator) {
-        context.diagnostics.error("`?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild"_v,
+    // A *failing* iterator is the exception, as a skipping lens is: `| E` gave it a return edge -
+    // `return e` - and `?` takes that one (`emitCarrierExit`'s first shape).
+    if(function.iterator && !function.failure) {
+        context.diagnostics.error("`?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild. An iterator that may fail says so with `| E`, and `?` is accepted in one of those"_v,
                                   source);
         return false;
     }
@@ -232,6 +519,72 @@ bool Resolver::canLeaveWithCarrier(LocationId source) {
     }
 
     return true;
+}
+
+/*
+ * What the enclosing function's signature can be rebuilt from when `?` leaves it, which is the half
+ * of `?` that is about the function rather than about the operand - shared by `x?` and by a `for`
+ * header's `f(...)?`, whose operand is a traversal's failure rather than a carrier.
+ *
+ * A skipping traversal is exempt: its failure channel is `| E` and needs no instance, because the
+ * wrapper it exits through is the compiler's own `Outcome` - see `emitCarrierExit`. `leaving` is
+ * left empty for one, and `emitCarrierExit` does not read it there.
+ */
+bool Resolver::exitShape(LocationId source, TryShape& leaving) {
+    if(!canLeaveWithCarrier(source)) return false;
+
+    auto& function = *currentFunction;
+
+    /*
+     * A result still being decided, which is a cycle rather than a type without an instance: `?`
+     * needs the result type to rebuild its exit, and the `=` form and a lambda whose position leaves
+     * the result open both take theirs *from* the body this is in. Said as that, with the fix, where
+     * the check below would name `{}` or an empty type.
+     */
+    if(!function.failure && function.inferResult) {
+        context.diagnostics.error("`?` returns from the enclosing function, so it needs that function's result type - and the `=` form infers its result from the body this is written in. Write the result type out, as in `-> Maybe(Int)`"_v,
+                                  source);
+        return false;
+    }
+
+    if(!function.failure && lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].lifted == &function &&
+       lambdaFrames[lambdaFrames.size() - 1].openResult) {
+        context.diagnostics.error("this lambda's result type is decided by its body, so `?` cannot be written in it - `?` returns from the enclosing function, and that needs the type first. Write the lambda where a function type is expected"_v,
+                                  source);
+        return false;
+    }
+
+    if(!function.failure && !carrierShape(function.result.type, source, leaving)) {
+        context.diagnostics.error("`?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - %@ has no `Try` instance"_v,
+                                  source, typeText(context, decl(), function.result.type));
+        return false;
+    }
+
+    return true;
+}
+
+/*
+ * `for x in f(...)?:` - the traversal's failure propagated, Analysis-External-Iterators.md §2.3.
+ *
+ * The same exit `x?` takes, read off a different operand: what fails is the traversal, and what it
+ * fails with arrives where an alternative's reason would, so this is the alternative the author did
+ * not write - `| reason -> return <rebuilt>` - with the signature's half checked here, before the
+ * call is emitted. A `?` beside a written alternative is refused rather than read as one of the
+ * two: both say where the failure goes. `fails` is the traversal's own answer, which the three
+ * `for` forms read from three different places and refuse in their own words.
+ */
+bool Resolver::propagationShape(bool fails, ast::ParseList<ast::Alt> alternatives,
+                                LocationId propagate, TryShape& leaving) {
+    if(!fails) return false;
+
+    if(alternatives.size()) {
+        context.diagnostics.error(
+            "this `for` propagates the traversal's failure with `?` and also handles it with an alternative - write one of the two"_v,
+            propagate);
+        return false;
+    }
+
+    return exitShape(propagate, leaving);
 }
 
 /*
@@ -271,37 +624,14 @@ Node* Resolver::resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint
 
     /*
      * And what the *signature* can be rebuilt from, which is the half that is about the enclosing
-     * function rather than about the operand.
-     *
-     * A skipping traversal is exempt: its failure channel is `| E` and needs no instance, because
-     * the wrapper it exits through is the compiler's own `Outcome` - see `emitCarrierExit`.
+     * function rather than about the operand - `exitShape`, shared with a `for` header's `?`.
      */
     TryShape leaving;
-    auto& function = *currentFunction;
+    if(!exitShape(source, leaving)) return nullptr;
 
-    /*
-     * A result still being decided, which is a cycle rather than a type without an instance: `?`
-     * needs the result type to rebuild its exit, and the `=` form and a lambda whose position leaves
-     * the result open both take theirs *from* the body this is in. Said as that, with the fix, where
-     * the check below would name `{}` or an empty type.
-     */
-    if(!function.failure && function.inferResult) {
-        context.diagnostics.error("`?` returns from the enclosing function, so it needs that function's result type - and the `=` form infers its result from the body this is written in. Write the result type out, as in `-> Maybe(Int)`"_v,
-                                  source);
-        return nullptr;
-    }
-
-    if(!function.failure && lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].lifted == &function &&
-       lambdaFrames[lambdaFrames.size() - 1].openResult) {
-        context.diagnostics.error("this lambda's result type is decided by its body, so `?` cannot be written in it - `?` returns from the enclosing function, and that needs the type first. Write the lambda where a function type is expected"_v,
-                                  source);
-        return nullptr;
-    }
-
-    if(!function.failure && !carrierShape(function.result.type, source, leaving)) {
-        context.diagnostics.error("`?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - %@ has no `Try` instance"_v,
-                                  source, typeText(context, decl(), function.result.type));
-        return nullptr;
+    // A qualified type argument - `Result(Fail, '[U8])` - which `toOutcome` cannot be handed.
+    if(qualifiesInterior(decl(), valueOccurrence(*value))) {
+        return resolveQualifiedTry(builder, *value, carried, leaving, hint, wanted, source);
     }
 
     Node* operand[1] = { value };

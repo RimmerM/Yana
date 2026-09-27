@@ -1,0 +1,157 @@
+{-
+   Loop forms whose subscripts carry no check (`compiler/resolve_ssa/opt/bounds.cpp`, J199; slice B4
+   of `doc/inflight/Implementation-Streams.md`). `BoundsRelational.yana` has the walker from zero;
+   these are the forms an ordinary loop is written in, each decided in the SSA tier so the
+   JavaScript goldens beside this carry none either:
+
+   - `afterNeed`, `afterSign` walk from a position the caller chose, behind `need(b, from, 1)` or
+     `from >= 0` - the counter's lower bound read by induction at each edge into the loop;
+   - `nested` carries one position across an outer loop over windows and an inner one over bytes,
+     which is two inductions proven together;
+   - `twoBounds` is a codec kernel's inner loop, `at < length(block) && n < length(space)`;
+   - `rangeBound` is `for i in a..b` under `a >= 0` and `b <= length(xs)`;
+   - `down` and `downAll` step down from `n - 1`, which is an upper bound by induction: `i <= n - 1`
+     wherever `i` is;
+   - `blocks` is the SIMD walk, `xs[16 * i + j]` under `i < n / 16`, `j < 16` and `n <= length(xs)`;
+   - `pairs` walks `0..min(length(a), length(b))` and reads both, the minimum being at most either.
+
+   The others keep their check, because each has an input that reaches the read outside the bytes:
+
+   - `walkFrom` starts where the caller said, which may be negative;
+   - `stepsDown` steps its counter *down* under a test that only bounds it above;
+   - `otherArray` bounds its counter by one array and reads another;
+   - `downFrom` starts at `n - 1` with nothing relating `n` to the length;
+   - `blocksWide` scales by 16 under a quotient by 8.
+
+   `lib/Native/Aborts.test.native.yana` runs three of those into the trap. Here every function is
+   called with an input its checks let through.
+-}
+
+fn need(b: [U8], at: Size, count: Size) -> Bool =
+    length(b) >= count && (bitcast(at) :: USize) <= (bitcast(length(b) - count) :: USize)
+
+@noinline fn afterNeed(b: [U8], from: Size) -> Int:
+    if !need(b, from, 1) then return 0
+    let &at = from
+    let &total = 0
+    while at < length(b):
+        total += (b[at] :: Int)
+        at += 1
+    return total
+
+@noinline fn afterSign(b: [U8], from: Size) -> Int:
+    if from < 0 then return 0
+    let &at = from
+    let &total = 0
+    while at < length(b):
+        total += (b[at] :: Int)
+        at += 1
+    return total
+
+@noinline fn nested(b: [U8], windows: Int) -> Int:
+    let &at = 0 :: Size
+    let &total = 0
+    for _ in 0..windows:
+        let &n = 0
+        while at < length(b) && n < 3:
+            total += (b[at] :: Int)
+            at += 1
+            n += 1
+    return total
+
+@noinline fn twoBounds(block: [U8], &space: [U8], from: Size) -> Size:
+    if from < 0 then return 0
+    let &at = from
+    let &n = 0 :: Size
+    while at < length(block) && n < length(space):
+        space[n] = block[at] + 1
+        at += 1
+        n += 1
+    return n
+
+@noinline fn rangeBound(xs: [U8], a: Size, b: Size) -> Int:
+    if a < 0 || b > length(xs) then return 0
+    let &total = 0
+    for i in a..b:
+        total += (xs[i] :: Int)
+    return total
+
+@noinline fn down(xs: [U8], n: Size) -> Int:
+    if n > length(xs) then return 0
+    let &total = 0
+    for i in n downto 0:
+        total += (xs[i] :: Int)
+    return total
+
+@noinline fn downAll(xs: [U8]) -> Int:
+    let &total = 0
+    for i in length(xs) downto 0:
+        total = (total * 3 + (xs[i] :: Int)) `and` 0xffff
+    return total
+
+@noinline fn blocks(xs: [U8], n: Size) -> Int:
+    if n > length(xs) then return 0
+    let &total = 0
+    for i in 0..(n / 16):
+        for j in 0..16:
+            total += (xs[16 * i + j] :: Int)
+    return total
+
+@noinline fn pairs(a: [U8], b: [U8]) -> Int:
+    let &total = 0
+    for k in 0..min(length(a), length(b)):
+        total += (a[k] :: Int) * (b[k] :: Int)
+    return total
+
+@noinline fn walkFrom(b: [U8], from: Size) -> Int:
+    let &at = from
+    let &total = 0
+    while at < length(b):
+        total += (b[at] :: Int)
+        at += 1
+    return total
+
+@noinline fn stepsDown(b: [U8], from: Size) -> Int:
+    if from < 0 then return 0
+    let &at = from
+    let &total = 0
+    while at < length(b):
+        total += (b[at] :: Int)
+        if total > 20 then return total
+        at -= 1
+    return total
+
+@noinline fn otherArray(b: [U8], c: [U8]) -> Int:
+    let &at = 0 :: Size
+    let &total = 0
+    while at < length(b):
+        total += (c[at] :: Int)
+        at += 1
+    return total
+
+@noinline fn downFrom(xs: [U8], n: Size) -> Int:
+    let &total = 0
+    for i in n downto 0:
+        total += (xs[i] :: Int)
+    return total
+
+@noinline fn blocksWide(xs: [U8], n: Size) -> Int:
+    if n > length(xs) then return 0
+    let &total = 0
+    for i in 0..(n / 8):
+        for j in 0..8:
+            total += (xs[16 * i + j] :: Int)
+    return total
+
+fn main() -> Int:
+    let bytes = [1, 44, 3, 4, 44, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] :: [U8]
+    let &space = [0, 0, 0, 0] :: [U8]
+
+    let walks = afterNeed(bytes, 2) + afterSign(bytes, 3) + nested(bytes, 4)
+    let copied = truncate(twoBounds(bytes, space, 5)) :: Int
+    let counted = rangeBound(bytes, 1, 7) + down(bytes, 5) + downAll(bytes) + blocks(bytes, 18) +
+        pairs(bytes, space)
+    let kept = walkFrom(bytes, 6) + stepsDown(bytes, 4) + otherArray(bytes, bytes) +
+        downFrom(bytes, 4) + blocksWide(bytes, 8)
+
+    return walks + copied + (space[3] :: Int) + counted + kept

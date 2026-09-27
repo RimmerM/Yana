@@ -24,47 +24,31 @@ main<complex>(): I32 {
   }
 
   b_6 {
-    %v_9 = phi [b_5, 3], [b_4, %v_8]: I32
-    %v_10 = cast %v_9: I64
-    %v_11 = cmp_le %v_10, 2: I32
-    je %v_11, b_12, b_13
+    %v_9 = phi [b_5, 18446744073709551615], [b_4, %v_8]: I32
+    %v_10 = cmp_eq %v_9, 1: I32
+    %v_11 = select %v_10, 32, 0: I32
+    %v_12 = add 31, %v_11: I32
+    %v_13 = add %v_12, 64: I32
+    %v_14 = call_complex anyValue(Whence, I32), 2: I32
+    %v_15 = cmp_eq %v_14, 2: I32
+    je %v_15, b_16, b_17
   }
 
-  b_13 {
-    jmp b_14
+  b_17 {
+    jmp b_18
   }
 
-  b_12 {
-    %v_15 = cast %v_10: I32
-    jmp b_14
+  b_16 {
+    %v_19 = call_complex anyValue(Errno, I32), 122: I32
+    %v_20 = cmp_eq %v_19, 122: I32
+    jmp b_18
   }
 
-  b_14 {
-    %v_16 = phi [b_13, 18446744073709551615], [b_12, %v_15]: I32
-    %v_17 = cmp_eq %v_16, 1: I32
-    %v_18 = select %v_17, 32, 0: I32
-    %v_19 = add 31, %v_18: I32
-    %v_20 = add %v_19, 64: I32
-    %v_21 = call_complex anyValue(Whence, I32), 2: I32
-    %v_22 = cmp_eq %v_21, 2: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_24 {
-    jmp b_25
-  }
-
-  b_23 {
-    %v_26 = call_complex anyValue(Errno, I32), 122: I32
-    %v_27 = cmp_eq %v_26, 122: I32
-    jmp b_25
-  }
-
-  b_25 {
-    %v_28 = phi [b_24, 0], [b_23, %v_27]: I32
-    %v_29 = select %v_28, 128, 0: I32
-    %v_30 = add %v_20, %v_29: I32
-    ret %v_30
+  b_18 {
+    %v_21 = phi [b_17, 0], [b_16, %v_20]: I32
+    %v_22 = select %v_21, 128, 0: I32
+    %v_23 = add %v_13, %v_22: I32
+    ret %v_23
   }
 }
 

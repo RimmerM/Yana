@@ -1,0 +1,609 @@
+mut @trace = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @failures = [0, 0, 0, 0]
+mut @released = [0, 0, 0, 0]
+
+Tag.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @trace, 8: I64
+    %v_3 = imul %v_2, 10: I64
+    %v_4 = add %v_3, 9: I64
+    store @trace, %v_4, 8
+    %v_5 = loads @released, 4: I32
+    %v_6 = shl 1, %v_0: I32
+    %v_7 = or %v_5, %v_6: I32
+    store @released, %v_7, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @trace, 8: I64
+    %v_2 = imul %v_1, 10: I64
+    %v_3 = add %v_2, 1: I64
+    store @trace, %v_3, 8
+    %v_4 = loads @released, 4: I32
+    %v_5 = and %v_4, 2: I32
+    %v_6 = cmp_eq %v_5, 0: I32
+    %v_7 = select %v_6, 2, 7: I64
+    %v_8 = imul %v_3, 10: I64
+    %v_9 = add %v_8, %v_7: I64
+    %v_10 = imul %v_9, 10: I64
+    %v_11 = add %v_10, 9: I64
+    store @trace, %v_11, 8
+    %v_12 = or %v_4, 2: I32
+    store @released, %v_12, 4
+    %v_13 = cmp_neq %v_11, 129: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_16 {
+    %v_17 = loads @trace, 8: I64
+    %v_18 = cmp_neq %v_17, 18829: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_21 {
+    %failures = global @failures: Ptr
+    %v_22 = loads %failures, 4: I32
+    %v_23 = add %v_22, 1048576: I32
+    store %failures, %v_23, 4
+    jmp b_16
+  }
+
+  b_24 {
+    %v_25 = loads @trace, 8: I64
+    %v_26 = cmp_neq %v_25, 1829129: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_29 {
+    %failures = global @failures: Ptr
+    %v_30 = loads %failures, 4: I32
+    %v_31 = add %v_30, 1048576: I32
+    store %failures, %v_31, 4
+    jmp b_24
+  }
+
+  b_32 {
+    %v_33 = loads @trace, 8: I64
+    %v_34 = cmp_neq %v_33, 1291829: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_37 {
+    %failures = global @failures: Ptr
+    %v_38 = loads %failures, 4: I32
+    %v_39 = add %v_38, 1048576: I32
+    store %failures, %v_39, 4
+    jmp b_32
+  }
+
+  b_40 {
+    %v_41 = loads @trace, 8: I64
+    %v_42 = cmp_neq %v_41, 1182912929: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_45 {
+    %failures = global @failures: Ptr
+    %v_46 = loads %failures, 4: I32
+    %v_47 = add %v_46, 1048576: I32
+    store %failures, %v_47, 4
+    jmp b_40
+  }
+
+  b_14 {
+    %failures = global @failures: Ptr
+    %v_48 = loads %failures, 4: I32
+    %v_49 = add %v_48, 1: I32
+    store %failures, %v_49, 4
+    jmp b_15
+  }
+
+  b_15 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1829, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 129, 8
+    store @released, 4, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 129, 8
+    store @released, 4, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1829, 8
+    store @released, 4, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    %v_50 = alloca 4, 4: Ptr
+    store @trace, 1, 8
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = phi [b_15, 0], [b_53, %v_54]: I32
+    %v_55 = cmp_ilt %v_52, 5: I32
+    je %v_55, b_56, b_57
+  }
+
+  b_56 {
+    %v_58 = cmp_eq %v_52, 2: I32
+    je %v_58, b_59, b_53
+  }
+
+  b_53 {
+    %v_60 = loads @trace, 8: I64
+    %v_61 = imul %v_60, 10: I64
+    %v_62 = add %v_61, 8: I64
+    store @trace, %v_62, 8
+    %v_54 = add %v_52, 1: I32
+    jmp b_51
+  }
+
+  b_59 {
+    store %v_50, 2, 4
+    jmp b_57
+  }
+
+  b_57 {
+    %v_63 = phi [b_51, 0], [b_59, 1]: I32
+    %v_64 = loads @released, 4: I32
+    %v_65 = and %v_64, 8: I32
+    %v_66 = cmp_eq %v_65, 0: I32
+    %v_67 = select %v_66, 2, 7: I64
+    %v_68 = loads @trace, 8: I64
+    %v_69 = imul %v_68, 10: I64
+    %v_70 = add %v_69, %v_67: I64
+    store @trace, %v_70, 8
+    je %v_63, b_71, b_72
+  }
+
+  b_72 {
+    %v_73 = imul %v_70, 10: I64
+    %v_74 = add %v_73, 9: I64
+    store @trace, %v_74, 8
+    %v_75 = or %v_64, 8: I32
+    store @released, %v_75, 4
+    jmp b_21
+  }
+
+  b_71 {
+    %v_76 = imul %v_70, 10: I64
+    %v_77 = add %v_76, 9: I64
+    store @trace, %v_77, 8
+    %v_78 = or %v_64, 8: I32
+    store @released, %v_78, 4
+    %v_79 = loads %v_50, 4: I32
+    %v_80 = cmp_neq %v_79, 2: I32
+    je %v_80, b_21, b_16
+  }
+
+  b_19 {
+    %failures = global @failures: Ptr
+    %v_81 = loads %failures, 4: I32
+    %v_82 = add %v_81, 64: I32
+    store %failures, %v_82, 4
+    jmp b_20
+  }
+
+  b_20 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 18, 8
+    store @trace, 1829, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 12, 8
+    store @trace, 129, 8
+    store @released, 4, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 9, 8
+    store @released, 8, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 11, 8
+    store @trace, 1129, 8
+    store @released, 4, 4
+    store @trace, 112929, 8
+    store @released, 6, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 11, 8
+    store @trace, 11229, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 11, 8
+    call_complex Tag.drop, 2
+    %v_83 = loads @trace, 8: I64
+    %v_84 = imul %v_83, 10: I64
+    %v_85 = add %v_84, 2: I64
+    store @trace, %v_85, 8
+    %v_86 = loads @released, 4: I32
+    %v_87 = and %v_86, 8: I32
+    %v_88 = cmp_eq %v_87, 0: I32
+    %v_89 = select %v_88, 2, 7: I64
+    %v_90 = imul %v_85, 10: I64
+    %v_91 = add %v_90, %v_89: I64
+    %v_92 = imul %v_91, 10: I64
+    %v_93 = add %v_92, 9: I64
+    store @trace, %v_93, 8
+    %v_94 = or %v_86, 8: I32
+    store @released, %v_94, 4
+    %v_95 = and %v_94, 2: I32
+    %v_96 = cmp_eq %v_95, 0: I32
+    %v_97 = select %v_96, 2, 7: I64
+    %v_98 = imul %v_93, 10: I64
+    %v_99 = add %v_98, %v_97: I64
+    %v_100 = imul %v_99, 10: I64
+    %v_101 = add %v_100, 9: I64
+    store @trace, %v_101, 8
+    %v_102 = or %v_86, 10: I32
+    store @released, %v_102, 4
+    %v_103 = cmp_neq %v_101, 11922929: I32
+    je %v_103, b_104, b_105
+  }
+
+  b_104 {
+    %failures = global @failures: Ptr
+    %v_106 = loads %failures, 4: I32
+    %v_107 = add %v_106, 8192: I32
+    store %failures, %v_107, 4
+    jmp b_105
+  }
+
+  b_105 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    jmp b_108
+  }
+
+  b_108 {
+    %v_109 = phi [b_105, 0], [b_110, %v_111]: I32
+    %v_112 = cmp_ilt %v_109, 5: I32
+    je %v_112, b_113, b_29
+  }
+
+  b_113 {
+    %v_111 = add %v_109, 1: I32
+    %v_114 = loads @trace, 8: I64
+    %v_115 = imul %v_114, 10: I64
+    %v_116 = add %v_115, 1: I64
+    store @trace, %v_116, 8
+    %v_117 = cmp_eq %v_109, 1: I32
+    je %v_117, b_118, b_119
+  }
+
+  b_119 {
+    %v_120 = imul %v_116, 10: I64
+    %v_121 = add %v_120, 8: I64
+    store @trace, %v_121, 8
+    jmp b_122
+  }
+
+  b_118 {
+    jmp b_122
+  }
+
+  b_122 {
+    %v_123 = phi [b_119, 0], [b_118, 12]: I32
+    %v_124 = loads @released, 4: I32
+    %v_125 = shl 1, %v_111: I32
+    %v_126 = and %v_124, %v_125: I32
+    %v_127 = cmp_eq %v_126, 0: I32
+    %v_128 = select %v_127, 2, 7: I64
+    %v_129 = loads @trace, 8: I64
+    %v_130 = imul %v_129, 10: I64
+    %v_131 = add %v_130, %v_128: I64
+    store @trace, %v_131, 8
+    %v_132 = cmp_eq %v_123, 12: I32
+    je %v_132, b_133, b_110
+  }
+
+  b_110 {
+    %v_134 = imul %v_131, 10: I64
+    %v_135 = add %v_134, 9: I64
+    store @trace, %v_135, 8
+    %v_136 = or %v_124, %v_125: I32
+    store @released, %v_136, 4
+    jmp b_108
+  }
+
+  b_133 {
+    %v_137 = imul %v_131, 10: I64
+    %v_138 = add %v_137, 9: I64
+    store @trace, %v_138, 8
+    %v_139 = or %v_124, %v_125: I32
+    store @released, %v_139, 4
+    %v_140 = cmp_neq %v_109, 1: I32
+    je %v_140, b_29, b_24
+  }
+
+  b_27 {
+    %failures = global @failures: Ptr
+    %v_141 = loads %failures, 4: I32
+    %v_142 = add %v_141, 16384: I32
+    store %failures, %v_142, 4
+    jmp b_28
+  }
+
+  b_28 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    jmp b_143
+  }
+
+  b_144 {
+    %v_145 = cmp_ilt %v_146, 2: I32
+    je %v_145, b_143, b_147
+  }
+
+  b_147 {
+    %v_148 = cmp_neq %v_146, 2: I32
+    je %v_148, b_37, b_32
+  }
+
+  b_143 {
+    %v_149 = phi [b_144, %v_146], [b_28, 0]: I32
+    %v_146 = add %v_149, 1: I32
+    %v_150 = add %v_149, 2: I32
+    %v_151 = loads @trace, 8: I64
+    %v_152 = imul %v_151, 10: I64
+    %v_153 = add %v_152, 1: I64
+    store @trace, %v_153, 8
+    %v_154 = cmp_eq %v_146, 1: I32
+    je %v_154, b_155, b_156
+  }
+
+  b_156 {
+    %v_157 = imul %v_153, 10: I64
+    %v_158 = add %v_157, 8: I64
+    store @trace, %v_158, 8
+    jmp b_159
+  }
+
+  b_155 {
+    jmp b_159
+  }
+
+  b_159 {
+    %v_160 = phi [b_156, 0], [b_155, 12]: I32
+    %v_161 = loads @released, 4: I32
+    %v_162 = shl 1, %v_150: I32
+    %v_163 = and %v_161, %v_162: I32
+    %v_164 = cmp_eq %v_163, 0: I32
+    %v_165 = select %v_164, 2, 7: I64
+    %v_166 = loads @trace, 8: I64
+    %v_167 = imul %v_166, 10: I64
+    %v_168 = add %v_167, %v_165: I64
+    store @trace, %v_168, 8
+    %v_169 = cmp_eq %v_160, 12: I32
+    je %v_169, b_170, b_171
+  }
+
+  b_171 {
+    %v_172 = imul %v_168, 10: I64
+    %v_173 = add %v_172, 9: I64
+    store @trace, %v_173, 8
+    %v_174 = or %v_161, %v_162: I32
+    store @released, %v_174, 4
+    jmp b_144
+  }
+
+  b_170 {
+    %v_175 = imul %v_168, 10: I64
+    %v_176 = add %v_175, 9: I64
+    store @trace, %v_176, 8
+    %v_177 = or %v_161, %v_162: I32
+    store @released, %v_177, 4
+    jmp b_144
+  }
+
+  b_35 {
+    %failures = global @failures: Ptr
+    %v_178 = loads %failures, 4: I32
+    %v_179 = add %v_178, 32768: I32
+    store %failures, %v_179, 4
+    jmp b_36
+  }
+
+  b_36 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 12, 8
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 1299, 8
+    store @released, 6, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 182, 8
+    store @trace, 1829, 8
+    store @released, 2, 4
+    store @trace, 18299, 8
+    store @released, 6, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    call_complex Tag.drop, 2
+    %v_180 = loads @trace, 8: I64
+    %v_181 = imul %v_180, 10: I64
+    %v_182 = add %v_181, 5: I64
+    store @trace, %v_182, 8
+    %v_183 = loads @released, 4: I32
+    %v_184 = and %v_183, 2: I32
+    %v_185 = cmp_eq %v_184, 0: I32
+    %v_186 = select %v_185, 2, 7: I64
+    %v_187 = imul %v_182, 10: I64
+    %v_188 = add %v_187, %v_186: I64
+    store @trace, %v_188, 8
+    %v_189 = imul %v_188, 10: I64
+    %v_190 = add %v_189, 9: I64
+    store @trace, %v_190, 8
+    %v_191 = or %v_183, 2: I32
+    store @released, %v_191, 4
+    %v_192 = cmp_neq %v_190, 19529: I32
+    je %v_192, b_193, b_194
+  }
+
+  b_193 {
+    %failures = global @failures: Ptr
+    %v_195 = loads %failures, 4: I32
+    %v_196 = add %v_195, 262144: I32
+    store %failures, %v_196, 4
+    jmp b_194
+  }
+
+  b_194 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 1, 8
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    %v_197 = alloca 4, 4: Ptr
+    store @trace, 1, 8
+    jmp b_198
+  }
+
+  b_198 {
+    %v_199 = phi [b_194, 0], [b_200, %v_201]: I32
+    %v_202 = cmp_ilt %v_199, 3: I32
+    je %v_202, b_203, b_204
+  }
+
+  b_203 {
+    %v_205 = add %v_199, 2: I32
+    %v_206 = loads @trace, 8: I64
+    %v_207 = imul %v_206, 10: I64
+    %v_208 = add %v_207, 1: I64
+    store @trace, %v_208, 8
+    %v_209 = cmp_eq %v_199, 1: I32
+    je %v_209, b_210, b_211
+  }
+
+  b_211 {
+    %v_212 = imul %v_208, 10: I64
+    %v_213 = add %v_212, 8: I64
+    store @trace, %v_213, 8
+    jmp b_214
+  }
+
+  b_210 {
+    store %v_197, 7, 4
+    jmp b_214
+  }
+
+  b_214 {
+    %v_215 = phi [b_211, 0], [b_210, 1]: I32
+    %v_216 = loads @released, 4: I32
+    %v_217 = shl 1, %v_205: I32
+    %v_218 = and %v_216, %v_217: I32
+    %v_219 = cmp_eq %v_218, 0: I32
+    %v_220 = select %v_219, 2, 7: I64
+    %v_221 = loads @trace, 8: I64
+    %v_222 = imul %v_221, 10: I64
+    %v_223 = add %v_222, %v_220: I64
+    store @trace, %v_223, 8
+    je %v_215, b_224, b_200
+  }
+
+  b_200 {
+    %v_225 = imul %v_223, 10: I64
+    %v_226 = add %v_225, 9: I64
+    store @trace, %v_226, 8
+    %v_227 = or %v_216, %v_217: I32
+    store @released, %v_227, 4
+    %v_201 = add %v_199, 1: I32
+    jmp b_198
+  }
+
+  b_224 {
+    %v_228 = imul %v_223, 10: I64
+    %v_229 = add %v_228, 9: I64
+    store @trace, %v_229, 8
+    %v_230 = or %v_216, %v_217: I32
+    store @released, %v_230, 4
+    jmp b_204
+  }
+
+  b_204 {
+    %v_231 = phi [b_198, 0], [b_224, 1]: I32
+    %v_232 = loads @released, 4: I32
+    %v_233 = and %v_232, 2: I32
+    %v_234 = cmp_eq %v_233, 0: I32
+    %v_235 = select %v_234, 2, 7: I64
+    %v_236 = loads @trace, 8: I64
+    %v_237 = imul %v_236, 10: I64
+    %v_238 = add %v_237, %v_235: I64
+    store @trace, %v_238, 8
+    je %v_231, b_239, b_240
+  }
+
+  b_240 {
+    %v_241 = imul %v_238, 10: I64
+    %v_242 = add %v_241, 9: I64
+    store @trace, %v_242, 8
+    %v_243 = or %v_232, 2: I32
+    store @released, %v_243, 4
+    jmp b_45
+  }
+
+  b_239 {
+    %v_244 = imul %v_238, 10: I64
+    %v_245 = add %v_244, 9: I64
+    store @trace, %v_245, 8
+    %v_246 = or %v_232, 2: I32
+    store @released, %v_246, 4
+    %v_247 = loads %v_197, 4: I32
+    %v_248 = cmp_neq %v_247, 7: I32
+    je %v_248, b_45, b_40
+  }
+
+  b_43 {
+    %failures = global @failures: Ptr
+    %v_249 = loads %failures, 4: I32
+    %v_250 = add %v_249, 2097152: I32
+    store %failures, %v_250, 4
+    jmp b_44
+  }
+
+  b_44 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    store @trace, 129, 8
+    store @released, 2, 4
+    store @trace, 0, 8
+    store @released, 0, 4
+    %v_251 = loads @failures, 4: I32
+    ret %v_251
+  }
+}
+

@@ -103,18 +103,6 @@ fn breakValue(n: Int) -> Int:
 
     return 0
 
--- `break` out of a lens continuation is still the one shape the exit signal does not carry: the
--- lens between the `break` and its loop has no step signal to report the departure in.
-lens fn scope():
-    yield {}
-
-fn breakThroughLens(n: Int) -> Int:
-    for x in upTo(n):
-        scope()
-        break
-
-    return 0
-
 -- A `for` loop in a generic body is legal now - see Adaptor.yana - so what is left to reject is the
 -- ordinary mistake inside one: `upTo` hands over an `Int` and this loop's body is written as though
 -- it handed over the function's own variable.

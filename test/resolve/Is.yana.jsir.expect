@@ -1,179 +1,89 @@
-fn area(one %r2) -> one %r1
-  block0(%0: %r2):
-    %2: %r0 = load property %0.$tag: %r0
-    %3: %r0 = const 0
-    %4: %r3 = binary.eq %2, %3
-    branch %4 -> block4 -> block1
-  block1:
-    %5: %r0 = alias %2
-    %6: %r0 = const 1
-    %7: %r3 = binary.eq %5, %6
-    branch %7 -> block5 -> block2
-  block2:
-    %8: %r1 = const 0
-    jump -> block3(%8)
-  block3(%1: %r1):
-    return %1
-  block4:
-    %13: %r1 = load property %0.Circle: %r1
-    %14: %r1 = binary.mul %13, %13
-    %15: %r1 = coerce %14
-    jump -> block3(%15)
-  block5:
-    %9: %r1 = load property %0.width: %r1
-    %10: %r1 = load property %0.height: %r1
-    %11: %r1 = binary.mul %9, %10
-    %12: %r1 = coerce %11
-    jump -> block3(%12)
-
-fn main() -> one %r1
-  var $0: %r4
-  var $1: %r4
+fn main() -> one %r0
   block0:
-    %13: %r1 = const 14
-    %14: %r1 = const 16
+    %11: %r0 = const 14
+    %12: %r0 = const 16
     jump -> block1
   block1:
-    %15: %r4 = alias %14
-    %21: %r4 = alias %15
-    %22: %r4 = const null
-    %23: %r6 = binary.eq %21, %22
-    %24: %r0 = const 1
-    %25: %r0 = const 0
-    %26: %r0 = select %23, %25, %24
-    %27: %r0 = const 1
-    %28: %r3 = binary.eq %26, %27
-    branch %28 -> block3 -> block2
+    %13: %r2 = alias %12
+    %19: %r2 = alias %13
+    %20: %r2 = const null
+    %21: %r5 = binary.eq %19, %20
+    %22: %r1 = const 1
+    %23: %r1 = const 0
+    %24: %r1 = select %21, %23, %22
+    %25: %r1 = const 1
+    %26: %r4 = binary.eq %24, %25
+    branch %26 -> block3 -> block2
   block2:
-    %29: %r1 = const 0
-    jump -> block4(%29)
+    %27: %r0 = const 0
+    jump -> block4(%27)
   block3:
-    %31: %r1 = alias %15
-    jump -> block4(%31)
-  block4(%0: %r1):
-    %32: %r1 = binary.add %13, %0
-    %33: %r1 = coerce %32
-    %34: %r4 = const null
+    %29: %r0 = alias %13
+    jump -> block4(%29)
+  block4(%0: %r0):
+    %30: %r0 = binary.add %11, %0
+    %31: %r0 = coerce %30
+    %32: %r2 = const null
     jump -> block5
   block5:
-    %40: %r4 = alias %34
-    %41: %r4 = const null
-    %42: %r6 = binary.eq %40, %41
-    %43: %r0 = const 1
-    %44: %r0 = const 0
-    %45: %r0 = select %42, %44, %43
-    %46: %r0 = const 1
-    %47: %r3 = binary.eq %45, %46
-    branch %47 -> block7 -> block6
+    %38: %r2 = alias %32
+    %39: %r2 = const null
+    %40: %r5 = binary.eq %38, %39
+    %41: %r1 = const 1
+    %42: %r1 = const 0
+    %43: %r1 = select %40, %42, %41
+    %44: %r1 = const 1
+    %45: %r4 = binary.eq %43, %44
+    branch %45 -> block7 -> block6
   block6:
-    %48: %r1 = const 0
-    jump -> block8(%48)
+    %46: %r0 = const 0
+    jump -> block8(%46)
   block7:
-    %50: %r1 = alias %34
-    jump -> block8(%50)
-  block8(%1: %r1):
-    %51: %r1 = const 100
-    %52: %r1 = binary.mul %1, %51
-    %53: %r1 = coerce %52
-    %54: %r1 = binary.add %33, %53
-    %55: %r1 = coerce %54
+    %48: %r0 = alias %32
+    jump -> block8(%48)
+  block8(%1: %r0):
+    %49: %r0 = const 100
+    %50: %r0 = binary.mul %1, %49
+    %51: %r0 = coerce %50
+    %52: %r0 = binary.add %31, %51
+    %53: %r0 = coerce %52
     jump -> block10
   block9:
-    %62: %r4 = alias %57
-    %63: %r4 = const null
-    %64: %r6 = binary.eq %62, %63
-    %65: %r0 = const 1
-    %66: %r0 = const 0
-    %67: %r0 = select %64, %66, %65
-    %68: %r0 = const 1
-    %69: %r3 = binary.eq %67, %68
-    branch %69 -> block11 -> block10
+    %60: %r2 = alias %55
+    %61: %r2 = const null
+    %62: %r5 = binary.eq %60, %61
+    %63: %r1 = const 1
+    %64: %r1 = const 0
+    %65: %r1 = select %62, %64, %63
+    %66: %r1 = const 1
+    %67: %r4 = binary.eq %65, %66
+    branch %67 -> block11 -> block10
   block10:
-    %70: %r1 = const 0
-    jump -> block12(%70)
+    %68: %r0 = const 0
+    jump -> block12(%68)
   block11:
-    %72: %r1 = alias %57
-    jump -> block12(%72)
-  block12(%2: %r1):
-    %73: %r1 = const 100
-    %74: %r1 = binary.mul %2, %73
-    %75: %r1 = coerce %74
-    %76: %r1 = binary.add %55, %75
-    %77: %r1 = coerce %76
-    %78: %r1 = const 5
-    %79: %r0 = const 0
-    %80: %r1 = const 0
-    %81: %r1 = const 0
-    %82: %r2 = object %s0 %79, %78, %80, %81
-    %83: %r1 = call area %82
-    %84: %r1 = binary.add %77, %83
-    %85: %r1 = coerce %84
-    %86: %r1 = const 3
-    %87: %r1 = const 4
-    %88: %r0 = const 1
-    %89: %r1 = const 0
-    %90: %r2 = object %s0 %88, %89, %86, %87
-    %91: %r1 = call area %90
-    %92: %r1 = binary.add %85, %91
-    %93: %r1 = coerce %92
-    %108: %r1 = const 306
-    %109: %r1 = binary.add %93, %108
-    %110: %r1 = coerce %109
-    %111: %r1 = const 128
-    %112: %r4 = alias %111
-    store var $0: %r4, %112
-    %113: %r4 = load var $0: %r4
-    %114: %r4 = const null
-    %115: %r6 = binary.eq %113, %114
-    %116: %r0 = const 1
-    %117: %r0 = const 0
-    %118: %r0 = select %115, %117, %116
-    %119: %r0 = const 1
-    %120: %r3 = binary.eq %118, %119
-    branch %120 -> block14 -> block13
-  block13:
-    %121: %r1 = const 0
-    jump -> block15(%121)
-  block14:
-    %123: %r1 = load var $0: %r1
-    jump -> block15(%123)
-  block15(%3: %r1):
-    %124: %r1 = binary.add %110, %3
-    %125: %r1 = coerce %124
-    %126: %r4 = const null
-    store var $1: %r4, %126
-    %127: %r4 = load var $1: %r4
-    %128: %r4 = const null
-    %129: %r6 = binary.eq %127, %128
-    %130: %r0 = const 1
-    %131: %r0 = const 0
-    %132: %r0 = select %129, %131, %130
-    %133: %r0 = const 1
-    %134: %r3 = binary.eq %132, %133
-    branch %134 -> block17 -> block16
-  block16:
-    %135: %r1 = const 0
-    jump -> block18(%135)
-  block17:
-    %137: %r1 = load var $1: %r1
-    jump -> block18(%137)
-  block18(%4: %r1):
-    %138: %r1 = const 100
-    %139: %r1 = binary.mul %4, %138
-    %140: %r1 = coerce %139
-    %141: %r1 = binary.add %125, %140
-    %142: %r1 = coerce %141
-    return %142
+    %70: %r0 = alias %55
+    jump -> block12(%70)
+  block12(%2: %r0):
+    %71: %r0 = const 100
+    %72: %r0 = binary.mul %2, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %53, %73
+    %75: %r0 = coerce %74
+    %102: %r0 = const 471
+    %103: %r0 = binary.add %75, %102
+    %104: %r0 = coerce %103
+    return %104
 
-optimizer clones 0 aliased 0 forwarded 9 removed 43 adopted 0 sunk 0 numbered 4 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 3
+optimizer clones 0 aliased 0 forwarded 9 removed 53 adopted 0 sunk 0 numbered 3 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 3
 
-shape %s0 object Shape {$tag: %r0 tag, Circle: %r1, width: %r1, height: %r1}
-shape %s1 object Maybe {$tag: %r0 tag, Just: %r4}
+shape %s0 object Maybe {$tag: %r1 tag, Just: %r2}
+shape %s1 object Shape {$tag: %r1 tag, Circle: %r0, width: %r0, height: %r0}
 
-rep %r0 = number unsigned 8
-rep %r1 = number signed 32
-rep %r2 = object %s0
-rep %r3 = number bool
-rep %r4 = nullable of %r1
-rep %r5 = object %s1
-rep %r6 = boolean
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = nullable of %r0
+rep %r3 = object %s0
+rep %r4 = number bool
+rep %r5 = boolean
+rep %r6 = object %s1

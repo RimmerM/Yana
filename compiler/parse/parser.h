@@ -137,6 +137,7 @@ struct Parser: BasicParser<Lexer, Token> {
      * thing that runs off the end of the file looking for it.
      */
     template<class F> void scanAhead(F&& look);
+    bool endsLeavingStatement();
 
     // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
     ast::BindType parseResultBind();

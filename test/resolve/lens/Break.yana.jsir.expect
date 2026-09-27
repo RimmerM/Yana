@@ -1,0 +1,596 @@
+fn expect(one %r1, one %r0) -> omitted
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = load global trace: %r0
+    %3: %r3 = binary.ne %2, %1
+    branch %3 -> block2 -> block1
+  block1:
+    %7: %r0 = const 0n
+    store global trace: %r0, %7
+    return
+  block2:
+    %4: %r1 = load global failures: %r1
+    %5: %r1 = binary.add %4, %0
+    %6: %r1 = coerce %5
+    store global failures: %r1, %6
+    jump -> block1
+
+fn mixed(one %r1) -> one %r1
+  var $0: %r1
+  block0(%0: %r1):
+    %3: %r1 = const 0
+    store var $0: %r1, %3
+    %5: %r1 = const 0
+    %6: %r0 = const 1n
+    %7: %r1 = const 3
+    %8: %r1 = const 15
+    %9: %r1 = const 0
+    %10: %r1 = const 10
+    %11: %r1 = const 1
+    %12: %r0 = const 2n
+    %13: %r1 = const 1
+    %14: %r1 = const 15
+    %15: %r1 = const 1
+    %16: %r0 = const 10n
+    %17: %r0 = const 10n
+    jump -> block1(%5)
+  block1(%1: %r1):
+    %18: %r0 = load global trace: %r0
+    %19: %r0 = binary.mul %18, %16
+    %20: %r0 = coerce %19
+    %21: %r0 = binary.add %20, %6
+    %22: %r0 = coerce %21
+    store global trace: %r0, %22
+    %23: %r3 = binary.eq %1, %0
+    branch %23 -> block8 -> block7
+  block2:
+    %35: %r1 = binary.add %1, %15
+    %36: %r1 = coerce %35
+    jump -> block1(%36)
+  block3:
+    %37: %r1 = load var $0: %r1
+    return %37
+  block4:
+    %34: %r3 = binary.eq %2, %14
+    branch %34 -> block5 -> block2
+  block5:
+    return %1
+  block6(%2: %r1):
+    %28: %r0 = load global trace: %r0
+    %29: %r0 = binary.mul %28, %17
+    %30: %r0 = coerce %29
+    %31: %r0 = binary.add %30, %12
+    %32: %r0 = coerce %31
+    store global trace: %r0, %32
+    %33: %r3 = binary.eq %2, %13
+    branch %33 -> block3 -> block4
+  block7:
+    %24: %r3 = binary.eq %1, %7
+    %25: %r1 = select %24, %8, %9
+    jump -> block6(%25)
+  block8:
+    %26: %r1 = binary.mul %1, %10
+    %27: %r1 = coerce %26
+    store var $0: %r1, %27
+    jump -> block6(%11)
+
+fn main() -> one %r1
+  block0:
+    %12: %r1 = const 0
+    %13: %r1 = const 10
+    %14: %r0 = const 1n
+    %15: %r1 = const 2
+    %16: %r0 = const 8n
+    %17: %r1 = const 0
+    %18: %r1 = const 12
+    %19: %r0 = const 2n
+    %20: %r1 = const 12
+    %21: %r1 = const 1
+    %22: %r0 = const 10n
+    %23: %r0 = const 10n
+    %24: %r0 = const 10n
+    jump -> block5(%12)
+  block1:
+    %261: %r1 = const 64
+    %262: %r0 = const 1212n
+    call expect %261, %262
+    %263: %r1 = const 7
+    %264: %r1 = call mixed %263
+    %265: %r1 = const 3
+    %266: %r3 = binary.ne %264, %265
+    branch %266 -> block4 -> block3
+  block2:
+    %257: %r1 = const 32
+    %258: %r1 = load global failures: %r1
+    %259: %r1 = binary.add %258, %257
+    %260: %r1 = coerce %259
+    store global failures: %r1, %260
+    jump -> block1
+  block3:
+    %271: %r1 = const 256
+    %272: %r0 = const 12121212n
+    call expect %271, %272
+    %273: %r1 = const 5
+    %274: %r1 = const 0
+    %275: %r1 = const 1
+    %276: %r0 = const 3n
+    %277: %r1 = const 1
+    %278: %r1 = const 3
+    %279: %r1 = const 0
+    %280: %r1 = const 17
+    %281: %r1 = const 13
+    %282: %r0 = const 4n
+    %283: %r1 = const 13
+    %284: %r1 = const 17
+    %285: %r0 = const 8n
+    %286: %r0 = const 10n
+    %287: %r0 = const 10n
+    %288: %r0 = const 10n
+    jump -> block54(%274)
+  block4:
+    %267: %r1 = const 128
+    %268: %r1 = load global failures: %r1
+    %269: %r1 = binary.add %268, %267
+    %270: %r1 = coerce %269
+    store global failures: %r1, %270
+    jump -> block3
+  block5(%0: %r1):
+    %25: %r3 = binary.lt %0, %13
+    branch %25 -> block6 -> block11
+  block6:
+    %26: %r0 = load global trace: %r0
+    %27: %r0 = binary.mul %26, %22
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.add %28, %14
+    %30: %r0 = coerce %29
+    store global trace: %r0, %30
+    %31: %r3 = binary.eq %0, %15
+    branch %31 -> block8 -> block7
+  block7:
+    %32: %r0 = binary.mul %30, %23
+    %33: %r0 = coerce %32
+    %34: %r0 = binary.add %33, %16
+    %35: %r0 = coerce %34
+    store global trace: %r0, %35
+    jump -> block9(%17)
+  block8:
+    jump -> block9(%18)
+  block9(%1: %r1):
+    %36: %r0 = load global trace: %r0
+    %37: %r0 = binary.mul %36, %24
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.add %38, %19
+    %40: %r0 = coerce %39
+    store global trace: %r0, %40
+    %41: %r3 = binary.eq %1, %20
+    branch %41 -> block11 -> block10
+  block10:
+    %42: %r1 = binary.add %0, %21
+    %43: %r1 = coerce %42
+    jump -> block5(%43)
+  block11:
+    %44: %r0 = const 9n
+    %45: %r0 = load global trace: %r0
+    %46: %r0 = const 10n
+    %47: %r0 = binary.mul %45, %46
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.add %48, %44
+    %50: %r0 = coerce %49
+    store global trace: %r0, %50
+    %51: %r1 = const 1
+    %52: %r0 = const 182182129n
+    call expect %51, %52
+    %53: %r1 = const 0
+    %54: %r1 = const 4
+    %55: %r1 = const 1
+    %56: %r0 = const 1n
+    %57: %r1 = const 2
+    %58: %r0 = const 8n
+    %59: %r1 = const 0
+    %60: %r1 = const 12
+    %61: %r0 = const 2n
+    %62: %r1 = const 12
+    %63: %r0 = const 10n
+    %64: %r0 = const 10n
+    %65: %r0 = const 10n
+    %66: %r0 = const 10n
+    jump -> block12(%53)
+  block12(%2: %r1):
+    %67: %r3 = binary.lt %2, %54
+    branch %67 -> block14 -> block13
+  block13:
+    %68: %r0 = const 9n
+    %69: %r0 = load global trace: %r0
+    %70: %r0 = const 10n
+    %71: %r0 = binary.mul %69, %70
+    %72: %r0 = coerce %71
+    %73: %r0 = binary.add %72, %68
+    %74: %r0 = coerce %73
+    store global trace: %r0, %74
+    %75: %r1 = const 2
+    %76: %r0 = const 182012182018209n
+    call expect %75, %76
+    %77: %r1 = const 1
+    %78: %r1 = const 1
+    %79: %r1 = const 4
+    %80: %r0 = const 1n
+    %81: %r0 = const 3n
+    %82: %r1 = const 2
+    %83: %r1 = const 2
+    %84: %r1 = const 6
+    %85: %r0 = const 8n
+    %86: %r1 = const 0
+    %87: %r1 = const 20
+    %88: %r1 = const 15
+    %89: %r0 = const 4n
+    %90: %r1 = const 15
+    %91: %r1 = const 20
+    %92: %r1 = const 21
+    %93: %r1 = const 0
+    %94: %r1 = const 16
+    %95: %r0 = const 2n
+    %96: %r1 = const 16
+    %97: %r1 = const 21
+    %98: %r0 = const 10n
+    %99: %r0 = const 10n
+    %100: %r0 = const 10n
+    %101: %r0 = const 10n
+    %102: %r0 = const 10n
+    %103: %r0 = const 10n
+    jump -> block19(%77)
+  block14:
+    %337: %r1 = binary.add %2, %55
+    %338: %r1 = coerce %337
+    %339: %r0 = load global trace: %r0
+    %340: %r0 = binary.mul %339, %64
+    %341: %r0 = coerce %340
+    %342: %r0 = binary.add %341, %56
+    %343: %r0 = coerce %342
+    store global trace: %r0, %343
+    %344: %r3 = binary.eq %338, %57
+    branch %344 -> block16 -> block15
+  block15:
+    %345: %r0 = binary.mul %343, %65
+    %346: %r0 = coerce %345
+    %347: %r0 = binary.add %346, %58
+    %348: %r0 = coerce %347
+    store global trace: %r0, %348
+    jump -> block17(%59)
+  block16:
+    jump -> block17(%60)
+  block17(%3: %r1):
+    %349: %r0 = load global trace: %r0
+    %350: %r0 = binary.mul %349, %66
+    %351: %r0 = coerce %350
+    %352: %r0 = binary.add %351, %61
+    %353: %r0 = coerce %352
+    store global trace: %r0, %353
+    %354: %r3 = binary.eq %3, %62
+    branch %354 -> block12(%338) -> block18
+  block18:
+    %355: %r0 = binary.mul %353, %63
+    %356: %r0 = coerce %355
+    store global trace: %r0, %356
+    jump -> block12(%338)
+  block19(%4: %r1):
+    %104: %r3 = binary.lt %4, %79
+    branch %104 -> block20 -> block28
+  block20:
+    %105: %r0 = load global trace: %r0
+    %106: %r0 = binary.mul %105, %99
+    %107: %r0 = coerce %106
+    %108: %r0 = binary.add %107, %80
+    %109: %r0 = coerce %108
+    %110: %r0 = binary.mul %109, %100
+    %111: %r0 = coerce %110
+    %112: %r0 = binary.add %111, %81
+    %113: %r0 = coerce %112
+    store global trace: %r0, %113
+    %114: %r1 = binary.mul %4, %82
+    %115: %r1 = coerce %114
+    %116: %r3 = binary.eq %115, %83
+    branch %116 -> block24 -> block21
+  block21:
+    %117: %r3 = binary.eq %115, %84
+    branch %117 -> block23 -> block22
+  block22:
+    %118: %r0 = binary.mul %113, %101
+    %119: %r0 = coerce %118
+    %120: %r0 = binary.add %119, %85
+    %121: %r0 = coerce %120
+    store global trace: %r0, %121
+    jump -> block25(%86)
+  block23:
+    jump -> block25(%87)
+  block24:
+    jump -> block25(%88)
+  block25(%5: %r1):
+    %122: %r0 = load global trace: %r0
+    %123: %r0 = binary.mul %122, %102
+    %124: %r0 = coerce %123
+    %125: %r0 = binary.add %124, %89
+    %126: %r0 = coerce %125
+    %127: %r3 = binary.eq %5, %90
+    %128: %r3 = binary.eq %5, %91
+    %129: %r1 = select %128, %92, %93
+    %130: %r1 = select %127, %94, %129
+    %131: %r0 = binary.mul %126, %103
+    %132: %r0 = coerce %131
+    %133: %r0 = binary.add %132, %95
+    %134: %r0 = coerce %133
+    store global trace: %r0, %134
+    %135: %r3 = binary.eq %130, %96
+    branch %135 -> block29 -> block26
+  block26:
+    %136: %r3 = binary.eq %130, %97
+    branch %136 -> block28 -> block27
+  block27:
+    %137: %r0 = binary.mul %134, %98
+    %138: %r0 = coerce %137
+    store global trace: %r0, %138
+    jump -> block29
+  block28:
+    %139: %r0 = const 9n
+    %140: %r0 = load global trace: %r0
+    %141: %r0 = const 10n
+    %142: %r0 = binary.mul %140, %141
+    %143: %r0 = coerce %142
+    %144: %r0 = binary.add %143, %139
+    %145: %r0 = coerce %144
+    store global trace: %r0, %145
+    %146: %r1 = const 4
+    %147: %r0 = const 134213842013429n
+    call expect %146, %147
+    %148: %r1 = const -1
+    %149: %r1 = const 1
+    %150: %r1 = const 3
+    %151: %r1 = const 0
+    %152: %r0 = const 5n
+    %153: %r0 = const 10n
+    %154: %r1 = const 1
+    %155: %r1 = const 2
+    %156: %r0 = const 8n
+    %157: %r1 = const 0
+    %158: %r1 = const 18
+    %159: %r1 = const 14
+    %160: %r0 = const 6n
+    %161: %r0 = const 10n
+    %162: %r1 = const 14
+    %163: %r1 = const 18
+    %164: %r0 = const 7n
+    %165: %r0 = const 10n
+    %166: %r0 = const 10n
+    %167: %r0 = const 10n
+    jump -> block30(%148)
+  block29:
+    %335: %r1 = binary.add %4, %78
+    %336: %r1 = coerce %335
+    jump -> block19(%336)
+  block30(%6: %r1):
+    %168: %r3 = binary.lt %6, %150
+    branch %168 -> block31 -> block39
+  block31:
+    %169: %r3 = binary.lt %6, %151
+    branch %169 -> block40 -> block32
+  block32:
+    %170: %r0 = load global trace: %r0
+    %171: %r0 = binary.mul %170, %153
+    %172: %r0 = coerce %171
+    %173: %r0 = binary.add %172, %152
+    %174: %r0 = coerce %173
+    store global trace: %r0, %174
+    %175: %r3 = binary.eq %6, %154
+    branch %175 -> block36 -> block33
+  block33:
+    %176: %r3 = binary.eq %6, %155
+    branch %176 -> block35 -> block34
+  block34:
+    %177: %r0 = binary.mul %174, %167
+    %178: %r0 = coerce %177
+    %179: %r0 = binary.add %178, %156
+    %180: %r0 = coerce %179
+    store global trace: %r0, %180
+    jump -> block37(%157)
+  block35:
+    jump -> block37(%158)
+  block36:
+    jump -> block37(%159)
+  block37(%7: %r1):
+    %181: %r0 = load global trace: %r0
+    %182: %r0 = binary.mul %181, %161
+    %183: %r0 = coerce %182
+    %184: %r0 = binary.add %183, %160
+    %185: %r0 = coerce %184
+    store global trace: %r0, %185
+    %189: %r3 = binary.eq %7, %162
+    branch %189 -> block42 -> block38
+  block38:
+    %190: %r3 = binary.eq %7, %163
+    branch %190 -> block39 -> block41
+  block39:
+    %191: %r0 = const 9n
+    %192: %r0 = load global trace: %r0
+    %193: %r0 = const 10n
+    %194: %r0 = binary.mul %192, %193
+    %195: %r0 = coerce %194
+    %196: %r0 = binary.add %195, %191
+    %197: %r0 = coerce %196
+    store global trace: %r0, %197
+    %198: %r1 = const 8
+    %199: %r0 = const 70586056569n
+    call expect %198, %199
+    %200: %r1 = const 5
+    %201: %r1 = const 0
+    %202: %r1 = const 1
+    %203: %r0 = const 1n
+    %204: %r1 = const 1
+    %205: %r1 = const 3
+    %206: %r0 = const 8n
+    %207: %r1 = const 0
+    %208: %r1 = const 15
+    %209: %r1 = const 11
+    %210: %r0 = const 2n
+    %211: %r1 = const 11
+    %212: %r1 = const 15
+    %213: %r0 = const 10n
+    %214: %r0 = const 10n
+    %215: %r0 = const 10n
+    %216: %r0 = const 10n
+    jump -> block43(%201)
+  block40:
+    %325: %r0 = load global trace: %r0
+    %326: %r0 = binary.mul %325, %165
+    %327: %r0 = coerce %326
+    %328: %r0 = binary.add %327, %164
+    %329: %r0 = coerce %328
+    store global trace: %r0, %329
+    jump -> block41
+  block41:
+    %330: %r0 = load global trace: %r0
+    %331: %r0 = binary.mul %330, %166
+    %332: %r0 = coerce %331
+    store global trace: %r0, %332
+    jump -> block42
+  block42:
+    %333: %r1 = binary.add %6, %149
+    %334: %r1 = coerce %333
+    jump -> block30(%334)
+  block43(%8: %r1):
+    %217: %r3 = binary.lt %8, %200
+    branch %217 -> block44 -> block52
+  block44:
+    %218: %r0 = load global trace: %r0
+    %219: %r0 = binary.mul %218, %213
+    %220: %r0 = coerce %219
+    %221: %r0 = binary.add %220, %203
+    %222: %r0 = coerce %221
+    store global trace: %r0, %222
+    %223: %r3 = binary.eq %8, %204
+    branch %223 -> block48 -> block45
+  block45:
+    %224: %r3 = binary.eq %8, %205
+    branch %224 -> block47 -> block46
+  block46:
+    %225: %r0 = binary.mul %222, %214
+    %226: %r0 = coerce %225
+    %227: %r0 = binary.add %226, %206
+    %228: %r0 = coerce %227
+    store global trace: %r0, %228
+    jump -> block49(%207)
+  block47:
+    jump -> block49(%208)
+  block48:
+    jump -> block49(%209)
+  block49(%9: %r1):
+    %229: %r0 = load global trace: %r0
+    %230: %r0 = binary.mul %229, %215
+    %231: %r0 = coerce %230
+    %232: %r0 = binary.add %231, %210
+    %233: %r0 = coerce %232
+    store global trace: %r0, %233
+    %234: %r3 = binary.eq %9, %211
+    branch %234 -> block53 -> block50
+  block50:
+    %235: %r3 = binary.eq %9, %212
+    branch %235 -> block52 -> block51
+  block51:
+    %236: %r0 = binary.mul %233, %216
+    %237: %r0 = coerce %236
+    store global trace: %r0, %237
+    jump -> block53
+  block52:
+    %238: %r0 = const 7n
+    %239: %r0 = load global trace: %r0
+    %240: %r0 = const 10n
+    %241: %r0 = binary.mul %239, %240
+    %242: %r0 = coerce %241
+    %243: %r0 = binary.add %242, %238
+    %244: %r0 = coerce %243
+    %245: %r0 = const 9n
+    %246: %r0 = const 10n
+    %247: %r0 = binary.mul %244, %246
+    %248: %r0 = coerce %247
+    %249: %r0 = binary.add %248, %245
+    %250: %r0 = coerce %249
+    store global trace: %r0, %250
+    %251: %r1 = const 16
+    %252: %r0 = const 18201218201279n
+    call expect %251, %252
+    %253: %r1 = const 1
+    %254: %r1 = call mixed %253
+    %255: %r1 = const 10
+    %256: %r3 = binary.ne %254, %255
+    branch %256 -> block2 -> block1
+  block53:
+    %320: %r1 = binary.add %8, %202
+    %321: %r1 = coerce %320
+    jump -> block43(%321)
+  block54(%10: %r1):
+    %289: %r3 = binary.lt %10, %273
+    branch %289 -> block55 -> block62
+  block55:
+    %290: %r0 = load global trace: %r0
+    %291: %r0 = binary.mul %290, %286
+    %292: %r0 = coerce %291
+    %293: %r0 = binary.add %292, %276
+    %294: %r0 = coerce %293
+    store global trace: %r0, %294
+    %295: %r3 = binary.eq %10, %277
+    branch %295 -> block59 -> block56
+  block56:
+    %296: %r3 = binary.eq %10, %278
+    branch %296 -> block58 -> block57
+  block57:
+    %297: %r0 = binary.mul %294, %287
+    %298: %r0 = coerce %297
+    %299: %r0 = binary.add %298, %285
+    %300: %r0 = coerce %299
+    store global trace: %r0, %300
+    jump -> block60(%279)
+  block58:
+    jump -> block60(%280)
+  block59:
+    jump -> block60(%281)
+  block60(%11: %r1):
+    %301: %r0 = load global trace: %r0
+    %302: %r0 = binary.mul %301, %288
+    %303: %r0 = coerce %302
+    %304: %r0 = binary.add %303, %282
+    %305: %r0 = coerce %304
+    store global trace: %r0, %305
+    %306: %r3 = binary.eq %11, %283
+    branch %306 -> block63 -> block61
+  block61:
+    %307: %r3 = binary.eq %11, %284
+    branch %307 -> block62 -> block63
+  block62:
+    %308: %r0 = const 7n
+    %309: %r0 = load global trace: %r0
+    %310: %r0 = const 10n
+    %311: %r0 = binary.mul %309, %310
+    %312: %r0 = coerce %311
+    %313: %r0 = binary.add %312, %308
+    %314: %r0 = coerce %313
+    store global trace: %r0, %314
+    %315: %r1 = const 512
+    %316: %r0 = const 38434384347n
+    call expect %315, %316
+    %317: %r1 = load global failures: %r1
+    return %317
+  block63:
+    %318: %r1 = binary.add %10, %275
+    %319: %r1 = coerce %318
+    jump -> block54(%319)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 0 promoted 0 folded 0
+
+shape %s0 cell {$v: %r1 box}
+shape %s1 object Outcome {$tag: %r6 tag, Proceed: %r1, Exit: %r1}
+
+rep %r0 = bigint signed
+rep %r1 = number signed 32
+rep %r2 = void
+rep %r3 = number bool
+rep %r4 = object %s0
+rep %r5 = array Int32Array of %r1
+rep %r6 = number unsigned 8
+rep %r7 = object %s1

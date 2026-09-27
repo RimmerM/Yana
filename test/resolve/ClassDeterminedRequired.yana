@@ -1,0 +1,32 @@
+{-
+   A class member whose name another class also declares - `next`, beside `Core`'s `Iterate.next` -
+   is the enclosing signature's where that signature requires its class, even when the member
+   mentions a determined parameter only in its result (`Result(e, Int)` of `Reader(r -> e)`). The
+   trial that binds the call cannot bind `e`, and R3 compared the whole argument list, found no
+   requirement to match, and reported the call ambiguous (J206, which `lib/Stream`'s `ByteReader`
+   needed). The deciding prefix is what selects an instance, so it is what the comparison reads.
+-}
+
+class Reader(r -> e):
+    fn next(&self: 'r) -> Result(e, Int)
+    fn take(&self: 'r, count: Int) -> Result(e, Int)
+
+data Counter {at: Int}
+
+instance Reader(Counter, {}):
+    fn next(&self: 'Counter) -> Result({}, Int):
+        self.at += 1
+        return Ok(self.at)
+    fn take(&self: 'Counter, count: Int) -> Result({}, Int):
+        self.at += count
+        return Ok(self.at)
+
+fn (Reader(r, e)) sum(&reader: r) -> Int:
+    let Ok(a) = reader.next() | return 0
+    let Ok(b) = reader.take(2) | return 0
+    let Ok(c) = next(reader) | return 0
+    return a + b + c
+
+fn main() -> Int:
+    let &counter = Counter {at: 3}
+    return sum(counter)

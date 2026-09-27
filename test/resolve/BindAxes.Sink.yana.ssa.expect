@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *4] = "wxyz"
+let string'189: [CodeUnit *4] = "wxyz"
 
-let string'144: [CodeUnit *1] = "z"
+let string'190: [CodeUnit *1] = "z"
 
-let string'145: [CodeUnit *1] = "q"
+let string'191: [CodeUnit *1] = "q"
 
 fn rebuilt(seed: String) -> String {
 bb0(%0: String owned):
@@ -16,7 +16,7 @@ bb0(%0: String owned):
   %3: String owned = load inspect %1
   store inspect %2 consume %3
   drop String inspect %2
-  %4: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %4: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   store inspect %2 consume %4
   %5: String owned = load inspect %2
   return consume %5
@@ -30,7 +30,7 @@ bb0(%0: String owned):
   %3: String owned = load inspect %1
   store inspect %2 consume %3
   drop String inspect %2
-  %4: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %4: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   store inspect %2 consume %4
   %5: String [shared call] guaranteed from{%2} = load inspect %2
   jump -> bb1
@@ -58,7 +58,7 @@ bb2(%6: String [shared slot 0 view] guaranteed from{%2}):
 fn main() -> I32 {
 bb0:
   %0: %String address = alloc frame String
-  %1: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %2: String owned = call rebuilt consume %1
   store inspect %0 consume %2
   %3: String [shared slot 0] guaranteed from{%0} = load inspect %0
@@ -81,7 +81,7 @@ bb1:
 bb2(%4: String [shared slot 0 view] guaranteed from{%0}):
   %16: Size trivial = call String.length borrow %4
   drop String inspect %0
-  %17: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %17: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   %18: Size trivial = call scoped consume %17
   %19: Size trivial = add inspect %16 inspect %18
   %20: I32 trivial = convert inspect %19

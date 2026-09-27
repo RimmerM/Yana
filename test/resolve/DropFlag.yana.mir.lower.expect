@@ -216,72 +216,69 @@ main<complex>(): I32 {
     store @live, 1, 4
     store %v_94, 1, 4
     store @live, 0, 4
-    %v_95 = imm 1: I32
-    %v_96 = add %v_87, %v_95: I32
-    store @drops, %v_96, 4
+    %v_95 = add %v_87, 1: I32
+    store @drops, %v_95, 4
     call_complex freeHeap, %v_94
-    %v_97 = add %v_89, %v_95: I32
-    %v_98 = loads @live, 4: I32
-    %v_99 = cmp_neq %v_98, 0: I32
-    je %v_99, b_100, b_101
+    %v_96 = loads @live, 4: I32
+    %v_97 = cmp_neq %v_96, 0: I32
+    je %v_97, b_98, b_99
   }
 
   b_92 {
     ret 18446744073709551605
   }
 
-  b_101 {
-    %v_102 = call_complex allocateHeap, 4: Ptr
-    %v_103 = loads @drops, 4: I32
+  b_99 {
+    %v_100 = call_complex allocateHeap, 4: Ptr
+    %v_101 = loads @drops, 4: I32
     store @live, 1, 4
-    store %v_102, 1, 4
+    store %v_100, 1, 4
     store @live, 0, 4
-    %v_104 = imm 1: I32
-    %v_105 = add %v_103, %v_104: I32
-    store @drops, %v_105, 4
-    call_complex freeHeap, %v_102
-    %v_106 = add %v_97, %v_104: I32
-    %v_107 = loads @live, 4: I32
-    %v_108 = cmp_neq %v_107, 0: I32
-    je %v_108, b_109, b_110
+    %v_102 = add %v_101, 1: I32
+    store @drops, %v_102, 4
+    call_complex freeHeap, %v_100
+    %v_103 = add %v_89, 2: I32
+    %v_104 = loads @live, 4: I32
+    %v_105 = cmp_neq %v_104, 0: I32
+    je %v_105, b_106, b_107
   }
 
-  b_100 {
+  b_98 {
     ret 18446744073709551604
   }
 
-  b_110 {
-    %v_111 = call_complex allocateHeap, 4: Ptr
-    %v_112 = loads @drops, 4: I32
+  b_107 {
+    %v_108 = call_complex allocateHeap, 4: Ptr
+    %v_109 = loads @drops, 4: I32
     store @live, 1, 4
-    store %v_111, 1, 4
+    store %v_108, 1, 4
     call_complex Guard.drop
-    %v_113 = loads @live, 4: I32
-    %v_114 = add %v_113, 1: I32
-    store @live, %v_114, 4
-    store %v_111, 2, 4
+    %v_110 = loads @live, 4: I32
+    %v_111 = add %v_110, 1: I32
+    store @live, %v_111, 4
+    store %v_108, 2, 4
     call_complex Guard.drop
-    %v_115 = loads @drops, 4: I32
-    %v_116 = sub %v_115, %v_112: I32
-    call_complex freeHeap, %v_111
-    %v_117 = add %v_106, %v_116: I32
-    %v_118 = loads @live, 4: I32
-    %v_119 = cmp_neq %v_118, 0: I32
-    je %v_119, b_120, b_121
+    %v_112 = loads @drops, 4: I32
+    %v_113 = sub %v_112, %v_109: I32
+    call_complex freeHeap, %v_108
+    %v_114 = add %v_103, %v_113: I32
+    %v_115 = loads @live, 4: I32
+    %v_116 = cmp_neq %v_115, 0: I32
+    je %v_116, b_117, b_118
   }
 
-  b_109 {
+  b_106 {
     ret 18446744073709551603
   }
 
-  b_121 {
-    %v_122 = loads @drops, 4: I32
-    %v_123 = cmp_neq %v_122, %v_117: I32
-    %v_124 = select %v_123, 18446744073709551601, %v_117: I32
-    ret %v_124
+  b_118 {
+    %v_119 = loads @drops, 4: I32
+    %v_120 = cmp_neq %v_119, %v_114: I32
+    %v_121 = select %v_120, 18446744073709551601, %v_114: I32
+    ret %v_121
   }
 
-  b_120 {
+  b_117 {
     ret 18446744073709551602
   }
 }

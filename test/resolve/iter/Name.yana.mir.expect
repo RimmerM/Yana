@@ -28,7 +28,7 @@ instance Iterate(twice(I32).Iter, I32, {}): twice(I32)$next, twice(I32)$resume
 
 instance Iterate(twice(F64).Iter, F64, {}): twice(F64)$next, twice(F64)$resume
 
-let string'142: [CodeUnit *1] = "d"
+let string'188: [CodeUnit *1] = "d"
 
 lens fn lex(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -131,7 +131,7 @@ bb0:
   write.init borrow.unique (it) take %1
   %3: lex.Iter = read copy.trivial (it)
   %4: I32 = const 6
-  %5: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %5: String = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   %6: Defaulted = aggregate.Defaulted take %3 take %4 take %5
   write.init borrow.unique (d) take %6
   %8: lex.Iter = read copy.trivial (d.lexer)

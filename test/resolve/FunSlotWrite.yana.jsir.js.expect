@@ -53,9 +53,7 @@ function main() {
 }
 
 function capturing_lambda(capturing_lambda_env, x) {
-  var v4 = Math.imul(x, 2);
-  var v5 = capturing_lambda_env.k;
-  return (v4 + v5 | 0) - v5 | 0;
+  return Math.imul(x, 2);
 }
 
 function viaClosure_lambda(viaClosure_lambda_env) {
@@ -74,4 +72,4 @@ function double$fn($e, a0) {
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

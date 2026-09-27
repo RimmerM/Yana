@@ -1,0 +1,754 @@
+module ResolveTest
+
+data Fail = Broken {why: String} reclaim derived
+
+data bytesOf.Iter {$index: I32, $slot: %U8, xs: ArrayView(U8), failAt: Size, : Size, : String, : String, : %U8, : Size, : Size, $failure: Outcome(I32, Fail)} shape9 drop authored
+
+data shifted.Iter {$index: I32, $slot: U8, tag: [U8 *3], n: U8, failAt: U8, i: U8, $failure: Outcome(I32, Fail)} drop authored
+
+data walk.Iter {$index: I32, $slot: %U8, xs: ArrayView(U8), i: Size, #+x: %U8, $walk: {$pair: iter(&U8), $up: USize}, $down: USize, $inner: USize} shape9 drop authored
+
+data walkShifted.Iter {$index: I32, $slot: U8, tag: [U8 *3], i: U8, $walkShifted: {$pair: iter(U8), $up: USize}, $down: USize, $inner: USize} drop authored
+
+instance Drop(bytesOf.Iter): bytesOf$drop
+
+instance IterateFailing(bytesOf.Iter, U8, Fail, {}): bytesOf$next, bytesOf$resume
+
+instance Drop(shifted.Iter): shifted$drop
+
+instance IterateFailing(shifted.Iter, U8, Fail, {}): shifted$next, shifted$resume
+
+instance Drop(walk.Iter): walk$drop
+
+instance Iterate(walk.Iter, U8, {}): walk$next, walk$resume
+
+instance Drop(walkShifted.Iter): walkShifted$drop
+
+instance Iterate(walkShifted.Iter, U8, {}): walkShifted$next, walkShifted$resume
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+let string'188: [CodeUnit *3] = "at "
+
+let string'189: [CodeUnit *4] = "stop"
+
+fn note(digit: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = const 10
+  %2: I64 = mul inspect %0 inspect %1
+  %3: I64 = read copy.trivial (digit)
+  %4: I64 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+fn expect(case: I32 [shared call], want: I64 [shared call]) -> {} {
+bb0:
+  %0: I64 = read copy.trivial (global trace)
+  %1: I64 = read copy.trivial (want)
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I64 = const 0
+  write.assign borrow.unique (global trace) take %9
+  return
+
+bb3:
+  %4: I32 [unique call] = read borrow.unique (global failures) loan0
+  %5: I32 = read copy.trivial (case)
+  %6: {} = call +=(I32) borrow.unique %4 borrow.shared %5
+  jump -> bb2
+}
+
+lens fn bytesOf(xs: Array(U8) [unique call view], failAt: Size [shared call], $body: (&U8) -> I32 [shared call]) -> Outcome(I32, Fail) {
+  local & $yielded: I32
+  local & local4: Size
+  local i: Size
+  local & local6: String
+  local local7: String
+  local & local8: U8 [unique slot 0 owner]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(U8) [shared call view] = read borrow.shared (xs) loan0
+  %3: Size = call length(Array(U8)) borrow.shared %2
+  %4: Size = const 0
+  %5: Size = const 1
+  write.init borrow.unique (local4) take %4
+  jump -> bb1(take %3, take %5)
+
+bb1(%6: Size, %7: Size):
+  %14: Size = read copy.trivial (local4)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: Size, %9: Size):
+  %65: Size = read copy.trivial (local4)
+  %66: Size = add inspect %65 inspect %9
+  write.assign borrow.unique (local4) take %66
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: Size, %11: Size):
+  %69: I32 = read copy.trivial ($yielded)
+  %70: Outcome(I32, Fail) = aggregate.Proceed take %69
+  return take %70
+
+bb4(%16: Size, %17: Size):
+  %19: Size = read copy.trivial (local4)
+  write.init borrow.unique (i) take %19
+  %21: Size = read copy.trivial (i)
+  %22: Size = read copy.trivial (failAt)
+  %23: Bool = eq inspect %21 inspect %22
+  branch inspect %23 -> bb7(take %16, take %17) -> bb5(take %16, take %17)
+
+bb5(%24: Size, %25: Size):
+  jump -> bb6(take %24, take %25)
+
+bb6(%49: Size, %50: Size):
+  %52: Size = read copy.trivial (i)
+  %53: Array(U8) [unique call view] = read borrow.unique (xs) loan4
+  %54: U8 [unique slot 0 owner] = call.subscript getMut(Array(U8), Size, U8) borrow.unique %53 borrow.shared %52 roots{4}
+  write.init borrow.unique (local8) borrow.unique %54
+  %56: U8 [unique slot 0 owner] = read borrow.unique (local8) loan5 roots{4}
+  %57: (&U8) -> I32 [shared call] = read borrow.shared ($body) loan6
+  %58: I32 = call inspect %57 borrow.unique %56
+  %59: I32 = const 0
+  %60: Bool = eq inspect %58 inspect %59
+  write.assign borrow.unique ($yielded) take %58
+  branch inspect %60 -> bb8 -> bb9
+
+bb7(%26: Size, %27: Size):
+  %29: Size = const 3
+  %30: Size = read copy.trivial (i)
+  %31: Maybe(Size) = call showBound(Size) borrow.shared %30
+  %32: Size = call formatBound borrow.shared %31
+  %33: Size = add inspect %29 inspect %32
+  %34: String = call String.ofCapacity borrow.shared %33
+  write.init borrow.unique (local6) take %34
+  %36: String [unique call] = read borrow.unique (local6) loan1
+  %37: String = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
+  write.init borrow.unique (local7) take %37
+  %39: String [shared slot 0] = read borrow.shared (local7) loan2
+  %40: String [shared slot 0 view] = call.derivation view(String) borrow.shared %39 roots{2}
+  %41: {} = call String.push borrow.unique %36 borrow.shared %40
+  drop (local7)
+  %42: Size = read copy.trivial (i)
+  %43: String [unique call] = read borrow.unique (local6) loan3
+  %44: {} = call show(Size) borrow.shared %42 borrow.unique %43
+  %45: String = read take (local6)
+  %46: Fail = aggregate.Broken take %45
+  %47: Outcome(I32, Fail) = aggregate.Exit take %46
+  return take %47
+
+bb8:
+  jump -> bb2(take %49, take %50)
+
+bb9:
+  jump -> bb3(take %49, take %50)
+}
+
+lens fn shifted(tag: [U8 *3] [shared call], n: U8 [shared call], failAt: U8 [shared call], $body: (U8) -> I32 [shared call]) -> Outcome(I32, Fail) {
+  local & $yielded: I32
+  local & i: U8
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (i)
+  %6: U8 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %33: I32 = read copy.trivial ($yielded)
+  %34: Outcome(I32, Fail) = aggregate.Proceed take %33
+  return take %34
+
+bb3:
+  %9: U8 = read copy.trivial (i)
+  %10: U8 = read copy.trivial (failAt)
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %18: U8 = read copy.trivial (i)
+  %19: Size = const 0
+  %20: U8 = read copy.trivial (tag[0])
+  %21: U8 = add inspect %18 inspect %20
+  %22: (U8) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %23: I32 = call inspect %22 borrow.shared %21
+  %24: I32 = const 0
+  %25: Bool = eq inspect %23 inspect %24
+  write.assign borrow.unique ($yielded) take %23
+  branch inspect %25 -> bb7 -> bb8
+
+bb6:
+  %13: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
+  %14: Fail = aggregate.Broken take %13
+  %15: Outcome(I32, Fail) = aggregate.Exit take %14
+  return take %15
+
+bb7:
+  %29: U8 [unique call] = read borrow.unique (i) loan1
+  %30: U8 = const 1
+  %31: {} = call +=(U8) borrow.unique %29 borrow.shared %30
+  jump -> bb1
+
+bb8:
+  jump -> bb2
+}
+
+lens fn walk(xs: Array(U8) [unique call view], i: Size [shared call], $body: (&U8) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local4: U8 [unique slot 0 owner]
+  local & x: U8 [unique call owner]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = read copy.trivial (i)
+  %3: Array(U8) [shared call view] = read borrow.shared (xs) loan0
+  %4: Size = call length(Array(U8)) borrow.shared %3
+  %5: Bool = lt inspect %2 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %44: I32 = read copy.trivial ($yielded)
+  return take %44
+
+bb3:
+  %7: I32 = read copy.trivial ($yielded)
+  %8: I32 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb5
+
+bb4:
+  %11: Size = read copy.trivial (i)
+  %12: Array(U8) [unique call view] = read borrow.unique (xs) loan1
+  %13: U8 [unique slot 0 owner] = call.subscript getMut(Array(U8), Size, U8) borrow.unique %12 borrow.shared %11 roots{1}
+  write.init borrow.unique (local4) borrow.unique %13
+  %15: U8 [unique slot 0 owner] = read borrow.unique (local4) loan2 roots{1}
+  %16: (&U8) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %17: I32 = call inspect %16 borrow.unique %15
+  write.assign borrow.unique ($yielded) take %17
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %21: Array(U8) [unique call view] = read borrow.unique (xs) loan4
+  %22: Size = read copy.trivial (i)
+  %23: Size = const 1
+  %24: Size = add inspect %22 inspect %23
+  lens.call walk borrow.unique %21 borrow.shared %24 -> bb8
+
+bb7:
+  jump -> bb2
+
+bb8(%25: U8 [unique call owner]) handover(U8 [unique call owner]) many -> bb7:
+  write.init borrow.unique (x) borrow.unique %25
+  %28: I32 = read copy.trivial ($yielded)
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb10
+
+bb9 handover(U8 [unique call owner]) many:
+  %32: U8 [unique call owner] = read borrow.unique (x) loan5 roots{4}
+  %33: (&U8) -> I32 [shared call] = read borrow.shared ($body) loan6
+  %34: I32 = call inspect %33 borrow.unique %32
+  %35: I32 = const 0
+  %36: Bool = eq inspect %34 inspect %35
+  write.assign borrow.unique ($yielded) take %34
+  branch inspect %36 -> bb11 -> bb12
+
+bb10 handover(U8 [unique call owner]) many:
+  jump -> bb12
+
+bb11 handover(U8 [unique call owner]) many:
+  jump -> bb7
+
+bb12 handover(U8 [unique call owner]) many:
+  break -> bb7
+}
+
+lens fn walkShifted(tag: [U8 *3] [shared call], i: U8 [shared call], $body: (U8) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local x: U8 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = read copy.trivial (i)
+  %3: U8 = const 5
+  %4: Bool = lt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %42: I32 = read copy.trivial ($yielded)
+  return take %42
+
+bb3:
+  %6: I32 = read copy.trivial ($yielded)
+  %7: I32 = const 0
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb4 -> bb5
+
+bb4:
+  %10: U8 = read copy.trivial (i)
+  %11: Size = const 0
+  %12: U8 = read copy.trivial (tag[0])
+  %13: U8 = add inspect %10 inspect %12
+  %14: (U8) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %15: I32 = call inspect %14 borrow.shared %13
+  write.assign borrow.unique ($yielded) take %15
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %19: [U8 *3] = read copy.trivial (tag)
+  %20: U8 = read copy.trivial (i)
+  %21: U8 = const 1
+  %22: U8 = add inspect %20 inspect %21
+  lens.call walkShifted borrow.shared %19 borrow.shared %22 -> bb8
+
+bb7:
+  jump -> bb2
+
+bb8(%23: U8 [shared call]) handover(U8 [shared call]) many -> bb7:
+  write.init borrow.unique (x) borrow.shared %23
+  %26: I32 = read copy.trivial ($yielded)
+  %27: I32 = const 0
+  %28: Bool = eq inspect %26 inspect %27
+  branch inspect %28 -> bb9 -> bb10
+
+bb9 handover(U8 [shared call]) many:
+  %30: U8 = read copy.trivial (x)
+  %31: (U8) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %32: I32 = call inspect %31 borrow.shared %30
+  %33: I32 = const 0
+  %34: Bool = eq inspect %32 inspect %33
+  write.assign borrow.unique ($yielded) take %32
+  branch inspect %34 -> bb11 -> bb12
+
+bb10 handover(U8 [shared call]) many:
+  jump -> bb12
+
+bb11 handover(U8 [shared call]) many:
+  jump -> bb7
+
+bb12 handover(U8 [shared call]) many:
+  break -> bb7
+}
+
+fn main() -> I32 {
+  local & local0: Array(U8) object1
+  local & xs: Array(U8) object1
+  local tag: [U8 *3]
+  local local3: bytesOf.Iter [owned here shape9 .2.0.*=unique slot 0]
+  local & clean: iter(&U8) [owned here shape10 .0=shared call]
+  local local5: %U8
+  local b: U8 [unique slot 0 owner]
+  local reason: Fail
+  local local8: bytesOf.Iter [owned here shape9 .2.0.*=unique slot 0]
+  local & failing: iter(&U8) [owned here shape10 .0=shared call]
+  local local10: %U8
+  local b: U8 [unique slot 0 owner]
+  local reason: Fail
+  local local13: shifted.Iter
+  local & small: iter(U8) [owned here shape10 .0=shared call]
+  local local15: %U8
+  local b: U8 [shared slot 0]
+  local reason: Fail
+  local & lent: walk.Iter [owned here shape9 .2.0.*=unique slot 0]
+  local local19: %U8
+  local b: U8 [unique slot 0]
+  local & deep: walkShifted.Iter
+  local local22: %U8
+  local b: U8 [shared slot 0]
+  flag (local3) = gone
+  flag (local8) = gone
+  flag (local13) = gone
+
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 2
+  %2: U8 = const 3
+  %3: U8 = const 4
+  %4: U8 = const 5
+  %5: %U8 = run.slots U8 *5
+  %6: Size = bitcast inspect %5
+  %7: Size = const 0
+  %8: Bool = eq inspect %6 inspect %7
+  %9: {} = call checkCondition borrow.shared %8
+  %10: @bits(30) U32 = const 5
+  %11: @bits(2) U32 = const 1
+  %12: Run(U8) = aggregate.Run take %5 take %10 take %11
+  %13: @bits(30) U32 = const 5
+  %14: Array(U8) = aggregate.Array take %12 take %13
+  write.init borrow.unique (local0) take %14
+  %16: Size = const 0
+  write.init borrow.unique ([%%5][0]) take %0
+  %18: Size = const 1
+  write.init borrow.unique ([%%5][1]) take %1
+  %20: Size = const 2
+  write.init borrow.unique ([%%5][2]) take %2
+  %22: Size = const 3
+  write.init borrow.unique ([%%5][3]) take %3
+  %24: Size = const 4
+  write.init borrow.unique ([%%5][4]) take %4
+  %26: Array(U8) = read take (local0)
+  write.init borrow.unique (xs) take %26
+  %28: U8 = const 1
+  %29: U8 = const 2
+  %30: U8 = const 3
+  %31: [U8 *3] = aggregate.0 take %28 take %29 take %30
+  write.init borrow.unique (tag) take %31
+  %33: Array(U8) [unique call] = read borrow.unique (xs) loan0
+  %34: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %33 roots{0}
+  %35: Size = const 100
+  %36: bytesOf.Iter [owned here shape9 .2.0.*=unique slot 0] = call bytesOf$new borrow.unique %34 take %35 roots.0{0}
+  write.init borrow.unique (local3) take %36
+  flag (local3) = held
+  %38: bytesOf.Iter [shared call shape9 .2.0.*=unique slot 0] = read borrow.shared (local3) loan1 roots.0{0}
+  %39: iter(&U8) [owned here shape10 .0=shared call] = fun.value bytesOf$erased inspect %38 roots.0{0, 1}
+  write.init borrow.unique (clean) take %39
+  jump -> bb1
+
+bb1:
+  %42: iter(&U8) [unique call shape10 .0=shared call] = read borrow.unique (clean) loan2 roots.0{0, 1}
+  %43: I32 = const 0
+  %44: Bool = const False
+  %45: %U8 = call inspect %42 take %43 take %44
+  %46: USize = bitcast inspect %45
+  %47: USize = const 0
+  %48: Bool = ne inspect %46 inspect %47
+  write.init borrow.unique (local5) take %45
+  branch inspect %48 -> bb4 -> bb2
+
+bb2:
+  drop.maybe (local3)
+  %73: I32 = const 1
+  flag (local3) = gone
+  %74: I64 = const 12345
+  %75: {} = call expect borrow.shared %73 borrow.shared %74
+  %76: Array(U8) [unique call] = read borrow.unique (xs) loan5
+  %77: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %76 roots{5}
+  %78: Size = const 3
+  %79: bytesOf.Iter [owned here shape9 .2.0.*=unique slot 0] = call bytesOf$new borrow.unique %77 take %78 roots.0{5}
+  write.init borrow.unique (local8) take %79
+  flag (local8) = held
+  %81: bytesOf.Iter [shared call shape9 .2.0.*=unique slot 0] = read borrow.shared (local8) loan6 roots.0{5}
+  %82: iter(&U8) [owned here shape10 .0=shared call] = fun.value bytesOf$erased inspect %81 roots.0{5, 6}
+  write.init borrow.unique (failing) take %82
+  jump -> bb6
+
+bb3:
+  %66: iter(&U8) [shared call shape10 .0=shared call] = read borrow.shared (clean) loan4 roots.0{0, 1}
+  %67: %U8 = read copy.trivial (local5)
+  %68: Fail = call iter(&U8 | Fail)'3$failure borrow.shared %66 take %67
+  drop (local3)
+  write.init borrow.unique (reason) take %68
+  flag (local3) = gone
+  drop (reason)
+  %70: I64 = const 7
+  %71: {} = call note borrow.shared %70
+  jump -> bb2
+
+bb4:
+  %51: %U8 = read copy.trivial (local5)
+  %52: USize = bitcast inspect %51
+  %53: USize = const 1
+  %54: USize = const 0
+  %55: USize = and inspect %52 inspect %53
+  %56: Bool = eq inspect %55 inspect %54
+  branch inspect %56 -> bb5 -> bb3
+
+bb5:
+  %58: %U8 = read copy.trivial (local5)
+  %59: iter(&U8) [shared slot 0 shape10 .0=shared call] = read borrow.shared (clean) loan3 roots.0{0, 1}
+  %60: U8 [unique slot 0 owner] = call iter(&U8 | Fail)'2$item borrow.shared %59 take %58 roots{0, 1, 3}
+  write.init borrow.unique (b) borrow.unique %60
+  %62: U8 = read copy.trivial (b)
+  %63: I64 = convert inspect %62
+  %64: {} = call note borrow.shared %63
+  jump -> bb1
+
+bb6:
+  %85: iter(&U8) [unique call shape10 .0=shared call] = read borrow.unique (failing) loan7 roots.0{5, 6}
+  %86: I32 = const 0
+  %87: Bool = const False
+  %88: %U8 = call inspect %85 take %86 take %87
+  %89: USize = bitcast inspect %88
+  %90: USize = const 0
+  %91: Bool = ne inspect %89 inspect %90
+  write.init borrow.unique (local10) take %88
+  branch inspect %91 -> bb9 -> bb7
+
+bb7:
+  drop.maybe (local8)
+  %121: I32 = const 2
+  flag (local8) = gone
+  %122: I64 = const 12374
+  %123: {} = call expect borrow.shared %121 borrow.shared %122
+  %124: [U8 *3] = read copy.trivial (tag)
+  %125: U8 = const 5
+  %126: U8 = const 3
+  %127: shifted.Iter = call shifted$new take %124 take %125 take %126
+  write.init borrow.unique (local13) take %127
+  flag (local13) = held
+  %129: shifted.Iter [shared call] = read borrow.shared (local13) loan11
+  %130: iter(U8) [owned here shape10 .0=shared call] = fun.value shifted$erased inspect %129 roots.0{11}
+  write.init borrow.unique (small) take %130
+  jump -> bb11
+
+bb8:
+  %109: iter(&U8) [shared call shape10 .0=shared call] = read borrow.shared (failing) loan9 roots.0{5, 6}
+  %110: %U8 = read copy.trivial (local10)
+  %111: Fail = call iter(&U8 | Fail)'3$failure borrow.shared %109 take %110
+  drop (local8)
+  write.init borrow.unique (reason) take %111
+  flag (local8) = gone
+  %113: I64 = const 7
+  %114: {} = call note borrow.shared %113
+  %115: String [shared call] = read borrow.shared (reason.why) loan10
+  %116: String [shared slot 0 view] = call.derivation view(String) borrow.shared %115 roots{10}
+  %117: Size = call length(String) borrow.shared %116
+  drop (reason)
+  %118: I64 = convert inspect %117
+  %119: {} = call note borrow.shared %118
+  jump -> bb7
+
+bb9:
+  %94: %U8 = read copy.trivial (local10)
+  %95: USize = bitcast inspect %94
+  %96: USize = const 1
+  %97: USize = const 0
+  %98: USize = and inspect %95 inspect %96
+  %99: Bool = eq inspect %98 inspect %97
+  branch inspect %99 -> bb10 -> bb8
+
+bb10:
+  %101: %U8 = read copy.trivial (local10)
+  %102: iter(&U8) [shared slot 0 shape10 .0=shared call] = read borrow.shared (failing) loan8 roots.0{5, 6}
+  %103: U8 [unique slot 0 owner] = call iter(&U8 | Fail)'2$item borrow.shared %102 take %101 roots{5, 6, 8}
+  write.init borrow.unique (b) borrow.unique %103
+  %105: U8 = read copy.trivial (b)
+  %106: I64 = convert inspect %105
+  %107: {} = call note borrow.shared %106
+  jump -> bb6
+
+bb11:
+  %133: iter(U8) [unique call shape10 .0=shared call] = read borrow.unique (small) loan12 roots.0{11}
+  %134: I32 = const 0
+  %135: Bool = const False
+  %136: %U8 = call inspect %133 take %134 take %135
+  %137: USize = bitcast inspect %136
+  %138: USize = const 0
+  %139: Bool = ne inspect %137 inspect %138
+  write.init borrow.unique (local15) take %136
+  branch inspect %139 -> bb14 -> bb12
+
+bb12:
+  drop.maybe (local13)
+  %169: I32 = const 4
+  flag (local13) = gone
+  %170: I64 = const 12374
+  %171: {} = call expect borrow.shared %169 borrow.shared %170
+  %172: Array(U8) [unique call] = read borrow.unique (xs) loan16
+  %173: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %172 roots{16}
+  %174: Size = const 0
+  %175: walk.Iter [owned here shape9 .2.0.*=unique slot 0] = call walk$new borrow.unique %173 take %174 roots.0{16}
+  write.init borrow.unique (lent) take %175
+  jump -> bb16
+
+bb13:
+  %157: iter(U8) [shared call shape10 .0=shared call] = read borrow.shared (small) loan14 roots.0{11}
+  %158: %U8 = read copy.trivial (local15)
+  %159: Fail = call iter(U8 | Fail)'3$failure borrow.shared %157 take %158
+  drop (local13)
+  write.init borrow.unique (reason) take %159
+  flag (local13) = gone
+  %161: I64 = const 7
+  %162: {} = call note borrow.shared %161
+  %163: String [shared call] = read borrow.shared (reason.why) loan15
+  %164: String [shared slot 0 view] = call.derivation view(String) borrow.shared %163 roots{15}
+  %165: Size = call length(String) borrow.shared %164
+  drop (reason)
+  %166: I64 = convert inspect %165
+  %167: {} = call note borrow.shared %166
+  jump -> bb12
+
+bb14:
+  %142: %U8 = read copy.trivial (local15)
+  %143: USize = bitcast inspect %142
+  %144: USize = const 1
+  %145: USize = const 0
+  %146: USize = and inspect %143 inspect %144
+  %147: Bool = eq inspect %146 inspect %145
+  branch inspect %147 -> bb15 -> bb13
+
+bb15:
+  %149: %U8 = read copy.trivial (local15)
+  %150: iter(U8) [shared slot 0 shape10 .0=shared call] = read borrow.shared (small) loan13 roots.0{11}
+  %151: U8 [shared slot 0] = call iter(U8 | Fail)'2$item borrow.shared %150 take %149 roots{11, 13}
+  write.init borrow.unique (b) borrow.shared %151
+  %153: U8 = read copy.trivial (b)
+  %154: I64 = convert inspect %153
+  %155: {} = call note borrow.shared %154
+  jump -> bb11
+
+bb16:
+  %178: walk.Iter [unique call shape9 .2.0.*=unique slot 0] = read borrow.unique (lent) loan17 roots.0{16}
+  %179: I32 = const 0
+  %180: Bool = const False
+  %181: %U8 = call walk$walk borrow.unique %178 take %179 take %180
+  %182: USize = bitcast inspect %181
+  %183: USize = const 0
+  %184: Bool = ne inspect %182 inspect %183
+  write.init borrow.unique (local19) take %181
+  branch inspect %184 -> bb18 -> bb17
+
+bb17:
+  drop (lent)
+  drop (xs)
+  %195: I32 = const 8
+  %196: I64 = const 12345
+  %197: {} = call expect borrow.shared %195 borrow.shared %196
+  %198: [U8 *3] = read copy.trivial (tag)
+  %199: U8 = const 0
+  %200: walkShifted.Iter = call walkShifted$new take %198 take %199
+  write.init borrow.unique (deep) take %200
+  jump -> bb19
+
+bb18:
+  %187: %U8 = read copy.trivial (local19)
+  %188: walk.Iter [shared slot 0 shape9 .2.0.*=unique slot 0] = read borrow.shared (lent) loan18 roots.0{16}
+  %189: U8 [unique slot 0] = call walk$item borrow.shared %188 take %187 roots{16, 18}
+  write.init borrow.unique (b) borrow.unique %189
+  %191: U8 = read copy.trivial (b)
+  %192: I64 = convert inspect %191
+  %193: {} = call note borrow.shared %192
+  jump -> bb16
+
+bb19:
+  %203: walkShifted.Iter [unique call] = read borrow.unique (deep) loan19
+  %204: I32 = const 0
+  %205: Bool = const False
+  %206: %U8 = call walkShifted$walk borrow.unique %203 take %204 take %205
+  %207: USize = bitcast inspect %206
+  %208: USize = const 0
+  %209: Bool = ne inspect %207 inspect %208
+  write.init borrow.unique (local22) take %206
+  branch inspect %209 -> bb21 -> bb20
+
+bb20:
+  drop (deep)
+  %220: I32 = const 16
+  %221: I64 = const 12345
+  %222: {} = call expect borrow.shared %220 borrow.shared %221
+  %223: I32 = read copy.trivial (global failures)
+  return take %223
+
+bb21:
+  %212: %U8 = read copy.trivial (local22)
+  %213: walkShifted.Iter [shared slot 0] = read borrow.shared (deep) loan20
+  %214: U8 [shared slot 0] = call walkShifted$item borrow.shared %213 take %212 roots{20}
+  write.init borrow.unique (b) borrow.shared %214
+  %216: U8 = read copy.trivial (b)
+  %217: I64 = convert inspect %216
+  %218: {} = call note borrow.shared %217
+  jump -> bb19
+}
+
+fn bytesOf$new(xs: Array(U8) [unique slot 0 view], failAt: Size) -> bytesOf.Iter [owned here shape9 .2.0.*=unique slot 0] = <no body>
+
+fn bytesOf$step($self: bytesOf.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn bytesOf$drop($self: bytesOf.Iter) -> {} = <no body>
+
+fn bytesOf$item($self: bytesOf.Iter [shared slot 0]) -> U8 [unique slot 0] = <no body>
+
+fn bytesOf$failure($self: bytesOf.Iter [unique call]) -> Fail = <no body>
+
+fn bytesOf$next($self: bytesOf.Iter [unique slot 0 shape9 .2.0.*=unique slot 0]) -> IterStep(Fail, U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytesOf$resume($self: bytesOf.Iter [unique slot 0 shape9 .2.0.*=unique slot 0], $v: {}) -> IterStep(Fail, U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytesOf$erased($env: bytesOf.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn shifted$new(tag: [U8 *3], n: U8, failAt: U8) -> shifted.Iter = <no body>
+
+fn shifted$step($self: shifted.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn shifted$drop($self: shifted.Iter) -> {} = <no body>
+
+fn shifted$failure($self: shifted.Iter [unique call]) -> Fail = <no body>
+
+fn shifted$next($self: shifted.Iter [unique slot 0]) -> IterStep(Fail, U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn shifted$resume($self: shifted.Iter [unique slot 0], $v: {}) -> IterStep(Fail, U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn shifted$erased($env: shifted.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walk$new(xs: Array(U8) [unique slot 0 view], i: Size) -> walk.Iter [owned here shape9 .2.0.*=unique slot 0] = <no body>
+
+fn walk$step($self: walk.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn walk$walk($self: walk.Iter [unique call], $resume: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walk$drop($self: walk.Iter) -> {} = <no body>
+
+fn walk$item($self: walk.Iter [shared slot 0], $at: %U8) -> U8 [unique slot 0] = <no body>
+
+fn walk$next($self: walk.Iter [unique slot 0 shape9 .2.0.*=unique slot 0]) -> Maybe(U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walk$resume($self: walk.Iter [unique slot 0 shape9 .2.0.*=unique slot 0], $v: {}) -> Maybe(U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walkShifted$new(tag: [U8 *3], i: U8) -> walkShifted.Iter = <no body>
+
+fn walkShifted$step($self: walkShifted.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn walkShifted$walk($self: walkShifted.Iter [unique call], $resume: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walkShifted$drop($self: walkShifted.Iter) -> {} = <no body>
+
+fn walkShifted$item($self: walkShifted.Iter [shared slot 0], $at: %U8) -> U8 [shared slot 0] = <no body>
+
+fn walkShifted$next($self: walkShifted.Iter [unique slot 0]) -> Maybe(U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walkShifted$resume($self: walkShifted.Iter [unique slot 0], $v: {}) -> Maybe(U8) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn walk$erased.step($env: walk.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walk$erased.heap($env: walk.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walkShifted$erased.step($env: walkShifted.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+fn walkShifted$erased.heap($env: walkShifted.Iter [unique call], $sent: I32, $cancel: Bool) -> %U8 = <no body>
+
+entry main

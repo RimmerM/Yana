@@ -2,11 +2,14 @@
 -- at - J148.
 --
 -- J145's `erasureTooSmall` specializes a body of at most four MIR nodes rather than erase it, and it
--- forced that form here too: `second` is called at forty record types, so the specializing walk made
+-- forced that form here too: `second` was called at forty record types, so the specializing walk made
 -- thirty-two copies and then refused the program, "specialized at more than 32 argument lists". It
 -- had compiled erased before and the shipping stage compiled it. The floor applies now only where
 -- every list the walk can reach is written down and there are no more of them than the cap, which
 -- is `GenericReach` counting distinct lists up to one past it.
+--
+-- A hundred and thirty types since K1 raised the cap from 32 to 128: the fixture is about a count
+-- past the cap, so it moves with it.
 
 fn (a) second(x: a, n: I32) -> I32 = n
 
@@ -50,6 +53,96 @@ data T36 {v: I32}
 data T37 {v: I32}
 data T38 {v: I32}
 data T39 {v: I32}
+data T40 {v: I32}
+data T41 {v: I32}
+data T42 {v: I32}
+data T43 {v: I32}
+data T44 {v: I32}
+data T45 {v: I32}
+data T46 {v: I32}
+data T47 {v: I32}
+data T48 {v: I32}
+data T49 {v: I32}
+data T50 {v: I32}
+data T51 {v: I32}
+data T52 {v: I32}
+data T53 {v: I32}
+data T54 {v: I32}
+data T55 {v: I32}
+data T56 {v: I32}
+data T57 {v: I32}
+data T58 {v: I32}
+data T59 {v: I32}
+data T60 {v: I32}
+data T61 {v: I32}
+data T62 {v: I32}
+data T63 {v: I32}
+data T64 {v: I32}
+data T65 {v: I32}
+data T66 {v: I32}
+data T67 {v: I32}
+data T68 {v: I32}
+data T69 {v: I32}
+data T70 {v: I32}
+data T71 {v: I32}
+data T72 {v: I32}
+data T73 {v: I32}
+data T74 {v: I32}
+data T75 {v: I32}
+data T76 {v: I32}
+data T77 {v: I32}
+data T78 {v: I32}
+data T79 {v: I32}
+data T80 {v: I32}
+data T81 {v: I32}
+data T82 {v: I32}
+data T83 {v: I32}
+data T84 {v: I32}
+data T85 {v: I32}
+data T86 {v: I32}
+data T87 {v: I32}
+data T88 {v: I32}
+data T89 {v: I32}
+data T90 {v: I32}
+data T91 {v: I32}
+data T92 {v: I32}
+data T93 {v: I32}
+data T94 {v: I32}
+data T95 {v: I32}
+data T96 {v: I32}
+data T97 {v: I32}
+data T98 {v: I32}
+data T99 {v: I32}
+data T100 {v: I32}
+data T101 {v: I32}
+data T102 {v: I32}
+data T103 {v: I32}
+data T104 {v: I32}
+data T105 {v: I32}
+data T106 {v: I32}
+data T107 {v: I32}
+data T108 {v: I32}
+data T109 {v: I32}
+data T110 {v: I32}
+data T111 {v: I32}
+data T112 {v: I32}
+data T113 {v: I32}
+data T114 {v: I32}
+data T115 {v: I32}
+data T116 {v: I32}
+data T117 {v: I32}
+data T118 {v: I32}
+data T119 {v: I32}
+data T120 {v: I32}
+data T121 {v: I32}
+data T122 {v: I32}
+data T123 {v: I32}
+data T124 {v: I32}
+data T125 {v: I32}
+data T126 {v: I32}
+data T127 {v: I32}
+data T128 {v: I32}
+data T129 {v: I32}
 
 fn main() -> I32:
     let &s = 0
@@ -93,4 +186,94 @@ fn main() -> I32:
     s += second(T37 {v: 37}, 37)
     s += second(T38 {v: 38}, 38)
     s += second(T39 {v: 39}, 39)
+    s += second(T40 {v: 40}, 40)
+    s += second(T41 {v: 41}, 41)
+    s += second(T42 {v: 42}, 42)
+    s += second(T43 {v: 43}, 43)
+    s += second(T44 {v: 44}, 44)
+    s += second(T45 {v: 45}, 45)
+    s += second(T46 {v: 46}, 46)
+    s += second(T47 {v: 47}, 47)
+    s += second(T48 {v: 48}, 48)
+    s += second(T49 {v: 49}, 49)
+    s += second(T50 {v: 50}, 50)
+    s += second(T51 {v: 51}, 51)
+    s += second(T52 {v: 52}, 52)
+    s += second(T53 {v: 53}, 53)
+    s += second(T54 {v: 54}, 54)
+    s += second(T55 {v: 55}, 55)
+    s += second(T56 {v: 56}, 56)
+    s += second(T57 {v: 57}, 57)
+    s += second(T58 {v: 58}, 58)
+    s += second(T59 {v: 59}, 59)
+    s += second(T60 {v: 60}, 60)
+    s += second(T61 {v: 61}, 61)
+    s += second(T62 {v: 62}, 62)
+    s += second(T63 {v: 63}, 63)
+    s += second(T64 {v: 64}, 64)
+    s += second(T65 {v: 65}, 65)
+    s += second(T66 {v: 66}, 66)
+    s += second(T67 {v: 67}, 67)
+    s += second(T68 {v: 68}, 68)
+    s += second(T69 {v: 69}, 69)
+    s += second(T70 {v: 70}, 70)
+    s += second(T71 {v: 71}, 71)
+    s += second(T72 {v: 72}, 72)
+    s += second(T73 {v: 73}, 73)
+    s += second(T74 {v: 74}, 74)
+    s += second(T75 {v: 75}, 75)
+    s += second(T76 {v: 76}, 76)
+    s += second(T77 {v: 77}, 77)
+    s += second(T78 {v: 78}, 78)
+    s += second(T79 {v: 79}, 79)
+    s += second(T80 {v: 80}, 80)
+    s += second(T81 {v: 81}, 81)
+    s += second(T82 {v: 82}, 82)
+    s += second(T83 {v: 83}, 83)
+    s += second(T84 {v: 84}, 84)
+    s += second(T85 {v: 85}, 85)
+    s += second(T86 {v: 86}, 86)
+    s += second(T87 {v: 87}, 87)
+    s += second(T88 {v: 88}, 88)
+    s += second(T89 {v: 89}, 89)
+    s += second(T90 {v: 90}, 90)
+    s += second(T91 {v: 91}, 91)
+    s += second(T92 {v: 92}, 92)
+    s += second(T93 {v: 93}, 93)
+    s += second(T94 {v: 94}, 94)
+    s += second(T95 {v: 95}, 95)
+    s += second(T96 {v: 96}, 96)
+    s += second(T97 {v: 97}, 97)
+    s += second(T98 {v: 98}, 98)
+    s += second(T99 {v: 99}, 99)
+    s += second(T100 {v: 100}, 100)
+    s += second(T101 {v: 101}, 101)
+    s += second(T102 {v: 102}, 102)
+    s += second(T103 {v: 103}, 103)
+    s += second(T104 {v: 104}, 104)
+    s += second(T105 {v: 105}, 105)
+    s += second(T106 {v: 106}, 106)
+    s += second(T107 {v: 107}, 107)
+    s += second(T108 {v: 108}, 108)
+    s += second(T109 {v: 109}, 109)
+    s += second(T110 {v: 110}, 110)
+    s += second(T111 {v: 111}, 111)
+    s += second(T112 {v: 112}, 112)
+    s += second(T113 {v: 113}, 113)
+    s += second(T114 {v: 114}, 114)
+    s += second(T115 {v: 115}, 115)
+    s += second(T116 {v: 116}, 116)
+    s += second(T117 {v: 117}, 117)
+    s += second(T118 {v: 118}, 118)
+    s += second(T119 {v: 119}, 119)
+    s += second(T120 {v: 120}, 120)
+    s += second(T121 {v: 121}, 121)
+    s += second(T122 {v: 122}, 122)
+    s += second(T123 {v: 123}, 123)
+    s += second(T124 {v: 124}, 124)
+    s += second(T125 {v: 125}, 125)
+    s += second(T126 {v: 126}, 126)
+    s += second(T127 {v: 127}, 127)
+    s += second(T128 {v: 128}, 128)
+    s += second(T129 {v: 129}, 129)
     return s

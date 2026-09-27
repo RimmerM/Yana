@@ -1,0 +1,26 @@
+{-
+   `RepointInLoop.yana` with the old run still read after the replacing `b.grab()` - K8. The old
+   loan of `b` is held by `old`, which is live across the grab, so the second exclusive borrow is
+   refused exactly as it is in straight-line code.
+-}
+
+data Buf {bytes: [U8], at: Size}
+
+fn grab(&self: 'Buf) -> '[U8]:
+    self.at += 1
+    return self.bytes[0..self.at]
+
+data Run {bytes: '[U8], at: Size}
+
+fn refilled(&b: Buf) -> Size:
+    let &x = Run {bytes: b.grab(), at: 0}
+    let &sum = 0 :: Size
+    while sum < 20:
+        let old = x
+        if x.at == length(x.bytes):
+            x = Run {bytes: b.grab(), at: 0}
+        sum += length(old.bytes)
+        x = {x | at: x.at + 1}
+    return sum
+
+fn main() -> Int = 0

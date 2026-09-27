@@ -31,7 +31,6 @@ function letters(xs$0, xs$1, xs$2) {
   var p3 = 0;
   var p4 = 0;
   while (p3 < xs$1) {
-    if (p3 >>> 0 >= xs$1 >>> 0) throw $t;
     p4 = p4 + xs$0[xs$2 + p3 | 0].length | 0;
     p3 = p3 + 1 | 0;
   }
@@ -47,12 +46,12 @@ function boxes() {
   var v17 = [];
   var p0 = 0;
   while (p0 < 10) {
-    var v164 = p0 >>> 0;
-    var v175 = ($rem(v164, 16) & 15) * 4294967296 + ($rem(v164, 3) >>> 0 === 0 ? 1 : 0) * 68719476736 + (v164 & 4095) * 1048576 + (Math.imul(v164, 7) & 1048575);
-    var v178 = v17.length;
-    var v180 = v178 + 1;
-    v17[v178] = v175;
-    v17.length = v180 & 1073741823;
+    var v161 = p0 >>> 0;
+    var v172 = ($rem(v161, 16) & 15) * 4294967296 + ($rem(v161, 3) >>> 0 === 0 ? 1 : 0) * 68719476736 + (v161 & 4095) * 1048576 + (Math.imul(v161, 7) & 1048575);
+    var v175 = v17.length;
+    var v177 = v175 + 1;
+    v17[v175] = v172;
+    v17.length = v177 & 1073741823;
     p0 = p0 + 1 | 0;
   }
   var v6 = { $v: [] };
@@ -70,7 +69,6 @@ function boxes() {
   var p1 = 0;
   var p2 = 0;
   while (p1 < v77) {
-    if (p1 >>> 0 >= v77) throw $t;
     p2 = p2 + (v17[p1 | 0] & 1048575) | 0;
     p1 = p1 + 1 | 0;
   }
@@ -90,23 +88,22 @@ function updates() {
   var v6 = { $v: [] };
   var p0 = 0;
   while (p0 < 6) {
-    var v316 = p0 >>> 0;
-    push_Item(v6, "$v", { weight: 1.5, level: v316 & 255, $p0: ($rem(v316, 2) >>> 0 === 0) << 12 | Math.imul(v316, 3) & 4095 });
+    var v293 = p0 >>> 0;
+    push_Item(v6, "$v", { weight: 1.5, level: v293 & 255, $p0: ($rem(v293, 2) >>> 0 === 0) << 12 | Math.imul(v293, 3) & 4095 });
     p0 = p0 + 1 | 0;
   }
   var v60 = v6.$v.length;
   var p1 = 0;
   while (p1 < v60) {
-    var v271 = v6.$v;
-    if (p1 >>> 0 >= v271.length) throw $t;
-    var v281 = p1 | 0;
-    var v282 = v271[v281];
-    var v291 = v282.$p0 >>> 13 & 1 ^ 1;
-    var v304 = $rem((v282.$p0 & 4095) + 1, 4096) & 4095;
-    s10 = v282.$p0;
-    s10 = s10 & -8193 | v291 << 13;
-    s10 = s10 & 4294963200 | v304;
-    v271[v281] = { weight: v282.weight, level: v282.level, $p0: s10 };
+    var v265 = v6.$v;
+    if (p1 >>> 0 >= v265.length) throw $t;
+    var v274 = v265[p1];
+    var v278 = v274.$p0 >>> 13 & 1 ^ 1;
+    var v286 = $rem((v274.$p0 & 4095) + 1, 4096) & 4095;
+    s10 = v274.$p0;
+    s10 = s10 & -8193 | v278 << 13;
+    s10 = s10 & 4294963200 | v286;
+    v265[p1] = { weight: v274.weight, level: v274.level, $p0: s10 };
     p1 = p1 + 1 | 0;
   }
   var v12 = { $v: [] };
@@ -114,14 +111,13 @@ function updates() {
   var v78 = v74.length;
   var p2 = 0;
   while (p2 < v78) {
-    if (p2 >>> 0 >= v78) throw $t;
-    var v249 = v74[p2 | 0];
-    var v256 = v249.level + 10 & 255;
-    var v259 = v249.weight * 2;
-    var v262 = v249.$p0 >>> 12 & 1 ^ 1;
-    s11 = v249.$p0;
-    s11 = s11 & -4097 | v262 << 12;
-    push_Item(v12, "$v", { weight: v259, level: v256, $p0: s11 });
+    var v243 = v74[p2 | 0];
+    var v250 = v243.level + 10 & 255;
+    var v253 = v243.weight * 2;
+    var v256 = v243.$p0 >>> 12 & 1 ^ 1;
+    s11 = v243.$p0;
+    s11 = s11 & -4097 | v256 << 12;
+    push_Item(v12, "$v", { weight: v253, level: v250, $p0: s11 });
     p2 = p2 + 1 | 0;
   }
   var v96 = { weight: 0.25, level: 3, $p0: 12292 };
@@ -141,9 +137,8 @@ function updates() {
   var p3 = 0;
   var p4 = 0;
   while (p3 < v134) {
-    if (p3 >>> 0 >= v134) throw $t;
-    var v210 = v130[p3 | 0];
-    p4 = ((p4 + ((v210.$p0 >>> 13 & 1) + (v210.$p0 >>> 12 & 1 ? 2 : 0)) | 0) + (v210.level + (v210.$p0 & 4095)) | 0) + (Math.min(Math.max(Math.trunc(v210.weight * 4), -2.147483648E9), 2.147483647E9) | 0) | 0;
+    var v207 = v130[p3 | 0];
+    p4 = ((p4 + ((v207.$p0 >>> 13 & 1) + (v207.$p0 >>> 12 & 1 ? 2 : 0)) | 0) + (v207.level + (v207.$p0 & 4095)) | 0) + (Math.min(Math.max(Math.trunc(v207.weight * 4), -2.147483648E9), 2.147483647E9) | 0) | 0;
     p3 = p3 + 1 | 0;
   }
   var v178 = (Math.imul(p4, 10) + Math.imul((v96.$p0 & 4095) + v111.level + (v96.$p0 >>> 13 & 1 ? 100 : 0), 1000) | 0) + Math.imul(calls, 100000) | 0;
@@ -178,4 +173,4 @@ function $rem(a, b) {
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14
-main();
+(globalThis.process ?? {}).exitCode = main();

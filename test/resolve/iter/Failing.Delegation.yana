@@ -1,0 +1,171 @@
+{-
+   **Delegation to a failing child** - C1c, §6.3's `yield from` with §6.6's `| E` under it.
+
+   `for x in chain(n - 1) | tag -> ...: yield x` is the re-yield shape J60 delegates, with an
+   alternative beside it. Its object keeps the chain J60 built and steps the innermost level
+   directly, so an element costs the same at depth 1000 as at depth 1 - the alternative adds nothing
+   to the success path. What a failure adds is at the two ends of one level:
+
+    - the failed level answers **null** to the trampoline, which pops it and steps the level above,
+      exactly as it does for a level that ran out - the trampoline cannot tell them apart and does
+      not have to;
+    - the level above resumes where it delegated, asks its child's pair once more, and gets the
+      failure (`f$erased.step` parked it as `kIterFailedHeld` for that second call). The alternative
+      then runs in that level's own step, and may do what the nested case (C1b) lets it do: fail this
+      level too, `yield` - the trampoline hands the item on - or fall through to the code after the
+      loop. `| tag -> return tag` therefore composes up the chain one level per *failure*, and not
+      one per element.
+
+   Digits: an item (its value, mod 10 where it is a count), an alternative (7 then what it saw), a
+   `Tag` released (9 then its id), a `Mark` released (8). `main` answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+let &marks = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+-- A level that owns something, so that releasing one is counted: a chain of `n` levels made `n`.
+data Mark {id: Int}
+
+instance Drop(Mark):
+    fn drop(->value: Mark):
+        marks = marks + 1
+
+-- Fails at the bottom, and every level forwards the failure: it surfaces at the root.
+iter fn chain(n: Int) -> (Int | Tag):
+    if n == 0 then return Tag {id: 4}
+    let m = Mark {id: n}
+    yield n
+    for x in chain(n - 1) | tag -> return tag:
+        yield x
+
+-- The alternative **yields** instead, and the walk carries on from the level that handled it.
+iter fn patched(n: Int) -> (Int | Tag):
+    if n == 0 then return Tag {id: 5}
+    yield n
+    for x in patched(n - 1) | tag -> yield tag.id + 1:
+        yield x
+    yield 0
+
+-- The alternative **falls through**: the level handles it and runs its code after the loop.
+iter fn absorbed(n: Int) -> Int:
+    if n > 0:
+        for x in failing(n) | tag -> note(7):
+            yield x
+    yield 1
+
+iter fn failing(n: Int) -> (Int | Tag):
+    if n == 0 then return Tag {id: 3}
+    yield n
+    for x in failing(n - 1) | tag -> return tag:
+        yield x
+
+{-
+   A `break` part way down, once as an object and once as `for x in chain(...)`. A departure runs
+   the code after each level's `yield` - that is the rule for a `yield` below no loop - which opens
+   the next level down with nobody left to step it, so the object's level steps its child once with
+   the *ordinary* shim and releases it (J60's departure path). At the bottom that one step is the
+   failure, which the level's alternative takes as it would in the `for` form; `return tag` in a
+   level being torn down then drops the tag rather than failing anything (J216's rule).
+
+   Both forms make and release all fifty `Mark`s. They differ in one digit, and the difference is
+   older than this file: the continuation-passing `for` hands a failure raised during a departure to
+   the consumer's alternative (`947`), where the object drops it (`94`) - J216 recorded the object's
+   reading as the `for` form's too, and a plain producer failing below its loop shows the same split.
+-}
+fn breakObject(n: Int, at: Int):
+    let &it = chain(n)
+    for x in it:
+        if x == at then break
+    | tag -> note(7)
+
+fn objectBroken(n: Int, at: Int) -> Long:
+    marks = 0
+    trace = 0
+    breakObject(n, at)
+    let answer = trace * 10000 + (marks :: Long)
+    marks = 0
+    trace = 0
+    return answer
+
+fn loopBroken(n: Int, at: Int) -> Long:
+    marks = 0
+    trace = 0
+    for x in chain(n):
+        if x == at then break
+    | tag -> note(7)
+    let answer = trace * 10000 + (marks :: Long)
+    marks = 0
+    trace = 0
+    return answer
+
+fn main() -> Int:
+    -- Three levels: 3, 2, 1, then the bottom fails and the root's consumer handles it.
+    let &a = chain(3)
+    for x in a:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(1, 3217944)
+    if marks != 3 then failures += 1
+    marks = 0
+
+    -- A thousand levels, the same failure at the bottom; each level's `Mark` released once.
+    let &deep = chain(1000)
+    let &count = 0
+    let &sum = 0 :: Long
+    for x in deep:
+        count += 1
+        sum = sum + (x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    if count != 1000 || sum != 500500 then failures += 2
+    expect(2, 7944)
+    if marks != 1000 then failures += 2
+    marks = 0
+
+    -- Left half way down a failing chain: the object releases what the `for` form releases, and the
+    -- consumer's alternative does not run after its `break` - see `objectBroken`.
+    if objectBroken(50, 40) != 940050 || loopBroken(50, 40) != 9470050 then failures += 4
+
+    -- Yielding from the alternative: 2, 1, then the bottom's 5 handled as 6 one level up, then the
+    -- two levels' own trailing `0`s.
+    let &c = patched(2)
+    for x in c:
+        note(x :: Long)
+    | tag -> note(7)
+    expect(8, 2195600)
+
+    -- Falling through: `absorbed`'s level drops the unused tag, notes 7 and yields its trailing 1.
+    let &d = absorbed(2)
+    for x in d:
+        note(x :: Long)
+    expect(16, 219371)
+
+    -- The same chain stepped through the erased `iter(T | E)`: the root's trampoline behind a pair.
+    let &e = chain(2) :: iter(Int | Tag)
+    for x in e:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(32, 217944)
+    marks = 0
+
+    return failures

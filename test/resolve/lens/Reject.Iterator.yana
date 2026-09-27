@@ -5,12 +5,10 @@
    under any milestone, what the construct's own rule refuses, and what waits for a later waypoint
    with the message naming what it waits for.
 
-   The one worth reading twice is `break` out of a lens call. Within a region `break` and `continue`
-   are ordinary edges - Analysis-Lens.md §5.1's "the loop-shaped instance of one mechanism" - and
-   what stops this one is that the block on the far side belongs to another function once the
-   continuation is outlined. So it is a *row of the exit signal*, and there are two rows: falling out
-   and `return`. A third is the same work `break` out of a `for` body already does one level down,
-   which is why the message names the signal rather than the construct.
+   The one worth reading twice is `continue v` out of a lens call. A bare `break` or `continue` there
+   is built (lens/Break.yana): the block on the far side belongs to another function once the
+   continuation is outlined, so it is a *row of the exit signal* naming where it lands. A row is a
+   number, and the value of a `continue v` is made inside the region, so that one is refused.
 -}
 
 let &log = 0 :: Int
@@ -44,11 +42,11 @@ fn carrying(n: Int) -> Int:
 
     return 0
 
--- The exit signal has two rows, and this is the third.
+-- A row carries a number, and this value is made inside the lens's region.
 fn acrossALens(n: Int) -> Int:
     for x in upTo(n):
         let v = handing() in:
-            break
+            continue v
 
     return 0
 

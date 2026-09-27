@@ -504,12 +504,12 @@ bb0:
   %29: I32 = const 4
   %30: Result(I32, I32) = call viaResult borrow.shared %29
   %31: I32 = const 0
-  %32: I32 = call okOr borrow.shared %30 borrow.shared %31
+  %32: I32 = call okOr'2 borrow.shared %30 borrow.shared %31
   write.init borrow.unique (f) take %32
   %34: I32 = const -2
   %35: Result(I32, I32) = call viaResult borrow.shared %34
   %36: I32 = const 0
-  %37: I32 = call okOr borrow.shared %35 borrow.shared %36
+  %37: I32 = call okOr'2 borrow.shared %35 borrow.shared %36
   write.init borrow.unique (g) take %37
   %39: I32 = const 2
   %40: I32 = const 7
@@ -615,7 +615,7 @@ bb3:
   jump -> bb2(take %6)
 }
 
-fn okOr(r: Result(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
+fn okOr'2(r: Result(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
   local v: I32
 
 bb0:

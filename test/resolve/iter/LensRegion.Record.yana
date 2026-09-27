@@ -1,0 +1,76 @@
+{-
+   A lens region inside an object whose lens hands over a **record holding a borrow** built out of a
+   `&` parameter - the shape an input traversal writing through an output window has.
+
+   `window` builds a `Win` whose `space` is a window into its argument and hands it over; the
+   producer lends it its own parameter. Minting `blocks`' object refused this as lending "storage the
+   object itself holds ... or lend it a parameter instead", though the lender was a parameter: the
+   lender search matched only the origin sets a `window$new` argument publishes, and `.w.space` is
+   the interior of the lens's own payload member, a set its constructor binds to nothing. That set
+   now gets one of the outer record's own, as a borrow member's does (J188).
+
+   Each producer runs once as an object and once as an internal `for`, and the two must agree.
+   Native only: JSIR has no representation for a lending hand-over slot, and an object holding a
+   `&` record parameter is not converted there yet.
+-}
+
+data Src {bytes: [U8], at: Size}
+data Win {space: &'[U8], used: Size}
+
+-- A lens lent a record parameter; the cleanup advances the source by what the region used.
+lens fn window(&src: Src, count: Size) -> &Win:
+    let start = src.at
+    let &w = Win {space: src.bytes.sliceMut(start, start + count), used: 0}
+    yield w
+    src.at = start + w.used
+
+iter fn blocks(&src: Src) -> I32:
+    while src.at < length(src.bytes):
+        let w = window(src, 2) in:
+            w.space[0] = w.space[0] + 10
+            w.used = 2
+            yield w.space[0] :: I32
+
+-- A lens lent a window parameter; the cleanup writes through it after the region.
+lens fn scratchWindow(&buf: [U8], count: Size) -> &Win:
+    let &win = Win {space: buf.sliceMut(0, count), used: 0}
+    yield win
+    buf[count - 1] = buf[count - 1] + truncate(win.used)
+
+iter fn encoded(input: [U8], &scratch: [U8]) -> I32:
+    let &at = 0 :: Size
+    while at < length(input):
+        let w = scratchWindow(scratch, 2) in:
+            w.space[0] = input[at] + 10
+            w.space[1] = input[at + 1] + 10
+            w.used = 5
+            at += 2
+            yield (w.space[0] :: I32) * 100 + (w.space[1] :: I32)
+
+fn main() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4] :: [U8], at: 0}
+    let &it = blocks(s)
+    let &sum = 0 :: I32
+    while it.next() is Just(x):
+        sum = sum + x
+
+    let &t = Src {bytes: [1, 2, 3, 4] :: [U8], at: 0}
+    let &internal = 0 :: I32
+    for x in blocks(t):
+        internal = internal + x
+
+    let bytes = [1, 2, 3, 4] :: [U8]
+    let &scratch = [0, 0] :: [U8]
+    let &encodedSum = 0 :: I32
+    let &object = encoded(bytes, scratch)
+    for x in object:
+        encodedSum = encodedSum + x
+
+    let &other = [0, 0] :: [U8]
+    let &encodedInternal = 0 :: I32
+    for x in encoded(bytes, other):
+        encodedInternal = encodedInternal + x
+
+    if internal != sum || t.bytes[2] != s.bytes[2] then return -1
+    if encodedInternal != encodedSum || other[1] != scratch[1] then return -2
+    return (sum * 100 + (s.bytes[2] :: I32)) * 100000 + encodedSum * 100 + (scratch[1] :: I32)

@@ -954,12 +954,14 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
      * The derived halves recurse into the members - and each half separately.
      *
      * An authored instance replaces the derived walk *for its own half*, which is why the two flags
-     * travel down rather than one: a record with an authored `Drop` and a member that owns something
-     * still has that member's storage handed back, and the author is trusted about "I call nothing
-     * else" rather than about the members.
+     * travel down rather than one: a record with an authored `Reclaim` still has its members' `Drop`
+     * walked here. The exception is an authored `Drop` over a derived `Reclaim`, which owns the whole
+     * value and finishes its members itself (`mir::Ownership::dropOwnsValue`, K5): reclaiming them
+     * from here as well was a second release of any member the body moved out.
      */
     auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
-    auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+    auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived &&
+                        !(runDrop && ownership.dropOwnsValue());
     if(!childDrop && !childReclaim) return &block;
 
     /*
@@ -1213,7 +1215,8 @@ U32 Lowering::teardownCalls(DeclPtr<mir::Type> type, bool runDrop, bool runRecla
     if(runReclaim && ownership.reclaim == mir::TeardownKind::Authored) count++;
 
     auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
-    auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+    auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived &&
+                        !(runDrop && ownership.dropOwnsValue());
     if(!childDrop && !childReclaim) return count;
     if(count >= cap) return count;
 

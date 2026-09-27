@@ -198,6 +198,13 @@ void Analysis::useThroughAddress(U64* live, PlaceId place, SmallArray<NodeId, 4>
     }
 }
 
+void Analysis::useHeld(U64* live, U32 r) {
+    BitMatrix::forEach(regionHeld.row(r), loanWords, [&](Size l) {
+        if(callBound(U32(l))) return;
+        useOfPlace(live, loanAt(U32(l))->place);
+    });
+}
+
 void Analysis::computeLiveness() {
     liveIn.reset(blockCount, pathCount);
     liveOut.reset(blockCount, pathCount);
@@ -218,6 +225,29 @@ void Analysis::computeLiveness() {
             BitMatrix::unionInto(live.pointer(), liveAt(liveIn, target), pathWords);
         });
 
+        /*
+         * What a traversal whose region this block is in was lent, kept alive to the block's exit -
+         * `regionHeld`, J185.
+         *
+         * The callee is still running and still holds its arguments, so their storage cannot be
+         * released on any path inside the region. Without it a `break` out of `for x in blocks(s)`
+         * placed `drop (s)` in the region's own block, ahead of the producer's departure - which ran
+         * with `&s` in hand - and needed a drop flag inside the continuation that the conversion has
+         * no shared storage for.
+         *
+         * At a block that **returns** as well, since K6. The exit propagates out through the call
+         * site, and the callee's cleanup runs on the way - with the storage still lent to it. J185
+         * exempted these blocks, because holding the storage there left no point in this body to
+         * release it and `Box.yana`'s `drop (c)` vanished; so the drop stayed before the `return`,
+         * ahead of the cleanup, which then read a freed value (J210 section 4). The point exists
+         * now: `walkBlock` places what a returning block leaves owned on each enclosing call's
+         * leave path, and the conversion emits it there.
+         */
+        for(auto r: heldRegions) {
+            if(!body.encloses(base, ContinuationId(r), block->region)) continue;
+            useHeld(live.pointer(), r);
+        }
+
         BitMatrix::replace(liveAt(liveOut, index), live.pointer(), pathWords);
 
         auto count = block->nodes.size();
@@ -226,6 +256,29 @@ void Analysis::computeLiveness() {
         for(U32 n = count; n > 0; n--) {
             cursor.undo(n - 1);
             applyBackward(live.pointer(), cursor, nodeAt(index, n - 1));
+        }
+
+        /*
+         * A block argument that is a borrow keeps its lender alive **into** the block, whether or
+         * not anything in the block reads the argument (K7, J212).
+         *
+         * The edge that hands it over is an operand of the predecessor's terminator, so the lender
+         * is used *at* the jump - and with nothing live past it, the drop placement put the release
+         * in front of the jump, which then handed a loan of freed storage over the edge. That is
+         * exactly a discarded `input.next()?` whose `return` follows: the unwrapped view joins as a
+         * block argument nobody reads, and `drop (input)` landed above the jump carrying it. Live at
+         * the target's entry is what puts the release on the far side of the edge, at the first
+         * position of the block where the argument is dead - the drop placement's ordinary rule.
+         */
+        if(loanCount) for(auto pointer: block->arguments.contents(base)) {
+            auto argument = base[pointer]->id;
+            auto positions = valuePositions(argument);
+            for(U32 p = 0; p < positions; p++) {
+                BitMatrix::forEach(originsOfValue(argument, p), loanWords, [&](Size l) {
+                    if(callBound(U32(l))) return;
+                    useOfPlace(live.pointer(), loanAt(U32(l))->place);
+                });
+            }
         }
 
         if(BitMatrix::replace(liveAt(liveIn, index), live.pointer(), pathWords)) {

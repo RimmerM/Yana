@@ -1536,18 +1536,18 @@ bb0(%0: guarded.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
-  %40: %I32 address = field.addr .$index inspect %0
-  %41: I32 trivial = load inspect %40
-  %42: I32 trivial = const 1
-  %43: Bool trivial = eq inspect %41 inspect %42
-  branch inspect %43 -> bb10 -> bb12
+  %45: %I32 address = field.addr .$index inspect %0
+  %46: I32 trivial = load inspect %45
+  %47: I32 trivial = const 1
+  %48: Bool trivial = eq inspect %46 inspect %47
+  branch inspect %48 -> bb11 -> bb13
 
 bb1:
-  branch inspect %2 -> bb11 -> bb3
+  branch inspect %2 -> bb12 -> bb3
 
 bb2:
-  %39: Bool trivial = const False
-  return consume %39
+  %44: Bool trivial = const False
+  return consume %44
 
 bb3:
   %7: I32 trivial = const 0
@@ -1559,34 +1559,34 @@ bb3:
   jump -> bb8
 
 bb4:
-  %20: I32 trivial = load inspect %5
-  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %22: guard(I32).Lens [unique call] guaranteed = load inspect %21
-  %23: I32 trivial = const 1
-  %24: Bool trivial = const True
-  %25: Bool trivial = call guard(I32)$step borrow %22 consume %23 consume %24
-  %26: %I32 address = field.addr .$index inspect %0
-  %27: I32 trivial = const 2147483647
-  store inspect %26 consume %27
-  %28: Bool trivial = const False
-  return consume %28
+  %25: I32 trivial = load inspect %5
+  %26: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %27: guard(I32).Lens [unique call] guaranteed = load inspect %26
+  %28: I32 trivial = const 1
+  %29: Bool trivial = const True
+  %30: Bool trivial = call guard(I32)$step borrow %27 consume %28 consume %29
+  %31: %I32 address = field.addr .$index inspect %0
+  %32: I32 trivial = const 2147483647
+  store inspect %31 consume %32
+  %33: Bool trivial = const False
+  return consume %33
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %29: I32 trivial = load inspect %4
-  %30: %I32 address = field.addr .$slot inspect %0
-  store inspect %30 borrow %29
-  %31: %I32 address = field.addr .$index inspect %0
-  %32: I32 trivial = const 1
-  store inspect %31 consume %32
-  %33: Bool trivial = const True
-  return consume %33
+  %34: I32 trivial = load inspect %4
+  %35: %I32 address = field.addr .$slot inspect %0
+  store inspect %35 borrow %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 1
+  store inspect %36 consume %37
+  %38: Bool trivial = const True
+  return consume %38
 
 bb6:
-  jump -> bb8
+  jump -> bb9
 
 bb7:
-  jump -> bb8
+  jump -> bb9
 
 bb8:
   %11: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -1594,32 +1594,40 @@ bb8:
   %13: I32 trivial = const 0
   %14: Bool trivial = const False
   %15: Bool trivial = call guard(I32)$step borrow %12 consume %13 consume %14
-  branch inspect %15 -> bb9 -> bb4
+  branch inspect %15 -> bb10 -> bb4
 
 bb9:
   %16: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %17: %I32 address = field.addr .$slot inspect %16
-  %18: I32 trivial = load inspect %17
-  %19: I32 [shared call] guaranteed = represent inspect %18
-  jump -> bb5(borrow %19)
+  %17: guard(I32).Lens [unique call] guaranteed = load inspect %16
+  %18: I32 trivial = const 0
+  %19: Bool trivial = const False
+  %20: Bool trivial = call guard(I32)$step borrow %17 consume %18 consume %19
+  jump -> bb4
 
 bb10:
-  %34: I32 trivial = const 0
-  %35: Bool trivial = eq inspect %1 inspect %34
-  store inspect %5 consume %1
-  branch inspect %35 -> bb6 -> bb7
+  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %22: %I32 address = field.addr .$slot inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 [shared call] guaranteed = represent inspect %23
+  jump -> bb5(borrow %24)
 
 bb11:
-  %36: %I32 address = field.addr .$index inspect %0
-  %37: I32 trivial = const 2147483647
-  store inspect %36 consume %37
-  %38: Bool trivial = const False
-  return consume %38
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %1 inspect %39
+  store inspect %5 consume %1
+  branch inspect %40 -> bb6 -> bb7
 
 bb12:
-  %44: I32 trivial = const 0
-  %45: Bool trivial = eq inspect %41 inspect %44
-  branch inspect %45 -> bb1 -> bb2
+  %41: %I32 address = field.addr .$index inspect %0
+  %42: I32 trivial = const 2147483647
+  store inspect %41 consume %42
+  %43: Bool trivial = const False
+  return consume %43
+
+bb13:
+  %49: I32 trivial = const 0
+  %50: Bool trivial = eq inspect %46 inspect %49
+  branch inspect %50 -> bb1 -> bb2
 }
 
 fn guarded$drop($self: guarded.Iter) -> {} {
@@ -1659,18 +1667,18 @@ bb0(%0: keeping.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
   %7: %Note address = field.addr .mark inspect %0
-  %51: %I32 address = field.addr .$index inspect %0
-  %52: I32 trivial = load inspect %51
-  %53: I32 trivial = const 1
-  %54: Bool trivial = eq inspect %52 inspect %53
-  branch inspect %54 -> bb10 -> bb12
+  %56: %I32 address = field.addr .$index inspect %0
+  %57: I32 trivial = load inspect %56
+  %58: I32 trivial = const 1
+  %59: Bool trivial = eq inspect %57 inspect %58
+  branch inspect %59 -> bb11 -> bb13
 
 bb1:
-  branch inspect %2 -> bb11 -> bb3
+  branch inspect %2 -> bb12 -> bb3
 
 bb2:
-  %50: Bool trivial = const False
-  return consume %50
+  %55: Bool trivial = const False
+  return consume %55
 
 bb3:
   %8: I32 trivial = const 0
@@ -1682,48 +1690,48 @@ bb3:
   jump -> bb8
 
 bb4:
-  %21: I32 trivial = load inspect %5
-  %22: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %23: guard(I32).Lens [unique call] guaranteed = load inspect %22
-  %24: I32 trivial = const 1
-  %25: Bool trivial = const True
-  %26: Bool trivial = call guard(I32)$step borrow %23 consume %24 consume %25
-  %27: %I32 address = field.addr .$index inspect %0
-  %28: I32 trivial = const 2147483647
-  store inspect %27 consume %28
-  %29: Bool trivial = const False
-  return consume %29
+  %26: I32 trivial = load inspect %5
+  %27: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %28: guard(I32).Lens [unique call] guaranteed = load inspect %27
+  %29: I32 trivial = const 1
+  %30: Bool trivial = const True
+  %31: Bool trivial = call guard(I32)$step borrow %28 consume %29 consume %30
+  %32: %I32 address = field.addr .$index inspect %0
+  %33: I32 trivial = const 2147483647
+  store inspect %32 consume %33
+  %34: Bool trivial = const False
+  return consume %34
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %30: I32 trivial = const 4
-  %31: Note owned = aggregate.Note consume %30
-  store inspect %7 consume %31
-  %32: I32 trivial = load inspect %4
-  %33: %I32 address = field.addr .$slot inspect %0
-  store inspect %33 borrow %32
-  %34: %I32 address = field.addr .$index inspect %0
-  %35: I32 trivial = const 1
-  store inspect %34 consume %35
-  %36: Bool trivial = const True
-  return consume %36
+  %35: I32 trivial = const 4
+  %36: Note owned = aggregate.Note consume %35
+  store inspect %7 consume %36
+  %37: I32 trivial = load inspect %4
+  %38: %I32 address = field.addr .$slot inspect %0
+  store inspect %38 borrow %37
+  %39: %I32 address = field.addr .$index inspect %0
+  %40: I32 trivial = const 1
+  store inspect %39 consume %40
+  %41: Bool trivial = const True
+  return consume %41
 
 bb6:
-  %39: %I32 address = global.addr trace
-  %40: I32 trivial = load inspect %39
-  %41: I32 trivial = const 10
-  %42: I32 trivial = mul inspect %40 inspect %41
-  %43: %I32 address = field.addr .id inspect %7
-  %44: I32 trivial = load inspect %43
+  %44: %I32 address = global.addr trace
+  %45: I32 trivial = load inspect %44
+  %46: I32 trivial = const 10
+  %47: I32 trivial = mul inspect %45 inspect %46
+  %48: %I32 address = field.addr .id inspect %7
+  %49: I32 trivial = load inspect %48
   drop Note inspect %7
-  %45: I32 trivial = add inspect %42 inspect %44
-  %46: %I32 address = global.addr trace
-  store inspect %46 consume %45
-  jump -> bb8
+  %50: I32 trivial = add inspect %47 inspect %49
+  %51: %I32 address = global.addr trace
+  store inspect %51 consume %50
+  jump -> bb9
 
 bb7:
   drop Note inspect %7
-  jump -> bb8
+  jump -> bb9
 
 bb8:
   %12: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -1731,32 +1739,40 @@ bb8:
   %14: I32 trivial = const 0
   %15: Bool trivial = const False
   %16: Bool trivial = call guard(I32)$step borrow %13 consume %14 consume %15
-  branch inspect %16 -> bb9 -> bb4
+  branch inspect %16 -> bb10 -> bb4
 
 bb9:
   %17: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %18: %I32 address = field.addr .$slot inspect %17
-  %19: I32 trivial = load inspect %18
-  %20: I32 [shared call] guaranteed = represent inspect %19
-  jump -> bb5(borrow %20)
+  %18: guard(I32).Lens [unique call] guaranteed = load inspect %17
+  %19: I32 trivial = const 0
+  %20: Bool trivial = const False
+  %21: Bool trivial = call guard(I32)$step borrow %18 consume %19 consume %20
+  jump -> bb4
 
 bb10:
-  %37: I32 trivial = const 0
-  %38: Bool trivial = eq inspect %1 inspect %37
-  store inspect %5 consume %1
-  branch inspect %38 -> bb6 -> bb7
+  %22: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %23: %I32 address = field.addr .$slot inspect %22
+  %24: I32 trivial = load inspect %23
+  %25: I32 [shared call] guaranteed = represent inspect %24
+  jump -> bb5(borrow %25)
 
 bb11:
-  %47: %I32 address = field.addr .$index inspect %0
-  %48: I32 trivial = const 2147483647
-  store inspect %47 consume %48
-  %49: Bool trivial = const False
-  return consume %49
+  %42: I32 trivial = const 0
+  %43: Bool trivial = eq inspect %1 inspect %42
+  store inspect %5 consume %1
+  branch inspect %43 -> bb6 -> bb7
 
 bb12:
-  %55: I32 trivial = const 0
-  %56: Bool trivial = eq inspect %52 inspect %55
-  branch inspect %56 -> bb1 -> bb2
+  %52: %I32 address = field.addr .$index inspect %0
+  %53: I32 trivial = const 2147483647
+  store inspect %52 consume %53
+  %54: Bool trivial = const False
+  return consume %54
+
+bb13:
+  %60: I32 trivial = const 0
+  %61: Bool trivial = eq inspect %57 inspect %60
+  branch inspect %61 -> bb1 -> bb2
 }
 
 fn keeping$drop($self: keeping.Iter) -> {} {
@@ -1894,16 +1910,16 @@ bb0(%0: inside.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
   %6: %I32 address = alloc frame I32
   %7: %I32 address = alloc frame I32 [shared call]
   %8: %I32 address = alloc frame I32 [shared call]
-  %78: %I32 address = field.addr .$index inspect %0
-  %79: I32 trivial = load inspect %78
-  switch [0, 1, 2] inspect %79 -> bb1 -> bb21 -> bb22 -> bb2
+  %83: %I32 address = field.addr .$index inspect %0
+  %84: I32 trivial = load inspect %83
+  switch [0, 1, 2] inspect %84 -> bb1 -> bb22 -> bb23 -> bb2
 
 bb1:
-  branch inspect %2 -> bb23 -> bb3
+  branch inspect %2 -> bb24 -> bb3
 
 bb2:
-  %77: Bool trivial = const False
-  return consume %77
+  %82: Bool trivial = const False
+  return consume %82
 
 bb3:
   %9: I32 trivial = const 0
@@ -1915,92 +1931,92 @@ bb3:
   jump -> bb17
 
 bb4:
-  %22: I32 trivial = load inspect %6
-  %23: I32 trivial = const 0
-  %24: Bool trivial = eq inspect %22 inspect %23
-  branch inspect %24 -> bb14 -> bb15
+  %27: I32 trivial = load inspect %6
+  %28: I32 trivial = const 0
+  %29: Bool trivial = eq inspect %27 inspect %28
+  branch inspect %29 -> bb14 -> bb15
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %7 borrow %3
-  %25: I32 trivial = load inspect %5
-  %26: digits.Iter trivial = call digits$new consume %25
-  %27: %digits.Iter address = field.addr .$digits inspect %0
-  store inspect %27 consume %26
-  jump -> bb19
+  %30: I32 trivial = load inspect %5
+  %31: digits.Iter trivial = call digits$new consume %30
+  %32: %digits.Iter address = field.addr .$digits inspect %0
+  store inspect %32 consume %31
+  jump -> bb20
 
 bb6:
-  %37: I32 trivial = load inspect %6
-  %38: I32 trivial = const 0
-  %39: Bool trivial = eq inspect %37 inspect %38
-  branch inspect %39 -> bb12 -> bb13
+  %42: I32 trivial = load inspect %6
+  %43: I32 trivial = const 0
+  %44: Bool trivial = eq inspect %42 inspect %43
+  branch inspect %44 -> bb12 -> bb13
 
 bb7(%4: I32 [shared call] guaranteed):
   store inspect %8 borrow %4
-  %40: I32 trivial = load inspect %6
-  %41: I32 trivial = const 0
-  %42: Bool trivial = eq inspect %40 inspect %41
-  branch inspect %42 -> bb8 -> bb9
+  %45: I32 trivial = load inspect %6
+  %46: I32 trivial = const 0
+  %47: Bool trivial = eq inspect %45 inspect %46
+  branch inspect %47 -> bb8 -> bb9
 
 bb8:
-  %43: I32 trivial = load inspect %8
-  %44: %I32 address = field.addr .$slot inspect %0
-  store inspect %44 borrow %43
-  %45: %I32 address = field.addr .$index inspect %0
-  %46: I32 trivial = const 1
-  store inspect %45 consume %46
-  %47: Bool trivial = const True
-  return consume %47
+  %48: I32 trivial = load inspect %8
+  %49: %I32 address = field.addr .$slot inspect %0
+  store inspect %49 borrow %48
+  %50: %I32 address = field.addr .$index inspect %0
+  %51: I32 trivial = const 1
+  store inspect %50 consume %51
+  %52: Bool trivial = const True
+  return consume %52
 
 bb9:
   jump -> bb11
 
 bb10:
-  jump -> bb19
+  jump -> bb20
 
 bb11:
-  %50: %digits.Iter address = field.addr .$digits inspect %0
-  %51: digits.Iter [unique call] guaranteed = load inspect %50
-  %52: I32 trivial = const 1
-  %53: Bool trivial = const True
-  %54: Bool trivial = call digits$step borrow %51 consume %52 consume %53
+  %55: %digits.Iter address = field.addr .$digits inspect %0
+  %56: digits.Iter [unique call] guaranteed = load inspect %55
+  %57: I32 trivial = const 1
+  %58: Bool trivial = const True
+  %59: Bool trivial = call digits$step borrow %56 consume %57 consume %58
   jump -> bb6
 
 bb12:
-  jump -> bb17
+  jump -> bb18
 
 bb13:
-  jump -> bb17
+  jump -> bb18
 
 bb14:
-  %55: I32 trivial = const 8
-  %56: %I32 address = field.addr .$slot inspect %0
-  store inspect %56 borrow %55
-  %57: %I32 address = field.addr .$index inspect %0
-  %58: I32 trivial = const 2
-  store inspect %57 consume %58
-  %59: Bool trivial = const True
-  return consume %59
+  %60: I32 trivial = const 8
+  %61: %I32 address = field.addr .$slot inspect %0
+  store inspect %61 borrow %60
+  %62: %I32 address = field.addr .$index inspect %0
+  %63: I32 trivial = const 2
+  store inspect %62 consume %63
+  %64: Bool trivial = const True
+  return consume %64
 
 bb15:
   jump -> bb16
 
 bb16:
-  %60: I32 trivial = load inspect %6
-  %61: %digits.Iter address = field.addr .$digits inspect %0
-  %62: digits.Iter [unique call] guaranteed = load inspect %61
-  %63: I32 trivial = const 1
-  %64: Bool trivial = const True
-  %65: Bool trivial = call digits$step borrow %62 consume %63 consume %64
-  %66: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %67: guard(I32).Lens [unique call] guaranteed = load inspect %66
+  %65: I32 trivial = load inspect %6
+  %66: %digits.Iter address = field.addr .$digits inspect %0
+  %67: digits.Iter [unique call] guaranteed = load inspect %66
   %68: I32 trivial = const 1
   %69: Bool trivial = const True
-  %70: Bool trivial = call guard(I32)$step borrow %67 consume %68 consume %69
-  %71: %I32 address = field.addr .$index inspect %0
-  %72: I32 trivial = const 2147483647
-  store inspect %71 consume %72
-  %73: Bool trivial = const False
-  return consume %73
+  %70: Bool trivial = call digits$step borrow %67 consume %68 consume %69
+  %71: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %72: guard(I32).Lens [unique call] guaranteed = load inspect %71
+  %73: I32 trivial = const 1
+  %74: Bool trivial = const True
+  %75: Bool trivial = call guard(I32)$step borrow %72 consume %73 consume %74
+  %76: %I32 address = field.addr .$index inspect %0
+  %77: I32 trivial = const 2147483647
+  store inspect %76 consume %77
+  %78: Bool trivial = const False
+  return consume %78
 
 bb17:
   %13: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -2008,46 +2024,54 @@ bb17:
   %15: I32 trivial = const 0
   %16: Bool trivial = const False
   %17: Bool trivial = call guard(I32)$step borrow %14 consume %15 consume %16
-  branch inspect %17 -> bb18 -> bb4
+  branch inspect %17 -> bb19 -> bb4
 
 bb18:
   %18: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %19: %I32 address = field.addr .$slot inspect %18
-  %20: I32 trivial = load inspect %19
-  %21: I32 [shared call] guaranteed = represent inspect %20
-  jump -> bb5(borrow %21)
+  %19: guard(I32).Lens [unique call] guaranteed = load inspect %18
+  %20: I32 trivial = const 0
+  %21: Bool trivial = const False
+  %22: Bool trivial = call guard(I32)$step borrow %19 consume %20 consume %21
+  jump -> bb4
 
 bb19:
-  %28: %digits.Iter address = field.addr .$digits inspect %0
-  %29: digits.Iter [unique call] guaranteed = load inspect %28
-  %30: I32 trivial = const 0
-  %31: Bool trivial = const False
-  %32: Bool trivial = call digits$step borrow %29 consume %30 consume %31
-  branch inspect %32 -> bb20 -> bb6
+  %23: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %24: %I32 address = field.addr .$slot inspect %23
+  %25: I32 trivial = load inspect %24
+  %26: I32 [shared call] guaranteed = represent inspect %25
+  jump -> bb5(borrow %26)
 
 bb20:
   %33: %digits.Iter address = field.addr .$digits inspect %0
-  %34: %I32 address = field.addr .$slot inspect %33
-  %35: I32 trivial = load inspect %34
-  %36: I32 [shared call] guaranteed = represent inspect %35
-  jump -> bb7(borrow %36)
+  %34: digits.Iter [unique call] guaranteed = load inspect %33
+  %35: I32 trivial = const 0
+  %36: Bool trivial = const False
+  %37: Bool trivial = call digits$step borrow %34 consume %35 consume %36
+  branch inspect %37 -> bb21 -> bb6
 
 bb21:
-  %48: I32 trivial = const 0
-  %49: Bool trivial = eq inspect %1 inspect %48
-  store inspect %6 consume %1
-  branch inspect %49 -> bb10 -> bb11
+  %38: %digits.Iter address = field.addr .$digits inspect %0
+  %39: %I32 address = field.addr .$slot inspect %38
+  %40: I32 trivial = load inspect %39
+  %41: I32 [shared call] guaranteed = represent inspect %40
+  jump -> bb7(borrow %41)
 
 bb22:
+  %53: I32 trivial = const 0
+  %54: Bool trivial = eq inspect %1 inspect %53
+  store inspect %6 consume %1
+  branch inspect %54 -> bb10 -> bb11
+
+bb23:
   store inspect %6 consume %1
   jump -> bb16
 
-bb23:
-  %74: %I32 address = field.addr .$index inspect %0
-  %75: I32 trivial = const 2147483647
-  store inspect %74 consume %75
-  %76: Bool trivial = const False
-  return consume %76
+bb24:
+  %79: %I32 address = field.addr .$index inspect %0
+  %80: I32 trivial = const 2147483647
+  store inspect %79 consume %80
+  %81: Bool trivial = const False
+  return consume %81
 }
 
 fn inside$drop($self: inside.Iter) -> {} {
@@ -2086,18 +2110,18 @@ bb0(%0: flat.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
-  %40: %I32 address = field.addr .$index inspect %0
-  %41: I32 trivial = load inspect %40
-  %42: I32 trivial = const 1
-  %43: Bool trivial = eq inspect %41 inspect %42
-  branch inspect %43 -> bb10 -> bb12
+  %45: %I32 address = field.addr .$index inspect %0
+  %46: I32 trivial = load inspect %45
+  %47: I32 trivial = const 1
+  %48: Bool trivial = eq inspect %46 inspect %47
+  branch inspect %48 -> bb11 -> bb13
 
 bb1:
-  branch inspect %2 -> bb11 -> bb3
+  branch inspect %2 -> bb12 -> bb3
 
 bb2:
-  %39: Bool trivial = const False
-  return consume %39
+  %44: Bool trivial = const False
+  return consume %44
 
 bb3:
   %7: I32 trivial = const 0
@@ -2109,34 +2133,34 @@ bb3:
   jump -> bb8
 
 bb4:
-  %20: I32 trivial = load inspect %5
-  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %22: guard(I32).Lens [unique call] guaranteed = load inspect %21
-  %23: I32 trivial = const 1
-  %24: Bool trivial = const True
-  %25: Bool trivial = call guard(I32)$step borrow %22 consume %23 consume %24
-  %26: %I32 address = field.addr .$index inspect %0
-  %27: I32 trivial = const 2147483647
-  store inspect %26 consume %27
-  %28: Bool trivial = const False
-  return consume %28
+  %25: I32 trivial = load inspect %5
+  %26: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %27: guard(I32).Lens [unique call] guaranteed = load inspect %26
+  %28: I32 trivial = const 1
+  %29: Bool trivial = const True
+  %30: Bool trivial = call guard(I32)$step borrow %27 consume %28 consume %29
+  %31: %I32 address = field.addr .$index inspect %0
+  %32: I32 trivial = const 2147483647
+  store inspect %31 consume %32
+  %33: Bool trivial = const False
+  return consume %33
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %29: I32 trivial = load inspect %6
-  %30: %I32 address = field.addr .$slot inspect %0
-  store inspect %30 borrow %29
-  %31: %I32 address = field.addr .$index inspect %0
-  %32: I32 trivial = const 1
-  store inspect %31 consume %32
-  %33: Bool trivial = const True
-  return consume %33
+  %34: I32 trivial = load inspect %6
+  %35: %I32 address = field.addr .$slot inspect %0
+  store inspect %35 borrow %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 1
+  store inspect %36 consume %37
+  %38: Bool trivial = const True
+  return consume %38
 
 bb6:
-  jump -> bb8
+  jump -> bb9
 
 bb7:
-  jump -> bb8
+  jump -> bb9
 
 bb8:
   %11: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -2144,32 +2168,40 @@ bb8:
   %13: I32 trivial = const 0
   %14: Bool trivial = const False
   %15: Bool trivial = call guard(I32)$step borrow %12 consume %13 consume %14
-  branch inspect %15 -> bb9 -> bb4
+  branch inspect %15 -> bb10 -> bb4
 
 bb9:
   %16: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %17: %I32 address = field.addr .$slot inspect %16
-  %18: I32 trivial = load inspect %17
-  %19: I32 [shared call] guaranteed = represent inspect %18
-  jump -> bb5(borrow %19)
+  %17: guard(I32).Lens [unique call] guaranteed = load inspect %16
+  %18: I32 trivial = const 0
+  %19: Bool trivial = const False
+  %20: Bool trivial = call guard(I32)$step borrow %17 consume %18 consume %19
+  jump -> bb4
 
 bb10:
-  %34: I32 trivial = const 0
-  %35: Bool trivial = eq inspect %1 inspect %34
-  store inspect %5 consume %1
-  branch inspect %35 -> bb6 -> bb7
+  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %22: %I32 address = field.addr .$slot inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 [shared call] guaranteed = represent inspect %23
+  jump -> bb5(borrow %24)
 
 bb11:
-  %36: %I32 address = field.addr .$index inspect %0
-  %37: I32 trivial = const 2147483647
-  store inspect %36 consume %37
-  %38: Bool trivial = const False
-  return consume %38
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %1 inspect %39
+  store inspect %5 consume %1
+  branch inspect %40 -> bb6 -> bb7
 
 bb12:
-  %44: I32 trivial = const 0
-  %45: Bool trivial = eq inspect %41 inspect %44
-  branch inspect %45 -> bb1 -> bb2
+  %41: %I32 address = field.addr .$index inspect %0
+  %42: I32 trivial = const 2147483647
+  store inspect %41 consume %42
+  %43: Bool trivial = const False
+  return consume %43
+
+bb13:
+  %49: I32 trivial = const 0
+  %50: Bool trivial = eq inspect %46 inspect %49
+  branch inspect %50 -> bb1 -> bb2
 }
 
 fn flat$drop($self: flat.Iter) -> {} {
@@ -2208,18 +2240,18 @@ bb0(%0: bare.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
-  %40: %I32 address = field.addr .$index inspect %0
-  %41: I32 trivial = load inspect %40
-  %42: I32 trivial = const 1
-  %43: Bool trivial = eq inspect %41 inspect %42
-  branch inspect %43 -> bb10 -> bb12
+  %45: %I32 address = field.addr .$index inspect %0
+  %46: I32 trivial = load inspect %45
+  %47: I32 trivial = const 1
+  %48: Bool trivial = eq inspect %46 inspect %47
+  branch inspect %48 -> bb11 -> bb13
 
 bb1:
-  branch inspect %2 -> bb11 -> bb3
+  branch inspect %2 -> bb12 -> bb3
 
 bb2:
-  %39: Bool trivial = const False
-  return consume %39
+  %44: Bool trivial = const False
+  return consume %44
 
 bb3:
   %7: I32 trivial = const 0
@@ -2231,34 +2263,34 @@ bb3:
   jump -> bb8
 
 bb4:
-  %20: I32 trivial = load inspect %5
-  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %22: guard(I32).Lens [unique call] guaranteed = load inspect %21
-  %23: I32 trivial = const 1
-  %24: Bool trivial = const True
-  %25: Bool trivial = call guard(I32)$step borrow %22 consume %23 consume %24
-  %26: %I32 address = field.addr .$index inspect %0
-  %27: I32 trivial = const 2147483647
-  store inspect %26 consume %27
-  %28: Bool trivial = const False
-  return consume %28
+  %25: I32 trivial = load inspect %5
+  %26: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %27: guard(I32).Lens [unique call] guaranteed = load inspect %26
+  %28: I32 trivial = const 1
+  %29: Bool trivial = const True
+  %30: Bool trivial = call guard(I32)$step borrow %27 consume %28 consume %29
+  %31: %I32 address = field.addr .$index inspect %0
+  %32: I32 trivial = const 2147483647
+  store inspect %31 consume %32
+  %33: Bool trivial = const False
+  return consume %33
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %29: I32 trivial = load inspect %4
-  %30: %I32 address = field.addr .$slot inspect %0
-  store inspect %30 borrow %29
-  %31: %I32 address = field.addr .$index inspect %0
-  %32: I32 trivial = const 1
-  store inspect %31 consume %32
-  %33: Bool trivial = const True
-  return consume %33
+  %34: I32 trivial = load inspect %4
+  %35: %I32 address = field.addr .$slot inspect %0
+  store inspect %35 borrow %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 1
+  store inspect %36 consume %37
+  %38: Bool trivial = const True
+  return consume %38
 
 bb6:
-  jump -> bb8
+  jump -> bb9
 
 bb7:
-  jump -> bb8
+  jump -> bb9
 
 bb8:
   %11: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -2266,32 +2298,40 @@ bb8:
   %13: I32 trivial = const 0
   %14: Bool trivial = const False
   %15: Bool trivial = call guard(I32)$step borrow %12 consume %13 consume %14
-  branch inspect %15 -> bb9 -> bb4
+  branch inspect %15 -> bb10 -> bb4
 
 bb9:
   %16: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %17: %I32 address = field.addr .$slot inspect %16
-  %18: I32 trivial = load inspect %17
-  %19: I32 [shared call] guaranteed = represent inspect %18
-  jump -> bb5(borrow %19)
+  %17: guard(I32).Lens [unique call] guaranteed = load inspect %16
+  %18: I32 trivial = const 0
+  %19: Bool trivial = const False
+  %20: Bool trivial = call guard(I32)$step borrow %17 consume %18 consume %19
+  jump -> bb4
 
 bb10:
-  %34: I32 trivial = const 0
-  %35: Bool trivial = eq inspect %1 inspect %34
-  store inspect %5 consume %1
-  branch inspect %35 -> bb6 -> bb7
+  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %22: %I32 address = field.addr .$slot inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 [shared call] guaranteed = represent inspect %23
+  jump -> bb5(borrow %24)
 
 bb11:
-  %36: %I32 address = field.addr .$index inspect %0
-  %37: I32 trivial = const 2147483647
-  store inspect %36 consume %37
-  %38: Bool trivial = const False
-  return consume %38
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %1 inspect %39
+  store inspect %5 consume %1
+  branch inspect %40 -> bb6 -> bb7
 
 bb12:
-  %44: I32 trivial = const 0
-  %45: Bool trivial = eq inspect %41 inspect %44
-  branch inspect %45 -> bb1 -> bb2
+  %41: %I32 address = field.addr .$index inspect %0
+  %42: I32 trivial = const 2147483647
+  store inspect %41 consume %42
+  %43: Bool trivial = const False
+  return consume %43
+
+bb13:
+  %49: I32 trivial = const 0
+  %50: Bool trivial = eq inspect %46 inspect %49
+  branch inspect %50 -> bb1 -> bb2
 }
 
 fn bare$drop($self: bare.Iter) -> {} {
@@ -2330,18 +2370,18 @@ bb0(%0: quiet.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
-  %45: %I32 address = field.addr .$index inspect %0
-  %46: I32 trivial = load inspect %45
-  %47: I32 trivial = const 1
-  %48: Bool trivial = eq inspect %46 inspect %47
-  branch inspect %48 -> bb8 -> bb10
+  %50: %I32 address = field.addr .$index inspect %0
+  %51: I32 trivial = load inspect %50
+  %52: I32 trivial = const 1
+  %53: Bool trivial = eq inspect %51 inspect %52
+  branch inspect %53 -> bb9 -> bb11
 
 bb1:
-  branch inspect %2 -> bb9 -> bb3
+  branch inspect %2 -> bb10 -> bb3
 
 bb2:
-  %44: Bool trivial = const False
-  return consume %44
+  %49: Bool trivial = const False
+  return consume %49
 
 bb3:
   %7: I32 trivial = const 0
@@ -2353,26 +2393,26 @@ bb3:
   jump -> bb6
 
 bb4:
-  %20: I32 trivial = load inspect %4
-  %21: %I32 address = field.addr .$slot inspect %0
-  store inspect %21 borrow %20
-  %22: %I32 address = field.addr .$index inspect %0
-  %23: I32 trivial = const 1
-  store inspect %22 consume %23
-  %24: Bool trivial = const True
-  return consume %24
+  %25: I32 trivial = load inspect %4
+  %26: %I32 address = field.addr .$slot inspect %0
+  store inspect %26 borrow %25
+  %27: %I32 address = field.addr .$index inspect %0
+  %28: I32 trivial = const 1
+  store inspect %27 consume %28
+  %29: Bool trivial = const True
+  return consume %29
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %34: %I32 address = global.addr trace
-  %35: I32 trivial = load inspect %34
-  %36: I32 trivial = const 10
-  %37: I32 trivial = mul inspect %35 inspect %36
-  %38: I32 trivial = const 5
-  %39: I32 trivial = add inspect %37 inspect %38
-  %40: %I32 address = global.addr trace
-  store inspect %40 consume %39
-  jump -> bb6
+  %39: %I32 address = global.addr trace
+  %40: I32 trivial = load inspect %39
+  %41: I32 trivial = const 10
+  %42: I32 trivial = mul inspect %40 inspect %41
+  %43: I32 trivial = const 5
+  %44: I32 trivial = add inspect %42 inspect %43
+  %45: %I32 address = global.addr trace
+  store inspect %45 consume %44
+  jump -> bb7
 
 bb6:
   %11: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -2380,40 +2420,48 @@ bb6:
   %13: I32 trivial = const 0
   %14: Bool trivial = const False
   %15: Bool trivial = call guard(I32)$step borrow %12 consume %13 consume %14
-  branch inspect %15 -> bb7 -> bb4
+  branch inspect %15 -> bb8 -> bb4
 
 bb7:
   %16: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %17: %I32 address = field.addr .$slot inspect %16
-  %18: I32 trivial = load inspect %17
-  %19: I32 [shared call] guaranteed = represent inspect %18
-  jump -> bb5(borrow %19)
+  %17: guard(I32).Lens [unique call] guaranteed = load inspect %16
+  %18: I32 trivial = const 0
+  %19: Bool trivial = const False
+  %20: Bool trivial = call guard(I32)$step borrow %17 consume %18 consume %19
+  jump -> bb4
 
 bb8:
-  store inspect %5 consume %1
-  %25: I32 trivial = load inspect %5
-  %26: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %27: guard(I32).Lens [unique call] guaranteed = load inspect %26
-  %28: I32 trivial = const 1
-  %29: Bool trivial = const True
-  %30: Bool trivial = call guard(I32)$step borrow %27 consume %28 consume %29
-  %31: %I32 address = field.addr .$index inspect %0
-  %32: I32 trivial = const 2147483647
-  store inspect %31 consume %32
-  %33: Bool trivial = const False
-  return consume %33
+  %21: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %22: %I32 address = field.addr .$slot inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 [shared call] guaranteed = represent inspect %23
+  jump -> bb5(borrow %24)
 
 bb9:
-  %41: %I32 address = field.addr .$index inspect %0
-  %42: I32 trivial = const 2147483647
-  store inspect %41 consume %42
-  %43: Bool trivial = const False
-  return consume %43
+  store inspect %5 consume %1
+  %30: I32 trivial = load inspect %5
+  %31: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %32: guard(I32).Lens [unique call] guaranteed = load inspect %31
+  %33: I32 trivial = const 1
+  %34: Bool trivial = const True
+  %35: Bool trivial = call guard(I32)$step borrow %32 consume %33 consume %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 2147483647
+  store inspect %36 consume %37
+  %38: Bool trivial = const False
+  return consume %38
 
 bb10:
-  %49: I32 trivial = const 0
-  %50: Bool trivial = eq inspect %46 inspect %49
-  branch inspect %50 -> bb1 -> bb2
+  %46: %I32 address = field.addr .$index inspect %0
+  %47: I32 trivial = const 2147483647
+  store inspect %46 consume %47
+  %48: Bool trivial = const False
+  return consume %48
+
+bb11:
+  %54: I32 trivial = const 0
+  %55: Bool trivial = eq inspect %51 inspect %54
+  branch inspect %55 -> bb1 -> bb2
 }
 
 fn quiet$drop($self: quiet.Iter) -> {} {
@@ -2563,18 +2611,18 @@ bb0(%0: twoDeep.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial
   %6: %I32 address = alloc frame I32
   %7: %I32 address = alloc frame I32 [shared call]
   %8: %I32 address = alloc frame I32 [shared call]
-  %62: %I32 address = field.addr .$index inspect %0
-  %63: I32 trivial = load inspect %62
-  %64: I32 trivial = const 1
-  %65: Bool trivial = eq inspect %63 inspect %64
-  branch inspect %65 -> bb16 -> bb18
+  %72: %I32 address = field.addr .$index inspect %0
+  %73: I32 trivial = load inspect %72
+  %74: I32 trivial = const 1
+  %75: Bool trivial = eq inspect %73 inspect %74
+  branch inspect %75 -> bb18 -> bb20
 
 bb1:
-  branch inspect %2 -> bb17 -> bb3
+  branch inspect %2 -> bb19 -> bb3
 
 bb2:
-  %61: Bool trivial = const False
-  return consume %61
+  %71: Bool trivial = const False
+  return consume %71
 
 bb3:
   %9: I32 trivial = const 0
@@ -2586,59 +2634,59 @@ bb3:
   jump -> bb12
 
 bb4:
-  %22: I32 trivial = load inspect %6
-  %23: %inner(I32).Lens address = field.addr .$inner inspect %0
-  %24: inner(I32).Lens [unique call] guaranteed = load inspect %23
-  %25: I32 trivial = const 1
-  %26: Bool trivial = const True
-  %27: Bool trivial = call inner(I32)$step borrow %24 consume %25 consume %26
-  %28: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %29: guard(I32).Lens [unique call] guaranteed = load inspect %28
+  %27: I32 trivial = load inspect %6
+  %28: %inner(I32).Lens address = field.addr .$inner inspect %0
+  %29: inner(I32).Lens [unique call] guaranteed = load inspect %28
   %30: I32 trivial = const 1
   %31: Bool trivial = const True
-  %32: Bool trivial = call guard(I32)$step borrow %29 consume %30 consume %31
-  %33: %I32 address = field.addr .$index inspect %0
-  %34: I32 trivial = const 2147483647
-  store inspect %33 consume %34
-  %35: Bool trivial = const False
-  return consume %35
+  %32: Bool trivial = call inner(I32)$step borrow %29 consume %30 consume %31
+  %33: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %34: guard(I32).Lens [unique call] guaranteed = load inspect %33
+  %35: I32 trivial = const 1
+  %36: Bool trivial = const True
+  %37: Bool trivial = call guard(I32)$step borrow %34 consume %35 consume %36
+  %38: %I32 address = field.addr .$index inspect %0
+  %39: I32 trivial = const 2147483647
+  store inspect %38 consume %39
+  %40: Bool trivial = const False
+  return consume %40
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %7 borrow %3
-  %36: I32 trivial = load inspect %5
-  %37: inner(I32).Lens trivial = call inner(I32)$new consume %36
-  %38: %inner(I32).Lens address = field.addr .$inner inspect %0
-  store inspect %38 consume %37
-  jump -> bb14
+  %41: I32 trivial = load inspect %5
+  %42: inner(I32).Lens trivial = call inner(I32)$new consume %41
+  %43: %inner(I32).Lens address = field.addr .$inner inspect %0
+  store inspect %43 consume %42
+  jump -> bb15
 
 bb6:
-  %48: I32 trivial = load inspect %6
-  %49: I32 trivial = const 0
-  %50: Bool trivial = eq inspect %48 inspect %49
-  branch inspect %50 -> bb10 -> bb11
+  %58: I32 trivial = load inspect %6
+  %59: I32 trivial = const 0
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb10 -> bb11
 
 bb7(%4: I32 [shared call] guaranteed):
   store inspect %8 borrow %4
-  %51: I32 trivial = load inspect %5
-  %52: %I32 address = field.addr .$slot inspect %0
-  store inspect %52 borrow %51
-  %53: %I32 address = field.addr .$index inspect %0
-  %54: I32 trivial = const 1
-  store inspect %53 consume %54
-  %55: Bool trivial = const True
-  return consume %55
+  %61: I32 trivial = load inspect %5
+  %62: %I32 address = field.addr .$slot inspect %0
+  store inspect %62 borrow %61
+  %63: %I32 address = field.addr .$index inspect %0
+  %64: I32 trivial = const 1
+  store inspect %63 consume %64
+  %65: Bool trivial = const True
+  return consume %65
 
 bb8:
-  jump -> bb14
+  jump -> bb16
 
 bb9:
-  jump -> bb14
+  jump -> bb16
 
 bb10:
-  jump -> bb12
+  jump -> bb13
 
 bb11:
-  jump -> bb12
+  jump -> bb13
 
 bb12:
   %13: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -2646,47 +2694,63 @@ bb12:
   %15: I32 trivial = const 0
   %16: Bool trivial = const False
   %17: Bool trivial = call guard(I32)$step borrow %14 consume %15 consume %16
-  branch inspect %17 -> bb13 -> bb4
+  branch inspect %17 -> bb14 -> bb4
 
 bb13:
   %18: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %19: %I32 address = field.addr .$slot inspect %18
-  %20: I32 trivial = load inspect %19
-  %21: I32 [shared call] guaranteed = represent inspect %20
-  jump -> bb5(borrow %21)
+  %19: guard(I32).Lens [unique call] guaranteed = load inspect %18
+  %20: I32 trivial = const 0
+  %21: Bool trivial = const False
+  %22: Bool trivial = call guard(I32)$step borrow %19 consume %20 consume %21
+  jump -> bb4
 
 bb14:
-  %39: %inner(I32).Lens address = field.addr .$inner inspect %0
-  %40: inner(I32).Lens [unique call] guaranteed = load inspect %39
-  %41: I32 trivial = const 0
-  %42: Bool trivial = const False
-  %43: Bool trivial = call inner(I32)$step borrow %40 consume %41 consume %42
-  branch inspect %43 -> bb15 -> bb6
+  %23: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %24: %I32 address = field.addr .$slot inspect %23
+  %25: I32 trivial = load inspect %24
+  %26: I32 [shared call] guaranteed = represent inspect %25
+  jump -> bb5(borrow %26)
 
 bb15:
   %44: %inner(I32).Lens address = field.addr .$inner inspect %0
-  %45: %I32 address = field.addr .$slot inspect %44
-  %46: I32 trivial = load inspect %45
-  %47: I32 [shared call] guaranteed = represent inspect %46
-  jump -> bb7(borrow %47)
+  %45: inner(I32).Lens [unique call] guaranteed = load inspect %44
+  %46: I32 trivial = const 0
+  %47: Bool trivial = const False
+  %48: Bool trivial = call inner(I32)$step borrow %45 consume %46 consume %47
+  branch inspect %48 -> bb17 -> bb6
 
 bb16:
-  %56: I32 trivial = const 0
-  %57: Bool trivial = eq inspect %1 inspect %56
-  store inspect %6 consume %1
-  branch inspect %57 -> bb8 -> bb9
+  %49: %inner(I32).Lens address = field.addr .$inner inspect %0
+  %50: inner(I32).Lens [unique call] guaranteed = load inspect %49
+  %51: I32 trivial = const 0
+  %52: Bool trivial = const False
+  %53: Bool trivial = call inner(I32)$step borrow %50 consume %51 consume %52
+  jump -> bb6
 
 bb17:
-  %58: %I32 address = field.addr .$index inspect %0
-  %59: I32 trivial = const 2147483647
-  store inspect %58 consume %59
-  %60: Bool trivial = const False
-  return consume %60
+  %54: %inner(I32).Lens address = field.addr .$inner inspect %0
+  %55: %I32 address = field.addr .$slot inspect %54
+  %56: I32 trivial = load inspect %55
+  %57: I32 [shared call] guaranteed = represent inspect %56
+  jump -> bb7(borrow %57)
 
 bb18:
   %66: I32 trivial = const 0
-  %67: Bool trivial = eq inspect %63 inspect %66
-  branch inspect %67 -> bb1 -> bb2
+  %67: Bool trivial = eq inspect %1 inspect %66
+  store inspect %6 consume %1
+  branch inspect %67 -> bb8 -> bb9
+
+bb19:
+  %68: %I32 address = field.addr .$index inspect %0
+  %69: I32 trivial = const 2147483647
+  store inspect %68 consume %69
+  %70: Bool trivial = const False
+  return consume %70
+
+bb20:
+  %76: I32 trivial = const 0
+  %77: Bool trivial = eq inspect %73 inspect %76
+  branch inspect %77 -> bb1 -> bb2
 }
 
 fn twoDeep$drop($self: twoDeep.Iter) -> {} {
@@ -2802,18 +2866,18 @@ bb0(%0: viaClass.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivia
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = alloc frame I32
   %6: %I32 address = alloc frame I32 [shared call]
-  %40: %I32 address = field.addr .$index inspect %0
-  %41: I32 trivial = load inspect %40
-  %42: I32 trivial = const 1
-  %43: Bool trivial = eq inspect %41 inspect %42
-  branch inspect %43 -> bb10 -> bb12
+  %45: %I32 address = field.addr .$index inspect %0
+  %46: I32 trivial = load inspect %45
+  %47: I32 trivial = const 1
+  %48: Bool trivial = eq inspect %46 inspect %47
+  branch inspect %48 -> bb11 -> bb13
 
 bb1:
-  branch inspect %2 -> bb11 -> bb3
+  branch inspect %2 -> bb12 -> bb3
 
 bb2:
-  %39: Bool trivial = const False
-  return consume %39
+  %44: Bool trivial = const False
+  return consume %44
 
 bb3:
   %7: I32 trivial = const 0
@@ -2825,34 +2889,34 @@ bb3:
   jump -> bb8
 
 bb4:
-  %20: I32 trivial = load inspect %5
-  %21: %I32.enter.Lens address = field.addr .$enter inspect %0
-  %22: I32.enter.Lens [unique call] guaranteed = load inspect %21
-  %23: I32 trivial = const 1
-  %24: Bool trivial = const True
-  %25: Bool trivial = call I32.enter$step borrow %22 consume %23 consume %24
-  %26: %I32 address = field.addr .$index inspect %0
-  %27: I32 trivial = const 2147483647
-  store inspect %26 consume %27
-  %28: Bool trivial = const False
-  return consume %28
+  %25: I32 trivial = load inspect %5
+  %26: %I32.enter.Lens address = field.addr .$enter inspect %0
+  %27: I32.enter.Lens [unique call] guaranteed = load inspect %26
+  %28: I32 trivial = const 1
+  %29: Bool trivial = const True
+  %30: Bool trivial = call I32.enter$step borrow %27 consume %28 consume %29
+  %31: %I32 address = field.addr .$index inspect %0
+  %32: I32 trivial = const 2147483647
+  store inspect %31 consume %32
+  %33: Bool trivial = const False
+  return consume %33
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %6 borrow %3
-  %29: I32 trivial = load inspect %4
-  %30: %I32 address = field.addr .$slot inspect %0
-  store inspect %30 borrow %29
-  %31: %I32 address = field.addr .$index inspect %0
-  %32: I32 trivial = const 1
-  store inspect %31 consume %32
-  %33: Bool trivial = const True
-  return consume %33
+  %34: I32 trivial = load inspect %4
+  %35: %I32 address = field.addr .$slot inspect %0
+  store inspect %35 borrow %34
+  %36: %I32 address = field.addr .$index inspect %0
+  %37: I32 trivial = const 1
+  store inspect %36 consume %37
+  %38: Bool trivial = const True
+  return consume %38
 
 bb6:
-  jump -> bb8
+  jump -> bb9
 
 bb7:
-  jump -> bb8
+  jump -> bb9
 
 bb8:
   %11: %I32.enter.Lens address = field.addr .$enter inspect %0
@@ -2860,32 +2924,40 @@ bb8:
   %13: I32 trivial = const 0
   %14: Bool trivial = const False
   %15: Bool trivial = call I32.enter$step borrow %12 consume %13 consume %14
-  branch inspect %15 -> bb9 -> bb4
+  branch inspect %15 -> bb10 -> bb4
 
 bb9:
   %16: %I32.enter.Lens address = field.addr .$enter inspect %0
-  %17: %I32 address = field.addr .$slot inspect %16
-  %18: I32 trivial = load inspect %17
-  %19: I32 [shared call] guaranteed = represent inspect %18
-  jump -> bb5(borrow %19)
+  %17: I32.enter.Lens [unique call] guaranteed = load inspect %16
+  %18: I32 trivial = const 0
+  %19: Bool trivial = const False
+  %20: Bool trivial = call I32.enter$step borrow %17 consume %18 consume %19
+  jump -> bb4
 
 bb10:
-  %34: I32 trivial = const 0
-  %35: Bool trivial = eq inspect %1 inspect %34
-  store inspect %5 consume %1
-  branch inspect %35 -> bb6 -> bb7
+  %21: %I32.enter.Lens address = field.addr .$enter inspect %0
+  %22: %I32 address = field.addr .$slot inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 [shared call] guaranteed = represent inspect %23
+  jump -> bb5(borrow %24)
 
 bb11:
-  %36: %I32 address = field.addr .$index inspect %0
-  %37: I32 trivial = const 2147483647
-  store inspect %36 consume %37
-  %38: Bool trivial = const False
-  return consume %38
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %1 inspect %39
+  store inspect %5 consume %1
+  branch inspect %40 -> bb6 -> bb7
 
 bb12:
-  %44: I32 trivial = const 0
-  %45: Bool trivial = eq inspect %41 inspect %44
-  branch inspect %45 -> bb1 -> bb2
+  %41: %I32 address = field.addr .$index inspect %0
+  %42: I32 trivial = const 2147483647
+  store inspect %41 consume %42
+  %43: Bool trivial = const False
+  return consume %43
+
+bb13:
+  %49: I32 trivial = const 0
+  %50: Bool trivial = eq inspect %46 inspect %49
+  branch inspect %50 -> bb1 -> bb2
 }
 
 fn viaClass$drop($self: viaClass.Iter) -> {} {
@@ -2929,16 +3001,16 @@ bb0(%0: stopping.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivia
   %6: %I32 address = alloc frame I32
   %7: %I32 address = alloc frame I32 [shared call]
   %8: %I32 address = alloc frame I32 [shared call]
-  %78: %I32 address = field.addr .$index inspect %0
-  %79: I32 trivial = load inspect %78
-  switch [0, 1, 2] inspect %79 -> bb1 -> bb21 -> bb22 -> bb2
+  %83: %I32 address = field.addr .$index inspect %0
+  %84: I32 trivial = load inspect %83
+  switch [0, 1, 2] inspect %84 -> bb1 -> bb22 -> bb23 -> bb2
 
 bb1:
-  branch inspect %2 -> bb23 -> bb3
+  branch inspect %2 -> bb24 -> bb3
 
 bb2:
-  %77: Bool trivial = const False
-  return consume %77
+  %82: Bool trivial = const False
+  return consume %82
 
 bb3:
   %9: I32 trivial = const 0
@@ -2950,92 +3022,92 @@ bb3:
   jump -> bb17
 
 bb4:
-  %22: I32 trivial = load inspect %6
-  %23: I32 trivial = const 0
-  %24: Bool trivial = eq inspect %22 inspect %23
-  branch inspect %24 -> bb14 -> bb15
+  %27: I32 trivial = load inspect %6
+  %28: I32 trivial = const 0
+  %29: Bool trivial = eq inspect %27 inspect %28
+  branch inspect %29 -> bb14 -> bb15
 
 bb5(%3: I32 [shared call] guaranteed):
   store inspect %7 borrow %3
-  %25: I32 trivial = load inspect %5
-  %26: digits.Iter trivial = call digits$new consume %25
-  %27: %digits.Iter address = field.addr .$digits inspect %0
-  store inspect %27 consume %26
-  jump -> bb19
+  %30: I32 trivial = load inspect %5
+  %31: digits.Iter trivial = call digits$new consume %30
+  %32: %digits.Iter address = field.addr .$digits inspect %0
+  store inspect %32 consume %31
+  jump -> bb20
 
 bb6:
-  %37: I32 trivial = load inspect %6
-  %38: I32 trivial = const 0
-  %39: Bool trivial = eq inspect %37 inspect %38
-  branch inspect %39 -> bb12 -> bb13
+  %42: I32 trivial = load inspect %6
+  %43: I32 trivial = const 0
+  %44: Bool trivial = eq inspect %42 inspect %43
+  branch inspect %44 -> bb12 -> bb13
 
 bb7(%4: I32 [shared call] guaranteed):
   store inspect %8 borrow %4
-  %40: I32 trivial = load inspect %6
-  %41: I32 trivial = const 0
-  %42: Bool trivial = eq inspect %40 inspect %41
-  branch inspect %42 -> bb8 -> bb9
+  %45: I32 trivial = load inspect %6
+  %46: I32 trivial = const 0
+  %47: Bool trivial = eq inspect %45 inspect %46
+  branch inspect %47 -> bb8 -> bb9
 
 bb8:
-  %43: I32 trivial = load inspect %8
-  %44: %I32 address = field.addr .$slot inspect %0
-  store inspect %44 borrow %43
-  %45: %I32 address = field.addr .$index inspect %0
-  %46: I32 trivial = const 1
-  store inspect %45 consume %46
-  %47: Bool trivial = const True
-  return consume %47
+  %48: I32 trivial = load inspect %8
+  %49: %I32 address = field.addr .$slot inspect %0
+  store inspect %49 borrow %48
+  %50: %I32 address = field.addr .$index inspect %0
+  %51: I32 trivial = const 1
+  store inspect %50 consume %51
+  %52: Bool trivial = const True
+  return consume %52
 
 bb9:
   jump -> bb11
 
 bb10:
-  jump -> bb19
+  jump -> bb20
 
 bb11:
-  %50: %digits.Iter address = field.addr .$digits inspect %0
-  %51: digits.Iter [unique call] guaranteed = load inspect %50
-  %52: I32 trivial = const 1
-  %53: Bool trivial = const True
-  %54: Bool trivial = call digits$step borrow %51 consume %52 consume %53
+  %55: %digits.Iter address = field.addr .$digits inspect %0
+  %56: digits.Iter [unique call] guaranteed = load inspect %55
+  %57: I32 trivial = const 1
+  %58: Bool trivial = const True
+  %59: Bool trivial = call digits$step borrow %56 consume %57 consume %58
   jump -> bb6
 
 bb12:
-  jump -> bb17
+  jump -> bb18
 
 bb13:
-  jump -> bb17
+  jump -> bb18
 
 bb14:
-  %55: I32 trivial = const 8
-  %56: %I32 address = field.addr .$slot inspect %0
-  store inspect %56 borrow %55
-  %57: %I32 address = field.addr .$index inspect %0
-  %58: I32 trivial = const 2
-  store inspect %57 consume %58
-  %59: Bool trivial = const True
-  return consume %59
+  %60: I32 trivial = const 8
+  %61: %I32 address = field.addr .$slot inspect %0
+  store inspect %61 borrow %60
+  %62: %I32 address = field.addr .$index inspect %0
+  %63: I32 trivial = const 2
+  store inspect %62 consume %63
+  %64: Bool trivial = const True
+  return consume %64
 
 bb15:
   jump -> bb16
 
 bb16:
-  %60: I32 trivial = load inspect %6
-  %61: %digits.Iter address = field.addr .$digits inspect %0
-  %62: digits.Iter [unique call] guaranteed = load inspect %61
-  %63: I32 trivial = const 1
-  %64: Bool trivial = const True
-  %65: Bool trivial = call digits$step borrow %62 consume %63 consume %64
-  %66: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %67: guard(I32).Lens [unique call] guaranteed = load inspect %66
+  %65: I32 trivial = load inspect %6
+  %66: %digits.Iter address = field.addr .$digits inspect %0
+  %67: digits.Iter [unique call] guaranteed = load inspect %66
   %68: I32 trivial = const 1
   %69: Bool trivial = const True
-  %70: Bool trivial = call guard(I32)$step borrow %67 consume %68 consume %69
-  %71: %I32 address = field.addr .$index inspect %0
-  %72: I32 trivial = const 2147483647
-  store inspect %71 consume %72
-  %73: Bool trivial = const False
-  return consume %73
+  %70: Bool trivial = call digits$step borrow %67 consume %68 consume %69
+  %71: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %72: guard(I32).Lens [unique call] guaranteed = load inspect %71
+  %73: I32 trivial = const 1
+  %74: Bool trivial = const True
+  %75: Bool trivial = call guard(I32)$step borrow %72 consume %73 consume %74
+  %76: %I32 address = field.addr .$index inspect %0
+  %77: I32 trivial = const 2147483647
+  store inspect %76 consume %77
+  %78: Bool trivial = const False
+  return consume %78
 
 bb17:
   %13: %guard(I32).Lens address = field.addr .$guard inspect %0
@@ -3043,46 +3115,54 @@ bb17:
   %15: I32 trivial = const 0
   %16: Bool trivial = const False
   %17: Bool trivial = call guard(I32)$step borrow %14 consume %15 consume %16
-  branch inspect %17 -> bb18 -> bb4
+  branch inspect %17 -> bb19 -> bb4
 
 bb18:
   %18: %guard(I32).Lens address = field.addr .$guard inspect %0
-  %19: %I32 address = field.addr .$slot inspect %18
-  %20: I32 trivial = load inspect %19
-  %21: I32 [shared call] guaranteed = represent inspect %20
-  jump -> bb5(borrow %21)
+  %19: guard(I32).Lens [unique call] guaranteed = load inspect %18
+  %20: I32 trivial = const 0
+  %21: Bool trivial = const False
+  %22: Bool trivial = call guard(I32)$step borrow %19 consume %20 consume %21
+  jump -> bb4
 
 bb19:
-  %28: %digits.Iter address = field.addr .$digits inspect %0
-  %29: digits.Iter [unique call] guaranteed = load inspect %28
-  %30: I32 trivial = const 0
-  %31: Bool trivial = const False
-  %32: Bool trivial = call digits$step borrow %29 consume %30 consume %31
-  branch inspect %32 -> bb20 -> bb6
+  %23: %guard(I32).Lens address = field.addr .$guard inspect %0
+  %24: %I32 address = field.addr .$slot inspect %23
+  %25: I32 trivial = load inspect %24
+  %26: I32 [shared call] guaranteed = represent inspect %25
+  jump -> bb5(borrow %26)
 
 bb20:
   %33: %digits.Iter address = field.addr .$digits inspect %0
-  %34: %I32 address = field.addr .$slot inspect %33
-  %35: I32 trivial = load inspect %34
-  %36: I32 [shared call] guaranteed = represent inspect %35
-  jump -> bb7(borrow %36)
+  %34: digits.Iter [unique call] guaranteed = load inspect %33
+  %35: I32 trivial = const 0
+  %36: Bool trivial = const False
+  %37: Bool trivial = call digits$step borrow %34 consume %35 consume %36
+  branch inspect %37 -> bb21 -> bb6
 
 bb21:
-  %48: I32 trivial = const 0
-  %49: Bool trivial = eq inspect %1 inspect %48
-  store inspect %6 consume %1
-  branch inspect %49 -> bb10 -> bb11
+  %38: %digits.Iter address = field.addr .$digits inspect %0
+  %39: %I32 address = field.addr .$slot inspect %38
+  %40: I32 trivial = load inspect %39
+  %41: I32 [shared call] guaranteed = represent inspect %40
+  jump -> bb7(borrow %41)
 
 bb22:
+  %53: I32 trivial = const 0
+  %54: Bool trivial = eq inspect %1 inspect %53
+  store inspect %6 consume %1
+  branch inspect %54 -> bb10 -> bb11
+
+bb23:
   store inspect %6 consume %1
   jump -> bb16
 
-bb23:
-  %74: %I32 address = field.addr .$index inspect %0
-  %75: I32 trivial = const 2147483647
-  store inspect %74 consume %75
-  %76: Bool trivial = const False
-  return consume %76
+bb24:
+  %79: %I32 address = field.addr .$index inspect %0
+  %80: I32 trivial = const 2147483647
+  store inspect %79 consume %80
+  %81: Bool trivial = const False
+  return consume %81
 }
 
 fn stopping$drop($self: stopping.Iter) -> {} {

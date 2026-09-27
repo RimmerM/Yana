@@ -65,14 +65,13 @@ Node* expandCloneThread(Builder& builder, Function& callee, Node* const* argumen
  * `stackInit(stackTop, argument, entry)` and `stackSwitch(target, save, transfer)` - the two lines
  * again, and the entry pair kept whole for `expandCloneThread`'s reason directly above.
  *
- * What is worth saying here is what these do *not* do, because both are suspension points and
- * neither says so at this tier. A **call** is answered from its callee's published summary, and a
- * call to one of these is exactly that: the declaration in `lib/Native` is bodyless, so
- * `summary.bodyKnown` is false, so `suspension()` has no answer, so `get(true)` is what the caller
- * reads - the conservative direction, arrived at by the rule that already covers every
- * foreign declaration rather than by a bit written here. A `Native` node the expansion leaves behind
- * is not itself a suspension point and does not need to be: what the across-suspend rule has to see
- * is the *call*, and the call is what the loan checker walks.
+ * What is worth saying here is where `stackSwitch`'s suspension is answered, because it is not the
+ * call. This comment used to say a call to the bodyless `lib/Native` declaration would be read
+ * through its conservative summary - but the expansion replaces the call, so no call is left for a
+ * summary to answer, and `Switching.yana`'s `count` read `suspends: no` (P13). The `Native` node
+ * is the suspension point instead: `summary.cpp`'s `suspendsAt` answers yes for
+ * `NativeOp::StackSwitch`, and the edge walk carries it to every caller. `stackInit` returns
+ * without entering the stack it prepared, so it is not one.
  */
 Node* expandStackInit(Builder& builder, Function& callee, Node* const* arguments,
                       const Substitution& with, LocationId source) {

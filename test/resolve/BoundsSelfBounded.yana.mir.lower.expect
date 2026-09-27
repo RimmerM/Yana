@@ -1,0 +1,189 @@
+@table = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+
+touch<complex>(%bytes$length: I64): I64 {
+  b_0 {
+    ret %bytes$length
+  }
+}
+
+masked<complex>(%w: I64): I32 {
+  b_0 {
+    %v_1 = shr %w, 18: I64
+    %v_2 = and %v_1, 63: I64
+    %v_3 = add @table, %v_2: Ptr
+    %v_4 = load %v_3, 1: I32
+    %v_5 = shr %w, 12: I64
+    %v_6 = and 63, %v_5: I64
+    %v_7 = add @table, %v_6: Ptr
+    %v_8 = load %v_7, 1: I32
+    %v_9 = add %v_4, %v_8: I32
+    ret %v_9
+  }
+}
+
+shifted<complex>(%w: I32): I32 {
+  b_0 {
+    %v_1 = shr %w, 26: I32
+    %v_2 = cast %v_1: I64
+    %v_3 = add @table, %v_2: Ptr
+    %v_4 = load %v_3, 1: I32
+    ret %v_4
+  }
+}
+
+remainder<complex>(%w: I64): I32 {
+  b_0 {
+    %v_1 = and %w, 63: I64
+    %v_2 = add @table, %v_1: Ptr
+    %v_3 = load %v_2, 1: I32
+    ret %v_3
+  }
+}
+
+signedRemainder<complex>(%w: I64): I32 {
+  b_0 {
+    %v_1 = sar %w, 63: I64
+    %v_2 = shr %v_1, 58: I64
+    %v_3 = add %w, %v_2: I64
+    %v_4 = and %v_3, 18446744073709551552: I64
+    %v_5 = sub %w, %v_4: I64
+    %v_6 = cmp_ge %v_5, 64: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    %v_9 = add @table, %v_5: Ptr
+    %v_10 = load %v_9, 1: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+byte<complex>(%b: I32): I32 {
+  b_0 {
+    %v_1 = cast %b: I64
+    %v_2 = and %v_1, 63: I64
+    %v_3 = add @table, %v_2: Ptr
+    %v_4 = load %v_3, 1: I32
+    ret %v_4
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 1: Ptr
+    setpattern %v_1, 16, 0
+    %v_2 = alloca 10, 1: Ptr
+    store %v_2, 1, 1
+    %v_3 = add %v_2, 1: Ptr
+    store %v_3, 2, 1
+    %v_4 = add %v_2, 2: Ptr
+    store %v_4, 3, 1
+    %v_5 = add %v_2, 3: Ptr
+    store %v_5, 4, 1
+    %v_6 = add %v_2, 4: Ptr
+    store %v_6, 5, 1
+    %v_7 = add %v_2, 5: Ptr
+    store %v_7, 6, 1
+    %v_8 = add %v_2, 6: Ptr
+    store %v_8, 7, 1
+    %v_9 = add %v_2, 7: Ptr
+    store %v_9, 8, 1
+    %v_10 = add %v_2, 8: Ptr
+    store %v_10, 9, 1
+    %v_11 = add %v_2, 9: Ptr
+    store %v_11, 10, 1
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_0, 0], [b_14, %v_15]: I64
+    %v_16 = cmp_le %v_13, 12: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = cmp_le %v_13, 6: I32
+    je %v_19, b_14, b_18
+  }
+
+  b_18 {
+    jmp b_20
+  }
+
+  b_14 {
+    %v_21 = add %v_2, %v_13: Ptr
+    %v_22 = load %v_21, 1: I32
+    %v_23 = add %v_1, %v_13: Ptr
+    store %v_23, %v_22, 1
+    %v_24 = add %v_13, 1: I64
+    %v_25 = add %v_2, %v_24: Ptr
+    %v_26 = load %v_25, 1: I32
+    %v_27 = add %v_1, %v_24: Ptr
+    store %v_27, %v_26, 1
+    %v_28 = add %v_13, 2: I64
+    %v_29 = add %v_2, %v_28: Ptr
+    %v_30 = load %v_29, 1: I32
+    %v_31 = add %v_1, %v_28: Ptr
+    store %v_31, %v_30, 1
+    %v_32 = add %v_13, 3: I64
+    %v_33 = add %v_2, %v_32: Ptr
+    %v_34 = load %v_33, 1: I32
+    %v_35 = add %v_1, %v_32: Ptr
+    store %v_35, %v_34, 1
+    %v_15 = add %v_13, 4: I64
+    jmp b_12
+  }
+
+  b_20 {
+    %v_36 = phi [b_18, 0], [b_37, %v_38]: I64
+    %v_39 = cmp_le %v_36, 14: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_40 {
+    %v_42 = cmp_le %v_36, 8: I32
+    je %v_42, b_37, b_41
+  }
+
+  b_41 {
+    %v_43 = add %v_13, %v_36: I64
+    %v_44 = call_complex masked, 305419896: I32
+    %v_45 = call_complex shifted, 4294967295: I32
+    %v_46 = add %v_44, %v_45: I32
+    %v_47 = call_complex remainder, 1000: I32
+    %v_48 = add %v_46, %v_47: I32
+    %v_49 = call_complex signedRemainder, 1000: I32
+    %v_50 = add %v_48, %v_49: I32
+    %v_51 = call_complex byte, 200: I32
+    %v_52 = add %v_50, %v_51: I32
+    %v_53 = sext %v_43: I32
+    %v_54 = add %v_1, 1: Ptr
+    %v_55 = load %v_54, 1: I32
+    %v_56 = imul %v_55, 100: I32
+    %v_57 = add %v_53, %v_56: I32
+    %v_58 = imul %v_52, 1000: I32
+    %v_59 = add %v_57, %v_58: I32
+    ret %v_59
+  }
+
+  b_37 {
+    %v_60 = add %v_2, %v_36: Ptr
+    %v_61 = load %v_60, 1: I32
+    %v_62 = add %v_1, %v_36: Ptr
+    store %v_62, %v_61, 1
+    %v_63 = call_complex touch, 16: I64
+    %v_64 = add %v_36, 1: I64
+    %v_65 = cast %v_63: I32
+    %v_66 = and %v_65, 255: I32
+    %v_67 = add %v_1, %v_64: Ptr
+    store %v_67, %v_66, 1
+    %v_38 = add %v_36, 2: I64
+    jmp b_20
+  }
+}
+

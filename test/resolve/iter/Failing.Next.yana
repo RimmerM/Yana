@@ -1,0 +1,142 @@
+{-
+   `next()` and `resume(v)` on an iterator object over a **failing** traversal - C1b, the second
+   half of P2 (`doc/inflight/Design-Iterator-Objects.md` §6.6).
+
+   A failing object is not an `Iterate`: that class answers `Maybe(item)`, and "ran out" and "failed
+   with `e`" would be one `Nothing`. It is an `IterateFailing` instead, whose members answer
+   `IterStep(e, item)` - `Yield(x)`, `Done` or `Failed(e)`, Analysis-External-Iterators.md §2.2's
+   choice. The failure is handed over owned and once: the step that answers `Failed` leaves the object
+   finished, so the next step answers `Done`. Exactly one of the two classes has an instance at any
+   object, which is what lets `it.next()` name the right one beside `Iterate.next`.
+
+   Digits: an item (its value), a failure seen (7 then its id), `Done` (8), a `Tag` released (9 then
+   its id), where a `Tag` is released at its last use - before the `note` a read of `tag.id` feeds,
+   and on entry to an arm that never reads it. An item 0 first in a trace leaves no digit. `main`
+   answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+iter fn upTo(n: Int, failAt: Int) -> (Int | String):
+    let &i = 0 :: Int
+    while i < n:
+        if i == failAt then return "at {i}"
+        yield i
+        i = i + 1
+
+iter fn tagged(n: Int, failAt: Int) -> (Int | Tag):
+    let &i = 0 :: Int
+    while i < n:
+        if i == failAt then return Tag {id: i}
+        yield i
+        i = i + 1
+
+-- Resuming and failing: each pass is answered with a step, and a negative one fails.
+iter fn walk(start: Int) -> (Int <- Int | Tag):
+    let &at = start
+    while at < 100:
+        let step = yield at
+        if step < 0 then return Tag {id: 4}
+        at = at + step
+
+-- Stepped by a body that does not know which producer it holds.
+fn (IterateFailing(s, Int, Tag, {})) drain(&it: s) -> Int:
+    let &count = 0
+    let &going = True
+    while going:
+        match it.next():
+            IterStep.Yield(x):
+                note(x :: Long)
+                count += 1
+            IterStep.Done:
+                note(8)
+                going = False
+            IterStep.Failed(tag):
+                note(7)
+                note(tag.id :: Long)
+                going = False
+    return count
+
+data Holder {source: tagged.Iter, tag: Int}
+
+fn show(&it: upTo.Iter):
+    match it.next():
+        IterStep.Yield(x) -> note(x :: Long)
+        IterStep.Done -> note(8)
+        IterStep.Failed(reason):
+            if reason == "at 2" then note(7)
+
+fn main() -> Int:
+    -- Two items, the failure, then `Done` for good.
+    let &it = upTo(5, 2)
+    show(it)
+    show(it)
+    show(it)
+    show(it)
+    show(it)
+    expect(1, 1788)
+
+    -- Running out is `Done`, not `Failed`.
+    let &clean = upTo(2, 9)
+    show(clean)
+    show(clean)
+    show(clean)
+    expect(2, 18)
+
+    -- An owning failure, handed over once and released where the arm last reads it.
+    let &owning = tagged(5, 1)
+    match owning.next():
+        IterStep.Yield(x) -> note(x :: Long)
+        IterStep.Done -> note(8)
+        IterStep.Failed(tag) -> note(1)
+    match owning.next():
+        IterStep.Yield(x) -> note(x :: Long)
+        IterStep.Done -> note(8)
+        IterStep.Failed(tag):
+            note(7)
+            note(tag.id :: Long)
+    if owning.next() is IterStep.Done then note(8)
+    expect(4, 79118)
+
+    -- An answer nobody looks into still releases the failure it carries.
+    let &ignored = tagged(3, 0)
+    let _ = ignored.next()
+    note(3)
+    expect(8, 903)
+
+    -- `resume(v)`: the first value is never read, since the producer has not reached a `yield`.
+    let &walker = walk(1)
+    if walker.resume(0) is IterStep.Yield(x) then note(x :: Long)
+    if walker.resume(2) is IterStep.Yield(x) then note(x :: Long)
+    match walker.resume(-1):
+        IterStep.Yield(x) -> note(x :: Long)
+        IterStep.Done -> note(8)
+        IterStep.Failed(tag) -> note(7)
+    expect(16, 13947)
+
+    -- Through the class, over a local and over a record field.
+    let &generic = tagged(4, 2)
+    let counted = drain(generic)
+    note(counted :: Long)
+    expect(32, 179222)
+
+    let &held = Holder {source: tagged(2, 9), tag: 6}
+    note(drain(held.source) :: Long)
+    expect(64, 182)
+
+    return failures

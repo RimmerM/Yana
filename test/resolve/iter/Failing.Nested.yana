@@ -1,0 +1,98 @@
+{-
+   A **failing nested traversal** inside an object's producer - C1b, §6.6's `| E` one level in.
+
+   `for v in child(...) | e -> ...` written inside an `iter fn` whose call is kept is a payload member
+   holding `child.Iter`, and the region's blocks are embedded in the outer step as `iter/Nested.yana`
+   describes. What a failing child adds is at the embedded `advance`: where the child's step answers
+   no, the step reads the child's index, and a failed child's reason is moved out (`f$failure`) and
+   handed to the outer producer's own alternative - which then runs *inside the outer step*, and may
+   itself `yield`, fail the outer producer, or fall through to the code after the loop.
+
+   Digits: an item (its value), an alternative (7 then what it saw), a `Tag` released (9 then its
+   id). A `Tag` is released at its last use. `main` answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+iter fn child(n: Int, failAt: Int) -> (Int | Tag):
+    let &i = 1 :: Int
+    while i <= n:
+        if i == failAt then return Tag {id: i}
+        yield i
+        i = i + 1
+
+-- The alternative handles the failure and the outer producer carries on after the loop.
+iter fn recover(n: Int, failAt: Int) -> Int:
+    for v in child(n, failAt):
+        yield v
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    yield 5
+
+-- The alternative yields - a suspension inside the outer step's own alternative block.
+iter fn replace(n: Int, failAt: Int) -> Int:
+    for v in child(n, failAt):
+        yield v
+    | tag -> yield tag.id + 5
+
+-- The alternative fails the outer producer with the child's own failure.
+iter fn forward(n: Int, failAt: Int) -> (Int | Tag):
+    for v in child(n, failAt):
+        yield v
+    | tag -> return tag
+    yield 6
+
+fn main() -> Int:
+    let &a = recover(4, 3)
+    for x in a:
+        note(x :: Long)
+    expect(1, 1279335)
+
+    let &b = recover(2, 9)
+    for x in b:
+        note(x :: Long)
+    expect(2, 125)
+
+    let &c = replace(4, 2)
+    for x in c:
+        note(x :: Long)
+    expect(4, 1927)
+
+    let &d = forward(4, 2)
+    for x in d:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(8, 17922)
+
+    let &e = forward(1, 9)
+    for x in e:
+        note(x :: Long)
+    | tag -> note(7)
+    expect(16, 16)
+
+    -- Left while the child is suspended: no alternative, and nothing failed to release.
+    let &f = recover(4, 3)
+    for x in f:
+        if x == 2 then break
+        note(x :: Long)
+    expect(32, 1)
+
+    return failures

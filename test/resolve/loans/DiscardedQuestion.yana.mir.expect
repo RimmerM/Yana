@@ -1,0 +1,479 @@
+module ResolveTest
+
+data Fault {at: I32}
+
+data Feed {bytes: Array(U8), at: I32} drop authored reclaim derived
+
+instance Drop(Feed): Feed.drop
+
+let & released: I32 = 0
+
+fn Feed.drop(value: Feed) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global released) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  drop (value.bytes)
+  return
+}
+
+fn Feed.next(self: Feed [unique slot 0]) -> Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] {
+bb0:
+  %0: I32 = read copy.trivial (self.at)
+  %1: Array(U8) [shared slot 0] = read borrow.shared (self.bytes) loan0
+  %2: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %1 roots{0}
+  %3: Size = call length(Array(U8)) borrow.shared %2
+  %4: Size = convert inspect %0
+  %5: Bool = ge inspect %4 inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I32 [unique slot 0] = read borrow.unique (self.at) loan1
+  %13: I32 = const 1
+  %14: {} = call +=(I32) borrow.unique %12 borrow.shared %13
+  %15: Array(U8) [shared slot 0] = read borrow.shared (self.bytes) loan2
+  %16: I32 = read copy.trivial (self.at)
+  %17: I32 = const 1
+  %18: I32 = sub inspect %16 inspect %17
+  %19: I32 = read copy.trivial (self.at)
+  %20: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %15 roots{2}
+  %21: Size = convert inspect %18
+  %22: Size = convert inspect %19
+  %23: Array(U8) [shared slot 0 view] = call slice(U8) borrow.shared %20 borrow.shared %21 borrow.shared %22 roots{2}
+  %24: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = aggregate.Ok borrow.shared %23 roots.0{2}
+  return take %24
+
+bb3:
+  %7: I32 = read copy.trivial (self.at)
+  %8: Fault = aggregate.Fault take %7
+  %9: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = aggregate.Err take %8
+  return take %9
+}
+
+fn discarded(fail: Bool [shared call]) -> Result(Fault, I32) {
+  local & local1: Array(U8)
+  local & feed: Feed
+  local local3: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  local local4: Outcome(Array(U8), Fault)
+
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 2
+  %2: U8 = const 3
+  %3: %U8 = run.slots U8 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(U8) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(U8) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local1) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(U8) = read take (local1)
+  %21: I32 = const 0
+  %22: Feed = aggregate.Feed take %20 take %21
+  write.init borrow.unique (feed) take %22
+  %24: Bool = read copy.trivial (fail)
+  branch inspect %24 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %53: I32 = read copy.trivial (feed.at)
+  drop (feed)
+  %54: Result(Fault, I32) = aggregate.Ok take %53
+  return take %54
+
+bb3:
+  %26: Feed [unique slot 0] = read borrow.unique (feed) loan0
+  %27: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = call Feed.next borrow.unique %26 roots.0{0}
+  write.init borrow.unique (local3) take %27
+  %29: U8 = read copy.trivial (local3.#)
+  %30: U8 = const 0
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb4:
+  %45: Array(U8) [shared slot 0 view] = read borrow.shared (local3.Ok) loan1 roots{0}
+  jump -> bb5(borrow.shared %45)
+
+bb5(%46: Array(U8) [shared slot 0 view]):
+  %48: I32 = const 7
+  drop (feed)
+  %49: Fault = aggregate.Fault take %48
+  %50: Result(Fault, I32) = aggregate.Err take %49
+  return take %50
+
+bb6:
+  drop (feed)
+  %33: Fault = read copy.trivial (local3.Err)
+  %34: Result(Fault, Array(U8)) = aggregate.Err take %33
+  %35: Outcome(Array(U8), Fault) = call toOutcome(Result(Fault, Array(U8)), Array(U8), Fault) take %34
+  write.init borrow.unique (local4) take %35
+  %37: U8 = read copy.trivial (local4.#)
+  %38: U8 = const 1
+  %39: Bool = eq inspect %37 inspect %38
+  branch inspect %39 -> bb8 -> bb7
+
+bb7:
+  drop (local4)
+  unreachable
+
+bb8:
+  %41: Fault = read copy.trivial (local4.Exit)
+  drop (local4)
+  %42: Result(Fault, I32) = call fromExit(Result(Fault, I32), I32, Fault) take %41
+  return take %42
+}
+
+fn exhausted() -> Result(Fault, I32) {
+  local & local0: Array(U8)
+  local & feed: Feed
+  local local2: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  local local3: Outcome(Array(U8), Fault)
+  local local4: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  local local5: Outcome(Array(U8), Fault)
+
+bb0:
+  %0: U8 = const 5
+  %1: %U8 = run.slots U8 *1
+  %2: Size = bitcast inspect %1
+  %3: Size = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  %5: {} = call checkCondition borrow.shared %4
+  %6: @bits(30) U32 = const 1
+  %7: @bits(2) U32 = const 1
+  %8: Run(U8) = aggregate.Run take %1 take %6 take %7
+  %9: @bits(30) U32 = const 1
+  %10: Array(U8) = aggregate.Array take %8 take %9
+  write.init borrow.unique (local0) take %10
+  %12: Size = const 0
+  write.init borrow.unique ([%%1][0]) take %0
+  %14: Array(U8) = read take (local0)
+  %15: I32 = const 0
+  %16: Feed = aggregate.Feed take %14 take %15
+  write.init borrow.unique (feed) take %16
+  %18: Feed [unique slot 0] = read borrow.unique (feed) loan0
+  %19: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = call Feed.next borrow.unique %18 roots.0{0}
+  write.init borrow.unique (local2) take %19
+  %21: U8 = read copy.trivial (local2.#)
+  %22: U8 = const 0
+  %23: Bool = eq inspect %21 inspect %22
+  branch inspect %23 -> bb3 -> bb1
+
+bb1:
+  %37: Array(U8) [shared slot 0 view] = read borrow.shared (local2.Ok) loan1 roots{0}
+  jump -> bb2(borrow.shared %37)
+
+bb2(%38: Array(U8) [shared slot 0 view]):
+  %40: Feed [unique slot 0] = read borrow.unique (feed) loan2
+  %41: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = call Feed.next borrow.unique %40 roots.0{2}
+  write.init borrow.unique (local4) take %41
+  %43: U8 = read copy.trivial (local4.#)
+  %44: U8 = const 0
+  %45: Bool = eq inspect %43 inspect %44
+  branch inspect %45 -> bb8 -> bb6
+
+bb3:
+  drop (feed)
+  %25: Fault = read copy.trivial (local2.Err)
+  %26: Result(Fault, Array(U8)) = aggregate.Err take %25
+  %27: Outcome(Array(U8), Fault) = call toOutcome(Result(Fault, Array(U8)), Array(U8), Fault) take %26
+  write.init borrow.unique (local3) take %27
+  %29: U8 = read copy.trivial (local3.#)
+  %30: U8 = const 1
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb5 -> bb4
+
+bb4:
+  drop (local3)
+  unreachable
+
+bb5:
+  %33: Fault = read copy.trivial (local3.Exit)
+  drop (local3)
+  %34: Result(Fault, I32) = call fromExit(Result(Fault, I32), I32, Fault) take %33
+  return take %34
+
+bb6:
+  %59: Array(U8) [shared slot 0 view] = read borrow.shared (local4.Ok) loan3 roots{2}
+  jump -> bb7(borrow.shared %59)
+
+bb7(%60: Array(U8) [shared slot 0 view]):
+  %62: I32 = const 1
+  drop (feed)
+  %63: Result(Fault, I32) = aggregate.Ok take %62
+  return take %63
+
+bb8:
+  drop (feed)
+  %47: Fault = read copy.trivial (local4.Err)
+  %48: Result(Fault, Array(U8)) = aggregate.Err take %47
+  %49: Outcome(Array(U8), Fault) = call toOutcome(Result(Fault, Array(U8)), Array(U8), Fault) take %48
+  write.init borrow.unique (local5) take %49
+  %51: U8 = read copy.trivial (local5.#)
+  %52: U8 = const 1
+  %53: Bool = eq inspect %51 inspect %52
+  branch inspect %53 -> bb10 -> bb9
+
+bb9:
+  drop (local5)
+  unreachable
+
+bb10:
+  %55: Fault = read copy.trivial (local5.Exit)
+  drop (local5)
+  %56: Result(Fault, I32) = call fromExit(Result(Fault, I32), I32, Fault) take %55
+  return take %56
+}
+
+fn lent(feed: Feed [unique call]) -> Result(Fault, I32) {
+  local local1: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  local local2: Outcome(Array(U8), Fault)
+
+bb0:
+  %0: Feed [unique slot 0] = read borrow.unique (feed) loan0
+  %1: Result(Fault, Array(U8)) [owned here shape8 .1=shared slot 0 view] = call Feed.next borrow.unique %0 roots.0{0}
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %19: Array(U8) [shared slot 0 view] = read borrow.shared (local1.Ok) loan1 roots{0}
+  jump -> bb2(borrow.shared %19)
+
+bb2(%20: Array(U8) [shared slot 0 view]):
+  %22: I32 = const 8
+  %23: Fault = aggregate.Fault take %22
+  %24: Result(Fault, I32) = aggregate.Err take %23
+  return take %24
+
+bb3:
+  %7: Fault = read copy.trivial (local1.Err)
+  %8: Result(Fault, Array(U8)) = aggregate.Err take %7
+  %9: Outcome(Array(U8), Fault) = call toOutcome(Result(Fault, Array(U8)), Array(U8), Fault) take %8
+  write.init borrow.unique (local2) take %9
+  %11: U8 = read copy.trivial (local2.#)
+  %12: U8 = const 1
+  %13: Bool = eq inspect %11 inspect %12
+  branch inspect %13 -> bb5 -> bb4
+
+bb4:
+  drop (local2)
+  unreachable
+
+bb5:
+  %15: Fault = read copy.trivial (local2.Exit)
+  drop (local2)
+  %16: Result(Fault, I32) = call fromExit(Result(Fault, I32), I32, Fault) take %15
+  return take %16
+}
+
+fn main() -> I32 {
+  local & failures: I32
+  local local1: Result(Fault, I32)
+  local local2: Result(Fault, I32)
+  local local3: Result(Fault, I32)
+  local & local4: Array(U8)
+  local & feed: Feed
+  local local6: Result(Fault, I32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (failures) take %0
+  %2: Bool = const True
+  %3: Result(Fault, I32) = call discarded borrow.shared %2
+  write.init borrow.unique (local1) take %3
+  %5: U8 = read copy.trivial (local1.#)
+  %6: U8 = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %14: Bool = const False
+  jump -> bb2(take %14)
+
+bb2(%15: Bool):
+  %18: Bool = not inspect %15
+  branch inspect %18 -> bb7 -> bb5
+
+bb3:
+  %9: I32 = read copy.trivial (local1.Err.at)
+  %10: I32 = const 7
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb1
+
+bb4:
+  %13: Bool = const True
+  jump -> bb2(take %13)
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %25: Bool = const False
+  %26: Result(Fault, I32) = call discarded borrow.shared %25
+  write.init borrow.unique (local2) take %26
+  %28: U8 = read copy.trivial (local2.#)
+  %29: U8 = const 1
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb10 -> bb8
+
+bb7:
+  %20: I32 [unique call] = read borrow.unique (failures) loan0
+  %21: I32 = const 1
+  %22: {} = call +=(I32) borrow.unique %20 borrow.shared %21
+  jump -> bb6
+
+bb8:
+  %37: Bool = const False
+  jump -> bb9(take %37)
+
+bb9(%38: Bool):
+  %41: Bool = not inspect %38
+  branch inspect %41 -> bb14 -> bb12
+
+bb10:
+  %32: I32 = read copy.trivial (local2.Ok)
+  %33: I32 = const 0
+  %34: Bool = eq inspect %32 inspect %33
+  branch inspect %34 -> bb11 -> bb8
+
+bb11:
+  %36: Bool = const True
+  jump -> bb9(take %36)
+
+bb12:
+  jump -> bb13
+
+bb13:
+  %48: Result(Fault, I32) = call exhausted
+  write.init borrow.unique (local3) take %48
+  %50: U8 = read copy.trivial (local3.#)
+  %51: U8 = const 0
+  %52: Bool = eq inspect %50 inspect %51
+  branch inspect %52 -> bb17 -> bb15
+
+bb14:
+  %43: I32 [unique call] = read borrow.unique (failures) loan1
+  %44: I32 = const 2
+  %45: {} = call +=(I32) borrow.unique %43 borrow.shared %44
+  jump -> bb13
+
+bb15:
+  %59: Bool = const False
+  jump -> bb16(take %59)
+
+bb16(%60: Bool):
+  %63: Bool = not inspect %60
+  branch inspect %63 -> bb21 -> bb19
+
+bb17:
+  %54: I32 = read copy.trivial (local3.Err.at)
+  %55: I32 = const 1
+  %56: Bool = eq inspect %54 inspect %55
+  branch inspect %56 -> bb18 -> bb15
+
+bb18:
+  %58: Bool = const True
+  jump -> bb16(take %58)
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %70: U8 = const 9
+  %71: %U8 = run.slots U8 *1
+  %72: Size = bitcast inspect %71
+  %73: Size = const 0
+  %74: Bool = eq inspect %72 inspect %73
+  %75: {} = call checkCondition borrow.shared %74
+  %76: @bits(30) U32 = const 1
+  %77: @bits(2) U32 = const 1
+  %78: Run(U8) = aggregate.Run take %71 take %76 take %77
+  %79: @bits(30) U32 = const 1
+  %80: Array(U8) = aggregate.Array take %78 take %79
+  write.init borrow.unique (local4) take %80
+  %82: Size = const 0
+  write.init borrow.unique ([%%71][0]) take %70
+  %84: Array(U8) = read take (local4)
+  %85: I32 = const 0
+  %86: Feed = aggregate.Feed take %84 take %85
+  write.init borrow.unique (feed) take %86
+  %88: Feed [unique call] = read borrow.unique (feed) loan3
+  %89: Result(Fault, I32) = call lent borrow.unique %88
+  drop (feed)
+  write.init borrow.unique (local6) take %89
+  %91: U8 = read copy.trivial (local6.#)
+  %92: U8 = const 0
+  %93: Bool = eq inspect %91 inspect %92
+  branch inspect %93 -> bb24 -> bb22
+
+bb21:
+  %65: I32 [unique call] = read borrow.unique (failures) loan2
+  %66: I32 = const 4
+  %67: {} = call +=(I32) borrow.unique %65 borrow.shared %66
+  jump -> bb20
+
+bb22:
+  %100: Bool = const False
+  jump -> bb23(take %100)
+
+bb23(%101: Bool):
+  %104: Bool = not inspect %101
+  branch inspect %104 -> bb28 -> bb26
+
+bb24:
+  %95: I32 = read copy.trivial (local6.Err.at)
+  %96: I32 = const 8
+  %97: Bool = eq inspect %95 inspect %96
+  branch inspect %97 -> bb25 -> bb22
+
+bb25:
+  %99: Bool = const True
+  jump -> bb23(take %99)
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %111: I32 = read copy.trivial (global released)
+  %112: I32 = const 4
+  %113: Bool = ne inspect %111 inspect %112
+  branch inspect %113 -> bb31 -> bb29
+
+bb28:
+  %106: I32 [unique call] = read borrow.unique (failures) loan4
+  %107: I32 = const 8
+  %108: {} = call +=(I32) borrow.unique %106 borrow.shared %107
+  jump -> bb27
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %120: I32 = read copy.trivial (failures)
+  return take %120
+
+bb31:
+  %115: I32 [unique call] = read borrow.unique (failures) loan5
+  %116: I32 = const 16
+  %117: {} = call +=(I32) borrow.unique %115 borrow.shared %116
+  jump -> bb30
+}
+
+entry main

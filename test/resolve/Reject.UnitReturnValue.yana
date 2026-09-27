@@ -1,0 +1,9 @@
+-- A `return` carrying a value in a function that answers nothing (K3). J193 met it as
+-- `return check(...)` in a unit `@test`, where the SSA verifier reported it as an internal error.
+
+fn report(x: Int):
+    return print("{x}")
+
+fn main() -> Int:
+    report(1)
+    return 0

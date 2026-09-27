@@ -1,0 +1,58 @@
+-- K3: two things J200's Base64 kernel was arranged around, each now check-free on both targets.
+--
+-- A `&` window's length holds still for the whole call: `[T]` is a view, whose extent cannot change
+-- through it (contract.h's `AccessForm::View`), so the length the loop test read is the one each
+-- store's check reads, however many stores and calls stand between them. Before K3 it was loaded
+-- again after every store and kept a check per store past the first.
+
+fn fill(&space: [U8], input: [U8]) -> Size:
+    let &at = 0 :: Size
+    while need(space, at, 4) && need(input, at, 4):
+        space[at] = input[at]
+        space[at + 1] = input[at + 1]
+        space[at + 2] = input[at + 2]
+        space[at + 3] = input[at + 3]
+        at += 4
+    return at
+
+@noinline fn touch(bytes: [U8]) -> Size = length(bytes)
+
+-- The same with a published origin on both windows and a call borrowing the one being written.
+fn fillSlot(&space: '[U8], input: '[U8]) -> Size:
+    let &at = 0 :: Size
+    while need(space, at, 2) && need(input, at, 2):
+        space[at] = input[at]
+        let seen = touch(space)
+        space[at + 1] = truncate(seen) :: U8
+        at += 2
+    return at
+
+-- A value that bounds itself: a mask, a logical shift and an unsigned remainder index a 64-entry
+-- table with no check, at the function's entry where no test has put a fact in scope. A signed
+-- remainder may be negative and keeps its check.
+
+let table = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+    24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+    48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63] :: [U8 *64]
+
+@noinline fn masked(w: Size) -> Int:
+    let a = table[(w `shr` 18) `and` 63]
+    let b = table[63 `and` (w `shr` 12)]
+    return (a :: Int) + (b :: Int)
+
+@noinline fn shifted(w: U32) -> Int = table[bitcast((w `shr` 26) :: USize) :: Size] :: Int
+
+@noinline fn remainder(w: USize) -> Int = table[bitcast(w % 64) :: Size] :: Int
+
+@noinline fn signedRemainder(w: Size) -> Int = table[w % 64] :: Int
+
+@noinline fn byte(b: U8) -> Int = table[(b :: Size) `and` 63] :: Int
+
+fn main() -> Int:
+    let &out = [0] :: [U8 *16]
+    let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] :: [U8]
+    let written = fill(out, bytes) + fillSlot(out, bytes)
+    let looked = masked(0x12345678) + shifted(0xffffffff) + remainder(1000) +
+        signedRemainder(1000) + byte(200)
+    let count = truncate(written) :: Int
+    return count + (out[1] :: Int) * 100 + looked * 1000

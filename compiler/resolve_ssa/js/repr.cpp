@@ -1753,9 +1753,11 @@ JsTeardownStep jsTeardownStep(JsTarget& target, DeclPtr<mir::Type> type, bool ru
     step.authoredReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Authored;
 
     // An authored instance replaces the derived walk *for its own half*, which is why the two flags
-    // travel down rather than one.
+    // travel down rather than one - except an authored `Drop` over a derived `Reclaim`, whose body
+    // finishes the members itself (`mir::Ownership::dropOwnsValue`).
     step.childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
-    step.childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+    step.childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived &&
+                        !(runDrop && ownership.dropOwnsValue());
     if(!step.childDrop && !step.childReclaim) return step;
 
     auto declared = decl[type];

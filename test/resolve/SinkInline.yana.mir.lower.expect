@@ -11,23 +11,19 @@ Token.drop<complex>() {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 7, 4
-    store %v_1, 1, 1
-    %v_3 = alloca 4, 4: Ptr
-    copy %v_3, %v_2, 4
-    %v_4 = call_complex identify.lambda, %v_3: I32
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 7, 4
+    %v_2 = call_complex identify.lambda, %v_1: I32
     call_complex Token.drop
-    %v_5 = add 15, %v_4: I32
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 0, 1
-    call_complex teardown(Maybe(Token)), %v_6
-    %v_7 = add %v_5, 100: I32
-    %v_8 = imul %v_7, 10: I32
-    %v_9 = loads @dropped, 4: I32
-    %v_10 = add %v_8, %v_9: I32
-    ret %v_10
+    %v_3 = add 15, %v_2: I32
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 0, 1
+    call_complex teardown(Maybe(Token)), %v_4
+    %v_5 = add %v_3, 100: I32
+    %v_6 = imul %v_5, 10: I32
+    %v_7 = loads @dropped, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
   }
 }
 

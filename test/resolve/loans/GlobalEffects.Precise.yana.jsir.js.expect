@@ -33,30 +33,25 @@ function main$() {
   var v42 = { $c: null, $e: null };
   var v45 = gArr.items;
   var v48 = gArr.length;
-  var v52 = 0 > v48 ? v48 : 0;
-  var v54 = 3 < v52 ? v52 : 3;
-  var v58 = (v54 > v48 ? v48 : v54) - v52;
-  var v59 = makeGrower();
-  v42.$c = v59.$c;
-  v42.$e = v59.$e;
-  var v62 = v58 >>> 0;
-  if (0 >= v62) throw $t;
-  var v65 = v45[v52];
-  if (1 >= v62) throw $t;
-  var v75 = v65 + v45[v52 + 1] | 0;
+  var v52 = 3 > v48 ? v48 : 3;
+  var v53 = makeGrower();
+  v42.$c = v53.$c;
+  v42.$e = v53.$e;
+  if (0 >= v52) throw $t;
+  var v59 = v45[0];
+  if (1 >= v52) throw $t;
+  var v66 = v59 + v45[1] | 0;
   v42.$c(v42.$e);
-  var v82 = v39 + Math.imul(v75, 10) | 0;
-  var v87 = gArr.items;
-  var v90 = gArr.length;
-  var v94 = 0 > v90 ? v90 : 0;
-  var v96 = 3 < v94 ? v94 : 3;
-  var v103 = (v96 > v90 ? v90 : v96) - v94 >>> 0;
-  if (0 >= v103) throw $t;
-  var v106 = v87[v94];
-  if (1 >= v103) throw $t;
-  var v116 = v106 + v87[v94 + 1] | 0;
+  var v73 = v39 + Math.imul(v66, 10) | 0;
+  var v78 = gArr.items;
+  var v81 = gArr.length;
+  var v88 = 3 > v81 ? v81 : 3;
+  if (0 >= v88) throw $t;
+  var v91 = v78[0];
+  if (1 >= v88) throw $t;
+  var v98 = v91 + v78[1] | 0;
   Noisy_drop(1);
-  return v82 + (v116 + 2 | 0) | 0;
+  return v73 + (v98 + 2 | 0) | 0;
 }
 
 function makeGrower_lambda(makeGrower_lambda_env) {
@@ -88,4 +83,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main$();
+(globalThis.process ?? {}).exitCode = main$();

@@ -1,0 +1,63 @@
+{-
+   Facts that must not answer (`compiler/resolve_ssa/opt/bounds.cpp`; review R3 of the B wave). Each
+   function here was decided wrongly before the fix, and each is written so that the wrong decision
+   is a wrong *answer* rather than a trap - so the same fixture asserts it natively and on
+   JavaScript. `lib/Native/Aborts.test.native.yana` runs the first shape into the check it lost.
+
+   - `staleJoin` and `staleArm` carry a `Bool` around a loop's back edge. Known true in the next
+     iteration, it says something about the *previous* iteration's `v`, and a joined condition read
+     it as a fact about the current one: the inner `v < length(xs)` was decided true.
+   - `signedQuotient` bounds `16 * i` by a signed `n / 16` and asks unsigned: `-32 / 16` read
+     unsigned is near the top of `U32`, so `16 * i < n` does not follow.
+   - `unsignedQuotient` is the mirror: an unsigned quotient of a top-bit `n`, the question signed.
+-}
+
+@noinline fn staleJoin(xs: [I32], vals: [Size]) -> Int:
+    let &prev = False
+    let &inside = 0
+    let &i = 0 :: Size
+    while i < length(vals):
+        let v = vals[i]
+        if prev:
+            if v < length(xs) then inside += 1 else inside += 100
+        prev = v < length(xs)
+        i += 1
+    return inside
+
+@noinline fn staleArm(xs: [I32], vals: [Size]) -> Int:
+    let &prev = False
+    let &inside = 0
+    let &i = 0 :: Size
+    while i < length(vals):
+        let v = vals[i]
+        if prev:
+            if v < length(xs) then inside += 1 else inside += 10
+        if v < length(xs):
+            prev = v > 0
+        else:
+            prev = False
+        i += 1
+    return inside
+
+@noinline fn signedQuotient(n: I32, i: U32) -> Bool:
+    let q = bitcast(n / 16) :: U32
+    if i >= q then return False
+    if i > 268435455 then return False
+    let m = bitcast(n) :: U32
+    return 16 * i < m
+
+@noinline fn unsignedQuotient(n: U32, i: I32) -> Bool:
+    let q = bitcast(n / 16) :: I32
+    if q < 1 then return False
+    if i >= q then return False
+    if i < 0 || i > 134217727 then return False
+    let m = bitcast(n) :: I32
+    return 16 * i < m
+
+fn main() -> Int:
+    let xs = [1, 2, 3, 4, 5] :: [I32]
+    let &total = staleJoin(xs, [1, 100000] :: [Size])
+    total += staleArm(xs, [2, 100000000] :: [Size])
+    if signedQuotient(-32, 268435455) then total += 1000
+    if unsignedQuotient(0xFFFFFFE0, 1) then total += 2000
+    return total

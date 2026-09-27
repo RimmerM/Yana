@@ -1,0 +1,947 @@
+module ResolveTest
+
+let & trace: I64 = 0
+
+let & failures: I32 = 0
+
+fn note(n: I64 [shared call]) -> {} {
+bb0(%0: I64 trivial):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: %I64 address = global.addr trace
+  %3: I64 trivial = load inspect %2
+  %4: I64 trivial = const 10
+  %5: I64 trivial = mul inspect %3 inspect %4
+  %6: I64 trivial = load inspect %1
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: %I64 address = global.addr trace
+  store inspect %8 consume %7
+  return
+}
+
+fn Guard.drop(self: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I64 address = field.addr .id inspect %1
+  %3: I64 trivial = load inspect %2
+  call note borrow %3
+  return
+}
+
+fn consume(x: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  drop Guard inspect %1
+  %2: I64 trivial = const 8
+  call note borrow %2
+  return
+}
+
+fn peek(g: Guard [shared call]) -> {} {
+bb0(%0: Guard [shared call] guaranteed):
+  %1: I64 trivial = const 7
+  call note borrow %1
+  return
+}
+
+fn consumeRec(r: Rec) -> {} {
+bb0(%0: Rec owned):
+  %1: %Rec address = alloc frame Rec
+  store inspect %1 consume %0
+  drop Rec inspect %1
+  %2: I64 trivial = const 8
+  call note borrow %2
+  return
+}
+
+fn local(c: Bool [shared call], n: I64 [shared call]) -> {} {
+bb0(%0: Bool trivial, %1: I64 trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %I64 address = alloc frame I64 [shared call]
+  %4: %Rec address = alloc frame Rec
+  %5: %Bool address = alloc frame Bool
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: Bool trivial = const False
+  store inspect %5 consume %6
+  %7: I64 trivial = load inspect %3
+  %8: Guard owned = aggregate.Guard consume %7
+  %9: I64 trivial = load inspect %3
+  %10: I64 trivial = const 1
+  %11: I64 trivial = add inspect %9 inspect %10
+  %12: Guard owned = aggregate.Guard consume %11
+  %13: Rec owned = aggregate.Rec consume %8 consume %12
+  %14: Bool trivial = const True
+  store inspect %5 consume %14
+  store inspect %4 consume %13
+  %15: Bool trivial = load inspect %2
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: %Guard address = field.addr .y inspect %4
+  %17: Guard [shared call] guaranteed from{%4} = load inspect %16
+  call peek borrow %17
+  %18: %Guard address = field.addr .x inspect %4
+  %19: Bool trivial = load inspect %5
+  branch inspect %19 -> bb4 -> bb5
+
+bb3:
+  %22: Bool trivial = const False
+  store inspect %5 consume %22
+  %23: %Guard address = field.addr .x inspect %4
+  %24: Guard owned = load inspect %23
+  call consume consume %24
+  jump -> bb2
+
+bb4 cleanup:
+  drop Guard inspect %18
+  jump -> bb5
+
+bb5:
+  %20: %Guard address = field.addr .y inspect %4
+  drop Guard inspect %20
+  %21: Bool trivial = const False
+  store inspect %5 consume %21
+  return
+}
+
+fn parameter(r: Rec, c: Bool [shared call]) -> {} {
+bb0(%0: Rec owned, %1: Bool trivial):
+  %2: %Rec address = alloc frame Rec
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %Bool address = alloc frame Bool
+  store inspect %2 consume %0
+  store inspect %3 borrow %1
+  %5: Bool trivial = const True
+  store inspect %4 consume %5
+  %6: Bool trivial = load inspect %3
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: %Guard address = field.addr .y inspect %2
+  %8: Guard [shared call] guaranteed from{%2} = load inspect %7
+  call peek borrow %8
+  %9: %Guard address = field.addr .x inspect %2
+  %10: Bool trivial = load inspect %4
+  branch inspect %10 -> bb4 -> bb5
+
+bb3:
+  %13: Bool trivial = const False
+  store inspect %4 consume %13
+  %14: %Guard address = field.addr .x inspect %2
+  %15: Guard owned = load inspect %14
+  call consume consume %15
+  jump -> bb2
+
+bb4 cleanup:
+  drop Guard inspect %9
+  jump -> bb5
+
+bb5:
+  %11: %Guard address = field.addr .y inspect %2
+  drop Guard inspect %11
+  %12: Bool trivial = const False
+  store inspect %4 consume %12
+  return
+}
+
+fn landing(n: I32 [shared call], base: I64 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I64 trivial):
+  %16: %I32 address = alloc frame I32 [shared call]
+  %17: %I64 address = alloc frame I64 [shared call]
+  %18: %Rec address = alloc frame Rec
+  %19: %I32 address = alloc frame I32
+  %20: %I32 address = alloc frame I32
+  %21: %Bool address = alloc frame Bool
+  store inspect %16 borrow %0
+  store inspect %17 borrow %1
+  %22: Bool trivial = const False
+  store inspect %21 consume %22
+  %23: I64 trivial = load inspect %17
+  %24: Guard owned = aggregate.Guard consume %23
+  %25: I64 trivial = load inspect %17
+  %26: I64 trivial = const 1
+  %27: I64 trivial = add inspect %25 inspect %26
+  %28: Guard owned = aggregate.Guard consume %27
+  %29: Rec owned = aggregate.Rec consume %24 consume %28
+  %30: Bool trivial = const True
+  store inspect %21 consume %30
+  store inspect %18 consume %29
+  %31: I32 trivial = load inspect %16
+  %32: I32 trivial = const 0
+  %33: I32 trivial = const 1
+  store inspect %19 consume %32
+  jump -> bb1(consume %31, consume %33)
+
+bb1(%2: I32 trivial, %3: I32 trivial):
+  %34: I32 trivial = load inspect %19
+  %35: Bool trivial = lt inspect %34 inspect %2
+  branch inspect %35 -> bb4(consume %2, consume %3) -> bb3(consume %2, consume %3)
+
+bb2(%4: I32 trivial, %5: I32 trivial):
+  %36: I32 trivial = load inspect %19
+  %37: I32 trivial = add inspect %36 inspect %5
+  store inspect %19 consume %37
+  jump -> bb1(consume %4, consume %5)
+
+bb3(%6: I32 trivial, %7: I32 trivial):
+  %38: %Guard address = field.addr .y inspect %18
+  %39: Guard [shared call] guaranteed from{%18} = load inspect %38
+  call peek borrow %39
+  %40: %Guard address = field.addr .x inspect %18
+  %41: Bool trivial = load inspect %21
+  branch inspect %41 -> bb8 -> bb9
+
+bb4(%8: I32 trivial, %9: I32 trivial):
+  %44: I32 trivial = load inspect %19
+  store inspect %20 consume %44
+  %45: I32 trivial = load inspect %20
+  %46: I32 trivial = const 1
+  %47: Bool trivial = eq inspect %45 inspect %46
+  branch inspect %47 -> bb7(consume %8, consume %9) -> bb5(consume %8, consume %9)
+
+bb5(%10: I32 trivial, %11: I32 trivial):
+  jump -> bb6(consume %10, consume %11)
+
+bb6(%12: I32 trivial, %13: I32 trivial):
+  jump -> bb2(consume %12, consume %13)
+
+bb7(%14: I32 trivial, %15: I32 trivial):
+  %48: Bool trivial = const False
+  store inspect %21 consume %48
+  %49: %Guard address = field.addr .x inspect %18
+  %50: Guard owned = load inspect %49
+  call consume consume %50
+  jump -> bb3(consume %14, consume %15)
+
+bb8 cleanup:
+  drop Guard inspect %40
+  jump -> bb9
+
+bb9:
+  %42: %Guard address = field.addr .y inspect %18
+  drop Guard inspect %42
+  %43: Bool trivial = const False
+  store inspect %21 consume %43
+  return
+}
+
+fn three(k: I32 [shared call], base: I64 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I64 trivial):
+  %22: %I32 address = alloc frame I32 [shared call]
+  %23: %I64 address = alloc frame I64 [shared call]
+  %24: %Rec address = alloc frame Rec
+  %25: %I32 address = alloc frame I32
+  %26: %I32 address = alloc frame I32
+  %27: %Bool address = alloc frame Bool
+  %28: %Bool address = alloc frame Bool
+  store inspect %22 borrow %0
+  store inspect %23 borrow %1
+  %29: Bool trivial = const False
+  store inspect %27 consume %29
+  %30: Bool trivial = const False
+  store inspect %28 consume %30
+  %31: I64 trivial = load inspect %23
+  %32: Guard owned = aggregate.Guard consume %31
+  %33: I64 trivial = load inspect %23
+  %34: I64 trivial = const 1
+  %35: I64 trivial = add inspect %33 inspect %34
+  %36: Guard owned = aggregate.Guard consume %35
+  %37: Rec owned = aggregate.Rec consume %32 consume %36
+  %38: Bool trivial = const True
+  store inspect %28 consume %38
+  %39: Bool trivial = const True
+  store inspect %27 consume %39
+  store inspect %24 consume %37
+  %40: I32 trivial = const 0
+  %41: I32 trivial = const 1
+  %42: I32 trivial = const 1
+  store inspect %25 consume %40
+  jump -> bb1(consume %41, consume %42)
+
+bb1(%2: I32 trivial, %3: I32 trivial):
+  %43: I32 trivial = load inspect %25
+  %44: Bool trivial = lt inspect %43 inspect %2
+  branch inspect %44 -> bb4(consume %2, consume %3) -> bb3(consume %2, consume %3)
+
+bb2(%4: I32 trivial, %5: I32 trivial):
+  %45: I32 trivial = load inspect %25
+  %46: I32 trivial = add inspect %45 inspect %5
+  store inspect %25 consume %46
+  jump -> bb1(consume %4, consume %5)
+
+bb3(%6: I32 trivial, %7: I32 trivial):
+  %47: %Guard address = field.addr .x inspect %24
+  %48: Bool trivial = load inspect %27
+  branch inspect %48 -> bb11 -> bb12
+
+bb4(%8: I32 trivial, %9: I32 trivial):
+  %54: I32 trivial = load inspect %25
+  store inspect %26 consume %54
+  %55: I32 trivial = load inspect %22
+  %56: I32 trivial = const 0
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb7(consume %8, consume %9) -> bb5(consume %8, consume %9)
+
+bb5(%10: I32 trivial, %11: I32 trivial):
+  jump -> bb6(consume %10, consume %11)
+
+bb6(%12: I32 trivial, %13: I32 trivial):
+  %58: I32 trivial = load inspect %22
+  %59: I32 trivial = const 1
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb10(consume %12, consume %13) -> bb8(consume %12, consume %13)
+
+bb7(%14: I32 trivial, %15: I32 trivial):
+  %61: Bool trivial = const False
+  store inspect %28 consume %61
+  %62: Bool trivial = const False
+  store inspect %27 consume %62
+  %63: Rec owned = load inspect %24
+  call consumeRec consume %63
+  jump -> bb3(consume %14, consume %15)
+
+bb8(%16: I32 trivial, %17: I32 trivial):
+  jump -> bb9(consume %16, consume %17)
+
+bb9(%18: I32 trivial, %19: I32 trivial):
+  jump -> bb2(consume %18, consume %19)
+
+bb10(%20: I32 trivial, %21: I32 trivial):
+  %64: Bool trivial = const False
+  store inspect %27 consume %64
+  %65: %Guard address = field.addr .x inspect %24
+  %66: Guard owned = load inspect %65
+  %67: %Guard address = field.addr .y inspect %24
+  drop Guard inspect %67
+  %68: Bool trivial = const False
+  store inspect %28 consume %68
+  call consume consume %66
+  jump -> bb3(consume %20, consume %21)
+
+bb11 cleanup:
+  drop Guard inspect %47
+  jump -> bb12
+
+bb12:
+  %49: %Guard address = field.addr .y inspect %24
+  %50: Bool trivial = load inspect %28
+  branch inspect %50 -> bb13 -> bb14
+
+bb13 cleanup:
+  drop Guard inspect %49
+  jump -> bb14
+
+bb14:
+  %51: Bool trivial = const False
+  store inspect %27 consume %51
+  %52: Bool trivial = const False
+  store inspect %28 consume %52
+  %53: I64 trivial = const 7
+  call note borrow %53
+  return
+}
+
+fn deep(c: Bool [shared call], base: I64 [shared call]) -> {} {
+bb0(%0: Bool trivial, %1: I64 trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %I64 address = alloc frame I64 [shared call]
+  %4: %Outer address = alloc frame Outer
+  %5: %Bool address = alloc frame Bool
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: Bool trivial = const False
+  store inspect %5 consume %6
+  %7: I64 trivial = load inspect %3
+  %8: Guard owned = aggregate.Guard consume %7
+  %9: I64 trivial = load inspect %3
+  %10: I64 trivial = const 1
+  %11: I64 trivial = add inspect %9 inspect %10
+  %12: Guard owned = aggregate.Guard consume %11
+  %13: Rec owned = aggregate.Rec consume %8 consume %12
+  %14: I64 trivial = load inspect %3
+  %15: I64 trivial = const 2
+  %16: I64 trivial = add inspect %14 inspect %15
+  %17: Guard owned = aggregate.Guard consume %16
+  %18: Outer owned = aggregate.Outer consume %13 consume %17
+  %19: Bool trivial = const True
+  store inspect %5 consume %19
+  store inspect %4 consume %18
+  %20: Bool trivial = load inspect %2
+  branch inspect %20 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %21: %Rec address = field.addr .inner inspect %4
+  %22: %Guard address = field.addr .y inspect %21
+  %23: Guard [shared call] guaranteed from{%4} = load inspect %22
+  call peek borrow %23
+  %24: %Guard address = field.addr .z inspect %4
+  %25: Guard [shared call] guaranteed from{%4} = load inspect %24
+  call peek borrow %25
+  %26: %Rec address = field.addr .inner inspect %4
+  %27: %Guard address = field.addr .x inspect %26
+  %28: Bool trivial = load inspect %5
+  branch inspect %28 -> bb4 -> bb5
+
+bb3:
+  %33: Bool trivial = const False
+  store inspect %5 consume %33
+  %34: %Rec address = field.addr .inner inspect %4
+  %35: %Guard address = field.addr .x inspect %34
+  %36: Guard owned = load inspect %35
+  call consume consume %36
+  jump -> bb2
+
+bb4 cleanup:
+  drop Guard inspect %27
+  jump -> bb5
+
+bb5:
+  %29: %Rec address = field.addr .inner inspect %4
+  %30: %Guard address = field.addr .y inspect %29
+  drop Guard inspect %30
+  %31: %Guard address = field.addr .z inspect %4
+  drop Guard inspect %31
+  %32: Bool trivial = const False
+  store inspect %5 consume %32
+  return
+}
+
+fn pick(fail: Bool [shared call]) -> Maybe(I32) {
+bb0(%0: Bool trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %0
+  %3: Bool trivial = load inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: I32 trivial = const 7
+  %5: Maybe(I32) trivial = aggregate.Just consume %4
+  jump -> bb2(consume %5)
+
+bb2(%1: Maybe(I32) trivial):
+  return consume %1
+
+bb3:
+  %6: Maybe(I32) trivial = aggregate.Nothing
+  jump -> bb2(consume %6)
+}
+
+fn question(c: Bool [shared call], fail: Bool [shared call], base: I64 [shared call]) -> Maybe(I32) {
+bb0(%0: Bool trivial, %1: Bool trivial, %2: I64 trivial):
+  %4: %Bool address = alloc frame Bool [shared call]
+  %5: %Bool address = alloc frame Bool [shared call]
+  %6: %I64 address = alloc frame I64 [shared call]
+  %7: %Rec address = alloc frame Rec
+  %8: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %9: %I32 address = alloc frame I32
+  %10: %Bool address = alloc frame Bool
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %11: Bool trivial = const False
+  store inspect %10 consume %11
+  %12: I64 trivial = load inspect %6
+  %13: Guard owned = aggregate.Guard consume %12
+  %14: I64 trivial = load inspect %6
+  %15: I64 trivial = const 1
+  %16: I64 trivial = add inspect %14 inspect %15
+  %17: Guard owned = aggregate.Guard consume %16
+  %18: Rec owned = aggregate.Rec consume %13 consume %17
+  %19: Bool trivial = const True
+  store inspect %10 consume %19
+  store inspect %7 consume %18
+  %20: Bool trivial = load inspect %4
+  branch inspect %20 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %21: Bool trivial = load inspect %5
+  %22: Maybe(I32) trivial = call pick borrow %21
+  %23: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %22
+  store inspect %8 consume %23
+  %24: %U8 address = field.addr .# inspect %8
+  %25: U8 trivial = load inspect %24
+  %26: U8 trivial = const 1
+  %27: Bool trivial = eq inspect %25 inspect %26
+  branch inspect %27 -> bb6 -> bb4
+
+bb3:
+  %28: Bool trivial = const False
+  store inspect %10 consume %28
+  %29: %Guard address = field.addr .x inspect %7
+  %30: Guard owned = load inspect %29
+  call consume consume %30
+  jump -> bb2
+
+bb4:
+  %31: %I32 address = field.addr .Proceed inspect %8
+  %32: I32 trivial = load inspect %31
+  jump -> bb5(consume %32)
+
+bb5(%3: I32 trivial):
+  store inspect %9 consume %3
+  %33: %Guard address = field.addr .y inspect %7
+  %34: Guard [shared call] guaranteed from{%7} = load inspect %33
+  call peek borrow %34
+  %35: %Guard address = field.addr .x inspect %7
+  %36: Bool trivial = load inspect %10
+  branch inspect %36 -> bb7 -> bb8
+
+bb6:
+  %41: %Guard address = field.addr .x inspect %7
+  %42: Bool trivial = load inspect %10
+  branch inspect %42 -> bb9 -> bb10
+
+bb7 cleanup:
+  drop Guard inspect %35
+  jump -> bb8
+
+bb8:
+  %37: %Guard address = field.addr .y inspect %7
+  drop Guard inspect %37
+  %38: Bool trivial = const False
+  store inspect %10 consume %38
+  %39: I32 trivial = load inspect %9
+  %40: Maybe(I32) trivial = aggregate.Just consume %39
+  return consume %40
+
+bb9 cleanup:
+  drop Guard inspect %41
+  jump -> bb10
+
+bb10:
+  %43: %Guard address = field.addr .y inspect %7
+  drop Guard inspect %43
+  %44: Bool trivial = const False
+  store inspect %10 consume %44
+  %45: {} trivial = const {}
+  %46: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %45
+  return consume %46
+}
+
+fn sum'2(n: I32 [shared call], s: Sum) -> {} {
+bb0(%0: I32 trivial, %1: Sum owned):
+  %22: %I32 address = alloc frame I32 [shared call]
+  %23: %Sum address = alloc frame Sum
+  %24: %I32 address = alloc frame I32
+  %25: %I32 address = alloc frame I32
+  %26: %Guard address = alloc frame Guard
+  %27: %Bool address = alloc frame Bool
+  %28: %Bool address = alloc frame Bool
+  %29: %Bool address = alloc frame Bool
+  store inspect %22 borrow %0
+  store inspect %23 consume %1
+  %30: Bool trivial = const True
+  store inspect %27 consume %30
+  %31: Bool trivial = const True
+  store inspect %28 consume %31
+  %32: Bool trivial = const True
+  store inspect %29 consume %32
+  %33: I32 trivial = load inspect %22
+  %34: I32 trivial = const 0
+  %35: I32 trivial = const 1
+  store inspect %24 consume %34
+  jump -> bb1(consume %33, consume %35)
+
+bb1(%2: I32 trivial, %3: I32 trivial):
+  %36: I32 trivial = load inspect %24
+  %37: Bool trivial = lt inspect %36 inspect %2
+  branch inspect %37 -> bb4(consume %2, consume %3) -> bb3(consume %2, consume %3)
+
+bb2(%4: I32 trivial, %5: I32 trivial):
+  %38: I32 trivial = load inspect %24
+  %39: I32 trivial = add inspect %38 inspect %5
+  store inspect %24 consume %39
+  jump -> bb1(consume %4, consume %5)
+
+bb3(%6: I32 trivial, %7: I32 trivial):
+  %40: %Guard address = field.addr .g inspect %23
+  %41: Bool trivial = load inspect %27
+  branch inspect %41 -> bb11 -> bb12
+
+bb4(%8: I32 trivial, %9: I32 trivial):
+  %62: I32 trivial = load inspect %24
+  store inspect %25 consume %62
+  %63: I32 trivial = load inspect %25
+  %64: I32 trivial = const 1
+  %65: Bool trivial = eq inspect %63 inspect %64
+  branch inspect %65 -> bb7(consume %8, consume %9) -> bb5(consume %8, consume %9)
+
+bb5(%10: I32 trivial, %11: I32 trivial):
+  jump -> bb6(consume %10, consume %11)
+
+bb6(%12: I32 trivial, %13: I32 trivial):
+  jump -> bb2(consume %12, consume %13)
+
+bb7(%14: I32 trivial, %15: I32 trivial):
+  %66: %U8 address = field.addr .# inspect %23
+  %67: U8 trivial = load inspect %66
+  %68: U8 trivial = const 0
+  %69: Bool trivial = eq inspect %67 inspect %68
+  branch inspect %69 -> bb10(consume %14, consume %15) -> bb8(consume %14, consume %15)
+
+bb8(%16: I32 trivial, %17: I32 trivial):
+  %70: %Guard address = field.addr .B inspect %23
+  %71: Guard [shared call] guaranteed from{%23} = load inspect %70
+  %72: Guard [shared call] guaranteed from{%23} = load inspect %71
+  call peek borrow %72
+  drop Sum inspect %23
+  %73: Bool trivial = const False
+  store inspect %29 consume %73
+  %74: Bool trivial = const False
+  store inspect %28 consume %74
+  %75: Bool trivial = const False
+  store inspect %27 consume %75
+  jump -> bb9(consume %16, consume %17)
+
+bb9(%18: I32 trivial, %19: I32 trivial):
+  jump -> bb3(consume %18, consume %19)
+
+bb10(%20: I32 trivial, %21: I32 trivial):
+  %76: Bool trivial = const False
+  store inspect %27 consume %76
+  %77: Bool trivial = const False
+  store inspect %29 consume %77
+  %78: %Guard address = field.addr .g inspect %23
+  %79: Guard owned = load inspect %78
+  %80: %Guard address = field.addr .h inspect %23
+  drop Guard inspect %80
+  %81: Bool trivial = const False
+  store inspect %28 consume %81
+  store inspect %26 consume %79
+  %82: Guard owned = load inspect %26
+  call consume consume %82
+  jump -> bb9(consume %20, consume %21)
+
+bb11 cleanup:
+  %42: %U8 address = field.addr .# inspect %23
+  %43: U8 trivial = load inspect %42
+  %44: U8 trivial = const 0
+  %45: Bool trivial = eq inspect %43 inspect %44
+  branch inspect %45 -> bb13 -> bb14
+
+bb12:
+  %46: %Guard address = field.addr .h inspect %23
+  %47: Bool trivial = load inspect %28
+  branch inspect %47 -> bb15 -> bb16
+
+bb13 cleanup:
+  drop Guard inspect %40
+  jump -> bb14
+
+bb14 cleanup:
+  jump -> bb12
+
+bb15 cleanup:
+  %48: %U8 address = field.addr .# inspect %23
+  %49: U8 trivial = load inspect %48
+  %50: U8 trivial = const 0
+  %51: Bool trivial = eq inspect %49 inspect %50
+  branch inspect %51 -> bb17 -> bb18
+
+bb16:
+  %52: %Guard address = field.addr .B inspect %23
+  %53: Bool trivial = load inspect %29
+  branch inspect %53 -> bb19 -> bb20
+
+bb17 cleanup:
+  drop Guard inspect %46
+  jump -> bb18
+
+bb18 cleanup:
+  jump -> bb16
+
+bb19 cleanup:
+  %54: %U8 address = field.addr .# inspect %23
+  %55: U8 trivial = load inspect %54
+  %56: U8 trivial = const 1
+  %57: Bool trivial = eq inspect %55 inspect %56
+  branch inspect %57 -> bb21 -> bb22
+
+bb20:
+  %58: Bool trivial = const False
+  store inspect %27 consume %58
+  %59: Bool trivial = const False
+  store inspect %28 consume %59
+  %60: Bool trivial = const False
+  store inspect %29 consume %60
+  %61: I64 trivial = const 7
+  call note borrow %61
+  return
+
+bb21 cleanup:
+  drop Guard inspect %52
+  jump -> bb22
+
+bb22 cleanup:
+  jump -> bb20
+}
+
+fn Flagged.drop(self: Flagged) -> {} {
+bb0(%0: Flagged owned):
+  %1: %Flagged address = alloc frame Flagged
+  %2: %Bool address = alloc frame Bool
+  store inspect %1 consume %0
+  %3: Bool trivial = const True
+  store inspect %2 consume %3
+  %4: %Bool address = field.addr .flag inspect %1
+  %5: Bool trivial = load inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: %Guard address = field.addr .y inspect %1
+  %7: Guard [shared call] guaranteed from{%1} = load inspect %6
+  call peek borrow %7
+  %8: %Guard address = field.addr .x inspect %1
+  %9: Bool trivial = load inspect %2
+  branch inspect %9 -> bb4 -> bb5
+
+bb3:
+  %12: Bool trivial = const False
+  store inspect %2 consume %12
+  %13: %Guard address = field.addr .x inspect %1
+  %14: Guard owned = load inspect %13
+  call consume consume %14
+  jump -> bb2
+
+bb4 cleanup:
+  drop Guard inspect %8
+  jump -> bb5
+
+bb5:
+  %10: %Guard address = field.addr .y inspect %1
+  drop Guard inspect %10
+  %11: Bool trivial = const False
+  store inspect %2 consume %11
+  return
+}
+
+fn expect(case: I32 [shared call], want: I64 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I64 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I64 address = alloc frame I64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: %I64 address = global.addr trace
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = load inspect %3
+  %7: Bool trivial = ne inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I64 trivial = const 0
+  %9: %I64 address = global.addr trace
+  store inspect %9 consume %8
+  return
+
+bb3:
+  %10: %I32 address = global.addr failures
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = const 100
+  %13: I32 trivial = div inspect %11 inspect %12
+  %14: I32 trivial = const 100
+  %15: I32 trivial = mul inspect %13 inspect %14
+  %16: I32 trivial = const 100
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: I32 trivial = load inspect %2
+  %19: I32 trivial = add inspect %17 inspect %18
+  %20: %I32 address = global.addr failures
+  store inspect %20 consume %19
+  jump -> bb2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Maybe(I32) address = alloc frame Maybe(I32)
+  %1: %Maybe(I32) address = alloc frame Maybe(I32)
+  %2: %Maybe(I32) address = alloc frame Maybe(I32)
+  %3: %Maybe(I32) address = alloc frame Maybe(I32)
+  %4: %Flagged address = alloc frame Flagged
+  %5: %Flagged address = alloc frame Flagged
+  %6: Bool trivial = const True
+  %7: I64 trivial = const 1
+  call local borrow %6 borrow %7
+  %8: I32 trivial = const 1
+  %9: I64 trivial = const 1872
+  call expect borrow %8 borrow %9
+  %10: Bool trivial = const False
+  %11: I64 trivial = const 3
+  call local borrow %10 borrow %11
+  %12: I32 trivial = const 2
+  %13: I64 trivial = const 734
+  call expect borrow %12 borrow %13
+  %14: I64 trivial = const 1
+  %15: Guard owned = aggregate.Guard consume %14
+  %16: I64 trivial = const 2
+  %17: Guard owned = aggregate.Guard consume %16
+  %18: Rec owned = aggregate.Rec consume %15 consume %17
+  %19: Bool trivial = const True
+  call parameter consume %18 borrow %19
+  %20: I32 trivial = const 3
+  %21: I64 trivial = const 1872
+  call expect borrow %20 borrow %21
+  %22: I64 trivial = const 3
+  %23: Guard owned = aggregate.Guard consume %22
+  %24: I64 trivial = const 4
+  %25: Guard owned = aggregate.Guard consume %24
+  %26: Rec owned = aggregate.Rec consume %23 consume %25
+  %27: Bool trivial = const False
+  call parameter consume %26 borrow %27
+  %28: I32 trivial = const 4
+  %29: I64 trivial = const 734
+  call expect borrow %28 borrow %29
+  %30: I32 trivial = const 2
+  %31: I64 trivial = const 1
+  call landing borrow %30 borrow %31
+  %32: I32 trivial = const 5
+  %33: I64 trivial = const 1872
+  call expect borrow %32 borrow %33
+  %34: I32 trivial = const 0
+  %35: I64 trivial = const 3
+  call landing borrow %34 borrow %35
+  %36: I32 trivial = const 6
+  %37: I64 trivial = const 734
+  call expect borrow %36 borrow %37
+  %38: I32 trivial = const 0
+  %39: I64 trivial = const 1
+  call three borrow %38 borrow %39
+  %40: I32 trivial = const 7
+  %41: I64 trivial = const 1287
+  call expect borrow %40 borrow %41
+  %42: I32 trivial = const 1
+  %43: I64 trivial = const 3
+  call three borrow %42 borrow %43
+  %44: I32 trivial = const 8
+  %45: I64 trivial = const 4387
+  call expect borrow %44 borrow %45
+  %46: I32 trivial = const 2
+  %47: I64 trivial = const 5
+  call three borrow %46 borrow %47
+  %48: I32 trivial = const 9
+  %49: I64 trivial = const 567
+  call expect borrow %48 borrow %49
+  %50: Bool trivial = const True
+  %51: I64 trivial = const 1
+  call deep borrow %50 borrow %51
+  %52: I32 trivial = const 10
+  %53: I64 trivial = const 187723
+  call expect borrow %52 borrow %53
+  %54: Bool trivial = const False
+  %55: I64 trivial = const 4
+  call deep borrow %54 borrow %55
+  %56: I32 trivial = const 11
+  %57: I64 trivial = const 77456
+  call expect borrow %56 borrow %57
+  %58: Bool trivial = const True
+  %59: Bool trivial = const True
+  %60: I64 trivial = const 1
+  %61: Maybe(I32) trivial = call question borrow %58 borrow %59 borrow %60
+  store inspect %0 consume %61
+  %62: I32 trivial = const 12
+  %63: I64 trivial = const 182
+  call expect borrow %62 borrow %63
+  %64: Bool trivial = const True
+  %65: Bool trivial = const False
+  %66: I64 trivial = const 3
+  %67: Maybe(I32) trivial = call question borrow %64 borrow %65 borrow %66
+  store inspect %1 consume %67
+  %68: I32 trivial = const 13
+  %69: I64 trivial = const 3874
+  call expect borrow %68 borrow %69
+  %70: Bool trivial = const False
+  %71: Bool trivial = const True
+  %72: I64 trivial = const 5
+  %73: Maybe(I32) trivial = call question borrow %70 borrow %71 borrow %72
+  store inspect %2 consume %73
+  %74: I32 trivial = const 14
+  %75: I64 trivial = const 56
+  call expect borrow %74 borrow %75
+  %76: Bool trivial = const False
+  %77: Bool trivial = const False
+  %78: I64 trivial = const 1
+  %79: Maybe(I32) trivial = call question borrow %76 borrow %77 borrow %78
+  store inspect %3 consume %79
+  %80: I32 trivial = const 15
+  %81: I64 trivial = const 712
+  call expect borrow %80 borrow %81
+  %82: I32 trivial = const 2
+  %83: I64 trivial = const 1
+  %84: Guard owned = aggregate.Guard consume %83
+  %85: I64 trivial = const 2
+  %86: Guard owned = aggregate.Guard consume %85
+  %87: Sum owned = aggregate.A consume %84 consume %86
+  call sum'2 borrow %82 consume %87
+  %88: I32 trivial = const 16
+  %89: I64 trivial = const 2187
+  call expect borrow %88 borrow %89
+  %90: I32 trivial = const 0
+  %91: I64 trivial = const 3
+  %92: Guard owned = aggregate.Guard consume %91
+  %93: I64 trivial = const 4
+  %94: Guard owned = aggregate.Guard consume %93
+  %95: Sum owned = aggregate.A consume %92 consume %94
+  call sum'2 borrow %90 consume %95
+  %96: I32 trivial = const 17
+  %97: I64 trivial = const 347
+  call expect borrow %96 borrow %97
+  %98: I32 trivial = const 2
+  %99: I64 trivial = const 5
+  %100: Guard owned = aggregate.Guard consume %99
+  %101: Sum owned = aggregate.B consume %100
+  call sum'2 borrow %98 consume %101
+  %102: I32 trivial = const 18
+  %103: I64 trivial = const 757
+  call expect borrow %102 borrow %103
+  %104: I32 trivial = const 0
+  %105: I64 trivial = const 6
+  %106: Guard owned = aggregate.Guard consume %105
+  %107: Sum owned = aggregate.B consume %106
+  call sum'2 borrow %104 consume %107
+  %108: I32 trivial = const 19
+  %109: I64 trivial = const 67
+  call expect borrow %108 borrow %109
+  %110: I64 trivial = const 1
+  %111: Guard owned = aggregate.Guard consume %110
+  %112: I64 trivial = const 2
+  %113: Guard owned = aggregate.Guard consume %112
+  %114: Bool trivial = const True
+  %115: Flagged owned = aggregate.Flagged consume %111 consume %113 consume %114
+  store inspect %4 consume %115
+  drop Flagged inspect %4
+  %116: I64 trivial = const 3
+  %117: Guard owned = aggregate.Guard consume %116
+  %118: I64 trivial = const 4
+  %119: Guard owned = aggregate.Guard consume %118
+  %120: Bool trivial = const False
+  %121: Flagged owned = aggregate.Flagged consume %117 consume %119 consume %120
+  store inspect %5 consume %121
+  drop Flagged inspect %5
+  %122: I32 trivial = const 20
+  %123: I64 trivial = const 1872734
+  call expect borrow %122 borrow %123
+  %124: %I32 address = global.addr failures
+  %125: I32 trivial = load inspect %124
+  return consume %125
+}
+
+entry main

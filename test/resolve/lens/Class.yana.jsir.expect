@@ -77,14 +77,6 @@ fn erasedIter(one %r1) -> one %r0
 
 fn main() -> one %r0
   var $0: %r0
-  var $1: %r4
-  var $2: %r4
-  var $3: %r3
-  var $4: %r0
-  var $5: %r0
-  var $6: %r3
-  var $7: %r0
-  var $8: %r0
   block0:
     %6: %r0 = const 2
     %49: %r0 = const 32
@@ -107,107 +99,76 @@ fn main() -> one %r0
     %61: %r0 = const 0
     %62: %r0 = const 1
     %63: %r0 = const 1
-    jump -> block8(%61, %60)
+    jump -> block4(%61, %60)
   block3:
-    %133: %r0 = binary.add %1, %0
-    %134: %r0 = coerce %133
-    %135: %r0 = binary.add %0, %54
-    %136: %r0 = coerce %135
-    jump -> block1(%136, %134)
-  block4:
-    %83: %r0 = alias %76
-    jump -> block5(%83)
-  block5(%2: %r0):
-    %84: %r0 = binary.add %66, %2
-    %85: %r0 = coerce %84
-    %93: %r0 = const 5
-    jump -> block6
-  block6:
-    %102: %r0 = alias %93
-    jump -> block7(%102)
-  block7(%3: %r0):
-    %103: %r0 = binary.add %85, %3
-    %104: %r0 = coerce %103
-    %105: %r0 = const 4
-    %106: %r0 = alias %105
-    %107: %r0 = call deferredSkip(Gate) %106
-    %108: %r0 = binary.add %104, %107
-    %109: %r0 = coerce %108
-    %110: %r0 = const 0
-    %111: %r0 = alias %110
-    %112: %r0 = call deferredSkip(Gate) %111
-    %113: %r0 = binary.add %109, %112
-    %114: %r0 = coerce %113
-    %115: %r0 = alias %7
-    %116: %r0 = alias %115
-    %117: %r10 = gen.table
-    %118: %r0 = call erasedLens %117, %116
-    %119: %r0 = binary.add %114, %118
-    %120: %r0 = coerce %119
-    %121: %r0 = const 3
-    %122: %r0 = alias %121
-    %123: %r10 = gen.table
-    %124: %r0 = call erasedIter %123, %122
-    %125: %r0 = binary.add %120, %124
-    %126: %r0 = coerce %125
-    return %126
-  block8(%4: %r0, %5: %r0):
-    %64: %r9 = binary.lt %4, %59
-    branch %64 -> block9 -> block10
-  block9:
-    %127: %r0 = binary.add %5, %4
-    %128: %r0 = coerce %127
-    %129: %r0 = binary.add %128, %63
-    %130: %r0 = coerce %129
-    %131: %r0 = binary.add %4, %62
-    %132: %r0 = coerce %131
-    jump -> block8(%132, %130)
-  block10:
-    %65: %r0 = binary.add %57, %5
-    %66: %r0 = coerce %65
-    %73: %r0 = const 21
-    jump -> block5(%73)
-
-fn deferredSkip(Gate)(one %r0) -> one %r0
-  var $0: %r4
-  block0(%0: %r0):
-    %8: %r0 = const 0
-    %9: %r0 = const 0
-    %10: %r9 = binary.le %0, %9
-    branch %10 -> block5 -> block4
-  block1(%1: %r0):
-    return %1
-  block2:
-    %29: %r4 = alias %2
-    %30: %r0 = load property %29.Exit: %r0
-    %31: %r0 = const 2
-    %32: %r0 = binary.mul %30, %31
-    %33: %r0 = coerce %32
-    jump -> block1(%33)
-  block3(%2: %r4, %3: %r0):
-    %25: %r4 = alias %2
-    %26: %r3 = load property %25.$tag: %r3
-    %27: %r3 = const 1
-    %28: %r9 = binary.eq %26, %27
-    branch %28 -> block2 -> block1(%3)
-  block4:
-    %11: %r0 = const 10
-    %12: %r0 = binary.mul %0, %11
-    %13: %r0 = coerce %12
-    %14: %r0 = const 3
-    %15: %r0 = binary.add %13, %14
-    %16: %r0 = coerce %15
-    %17: %r0 = const 0
-    %18: %r3 = const 0
-    %19: %r0 = const 0
-    %20: %r4 = object %s1 %18, %17, %19
-    jump -> block3(%20, %16)
+    %142: %r0 = binary.add %1, %0
+    %143: %r0 = coerce %142
+    %144: %r0 = binary.add %0, %54
+    %145: %r0 = coerce %144
+    jump -> block1(%145, %143)
+  block4(%2: %r0, %3: %r0):
+    %64: %r9 = binary.lt %2, %59
+    branch %64 -> block5 -> block6
   block5:
-    %21: %r0 = const 5
-    %22: %r3 = const 1
-    %23: %r0 = const 0
-    %24: %r4 = object %s1 %22, %23, %21
-    jump -> block3(%24, %8)
+    %136: %r0 = binary.add %3, %2
+    %137: %r0 = coerce %136
+    %138: %r0 = binary.add %137, %63
+    %139: %r0 = coerce %138
+    %140: %r0 = binary.add %2, %62
+    %141: %r0 = coerce %140
+    jump -> block4(%141, %139)
+  block6:
+    %65: %r0 = binary.add %57, %3
+    %66: %r0 = coerce %65
+    %79: %r0 = const 26
+    %80: %r0 = binary.add %66, %79
+    %81: %r0 = coerce %80
+    jump -> block7
+  block7:
+    %91: %r0 = const 43
+    jump -> block9(%91)
+  block8:
+    %96: %r0 = const 5
+    %97: %r3 = const 1
+    %98: %r0 = const 0
+    %99: %r4 = object %s1 %97, %98, %96
+    %100: %r0 = const 10
+    jump -> block9(%100)
+  block9(%4: %r0):
+    %101: %r0 = binary.add %81, %4
+    %102: %r0 = coerce %101
+    jump -> block11
+  block10:
+    %107: %r0 = const 10
+    %108: %r0 = const 0
+    %109: %r0 = const 0
+    %110: %r0 = const 3
+    %111: %r0 = const 3
+    %112: %r0 = const 3
+    %113: %r0 = const 0
+    %114: %r3 = const 0
+    %115: %r0 = const 0
+    %116: %r4 = object %s1 %114, %113, %115
+    jump -> block12(%112)
+  block11:
+    %121: %r0 = const 10
+    jump -> block12(%121)
+  block12(%5: %r0):
+    %122: %r0 = binary.add %102, %5
+    %123: %r0 = coerce %122
+    %124: %r0 = alias %7
+    %125: %r0 = alias %124
+    %126: %r10 = gen.table
+    %127: %r0 = call erasedLens %126, %125
+    %128: %r0 = binary.add %123, %127
+    %129: %r0 = coerce %128
+    %130: %r0 = const 3
+    %131: %r0 = alias %130
+    %132: %r10 = gen.table
+    %133: %r0 = call erasedIter %132, %131
+    %134: %r0 = binary.add %129, %133
+    %135: %r0 = coerce %134
+    return %135
 
 fn twiceDeep(Gate)(one %r0, one %r2) -> one %r0
   block0(%0: %r0, %1: %r2):
@@ -265,7 +226,7 @@ fn erasedIter.cont(one %r7, one %r0) -> one %r0 env
     %7: %r0 = const 0
     return %7
 
-optimizer clones 0 aliased 0 forwarded 0 removed 96 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 2 promoted 10 folded 16
+optimizer clones 0 aliased 0 forwarded 0 removed 81 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 4 folded 24
 
 shape %s0 fun {$c: %r1 code, $e: %r1 env}
 shape %s1 object Outcome {$tag: %r3 tag, Proceed: %r0, Exit: %r0}

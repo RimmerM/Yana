@@ -217,94 +217,57 @@ fn main() -> one %r2
     %63: %r2 = coerce %62
     %64: %r2 = binary.add %47, %63
     %65: %r2 = coerce %64
-    %70: %r0 = const 41
-    %71: %r0 = const 0
-    %72: %r0 = const 0
-    store var $3: %r0, %71
-    store var $4: %r0, %70
-    store var $5: %r0, %72
-    %75: %r0 = load var $3: %r0
-    %76: %r0 = const 0
-    %77: %r4 = binary.eq %75, %76
-    branch %77 -> block2 -> block1
+    jump -> block2
   block1:
-    %79: %r0 = load var $5: %r0
-    %80: %r0 = const 1
-    %81: %r0 = binary.add %79, %80
-    %82: %r0 = coerce %81
-    %83: %r0 = const 1
-    %84: %r0 = const 0
-    store var $3: %r0, %83
-    store var $4: %r0, %84
-    store var $5: %r0, %82
-    jump -> block3
+    %79: %r0 = alias %72
+    %80: %r2 = const 0
+    %81: %r2 = const 1000
+    %82: %r2 = const 1000
+    %83: %r2 = const 1000
+    jump -> block3(%83)
   block2:
-    %87: %r0 = load var $4: %r0
-    %88: %r0 = const 1
-    %89: %r0 = binary.add %87, %88
-    %90: %r0 = coerce %89
-    %91: %r0 = const 0
-    %92: %r0 = const 0
-    store var $3: %r0, %91
-    store var $4: %r0, %90
-    store var $5: %r0, %92
-    jump -> block3
-  block3:
-    %96: %r0 = load var $3: %r0
-    %97: %r0 = const 0
-    %98: %r4 = binary.eq %96, %97
-    branch %98 -> block5 -> block4
-  block4:
-    %99: %r0 = load var $5: %r0
-    %100: %r2 = convert %99
-    %101: %r2 = const 1000
-    %102: %r2 = binary.add %100, %101
-    %103: %r2 = coerce %102
-    jump -> block6(%103)
-  block5:
-    %104: %r0 = load var $4: %r0
-    %105: %r2 = convert %104
-    jump -> block6(%105)
-  block6(%0: %r2):
-    %106: %r2 = binary.add %65, %0
-    %107: %r2 = coerce %106
-    %110: %r5 = const 1
-    %111: %r5 = alias %110
-    %112: %r5 = alias %111
-    %113: %r0 = const 1
-    %114: %r5 = const 0
-    %115: %r6 = object %s2 %113, %114, %112
-    %116: %r6 = alias %115
-    %117: %r6 = alias %116
-    %118: %r2 = call taggedOf %117
-    %119: %r2 = binary.add %107, %118
+    %85: %r2 = const 42
+    jump -> block3(%85)
+  block3(%0: %r2):
+    %86: %r2 = binary.add %65, %0
+    %87: %r2 = coerce %86
+    %90: %r5 = const 1
+    %91: %r5 = alias %90
+    %92: %r5 = alias %91
+    %93: %r0 = const 1
+    %94: %r5 = const 0
+    %95: %r6 = object %s2 %93, %94, %92
+    %96: %r6 = alias %95
+    %97: %r6 = alias %96
+    %98: %r2 = call taggedOf %97
+    %99: %r2 = binary.add %87, %98
+    %100: %r2 = coerce %99
+    %101: %r8 = const null
+    %102: %r2 = call maybeOf %101
+    %103: %r0 = const 2
+    %104: %r0 = const 0
+    %105: %r0 = const 0
+    %106: %r7 = object %s4 %104, %103, %105
+    %107: %r8 = alias %106
+    %108: %r2 = call maybeOf %107
+    %109: %r2 = binary.add %102, %108
+    %110: %r2 = coerce %109
+    %111: %r0 = const 3
+    %112: %r0 = const 1
+    %113: %r0 = const 0
+    %114: %r7 = object %s4 %112, %113, %111
+    %115: %r8 = alias %114
+    %116: %r2 = call maybeOf %115
+    %117: %r2 = binary.add %110, %116
+    %118: %r2 = coerce %117
+    %119: %r2 = binary.add %100, %118
     %120: %r2 = coerce %119
-    %121: %r8 = const null
-    %122: %r2 = call maybeOf %121
-    %123: %r0 = const 2
-    %124: %r0 = const 0
-    %125: %r0 = const 0
-    %126: %r7 = object %s4 %124, %123, %125
-    %127: %r8 = alias %126
-    %128: %r2 = call maybeOf %127
-    %129: %r2 = binary.add %122, %128
-    %130: %r2 = coerce %129
-    %131: %r0 = const 3
-    %132: %r0 = const 1
-    %133: %r0 = const 0
-    %134: %r7 = object %s4 %132, %133, %131
-    %135: %r8 = alias %134
-    %136: %r2 = call maybeOf %135
-    %137: %r2 = binary.add %130, %136
-    %138: %r2 = coerce %137
-    %139: %r2 = binary.add %120, %138
-    %140: %r2 = coerce %139
-    %149: %r2 = const 65
-    %150: %r2 = binary.add %140, %149
-    %151: %r2 = coerce %150
-    return %151
+    %129: %r2 = const 65
+    %130: %r2 = binary.add %120, %129
+    %131: %r2 = coerce %130
+    return %131
 
-optimizer clones 4 aliased 4 forwarded 0 removed 42 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 5 folded 0
+optimizer clones 4 aliased 4 forwarded 0 removed 44 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 1 promoted 8 folded 5
 
 shape %s0 object Colour {$tag: %r0 tag, r: %r0, g: %r0, b: %r0, Gray: %r0}
 shape %s1 object Five {$tag: %r0 tag, C0: %r0, C1: %r0, C2: %r0, C3: %r0, C4: %r0}

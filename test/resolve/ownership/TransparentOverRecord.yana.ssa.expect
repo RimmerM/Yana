@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *1] = "a"
+let string'188: [CodeUnit *1] = "a"
 
-let string'143: [CodeUnit *2] = "bc"
+let string'189: [CodeUnit *2] = "bc"
 
-let string'144: [CodeUnit *3] = "abc"
+let string'190: [CodeUnit *3] = "abc"
 
-let string'145: [CodeUnit *3] = "abc"
+let string'191: [CodeUnit *3] = "abc"
 
 fn lent(b: Box [shared call], k: I32 [shared call]) -> I32 {
 bb0(%0: Box [shared call] guaranteed, %1: I32 trivial):
@@ -296,8 +296,8 @@ bb0:
   %25: Array(I32) [unique call] guaranteed from{%1} = load inspect %24
   %26: I32 trivial = const 36
   call push(I32) borrow %25 consume %26
-  %27: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
-  %28: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %27: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
+  %28: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 2, ownsHeap: 0}, length: 2}}
   %29: %String trivial = run.slots String *2 heap
   %30: Size trivial = bitcast inspect %29
   %31: Size trivial = const 0
@@ -482,7 +482,7 @@ bb0:
   %1: %captureString.lambda.env address = alloc frame captureString.lambda.env
   %2: I32 trivial = const 2
   %3: I32 trivial = const 27
-  %4: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
+  %4: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 3, ownsHeap: 0}, length: 3}}
   %5: Named owned = aggregate.Named consume %2 consume %3 consume %4
   store inspect %0 consume %5
   %6: Named [shared slot 0] guaranteed from{%0} = load inspect %0
@@ -548,7 +548,7 @@ bb0:
   %22: I32 [unique call] guaranteed from{%0} = load inspect %0
   %23: I32 trivial = const 2
   %24: I32 trivial = const 30
-  %25: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %25: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 3, ownsHeap: 0}, length: 3}}
   %26: Named owned = aggregate.Named consume %23 consume %24 consume %25
   %27: I32 trivial = const 7
   %28: I32 trivial = call overObject consume %26 borrow %27

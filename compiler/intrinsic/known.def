@@ -154,6 +154,14 @@ YANA_KNOWN_ROLE( call, Entity::Class, 2,    0,      0,      false,   Presence::O
 YANA_KNOWN_ROLE( iterate, Entity::Class, 3,    2,      0,      false,   Presence::Optional )
 
 /*
+ * `class IterateFailing(s -> item, error, resume)` - `Iterate` for an object whose producer declared
+ * `| E`, answering `IterStep(error, item)` where `Iterate` answers `Maybe(item)` (C1b). Members in
+ * `Iterate`'s order, so `kIterateNext` and `kIterateResume` index both.
+ */
+//                 role            entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( iterateFailing, Entity::Class, 4,    2,      0,      false,   Presence::Optional )
+
+/*
  * What an unadorned literal is - `lib/Core/Core.yana`'s `class FromInt(a = Int)` and
  * `class FromDecimal(a = Float)`.
  *
@@ -541,13 +549,15 @@ YANA_KNOWN_ROLE( freeHeap,      Entity::Function, 1,   0,      0,      false,   
 YANA_KNOWN_ROLE( isHeapAddress, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
 
 /*
- * `releaseRun(self: Run(a))` - **storage release**, the call an authored `Reclaim` is written to make
- * (ownership.md, "Authored teardown"). A role so that the shape check can name it: the rule is a set
- * of callees - teardowns, what the compiler provides, and storage release - and without the row the
- * last of those was a plain `lib/Native` function the check could only have recognised by its name.
- * `freeHeap` above is the other member of the set. Optional for the reason the heap rows are.
+ * `releaseRun(slots: %U8, ownsHeap: HeapFlag)` - **storage release**, the call an authored `Reclaim`
+ * is written to make (ownership.md, "Authored teardown"). A role so that the shape check can name it:
+ * the rule is a set of callees - teardowns, what the compiler provides, and storage release - and
+ * without the row the last of those was a plain `lib/Native` function the check could only have
+ * recognised by its name. `freeHeap` above is the other member of the set. Optional for the reason
+ * the heap rows are. Two untyped arguments rather than the `Run(a)` it once took - K1, and
+ * `Native/Run.native.yana` says why.
  */
-YANA_KNOWN_ROLE( releaseRun,    Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( releaseRun,    Entity::Function, 2,   0,      0,      false,   Presence::Optional )
 
 /*
  * `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.1's row that never spills, as the

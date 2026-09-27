@@ -591,31 +591,31 @@ indexFreeSlot<complex>(%self: Ptr, %h: I32): I64 {
 
 Array(a).reclaim(I32)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 
@@ -1110,20 +1110,19 @@ indexRebuild(I32, Array(I32))<complex>(%self: Ptr, %slots: I64) {
     store %v_74, %v_79, 8
     %v_80 = add %self, 16: Ptr
     %v_81 = load %v_80, 8: Ptr
-    %v_82 = shr %v_79, 32: I64
-    %v_83 = and %v_82, 1073741823: I64
-    %v_84 = add %v_83, 1: I64
-    %v_85 = add %v_84, 16: I64
-    setpattern %v_81, %v_85, 128
-    %v_86 = load %v_74, 8: I64
-    %v_87 = and %v_86, 18446744072635809792: I64
-    store %v_74, %v_87, 8
-    %v_88, %v_17 = call_complex Array(a).elements(Entry(I32, Array(I32))), %self: I64, I64
+    %v_82 = cast %v_73: I64
+    %v_83 = add %v_82, 1: I64
+    %v_84 = add %v_83, 16: I64
+    setpattern %v_81, %v_84, 128
+    %v_85 = load %v_74, 8: I64
+    %v_86 = and %v_85, 18446744072635809792: I64
+    store %v_74, %v_86, 8
+    %v_87, %v_17 = call_complex Array(a).elements(Entry(I32, Array(I32))), %self: I64, I64
     jmp b_11
   }
 
   b_70 {
-    %v_89 = syscall 60, 134: I64
+    %v_88 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -1737,31 +1736,31 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: I64) {
 
 Run(a).reclaim(U8)<simple>(%v_0: I64, %v_1: I32) {
   b_2 {
-    %v_3 = shr %v_1, 30: I32
-    %v_4 = cmp_eq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = bitcast %v_0: Ptr
-    %v_8 = cmp_eq %v_0, 0: I32
-    je %v_8, b_6, b_9
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_7, b_9
+  }
+
+  b_7 {
     ret 
   }
 
   b_9 {
-    %v_10 = sub %v_7, 8: Ptr
+    %v_10 = sub %v_3, 8: Ptr
     %v_11 = loads %v_10, 8: I64
     %v_12 = load @heapFree, 8: Ptr
     %v_13 = shl %v_11, 3: I64
     %v_14 = add %v_12, %v_13: Ptr
     %v_15 = load %v_14, 8: Ptr
-    store %v_7, %v_15, 8
-    store %v_14, %v_7, 8
-    jmp b_6
+    store %v_3, %v_15, 8
+    store %v_14, %v_3, 8
+    jmp b_7
   }
 }
 

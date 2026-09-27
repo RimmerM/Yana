@@ -1,0 +1,92 @@
+{-
+   A lens region inside an object, **lent a `&` parameter of the producer** - Implementation-Streams
+   P3, J185.
+
+   `plainLens(out): yield i` inside a counted `for` is the shape the refusal for a lens over the
+   object's own storage recommends ("lend it a parameter instead"), and it failed with "internal:
+   store names N, whose definition does not dominate it". Nothing about the parameter was at fault:
+   the loop's counter is spilled across the `yield`, and the step's region fall-out re-entered the
+   member's `advance` block, whose true arm leads back to the region's entry - so the entry had the
+   resume blocks among its predecessors while the spill planner, walking MIR, saw only the call.
+   A `Once` region's fall-out now releases the lens in a block of its own and goes to the
+   destination, which is the graph MIR states.
+
+   Native only: an object holding a `&` record parameter is not converted by JSIR yet.
+   `LensRegion.Unit.yana` is the parameter-free half on both targets.
+-}
+
+data Win {space: I32, used: I32}
+data Sink {total: I32}
+
+class WindowOut(o):
+    lens fn withWindow(&output: o, minimum: I32) -> &Win
+
+instance WindowOut(Sink):
+    lens fn withWindow(&output: Sink, minimum: I32) -> &Win:
+        let &w = Win {space: minimum, used: 0}
+        yield w
+        output.total = output.total + minimum
+
+lens fn withWin(&output: Sink, minimum: I32) -> &Win:
+    let &w = Win {space: minimum, used: 0}
+    yield w
+    output.total = output.total + minimum + w.used
+
+lens fn plainLens(&output: Sink):
+    yield {}
+    output.total = output.total + 1
+
+-- A lens handing over `{}`, lent the parameter.
+iter fn marked(&out: Sink, n: I32) -> I32:
+    for i in 0 .. n:
+        plainLens(out):
+            yield i
+
+{-
+   A lens handing over a record, lent the parameter; the region reads what it handed over and
+   writes `w.used`, which the lens's cleanup adds to the total.
+
+   The write is the point: a `lens fn` built as an object copied an `&Win` hand-over into its slot
+   rather than lending its local, because `Win` is trivially copyable - so the region wrote the copy
+   and the cleanup read the original (J185's record, "left"; J188 lends every exclusive hand-over).
+-}
+iter fn windowed(&out: Sink, n: I32) -> I32:
+    for i in 0 .. n:
+        let w = withWin(out, i) in:
+            w.used = 100
+            yield w.space
+
+-- The same through a class member, in a producer generic in what it writes to.
+iter fn (WindowOut(o)) encode(&out: o, n: I32) -> I32:
+    for i in 0 .. n:
+        let w = out.withWindow(i * 10) in:
+            yield w.space / 10
+
+fn main() -> I32:
+    let &sum = 0 :: I32
+
+    let &a = Sink {total: 0}
+    let &first = marked(a, 5)
+    for x in first:
+        sum = sum + x
+
+    let &b = Sink {total: 0}
+    let &second = windowed(b, 5)
+    for x in second:
+        sum = sum + x * 100
+
+    let &c = Sink {total: 0}
+    let &third = encode(c, 4)
+    for x in third:
+        sum = sum + x * 10000
+
+    -- An object left while suspended inside the region: its teardown runs the lens's cleanup once.
+    let &d = Sink {total: 0}
+    let &fourth = windowed(d, 5)
+    for x in fourth:
+        if x == 2 then break
+
+    -- Every region `windowed` enters writes `used: 100`, and every cleanup adds it: five in `b`,
+    -- three in `d`, whose third region is left while suspended.
+    if b.total != 510 || c.total != 60 || d.total != 303 then return -1
+    return sum + 1000000 * (a.total + 10 * (d.total - 300))

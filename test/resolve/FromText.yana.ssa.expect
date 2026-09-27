@@ -1,10 +1,10 @@
 module ResolveTest
 
-let string'142: [CodeUnit *1] = "x"
+let string'188: [CodeUnit *1] = "x"
 
-let string'143: [CodeUnit *5] = "a,b,c"
+let string'189: [CodeUnit *5] = "a,b,c"
 
-let string'144: [CodeUnit *1] = "x"
+let string'190: [CodeUnit *1] = "x"
 
 fn classify(unit: CodeUnit [shared call]) -> I32 {
 bb0(%0: CodeUnit trivial):
@@ -305,7 +305,7 @@ bb24:
   %93: I32 trivial = add inspect %88 inspect %92
   store inspect %6 consume %93
   %94: I32 trivial = load inspect %6
-  %95: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %95: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %7 consume %95
   %96: String [shared slot 0] guaranteed from{%7} = load inspect %7
   jump -> bb34
@@ -416,7 +416,7 @@ bb38:
   jump -> bb39(borrow %144)
 
 bb39(%133: String [shared slot 0 view] guaranteed from{%9}):
-  %145: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %145: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %10 consume %145
   %146: String [shared slot 0] guaranteed from{%10} = load inspect %10
   jump -> bb40
@@ -447,7 +447,7 @@ bb41(%147: String [shared slot 0 view] guaranteed from{%10}):
 fn convert(Char)() -> Char {
 bb0:
   %0: %String address = alloc frame String
-  %1: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %0 consume %1
   %2: String [shared slot 0] guaranteed from{%0} = load inspect %0
   jump -> bb1
@@ -475,7 +475,7 @@ bb2(%3: String [shared slot 0 view] guaranteed from{%0}):
 fn convert(String)() -> String {
 bb0:
   %0: %String address = alloc frame String
-  %1: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %0 consume %1
   %2: String [shared slot 0] guaranteed from{%0} = load inspect %0
   jump -> bb1

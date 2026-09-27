@@ -1,0 +1,107 @@
+{-
+   An authored `Drop` finishes what its body leaves of the value - K5.
+
+   `drop(->value: T)` owns its subject. Whatever the body does not consume is torn down when the body
+   returns, member by member at each member's own teardown, and the call runs nothing after it. The
+   defect this holds the compiler to (J209): the body ran and the members' storage was reclaimed from
+   outside, so a member with a `Drop` of its own - a socket's `Fd` - was never closed, and a member the
+   body moved out was reclaimed a second time.
+
+   Every case appends digits to `trace` in the order things ran, so a member torn down before the body,
+   twice, or not at all changes the number.
+-}
+
+let &trace = 0 :: I64
+
+fn note(n: I64):
+    trace = trace * 10 + n
+
+data Note {n: I64}
+instance Drop(Note):
+    fn drop(->value: Note):
+        note(value.n)
+
+fn consume(->n: Note) = n.n
+
+fn named(->s: String) -> I64 = if s == "ab" then 2 else 0
+
+-- A body that names no member: both run after it, in field order.
+data Pair {first: Note, second: Note}
+instance Drop(Pair):
+    fn drop(->value: Pair):
+        note(1)
+
+-- A member moved out is not torn down again; the other one is, after the body.
+data Taking {kept: Note, taken: Note, name: String}
+instance Drop(Taking):
+    fn drop(->value: Taking):
+        let n = consume(value.taken)
+        note(n + named(value.name))
+
+-- Consumed on one path and not on the other.
+data Choosy {early: Bool, member: Note}
+instance Drop(Choosy):
+    fn drop(->value: Choosy):
+        if value.early:
+            let n = consume(value.member)
+            note(n)
+            return
+        note(8)
+
+-- A sum dies whole, and only the live arm's members are torn down.
+data Shape = Dot {at: Note} | Line {from: Note, to: Note} | Empty
+instance Drop(Shape):
+    fn drop(->value: Shape):
+        note(5)
+
+data Holder(a) {item: a}
+instance Drop(Holder(a)):
+    fn drop(->value: Holder(a)):
+        note(4)
+
+-- A derived teardown around an authored one.
+data Wrapper {pair: Pair, extra: Note}
+
+fn pair():
+    let p = Pair {first: Note {n: 2}, second: Note {n: 3}}
+
+fn taking():
+    let t = Taking {kept: Note {n: 6}, taken: Note {n: 3}, name: "a" ++ "b"}
+
+fn early():
+    let c = Choosy {early: True, member: Note {n: 7}}
+
+fn late():
+    let c = Choosy {early: False, member: Note {n: 9}}
+
+fn dot():
+    let s = Shape.Dot {at: Note {n: 1}}
+
+fn line():
+    let s = Line {from: Note {n: 2}, to: Note {n: 3}} :: Shape
+
+fn empty():
+    let s = Empty :: Shape
+
+fn holder():
+    let h = Holder {item: Note {n: 6}}
+
+fn wrapper():
+    let w = Wrapper {pair: Pair {first: Note {n: 2}, second: Note {n: 3}}, extra: Note {n: 9}}
+
+fn run(f: () -> {}) -> I64:
+    trace = 0
+    f()
+    return trace
+
+fn main() -> I32:
+    if run(pair) != 123 then return 1
+    if run(taking) != 356 then return 2
+    if run(early) != 77 then return 3
+    if run(late) != 89 then return 4
+    if run(dot) != 51 then return 5
+    if run(line) != 523 then return 6
+    if run(empty) != 5 then return 7
+    if run(holder) != 46 then return 8
+    if run(wrapper) != 1239 then return 9
+    return 0

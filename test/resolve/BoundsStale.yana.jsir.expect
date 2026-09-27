@@ -1,0 +1,228 @@
+fn staleJoin(parts %r3, parts %r5) -> one %r0
+  block0(%0: %r1, %1: %r0, %2: %r0, %3: %r1, %4: %r0, %5: %r0):
+    %10: %r7 = const 0
+    %11: %r0 = const 0
+    %12: %r0 = const 0
+    %13: %r0 = const 100
+    %14: %r0 = const 1
+    %15: %r0 = const 1
+    jump -> block1(%10, %11, %12)
+  block1(%6: %r7, %7: %r0, %8: %r0):
+    %16: %r7 = binary.lt %8, %4
+    branch %16 -> block3 -> block2
+  block2:
+    return %7
+  block3:
+    %17: %r1 = alias %3
+    %18: %r0 = binary.add %5, %8
+    %19: %r0 = coerce %18
+    %20: %r0 = load element %17[%19]: %r0
+    branch %6 -> block6 -> block4
+  block4:
+    jump -> block5(%7)
+  block5(%9: %r0):
+    %27: %r7 = binary.lt %20, %1
+    %28: %r0 = binary.add %8, %15
+    %29: %r0 = coerce %28
+    jump -> block1(%27, %9, %29)
+  block6:
+    %21: %r7 = binary.lt %20, %1
+    %22: %r0 = binary.add %7, %14
+    %23: %r0 = coerce %22
+    %24: %r0 = binary.add %7, %13
+    %25: %r0 = coerce %24
+    %26: %r0 = select %21, %23, %25
+    jump -> block5(%26)
+
+fn staleArm(parts %r3, parts %r5) -> one %r0
+  block0(%0: %r1, %1: %r0, %2: %r0, %3: %r1, %4: %r0, %5: %r0):
+    %11: %r7 = const 0
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r0 = const 10
+    %15: %r0 = const 1
+    %16: %r7 = const 0
+    %17: %r0 = const 0
+    %18: %r0 = const 1
+    jump -> block1(%11, %12, %13)
+  block1(%6: %r7, %7: %r0, %8: %r0):
+    %19: %r7 = binary.lt %8, %4
+    branch %19 -> block3 -> block2
+  block2:
+    return %7
+  block3:
+    %20: %r1 = alias %3
+    %21: %r0 = binary.add %5, %8
+    %22: %r0 = coerce %21
+    %23: %r0 = load element %20[%22]: %r0
+    branch %6 -> block6 -> block4
+  block4:
+    jump -> block5(%7)
+  block5(%9: %r0):
+    %30: %r7 = binary.lt %23, %1
+    branch %30 -> block9 -> block7
+  block6:
+    %24: %r7 = binary.lt %23, %1
+    %25: %r0 = binary.add %7, %15
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.add %7, %14
+    %28: %r0 = coerce %27
+    %29: %r0 = select %24, %26, %28
+    jump -> block5(%29)
+  block7:
+    jump -> block8(%16)
+  block8(%10: %r7):
+    %32: %r0 = binary.add %8, %18
+    %33: %r0 = coerce %32
+    jump -> block1(%10, %9, %33)
+  block9:
+    %31: %r7 = binary.gt %23, %17
+    jump -> block8(%31)
+
+fn signedQuotient(one %r0, one %r6) -> one %r7
+  block0(%0: %r0, %1: %r6):
+    %2: %r0 = const 16
+    %3: %r0 = binary.div %0, %2
+    %4: %r0 = coerce %3
+    %5: %r6 = convert %4
+    %6: %r7 = binary.ge %1, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r6 = const 2.68435455E8
+    %8: %r7 = binary.gt %1, %7
+    branch %8 -> block4 -> block3
+  block2:
+    %15: %r7 = const 0
+    return %15
+  block3:
+    %9: %r6 = convert %0
+    %10: %r6 = const 16
+    %11: %r6 = binary.mul %10, %1
+    %12: %r6 = coerce %11
+    %13: %r7 = binary.lt %12, %9
+    return %13
+  block4:
+    %14: %r7 = const 0
+    return %14
+
+fn unsignedQuotient(one %r6, one %r0) -> one %r7
+  block0(%0: %r6, %1: %r0):
+    %2: %r6 = const 16
+    %3: %r6 = binary.div %0, %2
+    %4: %r6 = coerce %3
+    %5: %r0 = convert %4
+    %6: %r0 = const 1
+    %7: %r7 = binary.lt %5, %6
+    branch %7 -> block2 -> block1
+  block1:
+    %8: %r7 = binary.ge %1, %5
+    branch %8 -> block4 -> block3
+  block2:
+    %21: %r7 = const 0
+    return %21
+  block3:
+    %9: %r0 = const 0
+    %10: %r7 = binary.lt %1, %9
+    %11: %r0 = const 1.34217727E8
+    %12: %r7 = binary.gt %1, %11
+    %13: %r7 = binary.or %10, %12
+    branch %13 -> block6 -> block5
+  block4:
+    %20: %r7 = const 0
+    return %20
+  block5:
+    %14: %r0 = convert %0
+    %15: %r0 = const 16
+    %16: %r0 = binary.mul %15, %1
+    %17: %r0 = coerce %16
+    %18: %r7 = binary.lt %17, %14
+    return %18
+  block6:
+    %19: %r7 = const 0
+    return %19
+
+fn main() -> one %r0
+  var $0: %r11
+  var $1: %r9
+  var $2: %r9
+  block0:
+    %0: %r0 = const 1
+    %1: %r0 = const 2
+    %2: %r0 = const 3
+    %3: %r0 = const 4
+    %4: %r0 = const 5
+    %5: %r1 = host host.array %0, %1, %2, %3, %4
+    %6: %r8 = const 5
+    %7: %r11 = object %s3 %5, %6
+    %8: %r0 = const 5
+    %9: %r0 = const 0
+    %10: %r0 = const 1
+    %11: %r0 = const 100000
+    %12: %r1 = host host.array %10, %11
+    %13: %r8 = const 2
+    %14: %r9 = object %s2 %12, %13
+    %15: %r0 = const 2
+    %16: %r0 = const 0
+    %17: %r0 = call staleJoin %5, %8, %9, %12, %15, %16
+    %18: %r9 = alias %14
+    call Array(a).reclaim(Size) %18
+    %19: %r0 = const 0
+    %20: %r0 = const 2
+    %21: %r0 = const 1E8
+    %22: %r1 = host host.array %20, %21
+    %23: %r8 = const 2
+    %24: %r9 = object %s2 %22, %23
+    %25: %r0 = const 2
+    %26: %r0 = const 0
+    %27: %r0 = call staleArm %5, %8, %19, %22, %25, %26
+    %28: %r11 = alias %7
+    call Array(a).reclaim(I32) %28
+    %29: %r9 = alias %24
+    call Array(a).reclaim(Size) %29
+    %30: %r0 = binary.add %17, %27
+    %31: %r0 = coerce %30
+    %32: %r0 = const -32
+    %33: %r6 = const 2.68435455E8
+    %34: %r7 = call signedQuotient %32, %33
+    %35: %r0 = const 1000
+    %36: %r0 = binary.add %31, %35
+    %37: %r0 = coerce %36
+    %38: %r0 = select %34, %37, %31
+    %39: %r6 = const 4.294967264E9
+    %40: %r0 = const 1
+    %41: %r7 = call unsignedQuotient %39, %40
+    %42: %r0 = const 2000
+    %43: %r0 = binary.add %38, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = select %41, %44, %38
+    return %45
+
+fn Array(a).reclaim(Size)(one %r9) -> omitted
+  var $0: %r9
+  block0(%0: %r9):
+    return
+
+fn Array(a).reclaim(I32)(one %r11) -> omitted
+  var $0: %r11
+  block0(%0: %r11):
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3 folded 0
+
+shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s2 object Array {items: %r1, length: %r8}
+shape %s3 object Array {items: %r1, length: %r8}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = object %s0
+rep %r3 = parts (%r1, %r0, %r0) as %r2
+rep %r4 = object %s1
+rep %r5 = parts (%r1, %r0, %r0) as %r4
+rep %r6 = number unsigned 32
+rep %r7 = number bool
+rep %r8 = number unsigned 30
+rep %r9 = object %s2
+rep %r10 = void
+rep %r11 = object %s3

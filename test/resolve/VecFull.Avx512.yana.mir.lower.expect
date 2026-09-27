@@ -265,10 +265,8 @@ widenedAndNarrowed<complex>(): I32 {
     %v_31 = phi [b_29, %v_17], [b_28, %v_32]: I32
     %v_33 = add %v_8, %v_21: Ptr
     %v_34 = load %v_33, 1: I32
-    %v_35 = loads @seed, 4: I32
-    %v_36 = add %v_19, %v_35: I32
-    %v_37 = cmp_neq %v_34, %v_36: I32
-    je %v_37, b_38, b_39
+    %v_35 = cmp_neq %v_34, %v_26: I32
+    je %v_35, b_36, b_37
   }
 
   b_28 {
@@ -276,19 +274,19 @@ widenedAndNarrowed<complex>(): I32 {
     jmp b_30
   }
 
-  b_39 {
+  b_37 {
     jmp b_18
   }
 
   b_18 {
-    %v_16 = phi [b_39, %v_31], [b_38, %v_40]: I32
+    %v_16 = phi [b_37, %v_31], [b_36, %v_38]: I32
     %v_20 = add %v_19, 1: I32
-    %v_41 = cmp_ilt %v_20, 64: I32
-    je %v_41, b_14, b_15
+    %v_39 = cmp_ilt %v_20, 64: I32
+    je %v_39, b_14, b_15
   }
 
-  b_38 {
-    %v_40 = add %v_31, 1: I32
+  b_36 {
+    %v_38 = add %v_31, 1: I32
     jmp b_18
   }
 }

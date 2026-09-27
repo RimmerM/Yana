@@ -1,44 +1,41 @@
 fn main() -> one %r0
-  var $0: %r1
+  var $0: %r2
   block0:
     jump -> block1
   block1:
     jump -> block3
   block2:
-    %51: %r0 = const 1
-    return %51
+    %50: %r0 = const 1
+    return %50
   block3:
     jump -> block5
   block4:
-    %50: %r0 = const 2
-    return %50
-  block5:
-    jump -> block9
-  block6:
-    %49: %r0 = const 3
+    %49: %r0 = const 2
     return %49
-  block7:
-    %47: %r0 = const 576
-    return %47
-  block8:
-    %48: %r0 = const 4
+  block5:
+    jump -> block7
+  block6:
+    %48: %r0 = const 3
     return %48
-  block9:
-    %39: %r2 = const 2
-    %40: %r2 = alias %39
-    jump -> block11(%40)
-  block10:
-    %41: %r2 = const 0
-    jump -> block11(%41)
-  block11(%0: %r2):
-    %42: %r2 = const 2
+  block7:
+    %39: %r1 = const 2
+    %40: %r1 = alias %39
+    jump -> block9(%40)
+  block8:
+    %41: %r1 = const 0
+    jump -> block9(%41)
+  block9(%0: %r1):
+    %42: %r1 = const 2
     %43: %r3 = binary.eq %0, %42
     %44: %r3 = unary.not %43
-    branch %44 -> block8 -> block7
+    %45: %r0 = const 4
+    %46: %r0 = const 576
+    %47: %r0 = select %44, %45, %46
+    return %47
 
-optimizer clones 0 aliased 0 forwarded 0 removed 41 adopted 0 sunk 0 numbered 0 decided 4 unboxed 0 updated 0 split 0 promoted 2 folded 11
+optimizer clones 0 aliased 0 forwarded 0 removed 39 adopted 0 sunk 0 numbered 0 decided 4 unboxed 0 updated 0 split 0 promoted 1 folded 10
 
 rep %r0 = number signed 32
-rep %r1 = bigint signed
-rep %r2 = number unsigned 8
+rep %r1 = number unsigned 8
+rep %r2 = bigint signed
 rep %r3 = number bool

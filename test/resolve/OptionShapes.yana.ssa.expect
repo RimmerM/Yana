@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *6] = "abcdef"
+let string'189: [CodeUnit *6] = "abcdef"
 
 fn found(slot: I32 [unique slot 0]) -> Maybe(I32) [owned here shape4 .0=unique slot 0] {
 bb0(%0: I32 [unique slot 0] guaranteed):
@@ -159,7 +159,7 @@ bb0:
   %6: %Maybe(I32) address = alloc frame Maybe(I32) [owned here shape4 .0=unique slot 0]
   %7: I32 trivial = const 4
   store inspect %0 consume %7
-  %8: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %8: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   store inspect %1 consume %8
   %9: I32 trivial = const 5
   %10: I32 trivial = const 6
@@ -181,7 +181,7 @@ bb2:
   %70: I32 trivial = mul inspect %68 inspect %69
   call put(I32) borrow %67 consume %70
   %71: String [unique call] guaranteed from{%1} = load inspect %1
-  %72: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 6, ownsHeap: 0}, length: 6}}
+  %72: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 6, ownsHeap: 0}, length: 6}}
   call put(String) borrow %71 consume %72
   %73: %I32 address = field.addr .x inspect %2
   %74: I32 trivial = load inspect %73

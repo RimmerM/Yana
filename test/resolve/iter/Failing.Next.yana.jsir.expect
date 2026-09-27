@@ -1,0 +1,1269 @@
+fn expect(one %r1, one %r0) -> omitted
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = load global trace: %r0
+    %3: %r10 = binary.ne %2, %1
+    branch %3 -> block2 -> block1
+  block1:
+    %7: %r0 = const 0n
+    store global trace: %r0, %7
+    return
+  block2:
+    %4: %r1 = load global failures: %r1
+    %5: %r1 = binary.add %4, %0
+    %6: %r1 = coerce %5
+    store global failures: %r1, %6
+    jump -> block1
+
+fn Tag.drop(one %r1) -> omitted
+  var $0: %r1
+  block0(%0: %r1):
+    %1: %r0 = const 9n
+    %2: %r0 = load global trace: %r0
+    %3: %r0 = const 10n
+    %4: %r0 = binary.mul %2, %3
+    %5: %r0 = coerce %4
+    %6: %r0 = binary.add %5, %1
+    %7: %r0 = coerce %6
+    store global trace: %r0, %7
+    %9: %r1 = alias %0
+    %10: %r0 = convert %9
+    %11: %r0 = const 10n
+    %12: %r0 = binary.mul %7, %11
+    %13: %r0 = coerce %12
+    %14: %r0 = binary.add %13, %10
+    %15: %r0 = coerce %14
+    store global trace: %r0, %15
+    return
+
+fn main() -> one %r1
+  var $0: %r13
+  var $1: %r13
+  var $2: %r13
+  var $3: %r13
+  var $4: %r13
+  var $5: %r13
+  var $6: %r13
+  var $7: %r12
+  var $8: %r8
+  var $9: %r8
+  var $10: %r5
+  var $11: %r5
+  var $12: %r9
+  var $13: %r5
+  var $14: %r3
+  var $15: %r1
+  var $16: %r1
+  var $17: %r3
+  var $18: %r1
+  var $19: %r1
+  var $20: %r3
+  var $21: %r1
+  var $22: %r1
+  var $23: %r5
+  var $24: %r1
+  block0:
+    %4: %r1 = const 0
+    %5: %r1 = const 0
+    %6: %r1 = const 0
+    %7: %r1 = const 0
+    %8: %r1 = const 0
+    %9: %r3 = const 0
+    %10: %r1 = const 0
+    %11: %r6 = const ""
+    %12: %r7 = object %s3 %9, %10, %11
+    %13: %r8 = object %s2 %4, %5, %6, %7, %8, %12
+    %14: %r1 = const 0
+    %15: %r1 = const 0
+    %16: %r1 = const 0
+    %17: %r1 = const 0
+    %18: %r1 = const 0
+    %19: %r3 = const 0
+    %20: %r1 = const 0
+    %21: %r6 = const ""
+    %22: %r7 = object %s3 %19, %20, %21
+    %23: %r8 = object %s2 %14, %15, %16, %17, %18, %22
+    %64: %r1 = const 5
+    %65: %r1 = const 2
+    %66: %r1 = const 0
+    %67: %r1 = const 0
+    %68: %r1 = const 0
+    %69: %r1 = const 0
+    %70: %r1 = const 0
+    %71: %r3 = const 0
+    %72: %r1 = const 0
+    %73: %r6 = const ""
+    %74: %r7 = object %s3 %71, %72, %73
+    %75: %r8 = object %s2 %66, %67, %68, %69, %70, %74
+    %76: %r1 = const 0
+    %77: %r8 = alias %75
+    store property %77.$index: %r1, %76
+    %78: %r8 = alias %75
+    store property %78.n: %r1, %64
+    %79: %r8 = alias %75
+    store property %79.failAt: %r1, %65
+    %80: %r8 = alias %75
+    store value %13: %r8, %80
+    call show %13
+    call show %13
+    call show %13
+    call show %13
+    call show %13
+    %81: %r1 = const 1
+    %82: %r0 = const 1788n
+    call expect %81, %82
+    %83: %r1 = const 2
+    %84: %r1 = const 9
+    %85: %r1 = const 0
+    %86: %r1 = const 0
+    %87: %r1 = const 0
+    %88: %r1 = const 0
+    %89: %r1 = const 0
+    %90: %r3 = const 0
+    %91: %r1 = const 0
+    %92: %r6 = const ""
+    %93: %r7 = object %s3 %90, %91, %92
+    %94: %r8 = object %s2 %85, %86, %87, %88, %89, %93
+    %95: %r1 = const 0
+    %96: %r8 = alias %94
+    store property %96.$index: %r1, %95
+    %97: %r8 = alias %94
+    store property %97.n: %r1, %83
+    %98: %r8 = alias %94
+    store property %98.failAt: %r1, %84
+    %99: %r8 = alias %94
+    store value %23: %r8, %99
+    call show %23
+    call show %23
+    call show %23
+    %100: %r1 = const 2
+    %101: %r0 = const 18n
+    call expect %100, %101
+    %102: %r1 = const 5
+    %103: %r1 = const 1
+    %104: %r1 = const 0
+    %105: %r1 = const 0
+    %106: %r1 = const 0
+    %107: %r1 = const 0
+    %108: %r1 = const 0
+    %109: %r3 = const 0
+    %110: %r1 = const 0
+    %111: %r1 = const 0
+    %112: %r4 = object %s1 %109, %110, %111
+    %113: %r5 = object %s0 %104, %105, %106, %107, %108, %112
+    %114: %r1 = const 0
+    %115: %r5 = alias %113
+    store property %115.$index: %r1, %114
+    %116: %r5 = alias %113
+    store property %116.n: %r1, %102
+    %117: %r5 = alias %113
+    store property %117.failAt: %r1, %103
+    %118: %r5 = alias %113
+    %120: %r1 = const 0
+    store property %118.i: %r1, %120
+    %121: %r5 = alias %113
+    store property %121.$slot: %r1, %120
+    %122: %r1 = const 1
+    %123: %r5 = alias %113
+    store property %123.$index: %r1, %122
+    %124: %r1 = load property %121.$slot: %r1
+    jump -> block14
+  block1:
+    %202: %r3 = const 1
+    %203: %r10 = binary.eq %199, %202
+    branch %203 -> block20 -> block2
+  block2:
+    %204: %r13 = alias %0
+    %205: %r0 = const 7n
+    %206: %r0 = load global trace: %r0
+    %207: %r0 = const 10n
+    %208: %r0 = binary.mul %206, %207
+    %209: %r0 = coerce %208
+    %210: %r0 = binary.add %209, %205
+    %211: %r0 = coerce %210
+    store global trace: %r0, %211
+    %212: %r1 = load property %204.Failed: %r1
+    %214: %r3 = const 2
+    %215: %r10 = binary.eq %199, %214
+    branch %215 -> block15 -> block16
+  block3:
+    %244: %r5 = alias %113
+    %245: %r1 = load property %244.$index: %r1
+    %246: %r1 = const 1
+    %247: %r10 = binary.eq %245, %246
+    branch %247 -> block57 -> block55
+  block4:
+    %232: %r13 = alias %0
+    %233: %r1 = load property %232.Yield: %r1
+    jump -> block19
+  block5:
+    %318: %r1 = const 4
+    %319: %r0 = const 79118n
+    call expect %318, %319
+    %320: %r1 = const 3
+    %321: %r1 = const 0
+    %322: %r1 = const 0
+    %323: %r1 = const 0
+    %324: %r1 = const 0
+    %325: %r1 = const 0
+    %326: %r1 = const 0
+    %327: %r3 = const 0
+    %328: %r1 = const 0
+    %329: %r1 = const 0
+    %330: %r4 = object %s1 %327, %328, %329
+    %331: %r5 = object %s0 %322, %323, %324, %325, %326, %330
+    %332: %r1 = const 0
+    %333: %r5 = alias %331
+    store property %333.$index: %r1, %332
+    %334: %r5 = alias %331
+    store property %334.n: %r1, %320
+    %335: %r5 = alias %331
+    store property %335.failAt: %r1, %321
+    %336: %r5 = alias %331
+    %338: %r1 = const 0
+    store property %336.i: %r1, %338
+    %339: %r1 = alias %338
+    %340: %r3 = const 1
+    %341: %r1 = const 0
+    %342: %r4 = object %s1 %340, %341, %339
+    %343: %r5 = alias %331
+    store property %343.$failure: %r4, %342
+    %344: %r1 = const 2.147483646E9
+    %345: %r5 = alias %331
+    store property %345.$index: %r1, %344
+    %346: %r5 = alias %331
+    %347: %r4 = load property %346.$failure: %r4
+    %348: %r1 = load property %347.Exit: %r1
+    %349: %r1 = const 2.147483647E9
+    %350: %r5 = alias %331
+    store property %350.$index: %r1, %349
+    jump -> block21
+  block6:
+    %311: %r0 = const 8n
+    %312: %r0 = load global trace: %r0
+    %313: %r0 = const 10n
+    %314: %r0 = binary.mul %312, %313
+    %315: %r0 = coerce %314
+    %316: %r0 = binary.add %315, %311
+    %317: %r0 = coerce %316
+    store global trace: %r0, %317
+    jump -> block5
+  block7:
+    %467: %r3 = const 2
+    %468: %r10 = binary.eq %464, %467
+    branch %468 -> block24 -> block25
+  block8:
+    %487: %r9 = alias %377
+    %488: %r1 = load property %487.$index: %r1
+    %489: %r1 = const 1
+    %490: %r10 = binary.eq %488, %489
+    branch %490 -> block71 -> block69
+  block9:
+    %471: %r13 = alias %2
+    %472: %r1 = load property %471.Yield: %r1
+    jump -> block26
+  block10:
+    %541: %r9 = alias %377
+    call walk$drop %541
+    %542: %r3 = const 1
+    %543: %r10 = binary.eq %538, %542
+    branch %543 -> block30 -> block11
+  block11:
+    %544: %r3 = const 2
+    %545: %r10 = binary.eq %538, %544
+    branch %545 -> block27 -> block28
+  block12:
+    %572: %r1 = const 16
+    %573: %r0 = const 13947n
+    call expect %572, %573
+    %574: %r1 = const 4
+    %575: %r1 = const 2
+    %576: %r1 = const 0
+    %577: %r1 = const 0
+    %578: %r1 = const 0
+    %579: %r1 = const 0
+    %580: %r1 = const 0
+    %581: %r3 = const 0
+    %582: %r1 = const 0
+    %583: %r1 = const 0
+    %584: %r4 = object %s1 %581, %582, %583
+    %585: %r5 = object %s0 %576, %577, %578, %579, %580, %584
+    %586: %r1 = const 0
+    store property %585.$index: %r1, %586
+    store property %585.n: %r1, %574
+    store property %585.failAt: %r1, %575
+    %587: %r1 = call drain(tagged.Iter) %585
+    call tagged$drop %585
+    %588: %r0 = convert %587
+    %589: %r0 = load global trace: %r0
+    %590: %r0 = const 10n
+    %591: %r0 = binary.mul %589, %590
+    %592: %r0 = coerce %591
+    %593: %r0 = binary.add %592, %588
+    %594: %r0 = coerce %593
+    store global trace: %r0, %594
+    %595: %r1 = const 32
+    %596: %r0 = const 179222n
+    call expect %595, %596
+    %597: %r1 = const 2
+    %598: %r1 = const 9
+    %599: %r1 = const 0
+    %600: %r1 = const 0
+    %601: %r1 = const 0
+    %602: %r1 = const 0
+    %603: %r1 = const 0
+    %604: %r3 = const 0
+    %605: %r1 = const 0
+    %606: %r1 = const 0
+    %607: %r4 = object %s1 %604, %605, %606
+    %608: %r5 = object %s0 %599, %600, %601, %602, %603, %607
+    %609: %r1 = const 0
+    %610: %r5 = alias %608
+    store property %610.$index: %r1, %609
+    %611: %r5 = alias %608
+    store property %611.n: %r1, %597
+    %612: %r5 = alias %608
+    store property %612.failAt: %r1, %598
+    %613: %r5 = alias %608
+    %617: %r5 = alias %613
+    %618: %r1 = call drain(tagged.Iter) %617
+    %620: %r5 = alias %613
+    call tagged$drop %620
+    %621: %r0 = convert %618
+    %622: %r0 = load global trace: %r0
+    %623: %r0 = const 10n
+    %624: %r0 = binary.mul %622, %623
+    %625: %r0 = coerce %624
+    %626: %r0 = binary.add %625, %621
+    %627: %r0 = coerce %626
+    store global trace: %r0, %627
+    %628: %r1 = const 64
+    %629: %r0 = const 182n
+    call expect %628, %629
+    %630: %r1 = load global failures: %r1
+    return %630
+  block13:
+    %562: %r13 = alias %3
+    %563: %r1 = load property %562.Yield: %r1
+    jump -> block29
+  block14:
+    %129: %r1 = alias %124
+    %130: %r0 = convert %129
+    %131: %r0 = load global trace: %r0
+    %132: %r0 = const 10n
+    %133: %r0 = binary.mul %131, %132
+    %134: %r0 = coerce %133
+    %135: %r0 = binary.add %134, %130
+    %136: %r0 = coerce %135
+    store global trace: %r0, %136
+    %140: %r5 = alias %113
+    %141: %r1 = load property %140.$index: %r1
+    %142: %r1 = const 1
+    %143: %r10 = binary.eq %141, %142
+    branch %143 -> block49 -> block47
+  block15:
+    %216: %r13 = alias %0
+    %217: %r1 = load property %216.Failed: %r1
+    call Tag.drop %217
+    jump -> block16
+  block16:
+    %213: %r1 = alias %212
+    %218: %r0 = convert %213
+    %219: %r0 = load global trace: %r0
+    %220: %r0 = const 10n
+    %221: %r0 = binary.mul %219, %220
+    %222: %r0 = coerce %221
+    %223: %r0 = binary.add %222, %218
+    %224: %r0 = coerce %223
+    store global trace: %r0, %224
+    jump -> block3
+  block17:
+    %306: %r13 = alias %1
+    %307: %r1 = load property %306.Failed: %r1
+    call Tag.drop %307
+    jump -> block18
+  block18:
+    %308: %r5 = alias %113
+    call tagged$drop %308
+    %309: %r3 = const 1
+    %310: %r10 = binary.eq %303, %309
+    branch %310 -> block6 -> block5
+  block19:
+    %234: %r0 = convert %233
+    %235: %r0 = load global trace: %r0
+    %236: %r0 = const 10n
+    %237: %r0 = binary.mul %235, %236
+    %238: %r0 = coerce %237
+    %239: %r0 = binary.add %238, %234
+    %240: %r0 = coerce %239
+    store global trace: %r0, %240
+    jump -> block3
+  block20:
+    %225: %r0 = const 8n
+    %226: %r0 = load global trace: %r0
+    %227: %r0 = const 10n
+    %228: %r0 = binary.mul %226, %227
+    %229: %r0 = coerce %228
+    %230: %r0 = binary.add %229, %225
+    %231: %r0 = coerce %230
+    store global trace: %r0, %231
+    jump -> block3
+  block21:
+    %356: %r1 = alias %348
+    call Tag.drop %356
+    jump -> block22
+  block22:
+    %357: %r5 = alias %331
+    call tagged$drop %357
+    %358: %r0 = const 3n
+    %359: %r0 = load global trace: %r0
+    %360: %r0 = const 10n
+    %361: %r0 = binary.mul %359, %360
+    %362: %r0 = coerce %361
+    %363: %r0 = binary.add %362, %358
+    %364: %r0 = coerce %363
+    store global trace: %r0, %364
+    %365: %r1 = const 8
+    %366: %r0 = const 903n
+    call expect %365, %366
+    %367: %r1 = const 1
+    %368: %r1 = const 0
+    %369: %r1 = const 0
+    %370: %r1 = const 0
+    %371: %r1 = const 0
+    %372: %r1 = const 0
+    %373: %r3 = const 0
+    %374: %r1 = const 0
+    %375: %r1 = const 0
+    %376: %r4 = object %s1 %373, %374, %375
+    %377: %r9 = object %s4 %368, %369, %370, %371, %372, %376
+    %378: %r1 = const 0
+    %379: %r9 = alias %377
+    store property %379.$index: %r1, %378
+    %380: %r9 = alias %377
+    store property %380.start: %r1, %367
+    %385: %r9 = alias %377
+    %388: %r1 = const 0
+    store property %385.$yielded: %r1, %388
+    %389: %r9 = alias %377
+    store property %389.at: %r1, %367
+    %390: %r9 = alias %377
+    store property %390.$slot: %r1, %367
+    %391: %r1 = const 1
+    %392: %r9 = alias %377
+    store property %392.$index: %r1, %391
+    %393: %r1 = load property %390.$slot: %r1
+    jump -> block23
+  block23:
+    %398: %r1 = alias %393
+    %399: %r0 = convert %398
+    %400: %r0 = load global trace: %r0
+    %401: %r0 = const 10n
+    %402: %r0 = binary.mul %400, %401
+    %403: %r0 = coerce %402
+    %404: %r0 = binary.add %403, %399
+    %405: %r0 = coerce %404
+    store global trace: %r0, %405
+    %406: %r1 = const 2
+    %413: %r9 = alias %377
+    %414: %r1 = load property %413.$index: %r1
+    %415: %r1 = const 1
+    %416: %r10 = binary.eq %414, %415
+    branch %416 -> block65 -> block63
+  block24:
+    %469: %r13 = alias %2
+    %470: %r1 = load property %469.Failed: %r1
+    call Tag.drop %470
+    jump -> block25
+  block25:
+    jump -> block8
+  block26:
+    %473: %r0 = convert %472
+    %474: %r0 = load global trace: %r0
+    %475: %r0 = const 10n
+    %476: %r0 = binary.mul %474, %475
+    %477: %r0 = coerce %476
+    %478: %r0 = binary.add %477, %473
+    %479: %r0 = coerce %478
+    store global trace: %r0, %479
+    jump -> block8
+  block27:
+    %546: %r13 = alias %3
+    %547: %r1 = load property %546.Failed: %r1
+    call Tag.drop %547
+    jump -> block28
+  block28:
+    %548: %r0 = const 7n
+    %549: %r0 = load global trace: %r0
+    %550: %r0 = const 10n
+    %551: %r0 = binary.mul %549, %550
+    %552: %r0 = coerce %551
+    %553: %r0 = binary.add %552, %548
+    %554: %r0 = coerce %553
+    store global trace: %r0, %554
+    jump -> block12
+  block29:
+    %564: %r9 = alias %377
+    call walk$drop %564
+    %565: %r0 = convert %563
+    %566: %r0 = load global trace: %r0
+    %567: %r0 = const 10n
+    %568: %r0 = binary.mul %566, %567
+    %569: %r0 = coerce %568
+    %570: %r0 = binary.add %569, %565
+    %571: %r0 = coerce %570
+    store global trace: %r0, %571
+    jump -> block12
+  block30:
+    %555: %r0 = const 8n
+    %556: %r0 = load global trace: %r0
+    %557: %r0 = const 10n
+    %558: %r0 = binary.mul %556, %557
+    %559: %r0 = coerce %558
+    %560: %r0 = binary.add %559, %555
+    %561: %r0 = coerce %560
+    store global trace: %r0, %561
+    jump -> block12
+  block31(%0: %r13):
+    %198: %r13 = alias %0
+    %199: %r3 = load property %198.$tag: %r3
+    %200: %r3 = const 0
+    %201: %r10 = binary.eq %199, %200
+    branch %201 -> block4 -> block1
+  block32:
+    %182: %r5 = alias %113
+    %183: %r1 = load property %182.$index: %r1
+    %184: %r1 = const 2.147483646E9
+    %185: %r10 = binary.eq %183, %184
+    branch %185 -> block34 -> block33
+  block33:
+    %186: %r3 = const 1
+    %187: %r1 = const 0
+    %188: %r1 = const 0
+    %189: %r13 = object %s7 %186, %187, %188
+    jump -> block31(%189)
+  block34:
+    %190: %r5 = alias %113
+    %191: %r4 = load property %190.$failure: %r4
+    %192: %r1 = load property %191.Exit: %r1
+    %193: %r1 = const 2.147483647E9
+    %194: %r5 = alias %113
+    store property %194.$index: %r1, %193
+    %195: %r3 = const 2
+    %196: %r1 = const 0
+    %197: %r13 = object %s7 %195, %196, %192
+    jump -> block31(%197)
+  block35(%1: %r13):
+    %302: %r13 = alias %1
+    %303: %r3 = load property %302.$tag: %r3
+    %304: %r3 = const 2
+    %305: %r10 = binary.eq %303, %304
+    branch %305 -> block17 -> block18
+  block36:
+    %286: %r5 = alias %113
+    %287: %r1 = load property %286.$index: %r1
+    %288: %r1 = const 2.147483646E9
+    %289: %r10 = binary.eq %287, %288
+    branch %289 -> block38 -> block37
+  block37:
+    %290: %r3 = const 1
+    %291: %r1 = const 0
+    %292: %r1 = const 0
+    %293: %r13 = object %s7 %290, %291, %292
+    jump -> block35(%293)
+  block38:
+    %294: %r5 = alias %113
+    %295: %r4 = load property %294.$failure: %r4
+    %296: %r1 = load property %295.Exit: %r1
+    %297: %r1 = const 2.147483647E9
+    %298: %r5 = alias %113
+    store property %298.$index: %r1, %297
+    %299: %r3 = const 2
+    %300: %r1 = const 0
+    %301: %r13 = object %s7 %299, %300, %296
+    jump -> block35(%301)
+  block39(%2: %r13):
+    %463: %r13 = alias %2
+    %464: %r3 = load property %463.$tag: %r3
+    %465: %r3 = const 0
+    %466: %r10 = binary.eq %464, %465
+    branch %466 -> block9 -> block7
+  block40:
+    %440: %r9 = alias %377
+    %441: %r1 = load property %440.$index: %r1
+    %442: %r1 = const 2.147483646E9
+    %443: %r10 = binary.eq %441, %442
+    branch %443 -> block42 -> block41
+  block41:
+    %444: %r3 = const 1
+    %445: %r1 = const 0
+    %446: %r1 = const 0
+    %447: %r13 = object %s7 %444, %445, %446
+    jump -> block39(%447)
+  block42:
+    %448: %r9 = alias %377
+    %449: %r4 = load property %448.$failure: %r4
+    %450: %r1 = load property %449.Exit: %r1
+    %451: %r1 = const 2.147483647E9
+    %452: %r9 = alias %377
+    store property %452.$index: %r1, %451
+    %453: %r3 = const 2
+    %454: %r1 = const 0
+    %455: %r13 = object %s7 %453, %454, %450
+    jump -> block39(%455)
+  block43(%3: %r13):
+    %537: %r13 = alias %3
+    %538: %r3 = load property %537.$tag: %r3
+    %539: %r3 = const 0
+    %540: %r10 = binary.eq %538, %539
+    branch %540 -> block13 -> block10
+  block44:
+    %521: %r9 = alias %377
+    %522: %r1 = load property %521.$index: %r1
+    %523: %r1 = const 2.147483646E9
+    %524: %r10 = binary.eq %522, %523
+    branch %524 -> block46 -> block45
+  block45:
+    %525: %r3 = const 1
+    %526: %r1 = const 0
+    %527: %r1 = const 0
+    %528: %r13 = object %s7 %525, %526, %527
+    jump -> block43(%528)
+  block46:
+    %529: %r9 = alias %377
+    %530: %r4 = load property %529.$failure: %r4
+    %531: %r1 = load property %530.Exit: %r1
+    %532: %r1 = const 2.147483647E9
+    %533: %r9 = alias %377
+    store property %533.$index: %r1, %532
+    %534: %r3 = const 2
+    %535: %r1 = const 0
+    %536: %r13 = object %s7 %534, %535, %531
+    jump -> block43(%536)
+  block47:
+    %144: %r1 = const 0
+    %145: %r10 = binary.eq %141, %144
+    branch %145 -> block48 -> block32
+  block48:
+    %146: %r1 = const 0
+    %147: %r5 = alias %113
+    store property %147.i: %r1, %146
+    jump -> block50
+  block49:
+    %148: %r5 = alias %113
+    %149: %r1 = load property %148.i: %r1
+    %150: %r1 = const 1
+    %151: %r1 = binary.add %149, %150
+    %152: %r1 = coerce %151
+    store property %148.i: %r1, %152
+    jump -> block50
+  block50:
+    %153: %r5 = alias %113
+    %154: %r1 = load property %153.i: %r1
+    %155: %r5 = alias %113
+    %156: %r1 = load property %155.n: %r1
+    %157: %r10 = binary.lt %154, %156
+    branch %157 -> block52 -> block51
+  block51:
+    %158: %r1 = const 0
+    %159: %r3 = const 0
+    %160: %r1 = const 0
+    %161: %r4 = object %s1 %159, %158, %160
+    %162: %r5 = alias %113
+    store property %162.$failure: %r4, %161
+    %163: %r1 = const 2.147483647E9
+    %164: %r5 = alias %113
+    store property %164.$index: %r1, %163
+    jump -> block32
+  block52:
+    %165: %r5 = alias %113
+    %166: %r1 = load property %165.failAt: %r1
+    %167: %r10 = binary.eq %154, %166
+    branch %167 -> block54 -> block53
+  block53:
+    %168: %r5 = alias %113
+    store property %168.$slot: %r1, %154
+    %169: %r1 = const 1
+    %170: %r5 = alias %113
+    store property %170.$index: %r1, %169
+    %171: %r1 = load property %168.$slot: %r1
+    %172: %r3 = const 0
+    %173: %r1 = const 0
+    %174: %r13 = object %s7 %172, %171, %173
+    jump -> block31(%174)
+  block54:
+    %175: %r1 = alias %154
+    %176: %r3 = const 1
+    %177: %r1 = const 0
+    %178: %r4 = object %s1 %176, %177, %175
+    %179: %r5 = alias %113
+    store property %179.$failure: %r4, %178
+    %180: %r1 = const 2.147483646E9
+    %181: %r5 = alias %113
+    store property %181.$index: %r1, %180
+    jump -> block32
+  block55:
+    %248: %r1 = const 0
+    %249: %r10 = binary.eq %245, %248
+    branch %249 -> block56 -> block36
+  block56:
+    %250: %r1 = const 0
+    %251: %r5 = alias %113
+    store property %251.i: %r1, %250
+    jump -> block58
+  block57:
+    %252: %r5 = alias %113
+    %253: %r1 = load property %252.i: %r1
+    %254: %r1 = const 1
+    %255: %r1 = binary.add %253, %254
+    %256: %r1 = coerce %255
+    store property %252.i: %r1, %256
+    jump -> block58
+  block58:
+    %257: %r5 = alias %113
+    %258: %r1 = load property %257.i: %r1
+    %259: %r5 = alias %113
+    %260: %r1 = load property %259.n: %r1
+    %261: %r10 = binary.lt %258, %260
+    branch %261 -> block60 -> block59
+  block59:
+    %262: %r1 = const 0
+    %263: %r3 = const 0
+    %264: %r1 = const 0
+    %265: %r4 = object %s1 %263, %262, %264
+    %266: %r5 = alias %113
+    store property %266.$failure: %r4, %265
+    %267: %r1 = const 2.147483647E9
+    %268: %r5 = alias %113
+    store property %268.$index: %r1, %267
+    jump -> block36
+  block60:
+    %269: %r5 = alias %113
+    %270: %r1 = load property %269.failAt: %r1
+    %271: %r10 = binary.eq %258, %270
+    branch %271 -> block62 -> block61
+  block61:
+    %272: %r5 = alias %113
+    store property %272.$slot: %r1, %258
+    %273: %r1 = const 1
+    %274: %r5 = alias %113
+    store property %274.$index: %r1, %273
+    %275: %r1 = load property %272.$slot: %r1
+    %276: %r3 = const 0
+    %277: %r1 = const 0
+    %278: %r13 = object %s7 %276, %275, %277
+    jump -> block35(%278)
+  block62:
+    %279: %r1 = alias %258
+    %280: %r3 = const 1
+    %281: %r1 = const 0
+    %282: %r4 = object %s1 %280, %281, %279
+    %283: %r5 = alias %113
+    store property %283.$failure: %r4, %282
+    %284: %r1 = const 2.147483646E9
+    %285: %r5 = alias %113
+    store property %285.$index: %r1, %284
+    jump -> block36
+  block63:
+    %417: %r1 = const 0
+    %418: %r10 = binary.eq %414, %417
+    branch %418 -> block64 -> block40
+  block64:
+    %419: %r1 = const 0
+    %420: %r9 = alias %377
+    store property %420.$yielded: %r1, %419
+    %421: %r9 = alias %377
+    %422: %r1 = load property %421.start: %r1
+    %423: %r9 = alias %377
+    store property %423.at: %r1, %422
+    jump -> block66
+  block65:
+    %424: %r9 = alias %377
+    %425: %r1 = load property %424.at: %r1
+    %426: %r1 = binary.add %425, %406
+    %427: %r1 = coerce %426
+    store property %424.at: %r1, %427
+    jump -> block66
+  block66:
+    %428: %r9 = alias %377
+    %429: %r1 = load property %428.at: %r1
+    %430: %r1 = const 100
+    %431: %r10 = binary.lt %429, %430
+    branch %431 -> block67 -> block68
+  block67:
+    %456: %r9 = alias %377
+    store property %456.$slot: %r1, %429
+    %457: %r1 = const 1
+    %458: %r9 = alias %377
+    store property %458.$index: %r1, %457
+    %459: %r1 = load property %456.$slot: %r1
+    %460: %r3 = const 0
+    %461: %r1 = const 0
+    %462: %r13 = object %s7 %460, %459, %461
+    jump -> block39(%462)
+  block68:
+    %432: %r9 = alias %377
+    %433: %r1 = load property %432.$yielded: %r1
+    %434: %r3 = const 0
+    %435: %r1 = const 0
+    %436: %r4 = object %s1 %434, %433, %435
+    %437: %r9 = alias %377
+    store property %437.$failure: %r4, %436
+    %438: %r1 = const 2.147483647E9
+    %439: %r9 = alias %377
+    store property %439.$index: %r1, %438
+    jump -> block40
+  block69:
+    %491: %r1 = const 0
+    %492: %r10 = binary.eq %488, %491
+    branch %492 -> block70 -> block44
+  block70:
+    %493: %r1 = const 0
+    %494: %r9 = alias %377
+    store property %494.$yielded: %r1, %493
+    %495: %r9 = alias %377
+    %496: %r1 = load property %495.start: %r1
+    %497: %r9 = alias %377
+    store property %497.at: %r1, %496
+    %498: %r1 = const 100
+    %499: %r10 = binary.lt %496, %498
+    branch %499 -> block72 -> block73
+  block71:
+    %513: %r1 = const 4
+    %514: %r1 = alias %513
+    %515: %r3 = const 1
+    %516: %r1 = const 0
+    %517: %r4 = object %s1 %515, %516, %514
+    %518: %r9 = alias %377
+    store property %518.$failure: %r4, %517
+    %519: %r1 = const 2.147483646E9
+    %520: %r9 = alias %377
+    store property %520.$index: %r1, %519
+    jump -> block44
+  block72:
+    %506: %r9 = alias %377
+    store property %506.$slot: %r1, %496
+    %507: %r1 = const 1
+    %508: %r9 = alias %377
+    store property %508.$index: %r1, %507
+    %509: %r1 = load property %506.$slot: %r1
+    %510: %r3 = const 0
+    %511: %r1 = const 0
+    %512: %r13 = object %s7 %510, %509, %511
+    jump -> block43(%512)
+  block73:
+    %500: %r3 = const 0
+    %501: %r1 = const 0
+    %502: %r4 = object %s1 %500, %493, %501
+    %503: %r9 = alias %377
+    store property %503.$failure: %r4, %502
+    %504: %r1 = const 2.147483647E9
+    %505: %r9 = alias %377
+    store property %505.$index: %r1, %504
+    jump -> block44
+
+fn tagged$drop(one %r5) -> omitted
+  var $0: %r5
+  block0(%0: %r5):
+    %11: %r1 = const 1
+    %12: %r5 = alias %0
+    %13: %r1 = load property %12.$index: %r1
+    %14: %r1 = const 1
+    %15: %r10 = binary.eq %13, %14
+    branch %15 -> block4 -> block2
+  block1:
+    return
+  block2:
+    %16: %r1 = const 0
+    %17: %r10 = binary.eq %13, %16
+    branch %17 -> block3 -> block1
+  block3:
+    %18: %r1 = const 2.147483647E9
+    %19: %r5 = alias %0
+    store property %19.$index: %r1, %18
+    jump -> block1
+  block4:
+    %20: %r3 = const 0
+    %21: %r1 = const 0
+    %22: %r4 = object %s1 %20, %11, %21
+    %23: %r5 = alias %0
+    store property %23.$failure: %r4, %22
+    %24: %r1 = const 2.147483647E9
+    %25: %r5 = alias %0
+    store property %25.$index: %r1, %24
+    jump -> block1
+
+fn show(one %r8) -> omitted
+  var $0: %r17
+  var $1: %r6
+  var $2: %r6
+  block0(%0: %r8):
+    %6: %r1 = load property %0.$index: %r1
+    %7: %r1 = const 1
+    %8: %r10 = binary.eq %6, %7
+    branch %8 -> block10 -> block8
+  block1:
+    %72: %r3 = const 1
+    %73: %r10 = binary.eq %69, %72
+    branch %73 -> block5 -> block2
+  block2:
+    %74: %r17 = alias %1
+    %75: %r6 = load property %74.Failed: %r6
+    %76: %r6 = alias %75
+    %77: %r6 = alias %76
+    %78: %r6 = alias %77
+    %79: %r6 = const "at 2"
+    %80: %r6 = alias %78
+    %81: %r6 = alias %79
+    %82: %r6 = alias %80
+    %83: %r6 = alias %81
+    %84: %r10 = host host.binary "===" %82, %83
+    branch %84 -> block6 -> block3
+  block3:
+    return
+  block4:
+    %99: %r17 = alias %1
+    %100: %r1 = load property %99.Yield: %r1
+    %101: %r0 = convert %100
+    %102: %r0 = load global trace: %r0
+    %103: %r0 = const 10n
+    %104: %r0 = binary.mul %102, %103
+    %105: %r0 = coerce %104
+    %106: %r0 = binary.add %105, %101
+    %107: %r0 = coerce %106
+    store global trace: %r0, %107
+    jump -> block3
+  block5:
+    %92: %r0 = const 8n
+    %93: %r0 = load global trace: %r0
+    %94: %r0 = const 10n
+    %95: %r0 = binary.mul %93, %94
+    %96: %r0 = coerce %95
+    %97: %r0 = binary.add %96, %92
+    %98: %r0 = coerce %97
+    store global trace: %r0, %98
+    jump -> block3
+  block6:
+    %85: %r0 = const 7n
+    %86: %r0 = load global trace: %r0
+    %87: %r0 = const 10n
+    %88: %r0 = binary.mul %86, %87
+    %89: %r0 = coerce %88
+    %90: %r0 = binary.add %89, %85
+    %91: %r0 = coerce %90
+    store global trace: %r0, %91
+    jump -> block3
+  block7(%1: %r17):
+    %68: %r17 = alias %1
+    %69: %r3 = load property %68.$tag: %r3
+    %70: %r3 = const 0
+    %71: %r10 = binary.eq %69, %70
+    branch %71 -> block4 -> block1
+  block8:
+    %9: %r1 = const 0
+    %10: %r10 = binary.eq %6, %9
+    branch %10 -> block9 -> block16
+  block9:
+    %11: %r1 = const 0
+    store property %0.i: %r1, %11
+    jump -> block11
+  block10:
+    %12: %r1 = load property %0.i: %r1
+    %13: %r1 = const 1
+    %14: %r1 = binary.add %12, %13
+    %15: %r1 = coerce %14
+    store property %0.i: %r1, %15
+    jump -> block11
+  block11:
+    %16: %r1 = load property %0.i: %r1
+    %17: %r1 = load property %0.n: %r1
+    %18: %r10 = binary.lt %16, %17
+    branch %18 -> block13 -> block12
+  block12:
+    %19: %r1 = const 0
+    %20: %r3 = const 0
+    %21: %r6 = const ""
+    %22: %r7 = object %s3 %20, %19, %21
+    store property %0.$failure: %r7, %22
+    %23: %r1 = const 2.147483647E9
+    store property %0.$index: %r1, %23
+    jump -> block16
+  block13:
+    %24: %r1 = load property %0.failAt: %r1
+    %25: %r10 = binary.eq %16, %24
+    branch %25 -> block15 -> block14
+  block14:
+    store property %0.$slot: %r1, %16
+    %26: %r1 = const 1
+    store property %0.$index: %r1, %26
+    %27: %r1 = load property %0.$slot: %r1
+    %28: %r3 = const 0
+    %29: %r6 = const ""
+    %30: %r17 = object %s10 %28, %27, %29
+    jump -> block7(%30)
+  block15:
+    %33: %r6 = const ""
+    store var $2: %r6, %33
+    %34: %r6 = const "at "
+    %35: %r6 = load var $2: %r6
+    %36: %r6 = alias %35
+    %37: %r6 = alias %34
+    %38: %r6 = alias %36
+    %39: %r6 = alias %37
+    %40: %r6 = host host.binary "+" %38, %39
+    store var $2: %r6, %40
+    %41: %r1 = alias %16
+    %42: %r6 = host host.global "String" %41
+    %43: %r6 = load var $2: %r6
+    %44: %r6 = alias %43
+    %45: %r6 = alias %42
+    %46: %r6 = alias %44
+    %47: %r6 = alias %45
+    %48: %r6 = host host.binary "+" %46, %47
+    store var $2: %r6, %48
+    %49: %r6 = load var $2: %r6
+    %50: %r6 = alias %49
+    %51: %r3 = const 1
+    %52: %r1 = const 0
+    %53: %r7 = object %s3 %51, %52, %50
+    store property %0.$failure: %r7, %53
+    %54: %r1 = const 2.147483646E9
+    store property %0.$index: %r1, %54
+    jump -> block16
+  block16:
+    %55: %r1 = load property %0.$index: %r1
+    %56: %r1 = const 2.147483646E9
+    %57: %r10 = binary.eq %55, %56
+    branch %57 -> block18 -> block17
+  block17:
+    %58: %r3 = const 1
+    %59: %r1 = const 0
+    %60: %r6 = const ""
+    %61: %r17 = object %s10 %58, %59, %60
+    jump -> block7(%61)
+  block18:
+    %62: %r7 = load property %0.$failure: %r7
+    %63: %r6 = load property %62.Exit: %r6
+    %64: %r1 = const 2.147483647E9
+    store property %0.$index: %r1, %64
+    %65: %r3 = const 2
+    %66: %r1 = const 0
+    %67: %r17 = object %s10 %65, %66, %63
+    jump -> block7(%67)
+
+fn walk$drop(one %r9) -> omitted
+  var $0: %r9
+  block0(%0: %r9):
+    %11: %r1 = const 1
+    %16: %r9 = alias %0
+    %17: %r1 = load property %16.$index: %r1
+    %18: %r1 = const 1
+    %19: %r10 = binary.eq %17, %18
+    branch %19 -> block4 -> block2
+  block1:
+    return
+  block2:
+    %20: %r1 = const 0
+    %21: %r10 = binary.eq %17, %20
+    branch %21 -> block3 -> block1
+  block3:
+    %22: %r1 = const 2.147483647E9
+    %23: %r9 = alias %0
+    store property %23.$index: %r1, %22
+    jump -> block1
+  block4:
+    %24: %r9 = alias %0
+    store property %24.$yielded: %r1, %11
+    %25: %r3 = const 0
+    %26: %r1 = const 0
+    %27: %r4 = object %s1 %25, %11, %26
+    %28: %r9 = alias %0
+    store property %28.$failure: %r4, %27
+    %29: %r1 = const 2.147483647E9
+    %30: %r9 = alias %0
+    store property %30.$index: %r1, %29
+    jump -> block1
+
+fn drain(tagged.Iter)(one %r5) -> one %r1
+  var $0: %r13
+  block0(%0: %r5):
+    %7: %r1 = const 0
+    %8: %r3 = const 0
+    %9: %r3 = const 1
+    %10: %r0 = const 7n
+    %11: %r3 = const 2
+    %12: %r0 = const 8n
+    %13: %r1 = const 1
+    %14: %r0 = const 10n
+    %15: %r1 = const 1
+    %16: %r1 = const 0
+    %17: %r1 = const 0
+    %18: %r1 = const 1
+    %19: %r1 = const 0
+    %20: %r1 = const 2.147483647E9
+    %21: %r1 = const 1
+    %22: %r1 = const 2.147483646E9
+    %23: %r1 = const 2.147483646E9
+    %24: %r1 = const 2.147483647E9
+    jump -> block2(%7)
+  block1:
+    return %1
+  block2(%1: %r1):
+    %25: %r1 = load property %0.$index: %r1
+    %26: %r10 = binary.eq %25, %15
+    branch %26 -> block13 -> block11
+  block3:
+    %61: %r10 = binary.eq %59, %9
+    branch %61 -> block9 -> block4
+  block4:
+    %62: %r13 = alias %2
+    %63: %r0 = load global trace: %r0
+    %64: %r0 = const 10n
+    %65: %r0 = binary.mul %63, %64
+    %66: %r0 = coerce %65
+    %67: %r0 = binary.add %66, %10
+    %68: %r0 = coerce %67
+    store global trace: %r0, %68
+    %69: %r1 = load property %62.Failed: %r1
+    %71: %r10 = binary.eq %59, %11
+    branch %71 -> block6 -> block7
+  block5:
+    %87: %r13 = alias %2
+    %88: %r1 = load property %87.Yield: %r1
+    jump -> block8
+  block6:
+    %72: %r13 = alias %2
+    %73: %r1 = load property %72.Failed: %r1
+    call Tag.drop %73
+    jump -> block7
+  block7:
+    %70: %r1 = alias %69
+    %74: %r0 = convert %70
+    %75: %r0 = load global trace: %r0
+    %76: %r0 = const 10n
+    %77: %r0 = binary.mul %75, %76
+    %78: %r0 = coerce %77
+    %79: %r0 = binary.add %78, %74
+    %80: %r0 = coerce %79
+    store global trace: %r0, %80
+    jump -> block1
+  block8:
+    %89: %r0 = convert %88
+    %90: %r0 = load global trace: %r0
+    %91: %r0 = binary.mul %90, %14
+    %92: %r0 = coerce %91
+    %93: %r0 = binary.add %92, %89
+    %94: %r0 = coerce %93
+    store global trace: %r0, %94
+    %95: %r1 = binary.add %1, %13
+    %96: %r1 = coerce %95
+    jump -> block2(%96)
+  block9:
+    %81: %r0 = load global trace: %r0
+    %82: %r0 = const 10n
+    %83: %r0 = binary.mul %81, %82
+    %84: %r0 = coerce %83
+    %85: %r0 = binary.add %84, %12
+    %86: %r0 = coerce %85
+    store global trace: %r0, %86
+    jump -> block1
+  block10(%2: %r13):
+    %58: %r13 = alias %2
+    %59: %r3 = load property %58.$tag: %r3
+    %60: %r10 = binary.eq %59, %8
+    branch %60 -> block5 -> block3
+  block11:
+    %27: %r10 = binary.eq %25, %16
+    branch %27 -> block12 -> block19
+  block12:
+    store property %0.i: %r1, %17
+    jump -> block14
+  block13:
+    %28: %r1 = load property %0.i: %r1
+    %29: %r1 = binary.add %28, %18
+    %30: %r1 = coerce %29
+    store property %0.i: %r1, %30
+    jump -> block14
+  block14:
+    %31: %r1 = load property %0.i: %r1
+    %32: %r1 = load property %0.n: %r1
+    %33: %r10 = binary.lt %31, %32
+    branch %33 -> block16 -> block15
+  block15:
+    %34: %r3 = const 0
+    %35: %r1 = const 0
+    %36: %r4 = object %s1 %34, %19, %35
+    store property %0.$failure: %r4, %36
+    store property %0.$index: %r1, %20
+    jump -> block19
+  block16:
+    %37: %r1 = load property %0.failAt: %r1
+    %38: %r10 = binary.eq %31, %37
+    branch %38 -> block18 -> block17
+  block17:
+    store property %0.$slot: %r1, %31
+    store property %0.$index: %r1, %21
+    %39: %r1 = load property %0.$slot: %r1
+    %40: %r3 = const 0
+    %41: %r1 = const 0
+    %42: %r13 = object %s7 %40, %39, %41
+    jump -> block10(%42)
+  block18:
+    %43: %r1 = alias %31
+    %44: %r3 = const 1
+    %45: %r1 = const 0
+    %46: %r4 = object %s1 %44, %45, %43
+    store property %0.$failure: %r4, %46
+    store property %0.$index: %r1, %22
+    jump -> block19
+  block19:
+    %47: %r1 = load property %0.$index: %r1
+    %48: %r10 = binary.eq %47, %23
+    branch %48 -> block21 -> block20
+  block20:
+    %49: %r3 = const 1
+    %50: %r1 = const 0
+    %51: %r1 = const 0
+    %52: %r13 = object %s7 %49, %50, %51
+    jump -> block10(%52)
+  block21:
+    %53: %r4 = load property %0.$failure: %r4
+    %54: %r1 = load property %53.Exit: %r1
+    store property %0.$index: %r1, %24
+    %55: %r3 = const 2
+    %56: %r1 = const 0
+    %57: %r13 = object %s7 %55, %56, %54
+    jump -> block10(%57)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 165 adopted 0 sunk 0 numbered 3 decided 0 unboxed 0 updated 0 split 4 promoted 128 folded 0
+
+shape %s0 object tagged.Iter {$index: %r1, $slot: %r1, n: %r1, failAt: %r1, i: %r1, $failure: %r4}
+shape %s1 object Outcome {$tag: %r3 tag, Proceed: %r1, Exit: %r1}
+shape %s2 object upTo.Iter {$index: %r1, $slot: %r1, n: %r1, failAt: %r1, i: %r1, $failure: %r7}
+shape %s3 object Outcome {$tag: %r3 tag, Proceed: %r1, Exit: %r6}
+shape %s4 object walk.Iter {$index: %r1, $slot: %r1, start: %r1, $yielded: %r1, at: %r1, $failure: %r4}
+shape %s5 object IterStep {$tag: %r3 tag, Yield: %r1, Failed: %r1}
+shape %s6 object Holder {source: %r5, tag: %r1}
+shape %s7 object IterStep {$tag: %r3 tag, Yield: %r1, Failed: %r1}
+shape %s8 object Outcome {$tag: %r3 tag, Proceed: %r1, Exit: %r1}
+shape %s9 object IterStep {$tag: %r3 tag, Yield: %r1, Failed: %r6}
+shape %s10 object IterStep {$tag: %r3 tag, Yield: %r1, Failed: %r6}
+
+rep %r0 = bigint signed
+rep %r1 = number signed 32
+rep %r2 = void
+rep %r3 = number unsigned 8
+rep %r4 = object %s1
+rep %r5 = object %s0
+rep %r6 = string
+rep %r7 = object %s3
+rep %r8 = object %s2
+rep %r9 = object %s4
+rep %r10 = number bool
+rep %r11 = object %s5
+rep %r12 = object %s6
+rep %r13 = object %s7
+rep %r14 = array Int32Array of %r1
+rep %r15 = object %s8
+rep %r16 = object %s9
+rep %r17 = object %s10
+rep %r18 = nullable of %r1

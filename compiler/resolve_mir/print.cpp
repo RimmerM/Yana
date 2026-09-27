@@ -838,15 +838,15 @@ struct Printer {
                 if(step.block != index || step.position != position) continue;
 
                 // `drop.maybe` is a path that was owned on some incoming paths and not on others, and
-                // is what the conversion emits a flag test for. Nothing in this language subset
-                // reaches it - see the README - so a golden containing one is news.
+                // is what the conversion emits a flag test for - see the README's "Drop flags". `in
+                // arm` is a member of a sum nothing proved the constructor of, whose tag is tested.
                 writer.writeString(step.conditional ? "  drop.maybe "_v : "  drop "_v);
                 writer.writeString("("_v);
 
                 // The step's own place, which a path-backed one and an overwrite of a place with no
                 // path both carry - see `mir::DropStep`.
                 place(body, *body.place(mir, step.place));
-                writer.writeString(")\n"_v);
+                writer.writeString(step.guarded ? ") in arm\n"_v : ")\n"_v);
             }
 
             return;
@@ -976,6 +976,25 @@ struct Printer {
             node(body, *mir[nodePointer]);
             elaborated(body, value.index.index, position, false);
             position++;
+        }
+
+        leaveSteps(body, value.index.index, position);
+    }
+
+    /*
+     * The teardowns placed past a `lens.call`'s terminator - on its **leave path**, where a `return`
+     * inside the region propagates out after the callee's cleanup (K6). Printed after the call and
+     * marked, since nothing runs them on the call's other exits.
+     */
+    void leaveSteps(Body& body, U32 index, U32 count) {
+        if(!body.elaboration) return;
+
+        for(auto& step: mir[body.elaboration]->drops.contents(mir)) {
+            if(step.block != index || step.position != count) continue;
+
+            writer.writeString(step.conditional ? "  leave: drop.maybe ("_v : "  leave: drop ("_v);
+            place(body, *body.place(mir, step.place));
+            writer.writeString(step.guarded ? ") in arm\n"_v : ")\n"_v);
         }
     }
 

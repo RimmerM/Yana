@@ -6,15 +6,15 @@ data Cell {n: I32}
 
 data EBox {key: 0'String} shape1
 
-let string'142: [CodeUnit *0] = ""
+let string'188: [CodeUnit *0] = ""
 
-let string'143: [CodeUnit *1] = "a"
+let string'189: [CodeUnit *1] = "a"
 
-let string'144: [CodeUnit *3] = "abc"
+let string'190: [CodeUnit *3] = "abc"
 
-let string'145: [CodeUnit *2] = "ab"
+let string'191: [CodeUnit *2] = "ab"
 
-let string'146: [CodeUnit *4] = "four"
+let string'192: [CodeUnit *4] = "four"
 
 fn longest(xs: Array(String) [shared call view]) -> Size {
   local local1: String [shared slot 0 view]
@@ -126,7 +126,7 @@ fn lastKey(m: Map(String, I32) [shared call]) -> Size {
   local & local4: EBox
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 0, ownsHeap: 0}, length: 0}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 0, ownsHeap: 0}, length: 0}}
   write.init borrow.unique (local1) take %0
   %2: String [shared slot 0] = read borrow.shared (local1) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
@@ -258,9 +258,9 @@ fn main() -> I32 {
   local fixed: Size
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
-  %1: String = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
-  %2: String = const String {units: Array {run: Run {items: &string'145, capacity: 2, ownsHeap: 0}, length: 2}}
+  %0: String = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  %1: String = const String {units: Array {run: Run {items: &string'190, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'191, capacity: 2, ownsHeap: 0}, length: 2}}
   %3: %String = run.slots String *3
   %4: Size = bitcast inspect %3
   %5: Size = const 0
@@ -308,7 +308,7 @@ bb0:
   write.init borrow.unique ([%%31][2]) take %30
   %48: Array(I32) = read take (local3)
   write.init borrow.unique (ints) take %48
-  %50: String = const String {units: Array {run: Run {items: &string'146, capacity: 4, ownsHeap: 0}, length: 4}}
+  %50: String = const String {units: Array {run: Run {items: &string'192, capacity: 4, ownsHeap: 0}, length: 4}}
   %51: I32 = const 4
   %52: Size = const 1
   %53: Map(String, I32) = call newMap(String, I32) borrow.shared %52

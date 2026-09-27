@@ -1,0 +1,555 @@
+module ResolveTest
+
+data Win {space: I32, used: I32}
+
+data Sink {total: I32}
+
+data plainLens(I32).Lens {$index: I32, $slot: {}, output: %Sink} shape9
+
+data marked.Iter {$index: I32, $slot: I32, out: %Sink, n: I32, : I32, : I32, : I32, $plainLens: plainLens(I32).Lens} shape11 drop authored
+
+data withWin(I32).Lens {$index: I32, $slot: %Win, output: %Sink, minimum: I32, w: Win} shape9
+
+data windowed.Iter {$index: I32, $slot: I32, out: %Sink, n: I32, : I32, : I32, : I32, $withWin: withWin(I32).Lens} shape11 drop authored
+
+data Sink.withWindow.Lens {$index: I32, $slot: %Win, output: %Sink, minimum: I32, w: Win} shape9
+
+data encode(Sink).Iter {$index: I32, $slot: I32, out: %Sink, n: I32, : I32, : I32, : I32, $withWindow: Sink.withWindow.Lens} shape11 drop authored
+
+class WindowOut(o): withWindow
+
+instance WindowOut(Sink): Sink.withWindow
+
+instance Drop(marked.Iter): marked$drop
+
+instance Iterate(marked.Iter, I32, {}): marked$next, marked$resume
+
+instance Drop(windowed.Iter): windowed$drop
+
+instance Iterate(windowed.Iter, I32, {}): windowed$next, windowed$resume
+
+instance Drop(encode(Sink).Iter): encode(Sink)$drop
+
+instance Iterate(encode(Sink).Iter, I32, {}): encode(Sink)$next, encode(Sink)$resume
+
+lens fn withWindow(output: o [unique call], minimum: I32 [shared call], $body: (&Win) -> I32 [shared call]) -> I32 = <no body>
+
+lens fn Sink.withWindow(output: Sink [unique call], minimum: I32 [shared call], $body: (&Win) -> I32 [shared call]) -> I32 {
+  local $yielded: I32
+  local & w: Win
+
+bb0:
+  %0: I32 = read copy.trivial (minimum)
+  %1: I32 = const 0
+  %2: Win = aggregate.Win take %0 take %1
+  write.init borrow.unique (w) take %2
+  %4: Win [unique call] = read borrow.unique (w) loan0
+  %5: (&Win) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %6: I32 = call inspect %5 borrow.unique %4
+  write.init borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial (output.total)
+  %9: I32 = read copy.trivial (minimum)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (output.total) take %10
+  %12: I32 = read copy.trivial ($yielded)
+  return take %12
+}
+
+lens fn withWin(output: Sink [unique call], minimum: I32 [shared call], $body: (&Win) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+  local & w: Win
+
+bb0:
+  %0: I32 = read copy.trivial (minimum)
+  %1: I32 = const 0
+  %2: Win = aggregate.Win take %0 take %1
+  write.init borrow.unique (w) take %2
+  %4: Win [unique call] = read borrow.unique (w) loan0
+  %5: (&Win) -> $r [shared call] = read borrow.shared ($body) loan1
+  %6: $r = call inspect %5 borrow.unique %4
+  write.init borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial (output.total)
+  %9: I32 = read copy.trivial (minimum)
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = read copy.trivial (w.used)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (output.total) take %12
+  %14: $r = read take ($yielded)
+  return take %14
+}
+
+lens fn plainLens(output: Sink [unique call], $body: (->{}) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: {} = const {}
+  %1: (->{}) -> $r [shared call] = read borrow.shared ($body) loan0
+  %2: $r = call inspect %1 take {}
+  write.init borrow.unique ($yielded) take %2
+  %4: I32 = read copy.trivial (output.total)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (output.total) take %6
+  %8: $r = read take ($yielded)
+  return take %8
+}
+
+lens fn marked(out: Sink [unique call], n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+  local local6: {}
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %39: I32 = read copy.trivial (local4)
+  %40: I32 = add inspect %39 inspect %8
+  write.assign borrow.unique (local4) take %40
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %43: I32 = read copy.trivial ($yielded)
+  return take %43
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: Sink [unique call] = read borrow.unique (out) loan0
+  lens.call plainLens(I32) borrow.unique %20 -> bb6
+
+bb5:
+  %33: I32 = read copy.trivial ($yielded)
+  %34: I32 = const 0
+  %35: Bool = eq inspect %33 inspect %34
+  branch inspect %35 -> bb9 -> bb10
+
+bb6(%21: {}) handover({}) -> bb5:
+  write.init borrow.unique (local6) take {}
+  %24: I32 = read copy.trivial (i)
+  %25: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %26: I32 = call inspect %25 borrow.shared %24
+  %27: I32 = const 0
+  %28: Bool = eq inspect %26 inspect %27
+  write.assign borrow.unique ($yielded) take %26
+  branch inspect %28 -> bb7 -> bb8
+
+bb7 handover({}):
+  jump -> bb5
+
+bb8 handover({}):
+  jump -> bb5
+
+bb9:
+  jump -> bb2(take %15, take %16)
+
+bb10:
+  jump -> bb3(take %15, take %16)
+}
+
+lens fn windowed(out: Sink [unique call], n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+  local & w: Win [unique call owner]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %42: I32 = read copy.trivial (local4)
+  %43: I32 = add inspect %42 inspect %8
+  write.assign borrow.unique (local4) take %43
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %46: I32 = read copy.trivial ($yielded)
+  return take %46
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: Sink [unique call] = read borrow.unique (out) loan0
+  %21: I32 = read copy.trivial (i)
+  lens.call withWin(I32) borrow.unique %20 borrow.shared %21 -> bb6
+
+bb5:
+  %36: I32 = read copy.trivial ($yielded)
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb9 -> bb10
+
+bb6(%22: Win [unique call owner]) handover(Win [unique call owner]) -> bb5:
+  write.init borrow.unique (w) borrow.unique %22
+  %25: I32 = const 100
+  write.assign borrow.unique (w.used) take %25
+  %27: I32 = read copy.trivial (w.space)
+  %28: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %29: I32 = call inspect %28 borrow.shared %27
+  %30: I32 = const 0
+  %31: Bool = eq inspect %29 inspect %30
+  write.assign borrow.unique ($yielded) take %29
+  branch inspect %31 -> bb7 -> bb8
+
+bb7 handover(Win [unique call owner]):
+  jump -> bb5
+
+bb8 handover(Win [unique call owner]):
+  jump -> bb5
+
+bb9:
+  jump -> bb2(take %15, take %16)
+
+bb10:
+  jump -> bb3(take %15, take %16)
+}
+
+lens fn encode(out: o [unique call], n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type o
+  slot #1 class WindowOut(o)
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+  local & w: Win [unique call owner]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %44: I32 = read copy.trivial (local4)
+  %45: I32 = add inspect %44 inspect %8
+  write.assign borrow.unique (local4) take %45
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %48: I32 = read copy.trivial ($yielded)
+  return take %48
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: o [unique call] = read borrow.unique (out) loan0
+  %21: I32 = read copy.trivial (i)
+  %22: I32 = const 10
+  %23: I32 = mul inspect %21 inspect %22
+  lens.call withWindow(o) borrow.unique %20 borrow.shared %23 -> bb6
+
+bb5:
+  %38: I32 = read copy.trivial ($yielded)
+  %39: I32 = const 0
+  %40: Bool = eq inspect %38 inspect %39
+  branch inspect %40 -> bb9 -> bb10
+
+bb6(%24: Win [unique call owner]) handover(Win [unique call owner]) -> bb5:
+  write.init borrow.unique (w) borrow.unique %24
+  %27: I32 = read copy.trivial (w.space)
+  %28: I32 = const 10
+  %29: I32 = div inspect %27 inspect %28
+  %30: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %31: I32 = call inspect %30 borrow.shared %29
+  %32: I32 = const 0
+  %33: Bool = eq inspect %31 inspect %32
+  write.assign borrow.unique ($yielded) take %31
+  branch inspect %33 -> bb7 -> bb8
+
+bb7 handover(Win [unique call owner]):
+  jump -> bb5
+
+bb8 handover(Win [unique call owner]):
+  jump -> bb5
+
+bb9:
+  jump -> bb2(take %15, take %16)
+
+bb10:
+  jump -> bb3(take %15, take %16)
+}
+
+fn main() -> I32 {
+  local & sum: I32
+  local & a: Sink
+  local & first: marked.Iter [owned here shape9 .2.*=unique slot 0]
+  local x: I32
+  local & b: Sink
+  local & second: windowed.Iter [owned here shape9 .2.*=unique slot 0]
+  local x: I32
+  local & c: Sink
+  local & third: encode(Sink).Iter [owned here shape9 .2.*=unique slot 0]
+  local x: I32
+  local & d: Sink
+  local & fourth: windowed.Iter [owned here shape9 .2.*=unique slot 0]
+  local x: I32
+  flag (fourth) = gone
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  %3: Sink = aggregate.Sink take %2
+  write.init borrow.unique (a) take %3
+  %5: Sink [unique call] = read borrow.unique (a) loan0
+  %6: I32 = const 5
+  %7: marked.Iter [owned here shape9 .2.*=unique slot 0] = call marked$new borrow.unique %5 take %6 roots.0{0}
+  write.init borrow.unique (first) take %7
+  jump -> bb1
+
+bb1:
+  %10: marked.Iter [unique call shape9 .2.*=unique slot 0] = read borrow.unique (first) loan1 roots.0{0}
+  %11: I32 = const 0
+  %12: Bool = const False
+  %13: Bool = call marked$step borrow.unique %10 take %11 take %12
+  branch inspect %13 -> bb3 -> bb2
+
+bb2:
+  drop (first)
+  %22: I32 = const 0
+  %23: Sink = aggregate.Sink take %22
+  write.init borrow.unique (b) take %23
+  %25: Sink [unique call] = read borrow.unique (b) loan2
+  %26: I32 = const 5
+  %27: windowed.Iter [owned here shape9 .2.*=unique slot 0] = call windowed$new borrow.unique %25 take %26 roots.0{2}
+  write.init borrow.unique (second) take %27
+  jump -> bb4
+
+bb3:
+  %15: I32 = read copy.trivial (first.$slot)
+  write.init borrow.unique (x) take %15
+  %17: I32 = read copy.trivial (sum)
+  %18: I32 = read copy.trivial (x)
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (sum) take %19
+  jump -> bb1
+
+bb4:
+  %30: windowed.Iter [unique call shape9 .2.*=unique slot 0] = read borrow.unique (second) loan3 roots.0{2}
+  %31: I32 = const 0
+  %32: Bool = const False
+  %33: Bool = call windowed$step borrow.unique %30 take %31 take %32
+  branch inspect %33 -> bb6 -> bb5
+
+bb5:
+  drop (second)
+  %44: I32 = const 0
+  %45: Sink = aggregate.Sink take %44
+  write.init borrow.unique (c) take %45
+  %47: Sink [unique call] = read borrow.unique (c) loan4
+  %48: I32 = const 4
+  %49: encode(Sink).Iter [owned here shape9 .2.*=unique slot 0] = call encode(Sink)$new borrow.unique %47 take %48 roots.0{4}
+  write.init borrow.unique (third) take %49
+  jump -> bb7
+
+bb6:
+  %35: I32 = read copy.trivial (second.$slot)
+  write.init borrow.unique (x) take %35
+  %37: I32 = read copy.trivial (sum)
+  %38: I32 = read copy.trivial (x)
+  %39: I32 = const 100
+  %40: I32 = mul inspect %38 inspect %39
+  %41: I32 = add inspect %37 inspect %40
+  write.assign borrow.unique (sum) take %41
+  jump -> bb4
+
+bb7:
+  %52: encode(Sink).Iter [unique call shape9 .2.*=unique slot 0] = read borrow.unique (third) loan5 roots.0{4}
+  %53: I32 = const 0
+  %54: Bool = const False
+  %55: Bool = call encode(Sink)$step borrow.unique %52 take %53 take %54
+  branch inspect %55 -> bb9 -> bb8
+
+bb8:
+  drop (third)
+  %66: I32 = const 0
+  %67: Sink = aggregate.Sink take %66
+  write.init borrow.unique (d) take %67
+  %69: Sink [unique call] = read borrow.unique (d) loan6
+  %70: I32 = const 5
+  %71: windowed.Iter [owned here shape9 .2.*=unique slot 0] = call windowed$new borrow.unique %69 take %70 roots.0{6}
+  write.init borrow.unique (fourth) take %71
+  flag (fourth) = held
+  jump -> bb10
+
+bb9:
+  %57: I32 = read copy.trivial (third.$slot)
+  write.init borrow.unique (x) take %57
+  %59: I32 = read copy.trivial (sum)
+  %60: I32 = read copy.trivial (x)
+  %61: I32 = const 10000
+  %62: I32 = mul inspect %60 inspect %61
+  %63: I32 = add inspect %59 inspect %62
+  write.assign borrow.unique (sum) take %63
+  jump -> bb7
+
+bb10:
+  %74: windowed.Iter [unique call shape9 .2.*=unique slot 0] = read borrow.unique (fourth) loan7 roots.0{6}
+  %75: I32 = const 0
+  %76: Bool = const False
+  %77: Bool = call windowed$step borrow.unique %74 take %75 take %76
+  branch inspect %77 -> bb12 -> bb11
+
+bb11:
+  drop.maybe (fourth)
+  %88: I32 = read copy.trivial (b.total)
+  flag (fourth) = gone
+  %89: I32 = const 510
+  %90: Bool = ne inspect %88 inspect %89
+  branch inspect %90 -> bb18 -> bb16
+
+bb12:
+  %79: I32 = read copy.trivial (fourth.$slot)
+  write.init borrow.unique (x) take %79
+  %81: I32 = read copy.trivial (x)
+  %82: I32 = const 2
+  %83: Bool = eq inspect %81 inspect %82
+  branch inspect %83 -> bb15 -> bb13
+
+bb13:
+  jump -> bb14
+
+bb14:
+  jump -> bb10
+
+bb15:
+  drop (fourth)
+  jump -> bb11
+  flag (fourth) = gone
+
+bb16:
+  %93: I32 = read copy.trivial (c.total)
+  %94: I32 = const 60
+  %95: Bool = ne inspect %93 inspect %94
+  jump -> bb17(take %95)
+
+bb17(%96: Bool):
+  branch inspect %96 -> bb21 -> bb19
+
+bb18:
+  %92: Bool = const True
+  jump -> bb17(take %92)
+
+bb19:
+  %101: I32 = read copy.trivial (d.total)
+  %102: I32 = const 303
+  %103: Bool = ne inspect %101 inspect %102
+  jump -> bb20(take %103)
+
+bb20(%104: Bool):
+  branch inspect %104 -> bb24 -> bb22
+
+bb21:
+  %100: Bool = const True
+  jump -> bb20(take %100)
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %111: I32 = read copy.trivial (sum)
+  %112: I32 = const 1000000
+  %113: I32 = read copy.trivial (a.total)
+  %114: I32 = const 10
+  %115: I32 = read copy.trivial (d.total)
+  %116: I32 = const 300
+  %117: I32 = sub inspect %115 inspect %116
+  %118: I32 = mul inspect %114 inspect %117
+  %119: I32 = add inspect %113 inspect %118
+  %120: I32 = mul inspect %112 inspect %119
+  %121: I32 = add inspect %111 inspect %120
+  return take %121
+
+bb24:
+  %108: I32 = const -1
+  return take %108
+}
+
+lens fn plainLens(I32)(output: Sink [unique call], $body: (->{}) -> I32 [shared call]) -> I32 = <plainLens at I32>
+
+fn plainLens(I32)$new(output: Sink [unique slot 0]) -> plainLens(I32).Lens [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn plainLens(I32)$step($self: plainLens(I32).Lens [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn marked$new(out: Sink [unique slot 0], n: I32) -> marked.Iter [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn marked$step($self: marked.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn marked$drop($self: marked.Iter) -> {} = <no body>
+
+fn marked$next($self: marked.Iter [unique slot 0 shape9 .2.*=unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn marked$resume($self: marked.Iter [unique slot 0 shape9 .2.*=unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+lens fn withWin(I32)(output: Sink [unique call], minimum: I32 [shared call], $body: (&Win) -> I32 [shared call]) -> I32 = <withWin at I32>
+
+fn withWin(I32)$new(output: Sink [unique slot 0], minimum: I32) -> withWin(I32).Lens [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn withWin(I32)$step($self: withWin(I32).Lens [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn withWin(I32)$item($self: withWin(I32).Lens [shared slot 0]) -> Win [unique slot 0] = <no body>
+
+fn windowed$new(out: Sink [unique slot 0], n: I32) -> windowed.Iter [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn windowed$step($self: windowed.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn windowed$drop($self: windowed.Iter) -> {} = <no body>
+
+fn windowed$next($self: windowed.Iter [unique slot 0 shape9 .2.*=unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn windowed$resume($self: windowed.Iter [unique slot 0 shape9 .2.*=unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+lens fn encode(Sink)(out: Sink [unique call], n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <encode at Sink>
+
+fn Sink.withWindow$new(output: Sink [unique slot 0], minimum: I32) -> Sink.withWindow.Lens [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn Sink.withWindow$step($self: Sink.withWindow.Lens [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn Sink.withWindow$item($self: Sink.withWindow.Lens [shared slot 0]) -> Win [unique slot 0] = <no body>
+
+fn encode(Sink)$new(out: Sink [unique slot 0], n: I32) -> encode(Sink).Iter [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn encode(Sink)$step($self: encode(Sink).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn encode(Sink)$drop($self: encode(Sink).Iter) -> {} = <no body>
+
+fn encode(Sink)$next($self: encode(Sink).Iter [unique slot 0 shape9 .2.*=unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn encode(Sink)$resume($self: encode(Sink).Iter [unique slot 0 shape9 .2.*=unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

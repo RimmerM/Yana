@@ -591,7 +591,6 @@ lens fn heapedItems($body: (I32) -> I32 [shared call]) -> I32 {
   local & local2: Array(I32) heap object2
   local mine: Array(I32) heap object2
   local v: I32 [shared call]
-  flag (mine) = gone
 
 bb0:
   %0: I32 = const 0
@@ -618,15 +617,13 @@ bb0:
   write.init borrow.unique ([%%5][2]) take %4
   %22: Array(I32) = read take (local2)
   write.init borrow.unique (mine) take %22
-  flag (mine) = held
   %24: Array(I32) [shared call] = read borrow.shared (mine) loan0
   %25: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %24 roots{0}
   lens.call each(Array(I32), I32) borrow.shared %25 -> bb2
 
 bb1:
-  drop.maybe (mine)
+  drop (mine)
   %38: I32 = read copy.trivial ($yielded)
-  flag (mine) = gone
   return take %38
 
 bb2(%26: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
@@ -643,9 +640,7 @@ bb3 handover(I32 [shared call]) many:
   jump -> bb1
 
 bb4 handover(I32 [shared call]) many:
-  drop (mine)
   break -> bb1
-  flag (mine) = gone
 }
 
 fn walkingBytes() -> I32 {

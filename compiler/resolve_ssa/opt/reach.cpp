@@ -263,7 +263,8 @@ struct Reachability {
         }
 
         auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
-        auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+        auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived &&
+                            !(runDrop && ownership.dropOwnsValue());
         if(!childDrop && !childReclaim) return;
 
         if(kind == mir::Type::Array) {

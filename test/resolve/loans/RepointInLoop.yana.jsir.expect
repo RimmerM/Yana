@@ -1,0 +1,166 @@
+fn grab(one %r5) -> parts %r7
+  block0(%0: %r5):
+    %1: %r4 = const 1
+    %2: %r4 = load property %0.at: %r4
+    %3: %r4 = binary.add %2, %1
+    %4: %r4 = coerce %3
+    store property %0.at: %r4, %4
+    %5: %r3 = load property %0.bytes: %r3
+    %6: %r1 = load property %5.items: %r1
+    %7: %r3 = alias %5
+    %8: %r2 = load property %7.length: %r2
+    %9: %r4 = convert %8
+    %11: %r4 = const 0
+    %12: %r9 = binary.gt %11, %9
+    %13: %r4 = select %12, %9, %11
+    %14: %r9 = binary.lt %4, %13
+    %15: %r4 = select %14, %13, %4
+    %16: %r9 = binary.gt %15, %9
+    %17: %r4 = select %16, %9, %15
+    %18: %r4 = binary.sub %17, %13
+    %19: %r4 = coerce %18
+    %20: %r6 = materialize %r7 %6, %19, %13
+    return %20
+
+fn main() -> one %r4
+  var $0: %r10
+  var $1: %r10
+  var $2: %r10
+  var $3: %r6
+  var $4: %r4
+  block0:
+    %8: %r0 = const 1
+    %9: %r0 = const 2
+    %10: %r0 = const 3
+    %11: %r0 = const 4
+    %12: %r0 = const 5
+    %13: %r0 = const 6
+    %14: %r0 = const 7
+    %15: %r0 = const 8
+    %16: %r0 = const 9
+    %17: %r1 = host host.array %8, %9, %10, %11, %12, %13, %14, %15, %16
+    %18: %r2 = const 9
+    %19: %r3 = object %s1 %17, %18
+    %20: %r4 = const 0
+    %21: %r5 = object %s0 %19, %20
+    %7: %r5 = alias %21
+    %34: %r6 = call grab %7
+    %35: %r4 = const 0
+    %36: %r10 = object %s3 %34, %35
+    store var $0: %r10, %36
+    %37: %r4 = const 0
+    %38: %r4 = const 20
+    %39: %r4 = const 0
+    %40: %r4 = const 1
+    jump -> block1(%37)
+  block1(%0: %r4):
+    %41: %r9 = binary.lt %0, %38
+    branch %41 -> block3 -> block2
+  block2:
+    %42: %r4 = const 0
+    store property %7.at: %r4, %42
+    %49: %r6 = call grab %7
+    store var $3: %r6, %49
+    %53: %r6 = load var $3: %r6
+    %54: %r4 = load property %53.length: %r4
+    %55: %r4 = const 0
+    %56: %r4 = const 3
+    %57: %r4 = const 1
+    jump -> block8(%54, %55)
+  block3:
+    %79: %r10 = load var $0: %r10
+    %80: %r4 = load property %79.at: %r4
+    %81: %r10 = load var $0: %r10
+    %82: %r6 = load property %81.bytes: %r6
+    %83: %r4 = load property %82.length: %r4
+    %84: %r9 = binary.eq %80, %83
+    branch %84 -> block4 -> block5
+  block4:
+    %85: %r6 = call grab %7
+    %86: %r10 = object %s3 %85, %39
+    store var $0: %r10, %86
+    jump -> block5
+  block5:
+    %87: %r10 = load var $0: %r10
+    %88: %r4 = load property %87.at: %r4
+    %89: %r10 = load var $0: %r10
+    %90: %r6 = load property %89.bytes: %r6
+    %91: %r11 = convert %88
+    %92: %r4 = load property %90.length: %r4
+    %93: %r11 = convert %92
+    %94: %r9 = binary.ge %91, %93
+    branch %94 -> block7 -> block6
+  block6:
+    %95: %r1 = load property %90.items: %r1
+    %96: %r1 = alias %95
+    %97: %r4 = load property %90.offset: %r4
+    %98: %r4 = binary.add %97, %88
+    %99: %r4 = coerce %98
+    %100: %r0 = load element %96[%99]: %r0
+    %101: %r4 = convert %100
+    %102: %r4 = binary.add %0, %101
+    %103: %r4 = coerce %102
+    %104: %r10 = load var $0: %r10
+    %105: %r10 = clone %104
+    %106: %r4 = binary.add %88, %40
+    %107: %r4 = coerce %106
+    %108: %r10 = alias %105
+    store property %108.at: %r4, %107
+    %109: %r10 = alias %105
+    %110: %r10 = alias %109
+    store var $0: %r10, %110
+    jump -> block1(%103)
+  block7:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block8(%1: %r4, %2: %r4):
+    %59: %r9 = binary.lt %2, %56
+    branch %59 -> block10 -> block9
+  block9:
+    %60: %r4 = const 2
+    %61: %r4 = binary.mul %0, %60
+    %62: %r4 = coerce %61
+    %63: %r4 = binary.add %62, %1
+    %64: %r4 = coerce %63
+    %65: %r4 = load property %7.at: %r4
+    %66: %r3 = load property %7.bytes: %r3
+    call Array(a).reclaim(U8) %66
+    %67: %r4 = binary.add %64, %65
+    %68: %r4 = coerce %67
+    %69: %r4 = convert %68
+    return %69
+  block10:
+    %70: %r6 = call grab %7
+    store var $3: %r6, %70
+    %73: %r6 = load var $3: %r6
+    %74: %r4 = load property %73.length: %r4
+    %75: %r4 = binary.add %1, %74
+    %76: %r4 = coerce %75
+    %77: %r4 = binary.add %2, %57
+    %78: %r4 = coerce %77
+    jump -> block8(%76, %78)
+
+fn Array(a).reclaim(U8)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    return
+
+optimizer clones 2 aliased 1 forwarded 0 removed 37 adopted 1 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 2 folded 0
+
+shape %s0 object Buf {bytes: %r3, at: %r4}
+shape %s1 object Array {items: %r1, length: %r2}
+shape %s2 object ArrayView {items: %r1, length: %r4, offset: %r4}
+shape %s3 object Run {bytes: %r6, at: %r4}
+
+rep %r0 = number unsigned 8
+rep %r1 = array Uint8Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s1
+rep %r4 = number signed 32
+rep %r5 = object %s0
+rep %r6 = object %s2
+rep %r7 = parts (%r1, %r4, %r4) as %r6
+rep %r8 = void
+rep %r9 = number bool
+rep %r10 = object %s3
+rep %r11 = number unsigned 32

@@ -1124,6 +1124,12 @@ struct Resolver {
     Array<DeclPtr<Global>> writtenGlobals;
     Array<DeclPtr<Instance>> writtenInstances;
 
+    // The declarations beside `writtenInstances`, by position - kept so that `demandBody` can build
+    // an instance member's body ahead of the body walk, as `writtenFunctionDecls` lets it build a
+    // plain function's. An iterator object whose producer runs a class member's lens region needs the
+    // member's body at the mint, which may be before the walk has reached the instance.
+    Array<ast::Decl*> writtenInstanceDecls;
+
     /*
      * The instances a `deriving (...)` clause expanded to, in declaration order, with a null where
      * the class could not be derived.
@@ -1390,6 +1396,7 @@ struct Resolver {
     // And the item members, keyed by the erased type rather than by a site type - see
     // `iterErasedItem`. The same row type, because the question is the same one.
     Array<ErasedStep> erasedItems;
+    Array<ErasedStep> erasedFailures;
 
     /*
      * The site types being minted right now - the guard §6.3's recursion meets when the body is
@@ -1406,6 +1413,18 @@ struct Resolver {
     // The producers `refuseHeldNestItems` refused, so that a second site type naming one - a call
     // and a signature spelling `f.Iter` - does not repeat the sentence.
     SmallArray<DeclPtr<Function>, 2> iterNestRefused;
+
+    /*
+     * The producers read at a generic body's **own variables** - P16's open clones, one per
+     * (producer, argument list), found by a scan. Not `specializeFunction`'s: a specialization is a
+     * bound signature and is interned, reached and converted, and one of these is none of the three
+     * - it is what an `openSite` record is minted from, and nothing calls it.
+     */
+    Array<DeclPtr<Function>> openProducers;
+    DeclPtr<Function> openProducerAt(Function& declared, const Substitution& with);
+    bool openObjectPermitted(Function& callee, const Substitution& with, LocationId source);
+    DeclPtr<Type> siteAt(DeclPtr<Function> producer, DeclPtr<Type>* arguments, Size count,
+                         LocationId source);
 
     /*
      * And the producers a mint has found to be in a **cycle** - §6.3's delegation, built 2026-09-16.
@@ -2503,6 +2522,10 @@ struct Resolver {
         const Occurrence* declared = nullptr;
         DeclPtr<OwnershipSchema> selfShape = nullptr;
         U16 producerSlots = 0;
+
+        // The failure a **failing** subject hands out, which selects `IterateFailing` over
+        // `Iterate` and `IterStep(failure, Y)` over `Maybe(Y)` as the answer (C1b). Null otherwise.
+        DeclPtr<Type> failure = nullptr;
     };
 
     bool iterateInstanceFor(const IterateSubject& subject, const Occurrence& handover,
@@ -2512,6 +2535,7 @@ struct Resolver {
     bool iterItem(Function& producer, RecordType& record, const Occurrence& handover,
                   LocationId source);
     bool iterTake(Function& producer, RecordType& record, const Occurrence& handover);
+    bool iterFailure(Function& producer, RecordType& record);
     bool refuseNextOnResuming(Function& callee, const Substitution& with, LocationId source);
     bool refuseOpaqueObjectItem(Function& callee, GenRequirement requirement,
                                 const Substitution& with, LocationId source);
@@ -2529,7 +2553,7 @@ struct Resolver {
      * step a pair is called across, and `adaptIterValue` is the conversion point.
      */
     DeclPtr<Type> erasedIterTypeOf(const Occurrence& handover, DeclPtr<Type> resume,
-                                   LocationId source);
+                                   LocationId source, DeclPtr<Type> failure = nullptr);
     bool erasedIterateInstance(Program::ErasedIter& pending);
     bool completeErasedIterates();
 
@@ -2561,6 +2585,11 @@ struct Resolver {
                                       LocationId source) override {
             return resolver->objectMaker(member, entry, source);
         }
+
+        DeclPtr<Type> siteAt(DeclPtr<Function> producer, DeclPtr<Type>* arguments, Size count,
+                             LocationId source) override {
+            return resolver->siteAt(producer, arguments, count, source);
+        }
     };
 
     ObjectHook objectHook;
@@ -2575,6 +2604,7 @@ struct Resolver {
                                      bool raw,
                                      LocationId source);
     DeclPtr<Function> iterErasedItem(DeclPtr<Type> erased, LocationId source);
+    DeclPtr<Function> iterErasedFailure(DeclPtr<Type> erased, LocationId source);
     bool resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop, Place& place,
                           IterType& iterated);
     Node* adaptIterValue(Builder& builder, Node& value, RecordType& site, DeclPtr<Type> erased,
@@ -2728,8 +2758,13 @@ struct Resolver {
     void declareInstance(ast::Decl& declaration);
 
     // Every written instance's superclasses, after every instance in the program has been declared -
-    // see the definition for why it cannot be a line in `declareInstance`.
+    // see the definition for why it cannot be a line in `declareInstance`. The instances whose answer
+    // needed the type classification are held in `deferredSuperclasses` and checked by
+    // `checkDeferredSuperclasses` once it exists.
     void checkInstanceSuperclasses();
+    bool checkDeferredSuperclasses();
+    bool checkSuperclassesOf(DeclPtr<Instance> pointer, bool deferring);
+    Array<DeclPtr<Instance>> deferredSuperclasses;
 
     /*
      * Which member of a class a written `fn` is - by name **and arity**, which is the key a call
@@ -3978,14 +4013,31 @@ struct Resolver {
         DeclPtr<Type> carrier = nullptr;
         DeclPtr<Type> proceeds = nullptr;
         DeclPtr<Type> reason = nullptr;
+
+        // The instance that serves a concrete carrier, or null where a requirement promised it -
+        // `resolveQualifiedTry` reads its head to know whether its structural route is sound.
+        DeclPtr<Instance> instance = nullptr;
     };
 
     bool carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& out);
     bool canLeaveWithCarrier(LocationId source);
+    bool exitShape(LocationId source, TryShape& leaving);
+    bool propagationShape(bool fails, ast::ParseList<ast::Alt> alternatives, LocationId propagate,
+                          TryShape& leaving);
 
     Node* outcomePayload(Builder& builder, Place& outcome, U16 constructor, LocationId source);
     Node* outcomeIsExit(Builder& builder, Place& outcome, LocationId source);
+    Node* constructorIs(Builder& builder, Place& value, U16 constructor, LocationId source);
     bool emitCarrierExit(Builder& builder, Node& reason, const TryShape& leaving, LocationId source);
+
+    // A carrier whose occurrence qualifies a type argument - `Result(E, '[U8])`. See the
+    // definitions in resolve_try.cpp, where the choice against origin-polymorphic instances is argued.
+    Node* relayoutConstructor(Builder& builder, Place& held, U16 constructor,
+                              DeclPtr<OwnershipSchema> shape, LocationId source);
+    bool emitQualifiedExit(Builder& builder, Node& carrier, LocationId source);
+    Node* resolveQualifiedTry(Builder& builder, Node& value, const TryShape& carried,
+                              const TryShape& leaving, DeclPtr<Type> hint, Request wanted,
+                              LocationId source);
 
     Node* resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
 
@@ -4087,6 +4139,7 @@ struct Resolver {
      */
     NamedCall namedCallee(ast::Expr& expression, NamedCallSite* site = nullptr);
     NamedCall lensCallee(ast::Expr& expression);
+    DeclPtr<Type> receiverTypeOf(ast::Expr& receiver);
 
     /*
      * Which `iter fn` a `for` loop runs, where the name reaches more than one - R5 for a traversal.
@@ -4181,7 +4234,8 @@ struct Resolver {
     bool handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                       Continuation::Multiplicity multiplicity, StringId name,
                       LocationId nameSource, ast::ParseList<ast::Alt> alternatives, F&& inside,
-                      OverloadChoice* chosen = nullptr, bool reyield = false);
+                      OverloadChoice* chosen = nullptr, bool reyield = false,
+                      LocationId propagate = kNullLocation);
 
     /*
      * `| e -> ...` beside a call of a traversal that declared `| E` - the skip path's own code.
@@ -4207,6 +4261,7 @@ struct Resolver {
     void resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
     void resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
     void resolveExit(Builder& builder, ast::Expr& expr);
+    void exitLoop(Builder& builder, ast::Expr& expr, Loop& loop, bool leaving);
 
     // `continue v` - the value half of the above, and where §2.5's three refusals are. False having
     // reported, which is what makes the caller close the block as unreachable.
@@ -4295,6 +4350,12 @@ struct Resolver {
     // one check a *closure* needs that a named function value does not.
     bool checkCarriedOrigins(Node& value, const Occurrence& declared, LocationId source,
                              StringView what);
+
+    // Whether a produced value that only borrows may fill an owning position - the refusal a named
+    // place gets from `readPlace`, for the value `readPlace` never saw. See the note there.
+    bool checkOwnedFill(Node& value, DeclPtr<Type> expected, Access access, LocationId source);
+    Access storageAccess(Builder& builder, Place& place);
+    bool windowParameterAssigned(Builder& builder, Place& place);
 
     void resolveInitializers(ast::Module& file);
     void resolveGlobals(ast::Decl& declaration, Size& next);

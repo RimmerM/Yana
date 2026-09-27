@@ -4,6 +4,6 @@
 34:20: error: the reason this function exits with must be Bool, and this is {}
 40:20: error: `?` cannot be written in a transparent `lens fn` - it answers by calling its continuation, so it has no return edge of its own for `?` to take. A lens that may skip declares the carrier it skips through with `| E`, and `?` is accepted in one of those
 41:4: error: transparent answers what its continuation answered, so `return` here carries no value
-46:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild
+46:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild. An iterator that may fail says so with `| E`, and `?` is accepted in one of those
 56:30: error: `?` returns from the enclosing function, so it needs that function's result type - and the `=` form infers its result from the body this is written in. Write the result type out, as in `-> Maybe(Int)`
 60:32: error: this lambda's result type is decided by its body, so `?` cannot be written in it - `?` returns from the enclosing function, and that needs the type first. Write the lambda where a function type is expected

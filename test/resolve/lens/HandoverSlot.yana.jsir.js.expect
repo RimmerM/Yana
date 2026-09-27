@@ -4,45 +4,37 @@ var gArr = { items: new Int32Array([]), length: 0 };
 
 // 
 function main() {
-  var s3, s6;
-  var v18 = new Int32Array([1, 2, 3, 4]);
-  var s7 = v18[0];
-  s7 = v18[0];
-  var v67 = { held: { items: v18, length: 2, offset: 1 } };
-  var v32 = { held: { held: { items: v67.held.items.slice(), length: v67.held.length, offset: v67.held.offset } }.held };
-  var v70 = v32.held;
-  var v73 = v70.length >>> 0;
-  if (0 >= v73) throw $t;
-  var v75 = v70.items;
-  var v77 = v70.offset;
-  var v81 = Math.imul(v75[v77], 10);
-  if (1 >= v73) throw $t;
-  var v94 = s7 + (v81 + Math.imul(v75[v77 + 1 | 0], 100) | 0) | 0;
-  var v104 = { held: { items: v18, length: 4, offset: 0 } };
-  v32.held = { held: { items: v104.held.items.slice(), length: v104.held.length, offset: v104.held.offset } }.held;
-  var v107 = v32.held;
-  if (3 >= v107.length >>> 0) throw $t;
-  var v122 = v94 + Math.imul(v107.items[v107.offset + 3 | 0], 1000) | 0;
+  var s5;
+  var v12 = new Int32Array([1, 2, 3, 4]);
+  var s6 = v12[0];
+  var v49 = { held: { items: v12, length: 2, offset: 1 } };
+  var v27 = { held: { held: { items: v49.held.items.slice(), length: v49.held.length, offset: v49.held.offset } }.held };
+  var v52 = v27.held;
+  var v55 = v52.length >>> 0;
+  if (0 >= v55) throw $t;
+  var v57 = v52.items;
+  var v59 = v52.offset;
+  var v63 = Math.imul(v57[v59], 10);
+  if (1 >= v55) throw $t;
+  var v76 = s6 + (v63 + Math.imul(v57[v59 + 1 | 0], 100) | 0) | 0;
+  var v86 = { held: { items: v12, length: 4, offset: 0 } };
+  v27.held = { held: { items: v86.held.items.slice(), length: v86.held.length, offset: v86.held.offset } }.held;
+  var v89 = v27.held;
+  if (3 >= v89.length >>> 0) throw $t;
+  var v104 = v76 + Math.imul(v89.items[v89.offset + 3 | 0], 1000) | 0;
   var p0 = 0;
   while (p0 < 4) {
-    if (p0 >>> 0 >= 4) throw $t;
-    var v209 = p0 | 0;
-    s6 = s7;
-    s6 = v18[v209];
-    s7 = s6;
+    s5 = s6;
+    s5 = v12[p0];
+    s6 = s5;
     p0 = p0 + 1 | 0;
   }
-  var v133 = v122 + Math.imul(s7, 10000) | 0;
-  s7 = v18[0];
-  if ({ $tag: 0, Proceed: 0, Exit: 0 }.$tag === 1) {
-    s3 = s7;
-    s3 = v18[1];
-    s7 = s3;
-  }
-  var v183 = v133 + Math.imul(s7, 100000) | 0;
-  var v186 = gArr.items;
+  var v115 = v104 + Math.imul(s6, 10000) | 0;
+  s6 = v12[0];
+  var v133 = v115 + Math.imul(s6, 100000) | 0;
+  var v136 = gArr.items;
   if (1 >= gArr.length) throw $t;
-  return v183 + Math.imul(v186[1], 1000000) | 0;
+  return v133 + Math.imul(v136[1], 1000000) | 0;
 }
 
 function main$() {
@@ -51,4 +43,4 @@ function main$() {
   return main();
 }
 var $t = "yana: a runtime check failed";
-main$();
+(globalThis.process ?? {}).exitCode = main$();

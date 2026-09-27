@@ -190,15 +190,17 @@ DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
  * `iter(T)`, interned on the whole protocol - the note on `Types::iterType` in type.h.
  */
 DeclPtr<Type> Types::iterType(DeclBase base, const Occurrence& handover, DeclPtr<Type> resume,
-                              DeclPtr<Type> sent, DeclPtr<Type> step, bool window) {
+                              DeclPtr<Type> sent, DeclPtr<Type> step, bool window,
+                              DeclPtr<Type> failure, DeclPtr<Type> failed) {
     InternKey key;
     key.mix(handover.type.offset).mix(handover.contract.packed).mix(handover.shape.offset).next();
-    key.mix(resume.offset).next().mix(step.offset);
+    key.mix(resume.offset).next().mix(step.offset).next().mix(failure.offset);
 
     auto created = false;
     auto entry = internSlot(iterators, key, created, [&](DeclPtr<Type> existing) {
         auto& held = *(IterType*)base[existing];
-        return held.handover == handover && held.resume == resume && held.step == step;
+        return held.handover == handover && held.resume == resume && held.step == step &&
+               held.failure == failure;
     });
 
     if(created) {
@@ -207,6 +209,8 @@ DeclPtr<Type> Types::iterType(DeclBase base, const Occurrence& handover, DeclPtr
         type->resume = resume;
         type->sent = sent;
         type->step = step;
+        type->failure = failure;
+        type->failed = failed;
         type->window = window;
         *entry = asBase<Type>(type - *arena);
     }
@@ -875,6 +879,17 @@ bool needsExplicitDisposal(DeclBase base, DeclPtr<Type> type) {
     return ownershipOf(base, type).explicitDrop;
 }
 
+bool ownsTeardownSubject(DeclBase base, const Function& function) {
+    // `DeclList`'s readers are not `const`, and nothing below writes.
+    auto& args = const_cast<Function&>(function).args;
+    if(!function.teardown || function.authoredReclaim || !args.size()) return false;
+
+    auto type = base[args.get(base, 0)]->occurrence.type;
+    if(!type || base[type]->kind != Type::Record) return false;
+    if(((RecordType*)base[type])->producer) return false;
+    return ownershipOf(base, type).dropOwnsValue();
+}
+
 bool isRelocatable(DeclBase base, DeclPtr<Type> type) {
     return ownershipOf(base, type).relocatable;
 }
@@ -1042,6 +1057,10 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
 
             if(iterated.resume && base[iterated.resume]->kind != Type::Unit) {
                 result = result + String(" <- ") + typeText(context, base, iterated.resume);
+            }
+
+            if(iterated.failure) {
+                result = result + String(" | ") + typeText(context, base, iterated.failure);
             }
 
             return result + String(")");
@@ -1637,7 +1656,8 @@ bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable)
             // generic body is refused at the type, and this is what says a walk found one.
             auto& iterated = *(IterType*)base[type];
             return mentionsVariable(base, iterated.handover.type, variable) ||
-                   mentionsVariable(base, iterated.resume, variable);
+                   mentionsVariable(base, iterated.resume, variable) ||
+                   (iterated.failure && mentionsVariable(base, iterated.failure, variable));
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

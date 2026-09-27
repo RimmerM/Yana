@@ -1,12 +1,5 @@
 @image$base = []
 
-triple<complex>(%x: I32): I32 {
-  b_0 {
-    %v_1 = imul %x, 3: I32
-    ret %v_1
-  }
-}
-
 negate<complex>(%x: I32): I32 {
   b_0 {
     %v_1 = sub 0, %x: I32
@@ -20,24 +13,10 @@ main<complex>(): I32 {
     %v_2 = add %v_1, 16: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 0, 8
-    store %v_1, funvalue(triple), 8
     store %v_2, 4, 4
-    call_complex teardown(fun), %v_1
     store %v_1, funvalue(negate), 8
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, 0, 8
-    %v_5 = loads %v_2, 4: I32
     call_complex teardown(fun), %v_1
-    %v_6 = imul 18446744073709551606, %v_5: I32
-    %v_7 = add 50, %v_6: I32
-    ret %v_7
-  }
-}
-
-funvalue(triple)<complex>(%v_0: Ptr, %v_1: I32): I32 {
-  b_2 {
-    %v_3 = call_complex triple, %v_1: I32
-    ret %v_3
+    ret 10
   }
 }
 

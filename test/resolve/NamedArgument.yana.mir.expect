@@ -18,9 +18,9 @@ instance Measure(I32): I32.measure
 
 instance Measure(Bool): Bool.measure
 
-let string'142: [CodeUnit *2] = "ab"
+let string'188: [CodeUnit *2] = "ab"
 
-let string'143: [CodeUnit *4] = "abcd"
+let string'189: [CodeUnit *4] = "abcd"
 
 fn explain(it: a [shared call], @lazy why: () -> I32 [shared call] = 8) -> I32 = <no body>
 
@@ -621,14 +621,14 @@ bb0:
   %135: I32 = call explain(I32) borrow.shared %134 borrow.shared %133
   %136: I32 = add inspect %130 inspect %135
   %137: I32 = const 1
-  %138: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %138: String = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local18) take %138
   %140: String [shared call] = read borrow.shared (local18) loan4
   %141: I32 = call labelled borrow.shared %137 borrow.shared %140
   drop (local18)
   %142: I32 = add inspect %136 inspect %141
   %143: I32 = const 1
-  %144: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %144: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   write.init borrow.unique (local19) take %144
   %146: String [shared slot 0] = read borrow.shared (local19) loan5
   %147: String [shared slot 0 view] = call.derivation view(String) borrow.shared %146 roots{5}

@@ -21,35 +21,47 @@ function weight(c) {
 }
 
 function score(n) {
-  return (n < 0 ? classify(0 - n | 0) : null) === null ? 0 : 1;
+  var p1;
+  if (n < 0) {
+    var v8 = classify(0 - n | 0);
+    p1 = 1;
+  } else {
+    p1 = 0;
+  }
+  return p1;
 }
 
 function ranked(n) {
   var p1;
-  B0: {
-    if (n > 10) {
-      p1 = null;
+  if (n > 10) {
+    p1 = 0;
+  } else {
+    if (n > 0) {
+      var v11 = classify(n);
     } else {
-      if (n > 0) {
-        p1 = classify(n);
-        break B0;
-      }
-      p1 = classify(0 - n | 0);
+      var v9 = classify(0 - n | 0);
     }
+    p1 = 1;
   }
-  return p1 === null ? 0 : 1;
+  return p1;
 }
 
 function removed(n) {
-  return (n < 0 ? classify(0 - n | 0) : null) === null ? 0 : 1;
+  var p1;
+  if (n < 0) {
+    var v9 = classify(0 - n | 0);
+    p1 = 1;
+  } else {
+    p1 = 0;
+  }
+  return p1;
 }
 
 function scored(n) {
-  var p2 = n < 0 ? classify(0 - n | 0) : null;
-  return p2 === null ? 0 : weight(p2);
+  return n < 0 ? weight(classify(0 - n | 0)) : 0;
 }
 
 function main() {
   return ((((((((((score(1) + score(-1) | 0) + score(-2) | 0) + score(-3) | 0) + score(-4) | 0) + ranked(50) | 0) + ranked(2) | 0) + ranked(-3) | 0) + removed(4) | 0) + removed(-1) | 0) + Math.imul(scored(-3), 10) | 0) + Math.imul(scored(9), 100) | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

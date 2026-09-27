@@ -385,80 +385,39 @@ function signedInt(x) {
 }
 
 function main() {
-  var p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18;
-  var v31 = new BigInt64Array([0n, 1n, -1n, 7n, -7n, 100n, -100n, 1000000007n, -1000000007n, 4611686018427387904n, -4611686018427387904n, 9223372036854775807n]);
-  var v41 = new Int32Array([0, 1, -1, 5, -5, 65521, -65521, 2147483647, -2147483647]);
-  var v50 = new BigUint64Array([0n, 1n, 7n, 641n, 1000000007n, 9223372036854775807n, 18446744073709551615n, 18446744073709551614n]);
-  var v57 = new Uint32Array([0, 1, 4, 999, 4294967295, 4294967294]);
+  var p8;
+  var v21 = new BigInt64Array([0n, 1n, -1n, 7n, -7n, 100n, -100n, 1000000007n, -1000000007n, 4611686018427387904n, -4611686018427387904n, 9223372036854775807n]);
+  var v31 = new Int32Array([0, 1, -1, 5, -5, 65521, -65521, 2147483647, -2147483647]);
+  var v40 = new BigUint64Array([0n, 1n, 7n, 641n, 1000000007n, 9223372036854775807n, 18446744073709551615n, 18446744073709551614n]);
+  var v47 = new Uint32Array([0, 1, 4, 999, 4294967295, 4294967294]);
   var p6 = 0;
   var p1 = 0;
   while (p1 < 12) {
-    if (p1 >>> 0 >= 12) throw $t;
-    var v284 = v31[p1];
-    var v287 = p6 + signedLong(v284) | 0;
-    p8 = BigInt.asIntN(64, v284 * 8n) === BigInt.asIntN(64, v284 << 3n) && BigInt.asIntN(64, v284 * 1024n) === BigInt.asIntN(64, v284 << 10n) ? 1 : 0;
-    p6 = v287 + p8 | 0;
+    var v261 = v21[p1];
+    var v264 = p6 + signedLong(v261) | 0;
+    p8 = BigInt.asIntN(64, v261 * 8n) === BigInt.asIntN(64, v261 << 3n) && BigInt.asIntN(64, v261 * 1024n) === BigInt.asIntN(64, v261 << 10n) ? 1 : 0;
+    p6 = v264 + p8 | 0;
     p1 = p1 + 1 | 0;
   }
   var p3 = 0;
   while (p3 < 9) {
-    if (p3 >>> 0 >= 9) throw $t;
-    p6 = p6 + signedInt(v41[p3]) | 0;
+    p6 = p6 + signedInt(v31[p3]) | 0;
     p3 = p3 + 1 | 0;
   }
   var p5 = 0;
   while (p5 < 8) {
-    if (p5 >>> 0 >= 8) throw $t;
-    var v195 = v50[p5];
-    var v197 = BigInt.asUintN(64, $div(v195, 2n));
-    var v199 = BigInt.asUintN(64, $rem(v195, 2n));
-    p9 = BigInt.asUintN(64, BigInt.asUintN(64, v197 * 2n) + v199) === v195 && v199 < 2n ? 1 : 0;
-    var v207 = BigInt.asUintN(64, $div(v195, 64n));
-    var v209 = BigInt.asUintN(64, $rem(v195, 64n));
-    p10 = BigInt.asUintN(64, BigInt.asUintN(64, v207 * 64n) + v209) === v195 && v209 < 64n ? 1 : 0;
-    var v217 = p9 + p10 | 0;
-    var v219 = BigInt.asUintN(64, $div(v195, 3n));
-    var v221 = BigInt.asUintN(64, $rem(v195, 3n));
-    p11 = BigInt.asUintN(64, BigInt.asUintN(64, v219 * 3n) + v221) === v195 && v221 < 3n ? 1 : 0;
-    var v229 = v217 + p11 | 0;
-    var v231 = BigInt.asUintN(64, $div(v195, 10n));
-    var v233 = BigInt.asUintN(64, $rem(v195, 10n));
-    p12 = BigInt.asUintN(64, BigInt.asUintN(64, v231 * 10n) + v233) === v195 && v233 < 10n ? 1 : 0;
-    var v241 = v229 + p12 | 0;
-    var v243 = BigInt.asUintN(64, $div(v195, 7n));
-    var v245 = BigInt.asUintN(64, $rem(v195, 7n));
-    p13 = BigInt.asUintN(64, BigInt.asUintN(64, v243 * 7n) + v245) === v195 && v245 < 7n ? 1 : 0;
-    var v253 = v241 + p13 | 0;
-    var v255 = BigInt.asUintN(64, $div(v195, 641n));
-    var v257 = BigInt.asUintN(64, $rem(v195, 641n));
-    p14 = BigInt.asUintN(64, BigInt.asUintN(64, v255 * 641n) + v257) === v195 && v257 < 641n ? 1 : 0;
-    p6 = p6 + (v253 + p14 | 0) | 0;
+    var v176 = v40[p5];
+    p6 = p6 + ((BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 2n)) * 2n) + BigInt.asUintN(64, $rem(v176, 2n))) === v176 ? 1 : 0) + (BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 64n)) * 64n) + BigInt.asUintN(64, $rem(v176, 64n))) === v176 ? 1 : 0) + (BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 3n)) * 3n) + BigInt.asUintN(64, $rem(v176, 3n))) === v176 ? 1 : 0) + (BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 10n)) * 10n) + BigInt.asUintN(64, $rem(v176, 10n))) === v176 ? 1 : 0) + (BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 7n)) * 7n) + BigInt.asUintN(64, $rem(v176, 7n))) === v176 ? 1 : 0) + (BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, $div(v176, 641n)) * 641n) + BigInt.asUintN(64, $rem(v176, 641n))) === v176 ? 1 : 0)) | 0;
     p5 = p5 + 1 | 0;
   }
   var p7 = 0;
   while (p7 < 6) {
-    if (p7 >>> 0 >= 6) throw $t;
-    var v140 = v57[p7];
-    var v142 = v140 / 4 >>> 0;
-    var v144 = $rem(v140, 4) >>> 0;
-    p15 = (Math.imul(v142, 4) >>> 0) + v144 >>> 0 === v140 && v144 < 4 ? 1 : 0;
-    var v152 = v140 / 5 >>> 0;
-    var v154 = $rem(v140, 5) >>> 0;
-    p16 = (Math.imul(v152, 5) >>> 0) + v154 >>> 0 === v140 && v154 < 5 ? 1 : 0;
-    var v162 = p15 + p16 | 0;
-    var v164 = v140 / 7 >>> 0;
-    var v166 = $rem(v140, 7) >>> 0;
-    p17 = (Math.imul(v164, 7) >>> 0) + v166 >>> 0 === v140 && v166 < 7 ? 1 : 0;
-    var v174 = v162 + p17 | 0;
-    var v176 = v140 / 1000 >>> 0;
-    var v178 = $rem(v140, 1000) >>> 0;
-    p18 = (Math.imul(v176, 1000) >>> 0) + v178 >>> 0 === v140 && v178 < 1000 ? 1 : 0;
-    p6 = p6 + (v174 + p18 | 0) | 0;
+    var v123 = v47[p7];
+    p6 = p6 + (((Math.imul(v123 / 4 >>> 0, 4) >>> 0) + ($rem(v123, 4) >>> 0) >>> 0 === v123 ? 1 : 0) + ((Math.imul(v123 / 5 >>> 0, 5) >>> 0) + ($rem(v123, 5) >>> 0) >>> 0 === v123 ? 1 : 0) + ((Math.imul(v123 / 7 >>> 0, 7) >>> 0) + ($rem(v123, 7) >>> 0) >>> 0 === v123 ? 1 : 0) + ((Math.imul(v123 / 1000 >>> 0, 1000) >>> 0) + ($rem(v123, 1000) >>> 0) >>> 0 === v123 ? 1 : 0)) | 0;
     p7 = p7 + 1 | 0;
   }
   return p6;
 }
-var $t = "yana: a runtime check failed";
 
 // `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
 function $div(a, b) {
@@ -468,4 +427,4 @@ function $div(a, b) {
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

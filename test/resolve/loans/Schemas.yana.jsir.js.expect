@@ -36,12 +36,13 @@ function main() {
   trace = 0;
   var v213 = { $v: 10 };
   var v223 = { $o: v213, $k: "$v" };
-  v223.$o[v223.$k] = v223.$o[v223.$k] + 1 | 0;
-  if ((Math.imul(v223.$o[v223.$k], 100) + v213.$v | 0) !== 1111) return -14;
+  var v231 = v223.$o[v223.$k] + 1 | 0;
+  v223.$o[v223.$k] = v231;
+  if ((Math.imul(v231, 100) + v213.$v | 0) !== 1111) return -14;
   Guard_drop(2);
   Guard_drop(9);
   if (trace !== 2) return -16;
   trace = 0;
   return 100;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

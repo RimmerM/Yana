@@ -320,13 +320,16 @@ bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 trivial):
 fn applyTwice(I32)(v: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
-  %3: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %4: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
-  %5: I32 trivial = load inspect %2
-  %6: I32 trivial = call [value #0] inspect %4 borrow %5
-  %7: I32 trivial = call [value #0] inspect %3 borrow %6
-  return consume %7
+  %5: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %6: I32 trivial = load inspect %2
+  %7: I32 trivial = call [value #0] inspect %5 borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = call [value #0] inspect %4 borrow %8
+  return consume %9
 }
 
 fn evens.cont(evens.cont.env: evens.cont.env [unique call], $handed: I32 [shared call]) -> I32 {

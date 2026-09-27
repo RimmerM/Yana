@@ -1,0 +1,55 @@
+{-
+   The library's own bounds tests, discharged - Core's `need` and `Stream.ByteCursor` (L1 of
+   `doc/inflight/Implementation-Streams.md`, J193).
+
+   The B-wave fixtures (`BoundsRelational.yana`, `BoundsCarrier.yana`) each declare a local `need`,
+   because it did not exist yet; this one is the same shapes over the declarations a program now
+   imports, so a change to either of them that loses the fold is caught here rather than in a
+   benchmark. The `.ssa.opt.expect` beside it asserts no refusal arm in:
+
+   - `headers`: a walking offset behind `need(b, at, 9)`, read with an unsigned and a signed reader;
+   - `framed`: a `ByteCursor` whose `takeBytes(9)` hands back a view, read at constant offsets.
+
+   Natively. The JavaScript golden keeps three checks in `headers` - the `while need(...)` walker, on
+   a target whose `Size` is 32 bits; `BoundsRelational`'s one-shot `need` folds there (J193 §4).
+
+   `emptyTake` is the other half, and it is about layout rather than checks: `Just` of an empty
+   array's window, returned through memory, must read back as `Just`. The window's base is null
+   for an array that never allocated, and a `Maybe` over a view used to spend that address as its
+   niche (J193, `resolve_ssa/lower/repr.cpp`).
+-}
+
+import Stream
+
+@noinline fn headers(b: [U8]) -> I64:
+    let &total = 0 :: I64
+    let &at = 0 :: Size
+    while need(b, at, 9):
+        let stream = readBigI16(b, at + 2) :: I64
+        let size = readBigU32(b, at + 5) :: I64
+        total += (b[at] :: I64) + stream + (b[at + 4] :: I64) + size
+        at += 9
+    return total
+
+@noinline fn framed(b: [U8]) -> I64:
+    let &c = ByteCursor {bytes: b, at: 0}
+    let &total = 0 :: I64
+    while c.takeBytes(9) is Just(h):
+        total += (h[0] :: I64) + (readBigU16(h, 2) :: I64) + (readBigU32(h, 5) :: I64)
+    return total
+
+@noinline fn emptyTake(b: [U8]) -> Maybe('[U8]):
+    let &c = ByteCursor {bytes: b, at: 0}
+    return c.takeBytes(0)
+
+-- One number for every claim: the two decoders' sum, then a digit for each `Just` read back.
+fn main() -> Int:
+    let &b = [] :: [U8]
+    for i in 0 .. 40:
+        push(b, truncate(i * 37) :: U8)
+
+    let &answer = truncate((headers(b) + framed(b)) % 100000) :: Int
+    let empty = [] :: [U8]
+    answer = answer * 10 + (if emptyTake(empty) is Just(v) then 1 + truncate(length(v)) :: Int else 0)
+    answer = answer * 10 + (if emptyTake(b[3..3]) is Just(v) then 1 + truncate(length(v)) :: Int else 0)
+    return answer

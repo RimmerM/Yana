@@ -20,128 +20,63 @@ fn main() -> one %r0
     jump -> block1
   block1:
     %20: %r1 = alias %4
-    %22: %r0 = const 1
-    store element %20[%22]: %r0, %13
-    %24: %r0 = const 0
-    jump -> block2
-  block2:
-    %28: %r1 = alias %4
-    %29: %r0 = load element %28[%24]: %r0
-    jump -> block3
-  block3:
-    %35: %r1 = alias %4
-    %37: %r0 = const 1
-    %38: %r0 = load element %35[%37]: %r0
-    %39: %r0 = binary.add %29, %38
-    %40: %r0 = coerce %39
-    jump -> block4
-  block4:
-    %46: %r1 = alias %4
-    %48: %r0 = const 2
-    %49: %r0 = load element %46[%48]: %r0
+    %21: %r0 = const 1
+    store element %20[%21]: %r0, %13
+    %23: %r0 = const 0
+    %24: %r0 = load element %20[%23]: %r0
+    %26: %r0 = binary.add %24, %13
+    %27: %r0 = coerce %26
+    %29: %r0 = const 2
+    %30: %r0 = load element %20[%29]: %r0
     %6: %r3 = object %s0 %4, %5
-    %50: %r3 = alias %6
-    call Array(a).reclaim(I32) %50
-    %51: %r0 = binary.add %40, %49
+    %31: %r3 = alias %6
+    call Array(a).reclaim(I32) %31
+    %32: %r0 = binary.add %27, %30
+    %33: %r0 = coerce %32
+    %34: %r0 = const 1
+    %35: %r0 = const 2
+    %36: %r0 = const 3
+    %37: %r1 = host host.array %34, %35, %36
+    %38: %r2 = const 3
+    %39: %r3 = object %s0 %37, %38
+    %42: %r1 = alias %37
+    %43: %r0 = const 1
+    %44: %r0 = load element %42[%43]: %r0
+    %45: %r0 = const 20
+    store element %42[%43]: %r0, %45
+    %48: %r3 = alias %39
+    call Array(a).reclaim(I32) %48
+    %49: %r0 = binary.add %44, %45
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.add %33, %50
     %52: %r0 = coerce %51
     %53: %r0 = const 1
     %54: %r0 = const 2
     %55: %r0 = const 3
     %56: %r1 = host host.array %53, %54, %55
     %57: %r2 = const 3
-    jump -> block9
-  block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block6:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block7:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block8:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block9:
-    %65: %r1 = alias %56
-    %67: %r0 = const 1
-    %68: %r0 = load element %65[%67]: %r0
-    %70: %r0 = const 20
-    jump -> block10
-  block10:
-    %75: %r1 = alias %56
-    %77: %r0 = const 1
-    store element %75[%77]: %r0, %70
-    jump -> block11
-  block11:
-    %83: %r1 = alias %56
-    %85: %r0 = const 1
-    %86: %r0 = load element %83[%85]: %r0
     %58: %r3 = object %s0 %56, %57
-    %87: %r3 = alias %58
-    call Array(a).reclaim(I32) %87
-    %88: %r0 = binary.add %68, %86
-    %89: %r0 = coerce %88
-    %90: %r0 = binary.add %52, %89
-    %91: %r0 = coerce %90
-    %92: %r0 = const 1
-    %93: %r0 = const 2
-    %94: %r0 = const 3
-    %95: %r1 = host host.array %92, %93, %94
-    %96: %r2 = const 3
-    %99: %r0 = const 20
-    jump -> block15
-  block12:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block13:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block14:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block15:
-    %105: %r1 = alias %95
-    %107: %r0 = const 1
-    store element %105[%107]: %r0, %99
-    %109: %r0 = const 0
-    jump -> block16
-  block16:
-    %113: %r1 = alias %95
-    %114: %r0 = load element %113[%109]: %r0
-    jump -> block17
-  block17:
-    %120: %r1 = alias %95
-    %122: %r0 = const 1
-    %123: %r0 = load element %120[%122]: %r0
-    %124: %r0 = binary.add %114, %123
-    %125: %r0 = coerce %124
-    jump -> block18
-  block18:
-    %131: %r1 = alias %95
-    %133: %r0 = const 2
-    %134: %r0 = load element %131[%133]: %r0
-    %97: %r3 = object %s0 %95, %96
-    %135: %r3 = alias %97
-    call Array(a).reclaim(I32) %135
-    %136: %r0 = binary.add %125, %134
-    %137: %r0 = coerce %136
-    %138: %r0 = binary.add %91, %137
-    %139: %r0 = coerce %138
-    %140: %r0 = load global log: %r0
-    %141: %r0 = binary.add %139, %140
-    %142: %r0 = coerce %141
-    return %142
-  block19:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block20:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block21:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block22:
+    %59: %r0 = const 20
+    %62: %r1 = alias %56
+    %63: %r0 = const 1
+    store element %62[%63]: %r0, %59
+    %65: %r0 = const 0
+    %66: %r0 = load element %62[%65]: %r0
+    %68: %r0 = binary.add %66, %59
+    %69: %r0 = coerce %68
+    %71: %r0 = const 2
+    %72: %r0 = load element %62[%71]: %r0
+    %73: %r3 = alias %58
+    call Array(a).reclaim(I32) %73
+    %74: %r0 = binary.add %69, %72
+    %75: %r0 = coerce %74
+    %76: %r0 = binary.add %52, %75
+    %77: %r0 = coerce %76
+    %78: %r0 = load global log: %r0
+    %79: %r0 = binary.add %77, %78
+    %80: %r0 = coerce %79
+    return %80
+  block2:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -150,7 +85,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 69 adopted 0 sunk 3 numbered 0 decided 11 unboxed 0 updated 0 split 0 promoted 3 folded 51
+optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 1 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 3 folded 3
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

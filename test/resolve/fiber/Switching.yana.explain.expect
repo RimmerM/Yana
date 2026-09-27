@@ -1,0 +1,49 @@
+fn fiberOf(self: %Counter) -> %Fiber
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn limitOf(self: %Counter) -> Size
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn recordSeen(self: %Counter, value: Size) -> {}
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    self writable
+  retains:    none
+  calls:      called at 1 site
+
+fn count(self: %Counter) -> {}
+  suspends:   yes
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    self writable
+  retains:    self
+  returns:    never - every path ends in a call that does not come back
+  calls:      called at 0 sites, named as a value at 1 site
+  hint:       suspends yes; retains self
+  hover:
+---
+- **suspends**: yes
+- **retains**: self
+
+fn main() -> Size
+  suspends:   yes
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 0 sites
+  hint:       suspends yes
+  hover:
+---
+- **suspends**: yes

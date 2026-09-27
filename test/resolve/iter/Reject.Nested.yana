@@ -22,17 +22,9 @@ iter fn plain(n: Int) -> Int:
    skipping one and one lent the object's own storage.
 -}
 
--- §6.6's `| E`, one level in: the alternative is a block of the outer producer reached from inside
--- the callee, and what the step would read is a terminal failure on the child's own step.
-iter fn failingChild(n: Int) -> (Int | Int):
-    yield n
-    return 0
-
-iter fn overFailing(n: Int) -> Int:
-    for v in failingChild(n):
-        yield v
-    | reason:
-        trace = trace + reason
+-- §6.6's `| E`, one level in, is built however the child is held: inline since C1b
+-- (`iter/Failing.Nested.yana`), and boxed or delegated to since C1c (`iter/Failing.Recursive.yana`,
+-- `iter/Failing.Delegation.yana`).
 
 -- And a child whose passes hand a value back: the step embeds the region and steps the member with
 -- "fall out", and carrying a value into a nested pass is a second edge.
@@ -67,10 +59,6 @@ iter fn overOwn() -> Int:
     for v in items(mine):
         yield v
 
-fn failing() -> Int:
-    let it = overFailing(3)
-    return 0
-
 fn resuming() -> Int:
     let it = overResuming(3)
     return 0
@@ -79,4 +67,4 @@ fn owning() -> Int:
     let it = overOwn()
     return 0
 
-fn main() -> Int = failing() + resuming() + owning()
+fn main() -> Int = resuming() + owning()

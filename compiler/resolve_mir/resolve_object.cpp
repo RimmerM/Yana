@@ -89,6 +89,15 @@ namespace mir {
 static constexpr U64 kIterFinished = ~U64(0) & 0x7fffffff;
 
 /*
+ * And the one a **failing** object's step leaves behind - P2, J216. One below finished, so it is
+ * equally out of reach of a `yield` and equally the dispatch's fallback: a record stepped again
+ * after it failed answers "ran out", which is what makes the failure terminal without a test in the
+ * step. The consumer reads it only where the step answered no, and `f$failure` takes `$failure` and
+ * writes `kIterFinished` over it.
+ */
+static constexpr U64 kIterFailed = kIterFinished - 1;
+
+/*
  * "Give me the next element", as the exit signal spells it - `resolve_ssa/convert.cpp`'s
  * `kExitFallOut`, which is where the same number is written for the continuation-passing form.
  *
@@ -123,13 +132,13 @@ static constexpr U32 kIterHeapMember = RecordType::kHeapMember;
  * Whether this producer's `yield` **lends** what it hands over, which decides what the slot holds.
  *
  * The question the stack handle's own `yieldLends` asked, and for the same reason: a trivially
- * copyable value is copied into the slot, which no program can tell from the
+ * copyable value under a shared loan is copied into the slot, which no program can tell from the
  * loan, and anything else under a borrowing convention has to be reached where it is. A lending slot
  * therefore holds the value's **address**, valid for exactly as long as the record stays suspended -
  * which is the whole of §3.3's stepping rule, enforced on the consumer's side by the loan the read
  * of the slot takes against the record.
  */
-static bool objectLends(DeclBase base, const Occurrence& handover) {
+bool objectLends(DeclBase base, const Occurrence& handover) {
     if(handover.contract.isOwned()) return false;
 
     /*
@@ -156,6 +165,15 @@ static bool objectLends(DeclBase base, const Occurrence& handover) {
      * for anyway.
      */
     if(!Shapes::isEmpty(handover.shape)) return true;
+
+    /*
+     * And an **exclusive** hand-over lends whatever its type is, because there a copy *can* be told
+     * from the loan: `lens fn withWin(...) -> &Win` hands the region a `Win` to write, and its cleanup
+     * reads what was written. A copy in the slot took the writes and the producer's local kept the
+     * old value (J185's wrong answer - `total` stayed zero where the internal form added the region's
+     * `used`). Copying is only unobservable for a shared hand-over, which nobody can write through.
+     */
+    if(handover.contract.access() == Access::Unique) return true;
 
     return !isTriviallyCopyable(base, handover.type);
 }
@@ -791,6 +809,140 @@ bool Resolver::checkObjectBody(Function& producer, Body& body, const LiveAcross&
     }
 
     /*
+     * The same self-borrow **inside an owned value** - `let &w = Win {space: buf[0..2]}` over a
+     * local `buf`, with `w` kept across a `yield`. C0, found in J188 and refused here (K5).
+     *
+     * The rule above reads a binding whose value *is* a borrowing read, and this one's value is a
+     * record that *holds* one, so it was accepted: `w` became a member and `buf` did not (nothing
+     * names `buf` after the `yield`), and the member pointed into a step frame that had returned.
+     * Had `buf` been a member too, a moved object would have left the pointer on the old bytes.
+     *
+     * Traced structurally from every write into the local rather than read off the elaboration:
+     * through an aggregate's and a call's **borrowing** operands down to the reads that took a loan,
+     * whose roots are the lenders. A borrowed operand of a call whose result does not keep it (a
+     * `length(buf)` stored in a field) is followed too, which can refuse a producer that is sound;
+     * the message's `@heap` answers that one as well. A parameter and a `@heap` binding are outside
+     * the record, as above.
+     */
+    {
+        auto lenderOf = [&](NodeId start, U32 self) {
+            // Each node with whether a call lies between it and the value written.
+            struct Step { NodeId node; bool throughCall; };
+            SmallArray<Step, 16> work;
+            work.push(Step { start, false });
+
+            /*
+             * Every node once, and no cap. A cap of 64 steps was here, and running out of it answered
+             * "no lender" - accepting whatever a long enough expression hid (the review of J210).
+             * Operands form a DAG, so the visited list is what bounds the walk; a node reached a
+             * second time with a call between is not re-walked, which is conservative only in the
+             * direction of refusing, because the through-call exemption below is the narrower one.
+             */
+            SmallArray<NodeId, 16> seen;
+
+            while(work.size()) {
+                auto item = work.pop().unwrap();
+
+                auto again = false;
+                for(auto done: seen) again = again || done == item.node;
+                if(again) continue;
+                seen.push(item.node);
+
+                auto& node = *body.node(mir, item.node);
+                auto throughCall = item.throughCall;
+
+                auto follow = [&](Operand operand, bool call) {
+                    if(operand.source() != SourceKind::Result) return;
+                    if(operand.mode() != UseMode::BorrowShared &&
+                       operand.mode() != UseMode::BorrowUnique) return;
+                    work.push(Step { operand.nodeId(), throughCall || call });
+                };
+
+                if(node.kind == Node::Read) {
+                    auto& read = (NodeRead&)node;
+                    if(!read.loan.valid()) continue;
+
+                    auto root = readRoot[node.id.index];
+                    if(root == kNoLocal || root == self) continue;
+
+                    // Only storage the producer **owns**: a binding that itself borrows names
+                    // somebody else's, and the rule above is the one about binding a borrow.
+                    auto from = body.local(mir, LocalId(root));
+                    if(from->isParameter() || from->demandsHeap) continue;
+                    if(!from->occurrence.contract.isOwned()) continue;
+
+                    /*
+                     * Through a call, only where what the call reaches is the local's **own bytes**:
+                     * a fixed array's elements are, and an `Array`'s or a `String`'s are a run on the
+                     * heap that does not move with the record (`values(owned)` in
+                     * `iter/ObjectItem.yana`) - the representation line §6.1 draws.
+                     *
+                     * Asked of the **place read**, and exempt only where it is, or is reached
+                     * through, a heap-backed container. It was asked of the root local's type, so a
+                     * record holding a `[U8 *4]` - `b.bytes.sliceMut(0, 2)` - was exempt for not
+                     * being a fixed array itself, and the window pointed into a step frame that had
+                     * returned (the review of J210).
+                     */
+                    if(throughCall) {
+                        auto heapBacked = false;
+                        for(auto at = body.place(mir, read.place.placeId()); at && !heapBacked;
+                            at = at->parent ? mir[at->parent] : nullptr) {
+                            heapBacked = viewRowOf(decl(), program, at->occurrence.type) != nullptr;
+                        }
+
+                        if(heapBacked) continue;
+                    }
+
+                    return root;
+                } else if(node.kind == Node::Aggregate) {
+                    for(auto operand: ((NodeAggregate&)node).components.contents(mir)) {
+                        follow(operand, false);
+                    }
+                } else if(node.kind == Node::Call) {
+                    auto& call = (NodeCall&)node;
+                    if(call.callsValue()) continue;
+                    for(auto operand: call.arguments.contents(mir)) follow(operand, true);
+                }
+            }
+
+            return kNoLocal;
+        };
+
+        // One report per local, at its first write: every later one is the same mistake.
+        SmallArray<U32, 4> reported;
+
+        for(U32 i = 0; i < body.nodes.size(); i++) {
+            auto& node = *body.node(mir, NodeId(i));
+            if(node.kind != Node::Write) continue;
+
+            auto& write = (NodeWrite&)node;
+            if(write.value.source() != SourceKind::Result) continue;
+
+            auto target = rootLocalOf(mir, body, write.destination.placeId());
+            if(target == kNoLocal || !live.liveLocal(target)) continue;
+
+            auto held = body.local(mir, LocalId(target));
+            if(held->isParameter() || !held->occurrence.contract.isOwned() || held->demandsHeap) continue;
+
+            auto seen = false;
+            for(auto done: reported) seen = seen || done == target;
+            if(seen) continue;
+
+            auto lender = lenderOf(write.value.nodeId(), target);
+            if(lender == kNoLocal) continue;
+            reported.push(target);
+
+            auto from = body.local(mir, LocalId(lender));
+            context.diagnostics.error(
+                "%@ keeps %@ across a `yield`, and %@ holds a borrow of %@ - an iterator object moves with whatever holds it, and %@ is the producer's own storage, so the borrow would point at where the value used to be; write `@heap` on %@, or lend it a parameter instead"_v,
+                node.source, context.findName(producer.name), context.findName(held->name),
+                context.findName(held->name), context.findName(from->name),
+                context.findName(from->name), context.findName(from->name));
+            ok = false;
+        }
+    }
+
+    /*
      * The **values** the record has to spill, and the two things this stage asks of one.
      *
      * A value live across a `yield` is spilled into a field at the hand-over and read back where the
@@ -1026,14 +1178,117 @@ static DeclPtr<Function> iterProducerAt(Context& context, Program& program, Func
                               source);
 }
 
+/*
+ * The producer read at a generic body's **own variables** - P16's open clone, the one thing an
+ * `openSite` record is minted from (`RecordType::openSite`).
+ *
+ * `specializeFunction`'s fields, copied the way it copies them, so that `bodyOwnerOf` and
+ * `substitutionOf` answer for it as they do for any clone and the mint reads it unchanged. What it
+ * does not do is the three things that make a specialization one: the clone is not interned, not
+ * added to its module, and not a callee - so the reachability walk, `checkSpecializations` and the
+ * conversion never meet it. Its signature holds the body's variables, which is exactly what the
+ * header of `specializeFunction` says a specialization may not.
+ */
+DeclPtr<Function> Resolver::openProducerAt(Function& declared, const Substitution& with) {
+    auto generic = DeclPtr<Function>(&declared - *program.decl);
+
+    for(auto known: openProducers) {
+        auto& clone = *decl()[known];
+        if(clone.specializes != generic || clone.typeArguments.size() != with.count) continue;
+
+        auto same = true;
+        for(Size i = 0; i < with.count && same; i++) {
+            same = clone.typeArguments.get(decl(), U32(i)) == with.arguments[i];
+        }
+
+        if(same) return known;
+    }
+
+    auto text = Tritium::format("%@(", context.findName(declared.symbol));
+    for(Size i = 0; i < with.count; i++) {
+        if(i) text = text + String(", ");
+        text = text + typeText(context, decl(), with.arguments[i]);
+    }
+    text = text + String(")");
+
+    auto symbol = program.uniqueSymbol(declared.module, context,
+                                       StringView(text.text(), text.size()));
+
+    auto function = new (program.decl) Function(symbol, declared.module);
+    auto pointer = DeclPtr<Function>(function - *program.decl);
+
+    function->source = declared.source;
+    function->specializes = generic;
+    function->lens = declared.lens;
+    function->originSlots = declared.originSlots;
+    function->summary.bodyKnown = declared.summary.bodyKnown;
+
+    for(Size i = 0; i < with.count; i++) function->typeArguments.push(program.decl, with.arguments[i]);
+
+    for(auto argumentPointer: declared.args.contents(decl())) {
+        auto& written = *decl()[argumentPointer];
+
+        auto substituted = new (program.decl) Arg();
+        substituted->name = written.name;
+        substituted->source = written.source;
+        substituted->index = written.index;
+        substituted->occurrence = substituteOccurrence(context, program, written.occurrence, with);
+
+        function->args.push(program.decl, substituted - *program.decl);
+    }
+
+    function->result = substituteOccurrence(context, program, declared.result, with);
+    function->mir = declared.mir;
+
+    openProducers.push(pointer);
+    return pointer;
+}
+
+/*
+ * What an `openSite` record is at one concrete argument list - `Program::IterObjects::siteAt`,
+ * reached from `substituteType` while the reachability walk specializes the body that built it.
+ *
+ * A mint after the resolver's own passes, on `objectMaker`'s terms and with its one extra step: a
+ * record minted here may box a recursive child, and the pass that completes boxes has already run.
+ */
+DeclPtr<Type> Resolver::siteAt(DeclPtr<Function> producer, DeclPtr<Type>* arguments, Size count,
+                               LocationId source) {
+    auto& declared = *decl()[producer];
+    Substitution with { declared.gen, arguments, count };
+
+    if(declared.bodyState != Function::BodyState::Read) demandBody(declared);
+
+    auto site = iterSiteTypeOf(declared, with, source);
+    if(!site) return nullptr;
+
+    if(!completeBoxedNests()) return nullptr;
+    return site;
+}
+
 bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>& into,
                                 LocationId source) {
     auto mir = *program.mir;
     auto ok = true;
 
+    // An open clone (P16) - a producer read at a generic body's own variables, which `callTarget`
+    // cannot answer a nested call of: a clone of the child at those variables is what it would have
+    // to make, and minting the child open as well is not built.
+    auto open = false;
+    auto with = substitutionOf(decl(), producer);
+    for(Size i = 0; i < with.count; i++) {
+        if(!isConcreteType(decl(), with.arguments[i])) open = true;
+    }
+
     for(U32 i = 0; i < body.nodes.size(); i++) {
         auto& node = *body.node(mir, NodeId(i));
         if(!isLensCall(node.kind)) continue;
+
+        if(open) {
+            context.diagnostics.error(
+                "%@ runs a nested traversal, and an object of it built at a generic body's own type variables does not mint its nested members yet - build the object where the arguments are known"_v,
+                source, context.findName(bodyOwnerOf(decl(), producer).name));
+            return false;
+        }
 
         auto& call = (NodeLensCall&)node;
         auto region = body.region(mir, call.region);
@@ -1055,7 +1310,16 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
          * exactly the thing §6.6 lists as `| E` on an object - so this is the same refusal the outer
          * producer gets, made where the child is.
          */
-        if(node.kind != Node::LensCall || region->otherwise.valid()) {
+        /*
+         * A failing **iterator** is embedded since C1b: `convertStepNest`'s advance reads the
+         * child's `$index` where its step said no, and a `kIterFailed` there takes `f$failure` to
+         * this region's own alternative - the reading `resolveObjectFor` makes at a consumer. What
+         * is still refused is a skipping *lens* region, and (in `convertStepNest`, where it is known)
+         * a failing child that is boxed or delegated to.
+         */
+        auto failingIterator = !lens && node.kind == Node::LensTry && region->otherwise.valid();
+
+        if(!failingIterator && (node.kind != Node::LensCall || region->otherwise.valid())) {
             if(lens) {
                 context.diagnostics.error(
                     "%@ runs %@ over part of its own body and %@ can fail, and an object's step answers only whether it handed over - a skipping lens region is not built yet; `for x in %@(...)` still compiles it the other way"_v,
@@ -1064,7 +1328,7 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
                     context.findName(decl()[call.callee]->name), context.findName(producer.name));
             } else {
                 context.diagnostics.error(
-                    "%@ runs a nested traversal that can fail, and an object's step has no terminal failure to hand it - `| E` on an object is not built yet; `for x in %@(...)` still compiles it the other way"_v,
+                    "%@ runs a nested traversal that can fail, and the step that embeds it does not take a child's failure to the alternative yet; `for x in %@(...)` still compiles it the other way"_v,
                     node.source, context.findName(producer.name), context.findName(producer.name));
             }
 
@@ -1131,6 +1395,20 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
          * is where the child is built (at the call, not in `f$new`) and how it is ended (the box is
          * dropped, and the drop is what runs the child's own teardown).
          */
+        /*
+         * The child's body, now - and handed to the specialization `callTarget` just made.
+         *
+         * A clone takes its generic's `mir` when it is made (`specializeFunction`), and everywhere
+         * else a clone is made after every body is built. This one is made while the *consumer's*
+         * body is being read, so a lens declared later in the file than the consumer had no body
+         * yet, its clone kept none, and `checkSpecialization` reported that it "does not share its
+         * generic's body" (J185's record, "left"). Demanding the body here rather than at the
+         * child's mint is what lets the clone be given it; an instance member is demanded the same
+         * way (`demandBody`), which was "has no body to step" in the same position.
+         */
+        demandBody(declaring);
+        if(decl()[site.target]->specializes) decl()[site.target]->mir = declaring.mir;
+
         auto reached = iterProducerAt(context, program, declaring, childWith, node.source);
         if(!reached) { ok = false; continue; }
 
@@ -1189,6 +1467,13 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
             continue;
         }
 
+        /*
+         * A failing child held any way but inline was refused here until C1c (J218). A box is the
+         * erased `iter(Y | E)` now, whose pair answers the failure as a tagged address the embedded
+         * `advance` hands to this region's alternative; and a delegated level answers null to the
+         * trampoline when it fails, so the level above is stepped next - at its `delegateResume`,
+         * which asks the child's pair once more and gets the failure then (`emitIterErasedRaw`).
+         */
         /*
          * A box this mint chose rather than one the cycle forced, which is the one case a refusal
          * below is not a refusal: `evens`' region over `odds` compiles today as an inline member, so
@@ -1281,7 +1566,10 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
         auto resume = childOwner.resume.type
             ? substituteType(context, program, childOwner.resume.type, reachedWith) : nullptr;
 
-        auto erased = erasedIterTypeOf(handover, resume, node.source);
+        auto failure = childOwner.failure
+            ? substituteType(context, program, childOwner.failure, reachedWith) : nullptr;
+
+        auto erased = erasedIterTypeOf(handover, resume, node.source, failure);
         if(!erased) { ok = false; continue; }
 
         into.push(IterNest { i, call.region, erased, reached, delegate });
@@ -1310,6 +1598,35 @@ bool Resolver::demandBody(Function& callee) {
         resolveBody(callee, *writtenFunctionDecls[i]);
         uninitialized = move(pending);
         break;
+    }
+
+    /*
+     * Or a member an **instance** wrote - `out.withWindow(...)` embedded in a producer whose object
+     * is minted before the body walk reaches the instance. The member is found by its function
+     * rather than by name, and its declaration by the class's member index, which is how
+     * `resolveInstanceBody` pairs the two; that walk then finds the body read and skips it.
+     */
+    for(U32 i = 0; callee.bodyState == Function::BodyState::Unread && i < writtenInstances.size(); i++) {
+        if(!writtenInstances[i] || !writtenInstanceDecls[i]) continue;
+
+        auto& instance = *decl()[writtenInstances[i]];
+        auto& klass = *decl()[instance.klass];
+
+        for(auto member: writtenInstanceDecls[i]->instance.decls.contents(parse)) {
+            if(member.kind != ast::Decl::Fun) continue;
+
+            auto index = classMemberIndex(klass, member.fun.name, U32(member.fun.args.size()));
+            if(index == klass.members.size()) continue;
+            if(instance.members.get(decl(), U32(index)) != DeclPtr<Function>(&callee - *program.decl)) {
+                continue;
+            }
+
+            ModuleScope scope = scopeOf(callee.module, callee.source);
+            Array<DeclPtr<Global>> pending(move(uninitialized));
+            resolveBody(callee, member);
+            uninitialized = move(pending);
+            break;
+        }
     }
 
     return callee.bodyState == Function::BodyState::Read;
@@ -1367,13 +1684,6 @@ DeclPtr<Type> Resolver::iterSiteTypeOf(Function& declared, const Substitution& w
                 source, context.findName(declared.name));
             return nullptr;
         }
-    }
-
-    if(declared.failure) {
-        context.diagnostics.error(
-            "%@ can fail, and an iterator object needs a terminal failure on its step - `| E` on an object is not built yet; `for x in %@(...)` still compiles it"_v,
-            source, context.findName(declared.name), context.findName(declared.name));
-        return nullptr;
     }
 
     for(U32 i = 0; i < declared.writtenArity(); i++) {
@@ -1438,19 +1748,34 @@ DeclPtr<Type> Resolver::iterSiteTypeOf(Function& declared, const Substitution& w
         return nullptr;
     }
 
-    // The producer at these arguments. Concrete by the call site's own refusal - a construction
-    // inside a generic body is refused there, because a site type has no parameters of its own.
-    auto producer = iterProducerAt(context, program, declared, with, source);
+    /*
+     * The producer at these arguments - concrete, or, for an object a generic body builds at its own
+     * variables, the open clone an `openSite` record is minted from (P16, `constructIterObject`).
+     */
+    auto open = false;
+    for(Size i = 0; i < with.count; i++) {
+        if(!isConcreteType(decl(), with.arguments[i])) open = true;
+    }
+
+    auto producer = open ? openProducerAt(declared, with)
+                         : iterProducerAt(context, program, declared, with, source);
     if(!producer) return nullptr;
 
     for(auto& known: iterSites) {
         if(known.producer == producer) return known.record;
     }
 
+    /*
+     * A body that was read and reported has no MIR either, and saying so again at every object of
+     * it is a cascade of the error its own body already named - `Reject.Object.yana`'s `recursive`,
+     * whose second object reported this once the first stopped being refused earlier (J216).
+     */
     auto& owner = bodyOwnerOf(decl(), *decl()[producer]);
     if(!owner.mir) {
-        context.diagnostics.error("%@ has no body to step"_v, source,
-                                  context.findName(declared.name));
+        if(owner.bodyState != Function::BodyState::Read || !context.diagnostics.errorCount()) {
+            context.diagnostics.error("%@ has no body to step"_v, source,
+                                      context.findName(declared.name));
+        }
         return nullptr;
     }
 
@@ -2407,11 +2732,14 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
              * parameters are `g`'s, and the `lens.call`'s operands are what the source wrote.
              */
             auto items = call.arguments.contents(mir);
+            auto published = false;
 
             for(U32 a = 0; a < make.args.size() && a < items.size(); a++) {
                 if(decl()[make.args.get(decl(), a)]->occurrence.contract.originSlot() != wanted) {
                     continue;
                 }
+
+                published = true;
 
                 auto& operand = *items.pointerAt(a);
                 if(operand.source() != SourceKind::Result) break;
@@ -2469,6 +2797,29 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
                 }
 
                 break;
+            }
+
+            /*
+             * Or a set **no argument publishes** - the interior of one of the child's own payload
+             * members, such as the `space: &'[U8]` of a `Win` a lens builds out of its parameter
+             * and hands over. `g$new` binds that set to nothing, because what the member borrows
+             * was reached through the child's captures - a lens cannot hand over a borrow of its own
+             * storage without `yield'` - and each capture has just been matched to a lender above or
+             * refused. So the position refers to storage outside this record for the reason the
+             * borrow-member row says it does, and gets a set of its own the same way.
+             *
+             * A member that is *not* handed over and borrows the child's own inline storage
+             * (`Win {space: buf[0..2]}` over a local `[U8 *4]`) is not this code's to see: the
+             * child's own `checkObjectBody` refuses it when the child is minted, through the
+             * owned-value self-borrow rule K5 added (C0), so the set built here is never one for
+             * storage inside this record.
+             *
+             * Refusing it was the old answer, and named the wrong thing: "lend it a parameter
+             * instead" to a producer that had (J188; `repros/p3b-*`, the shape `InputBlocks` with
+             * an output window has).
+             */
+            if(!published && lender == kNoOriginSlot && wanted != kNoOriginSlot) {
+                lender = record->originSlots++;
             }
 
             if(lender == kNoOriginSlot) {
@@ -2571,6 +2922,26 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
         field(context.addUnqualifiedName("$inner", 6), owned(program.types.words[0]));
     }
 
+    /*
+     * And `$failure`, last of all and for the same reason - P2, J216. What the producer's `return e`
+     * hands its step is `Outcome(exit, E)`, the wrapper the `for` form's `lens.try` takes apart, so
+     * that is the field's type: the step stores what it was handed and reads the tag back
+     * (`RecordType::failureField`). `E` is the declaration's, substituted - a generic failure (J186)
+     * is a record over this specialization's own arguments like any other field here.
+     */
+    if(owner.failure) {
+        DeclPtr<Type> wrapped[2] = { program.types.exitCode(),
+                                     substituteType(context, program, owner.failure, with) };
+        auto outcome = wrapped[1] ? instantiateRecord(context, program,
+                                                      program.roles.record(intrinsic::Known::outcome),
+                                                      wrapped, 2, source)
+                                  : nullptr;
+        if(!outcome) return nullptr;
+
+        record->failureField = U16(record->fields.size());
+        field(context.addUnqualifiedName("$failure", 8), owned(outcome));
+    }
+
     RecordCon only;
     only.name = name;
     only.source = producer.source;
@@ -2664,6 +3035,7 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
     if(owes && !iterTeardown(producer, *record, source)) return nullptr;
     if((lends || record->linkType) && !iterItem(producer, *record, handover, source)) return nullptr;
     if(flagged && !iterTake(producer, *record, handover)) return nullptr;
+    if(record->failureField && !iterFailure(producer, *record)) return nullptr;
 
     /*
      * `Iterate`, for an iterator and not for a **lens**.
@@ -2673,8 +3045,16 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
      * where the one reader is that producer's own step. An instance here would be `next`/`resume`
      * over a record whose second step is a cleanup, which is a reading of the class no consumer
      * should be able to reach.
+     *
+     * A **failing** object gets `IterateFailing` instead (C1b). `Iterate`'s `next` answers
+     * `Maybe(item)`, which has no row for "failed with `e`", so an instance of it would answer
+     * `Nothing` and leave the failure in the record - silently, and at an owning `E` a leak. The
+     * second class answers `IterStep(e, item)`, and exactly one of the two has an instance at any
+     * object, which is what lets overload resolution tell `it.next()` apart (`prefixHasInstance`).
      */
-    if(!lensSite && !iterIterateInstance(producer, *record, handover, source)) return nullptr;
+    if(!lensSite && !iterIterateInstance(producer, *record, handover, source)) {
+        return nullptr;
+    }
 
     breakRecordLayout(context, program, *record);
     if(!foldRecordSchema(context, program, *record)) return nullptr;
@@ -3009,6 +3389,59 @@ bool Resolver::iterTeardown(Function& producer, RecordType& record, LocationId s
 }
 
 /*
+ * Whether a generic body may build an object of `callee` at its own variables - P16's three
+ * refusals, and the form the body is held to.
+ *
+ * - **A variable of anything but this body.** A callee's inference variable that nothing bound is
+ *   `reportUndecided`'s; what reaches here is the enclosing declaration's own `gen`, which is what a
+ *   specialization substitutes. Anything else keeps the sentence that stood here.
+ * - **A body compiled once** (`@generic`): what replaces the record is a specialization's
+ *   substitution, and an erased body has none - the same slot a lambda's environment wants.
+ * - **A protocol at the body's variables**: an item or resume type that mentions them. The
+ *   consumer's MIR is written against the open record's steppers - whether the item is lent or
+ *   handed over, whether `$held` is there to clear - and a variable answers those questions
+ *   differently from the type a specialization binds, so the record the body was checked against
+ *   and the one it runs would disagree. The failure may: it is always handed over, whatever it is.
+ */
+bool Resolver::openObjectPermitted(Function& callee, const Substitution& with, LocationId source) {
+    auto enclosing = currentFunction ? currentFunction->gen : nullptr;
+
+    for(Size i = 0; i < with.count; i++) {
+        if(isConcreteType(decl(), with.arguments[i])) continue;
+        if(enclosing && with.arguments[i] && variablesFrom(decl(), with.arguments[i], enclosing)) {
+            continue;
+        }
+
+        context.diagnostics.error(
+            "%@'s object type is minted per set of type arguments, and one of these is not a type variable of this declaration - write the arguments out"_v,
+            source, context.findName(callee.name));
+        return false;
+    }
+
+    if(currentFunction->form == GenForm::Erased) {
+        context.diagnostics.error(
+            "an object of %@ at this function's type variables is minted per specialization, and a function compiled once (`@generic`) has none - remove `@generic` so the function is specialized"_v,
+            source, context.findName(callee.name));
+        return false;
+    }
+
+    auto handover = substituteOccurrence(context, program, callee.handover, with);
+    auto resume = callee.resume.type ? substituteType(context, program, callee.resume.type, with)
+                                     : nullptr;
+
+    if(mentionsContext(decl(), handover.type, enclosing) ||
+       mentionsContext(decl(), resume, enclosing)) {
+        context.diagnostics.error(
+            "%@ hands over %@ here, and an object built at this declaration's type variables steps a protocol the declaration fixes - whether the item is lent or handed over is the type's answer, and a variable has none. Build the object where the item type is known"_v,
+            source, context.findName(callee.name), typeText(context, decl(), handover.type));
+        return false;
+    }
+
+    if(currentFunction->form == GenForm::Auto) currentFunction->form = GenForm::Specialized;
+    return true;
+}
+
+/*
  * `let it = f(...)` - the object, built where a call would have been.
  *
  * The arguments arrived exactly as they would have for a call of the producer: resolved against its
@@ -3072,6 +3505,23 @@ Node* Resolver::constructIterObject(Builder& builder, Function& callee,
                 return nullptr;
             }
 
+            /*
+             * A **failing** member at an open subject. The witness entry's type is
+             * `iterObjectMember`'s `iter(T)`, minted without a failure, so the object built here
+             * answered "cannot fail" to an alternative and dropped the failure a step raised (found
+             * by C2, J219). Carrying it needs the entry typed `iter(T | E)` at the substituted
+             * failure, which is open wherever the subject is - the class's `error` parameter is
+             * almost always the subject's own - and an erased type at an open failure is refused
+             * for `resolveErasedIterType`'s reason. So it is refused by name, and the object is
+             * built where the subject is known.
+             */
+            if(callee.failure) {
+                context.diagnostics.error(
+                    "%@ can fail, and an object of a class member at a subject this declaration binds is the erased `iter(T)`, which carries no failure - build the object where the subject is known, or take it as an `IterateFailing` parameter"_v,
+                    source, context.findName(callee.name));
+                return nullptr;
+            }
+
             if(!erasedIterTypeOf(handover, resume, source)) return nullptr;
 
             auto entry = iterObjectMember(callee);
@@ -3081,10 +3531,17 @@ Node* Resolver::constructIterObject(Builder& builder, Function& callee,
                                    with);
         }
 
-        context.diagnostics.error(
-            "%@'s object type is minted per set of type arguments, so one cannot be built inside a body compiled at a type variable - write `@specialize` on this function"_v,
-            source, context.findName(callee.name));
-        return nullptr;
+        /*
+         * An object at the body's **own** variables - P16, J223, on C3's route for a lambda's
+         * environment (J205). A specialization is this body's MIR read under a substitution, so
+         * what is built here is a record at the body's variables that a substitution *replaces*:
+         * `iterSiteTypeOf` mints an `openSite` record from the producer read at them, the analyses
+         * of this body read its signatures, and each specialization reaches the record minted at
+         * its own arguments (`substituteType`, `callTarget`). What is refused is what that route
+         * cannot carry, each by name below.
+         */
+        if(!openObjectPermitted(callee, with, source)) return nullptr;
+        break;
     }
 
     /*
@@ -3122,6 +3579,21 @@ Node* Resolver::constructIterObject(Builder& builder, Function& callee,
     if(!site) return nullptr;
 
     auto& record = *(RecordType*)decl()[site];
+
+    /*
+     * An open record is marked here rather than in the mint, because the context it shares is the
+     * *body's* - the one a specialization's substitution names - and the mint knows only the
+     * producer. Marked after it: the mint's own questions about the record (its classification, its
+     * instances) are asked of a record at open field types, which answer for every argument list.
+     */
+    if(decl()[record.producer]->specializes && !record.openSite) {
+        for(Size i = 0; i < producerWith.count; i++) {
+            if(isConcreteType(decl(), producerWith.arguments[i])) continue;
+            record.openSite = true;
+            record.gen = currentFunction->gen;
+            break;
+        }
+    }
 
     DeclPtr<Function> make = nullptr;
     for(auto& known: iterSites) {
@@ -3291,10 +3763,42 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
      */
     auto& declaring = bodyOwnerOf(decl(), producer);
 
-    if(loop.alts.size()) {
+    /*
+     * A **failing** object's alternative - P2, J216. The same arm the `for` form's `lens.try` takes
+     * (`resolveAlternative`), and owed on the same terms: a failure nobody handles is refused
+     * rather than dropped, with the sentence `handoverCall` uses.
+     */
+    auto fails = site.failureField != 0;
+
+    // `for x in it?:` - C4, the failure propagated rather than handled (`propagationShape`).
+    TryShape leaving;
+    if(loop.propagate != kNullLocation) {
+        if(!fails) {
+            context.diagnostics.error(
+                "%@ cannot fail, so there is no failure for `?` to propagate - drop the `?`"_v,
+                loop.propagate, context.findName(producer.name));
+            return true;
+        }
+
+        if(!propagationShape(fails, loop.alts, loop.propagate, leaving)) return true;
+    }
+
+    if(loop.alts.size() && !fails) {
         context.diagnostics.error(
-            "an iterator object cannot fail, so there is nothing for an alternative to handle"_v,
-            loop.pat.source);
+            "%@ cannot fail, so there is nothing for an alternative to handle"_v,
+            loop.pat.source, context.findName(producer.name));
+        return true;
+    }
+
+    if(fails && !loop.alts.size() && loop.propagate == kNullLocation) {
+        auto failure = site.field(decl(), site.failureField).occurrence.type;
+        auto& outcome = *(RecordType*)decl()[failure];
+        auto reason = outcome.field(decl(), outcome.cons.get(decl(), kOutcomeExit).first);
+
+        context.diagnostics.error(
+            "%@ can fail with %@, so this call needs `| reason -> ...` for the path where it never hands over"_v,
+            loop.from.source, context.findName(producer.name),
+            typeText(context, decl(), reason.occurrence.type));
         return true;
     }
 
@@ -3385,10 +3889,18 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
     auto header = builder.addBlock(StringId());
     auto exit = builder.addBlock(StringId());
 
+    /*
+     * Where a failing object's loop goes when the step answered no - which is not `exit`, because a
+     * `break` reaches `exit` too and the alternative must not run after one. It tests `$index` and
+     * reaches `exit` itself where the object ran out.
+     */
+    auto stopped = fails ? builder.addBlock(StringId()) : exit;
+
     if(resumes) builder.addBlockArgument(*header, owned(sent.type), source);
 
     carry.declare(builder, *header);
     carry.declare(builder, *exit);
+    if(fails) carry.declare(builder, *stopped);
 
     SmallArray<Operand, 8> entry;
 
@@ -3431,7 +3943,7 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
             auto address = hold(builder, *more, source);
             if(!address) return false;
 
-            failIfNot(builder, *answeredItem, *exit, carry, source);
+            failIfNot(builder, *answeredItem, *stopped, carry, source);
 
             auto found = readPlace(builder, source, *address, inspectRequest());
             if(!found) return false;
@@ -3463,7 +3975,7 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
             return true;
         }
 
-        failIfNot(builder, *more, *exit, carry, source);
+        failIfNot(builder, *more, *stopped, carry, source);
 
         /*
          * The item, out of the slot under the producer's own convention.
@@ -3534,9 +4046,57 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
         return true;
     };
 
+    /*
+     * The failing object's stop - `$index` is `kIterFailed` where the step failed and anything else
+     * where it ran out. The failure is taken with `f$failure`, which also finishes the record, and
+     * handed to the alternative exactly as a `lens.try`'s skip block hands its reason.
+     */
+    auto stop = [&]() {
+        if(!fails) return;
+
+        builder.setBlock(*stopped);
+        carry.arrive(builder, *stopped, 0);
+
+        auto counter = program.types.exitCode();
+        auto index = readPlace(builder, source, *builder.fieldPlace(*place, 0), inspectRequest());
+        auto failed = builder.addConst(source, intConstant(counter, kIterFailed));
+        auto test = index && failed ? builder.addBinary(source, BinaryOp::Eq, *index, *failed)
+                                    : nullptr;
+        if(!test) {
+            builder.addUnreachable(source);
+            return;
+        }
+
+        failIfNot(builder, *test, *exit, carry, source);
+
+        auto& taking = *decl()[site.producerFailure];
+        auto& declared = *decl()[taking.args.get(decl(), 0)];
+
+        Node* self[1] = { readPlace(builder, source, *place, requestOf(declared.occurrence)) };
+        auto reason = self[0] ? callFunction(builder, taking, self, 1, source) : nullptr;
+        if(!reason) {
+            builder.addUnreachable(source);
+            return;
+        }
+
+        if(loop.propagate != kNullLocation) {
+            emitCarrierExit(builder, *reason, leaving, loop.propagate);
+        } else {
+            auto alternative = loop.alts.get(parse, 0);
+            resolveAlternative(builder, alternative, *reason);
+        }
+
+        if(!builder.isTerminated()) {
+            SmallArray<Operand, 8> out;
+            carry.edge(builder, out);
+            builder.addJump(source, *exit, out.pointer(), out.size());
+        }
+    };
+
     if(!step()) {
         bindings.resize(U32(scope));
         if(!builder.isTerminated()) builder.addUnreachable(source);
+        stop();
         builder.setBlock(*exit);
         carry.arrive(builder, *exit, 0);
         return true;
@@ -3595,6 +4155,8 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
         }
     }
 
+    stop();
+
     builder.setBlock(*exit);
     carry.arrive(builder, *exit, 0);
     return true;
@@ -3620,16 +4182,46 @@ bool Resolver::resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
 bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop, Place& place,
                                 IterType& iterated) {
     auto source = expr.source;
+    auto erased = DeclPtr<Type>(&iterated - *program.decl);
 
-    if(loop.alts.size()) {
+    /*
+     * `iter(T | E)` - C1c, J218, and `resolveObjectFor`'s rule one indirection out: a failure nobody
+     * handles is refused, and an alternative on a protocol that cannot fail names what it is.
+     */
+    auto fails = iterated.failure != nullptr;
+
+    TryShape leaving;
+    if(loop.propagate != kNullLocation) {
+        if(!fails) {
+            context.diagnostics.error(
+                "%@ cannot fail, so there is no failure for `?` to propagate - drop the `?`"_v,
+                loop.propagate, typeText(context, decl(), erased));
+            return true;
+        }
+
+        if(!propagationShape(fails, loop.alts, loop.propagate, leaving)) return true;
+    }
+
+    if(loop.alts.size() && !fails) {
         context.diagnostics.error(
-            "an iterator object cannot fail, so there is nothing for an alternative to handle"_v,
-            loop.pat.source);
+            "%@ cannot fail, so there is nothing for an alternative to handle"_v,
+            loop.pat.source, typeText(context, decl(), erased));
         return true;
     }
 
-    auto item = iterErasedItem(DeclPtr<Type>(&iterated - *program.decl), source);
+    if(fails && !loop.alts.size() && loop.propagate == kNullLocation) {
+        context.diagnostics.error(
+            "%@ can fail with %@, so this loop needs `| reason -> ...` for the path where it never hands over"_v,
+            loop.from.source, typeText(context, decl(), erased),
+            typeText(context, decl(), iterated.failure));
+        return true;
+    }
+
+    auto item = iterErasedItem(erased, source);
     if(!item) return true;
+
+    auto failure = fails ? iterErasedFailure(erased, source) : nullptr;
+    if(fails && !failure) return true;
 
     auto& reading = *decl()[item];
     auto& itemSelf = *decl()[reading.args.get(decl(), 0)];
@@ -3663,10 +4255,15 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
     auto header = builder.addBlock(StringId());
     auto exit = builder.addBlock(StringId());
 
+    // Where a failed step goes - its own block, for `resolveObjectFor`'s reason: a `break` reaches
+    // `exit` too, and the alternative must not run after one.
+    auto failed = fails ? builder.addBlock(StringId()) : nullptr;
+
     if(resumes) builder.addBlockArgument(*header, owned(iterated.sent), source);
 
     carry.declare(builder, *header);
     carry.declare(builder, *exit);
+    if(fails) carry.declare(builder, *failed);
 
     SmallArray<Operand, 8> entry;
 
@@ -3687,6 +4284,7 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
     carry.arrive(builder, *header, resumes ? 1 : 0);
 
     auto scope = bindings.size();
+    Place* address = nullptr;
 
     auto step = [&]() -> bool {
         /*
@@ -3723,13 +4321,38 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
          * thing that crosses without being an edge, and what is in it is a raw pointer, so writing
          * it once per pass costs a store.
          */
-        auto address = hold(builder, *at, source);
+        address = hold(builder, *at, source);
         if(!address) return false;
 
         failIfNot(builder, *more, *exit, carry, source);
 
         auto found = readPlace(builder, source, *address, inspectRequest());
         if(!found) return false;
+
+        /*
+         * A **failed** step answers `&$failure | 1` - C1c, and the one row an item answer cannot
+         * be: an `Outcome` is at least four-aligned, so the tag is free on the failure's address,
+         * and an item answer is a slot's address, which is laid out at least two-aligned - never
+         * the lent value's own, which an `&U8` makes odd (`iterSlotAddress`). Tested only on a protocol that can
+         * fail, so an `iter(T)` loop is the loop it was; on `iter(T | E)` it is one `and` and a
+         * branch per element, which is what the tagged answer costs a consumer.
+         */
+        if(fails) {
+            auto word = program.types.words[0];
+            auto number = builder.addBitcast(source, *found, word);
+            auto one = builder.addConst(source, intConstant(word, 1));
+            auto none = builder.addConst(source, intConstant(word, 0));
+            if(!number || !one || !none) return false;
+
+            auto tag = builder.addBinary(source, BinaryOp::And, *number, *one);
+            auto clean = tag ? builder.addBinary(source, BinaryOp::Eq, *tag, *none) : nullptr;
+            if(!clean) return false;
+
+            failIfNot(builder, *clean, *failed, carry, source);
+
+            found = readPlace(builder, source, *address, inspectRequest());
+            if(!found) return false;
+        }
 
         /*
          * The item, rooted in the object - `iter(T)$item`, whose *signature* is the whole of it. Not
@@ -3759,9 +4382,47 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
         return true;
     };
 
+    /*
+     * The failure, moved out of the answer and handed to the alternative - `resolveObjectFor`'s
+     * `stop` with the test already made: the tag said failed, so there is no index to read.
+     */
+    auto stop = [&]() {
+        if(!fails) return;
+
+        builder.setBlock(*failed);
+        carry.arrive(builder, *failed, 0);
+
+        // The object is lent to the read, which is what keeps an owned one alive until it is made.
+        auto& failing = *decl()[failure];
+        auto& failingSelf = *decl()[failing.args.get(decl(), 0)];
+        auto lent = readPlace(builder, source, place, requestOf(failingSelf.occurrence));
+        auto tagged = address && lent ? readPlace(builder, source, *address, inspectRequest())
+                                      : nullptr;
+        Node* arguments[2] = { lent, tagged };
+        auto reason = tagged ? callFunction(builder, failing, arguments, 2, source) : nullptr;
+        if(!reason) {
+            builder.addUnreachable(source);
+            return;
+        }
+
+        if(loop.propagate != kNullLocation) {
+            emitCarrierExit(builder, *reason, leaving, loop.propagate);
+        } else {
+            auto alternative = loop.alts.get(parse, 0);
+            resolveAlternative(builder, alternative, *reason);
+        }
+
+        if(!builder.isTerminated()) {
+            SmallArray<Operand, 8> out;
+            carry.edge(builder, out);
+            builder.addJump(source, *exit, out.pointer(), out.size());
+        }
+    };
+
     if(!step()) {
         bindings.resize(U32(scope));
         if(!builder.isTerminated()) builder.addUnreachable(source);
+        stop();
         builder.setBlock(*exit);
         carry.arrive(builder, *exit, 0);
         return true;
@@ -3813,6 +4474,8 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
         }
     }
 
+    stop();
+
     builder.setBlock(*exit);
     carry.arrive(builder, *exit, 0);
     return true;
@@ -3861,6 +4524,12 @@ bool Resolver::iterIterateInstance(Function& producer, RecordType& record,
     subject.from = DeclPtr<Function>(&producer - *program.decl);
     subject.next = Function::Generated::IterNext;
     subject.resume = Function::Generated::IterResume;
+
+    if(record.failureField) {
+        auto& outcome = *(RecordType*)decl()[record.field(decl(), record.failureField).occurrence.type];
+        subject.failure = outcome.field(decl(), outcome.cons.get(decl(), kOutcomeExit).first)
+                              .occurrence.type;
+    }
 
     /*
      * Which of the producer's origins each loan the object keeps is in - `self`'s shape.
@@ -3995,7 +4664,8 @@ static Contract declaredContractAt(DeclBase base, const Occurrence& declared, De
  */
 bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrence& handover,
                                   DeclPtr<Type> resume, LocationId source) {
-    auto klass = program.roles.klass(intrinsic::Known::iterate);
+    auto klass = program.roles.klass(subject.failure ? intrinsic::Known::iterateFailing
+                                                     : intrinsic::Known::iterate);
     if(!klass) return true;
 
     auto& declaration = *decl()[klass];
@@ -4013,8 +4683,20 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
     auto maybe = recordDeclarationOf(decl(), next.result.type);
     if(!maybe) return true;
 
-    DeclPtr<Type> payload[1] = { handover.type };
-    auto answer = instantiateRecord(context, program, maybe, payload, 1, source);
+    /*
+     * `IterStep(error, Y)` for a failing subject - the same reading of the member's own result, at
+     * two arguments. The failure is **owned** in its constructor: `Failed(e)` moves it out of the
+     * object, which is left finished, so nothing about it is rooted in `self`.
+     */
+    DeclPtr<Type> payload[2] = { handover.type, nullptr };
+    auto payloads = 1;
+    if(subject.failure) {
+        payload[0] = subject.failure;
+        payload[1] = handover.type;
+        payloads = 2;
+    }
+
+    auto answer = instantiateRecord(context, program, maybe, payload, payloads, source);
     if(!answer) return false;
 
     /*
@@ -4033,6 +4715,14 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
 
     for(auto constructor: carried.cons.contents(decl())) {
         if(constructor.count) lent = constructor.first;
+    }
+
+    // `IterStep` carries two things, and the item is the constructor holding the declaration's
+    // *second* parameter - by what it carries, for the reason above (`iterStepRows`).
+    if(subject.failure) {
+        auto rows = iterStepRows(decl(), answer);
+        if(rows.yield == 0xffff) return true;
+        lent = carried.cons.get(decl(), rows.yield).first;
     }
 
     if(lent == 0xffff) return true;
@@ -4147,6 +4837,7 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
     instance->klass = klass;
     instance->args.push(program.decl, subject.type);
     instance->args.push(program.decl, handover.type);
+    if(subject.failure) instance->args.push(program.decl, subject.failure);
     instance->args.push(program.decl, resume);
     instance->members.push(program.decl, nextMember);
     instance->members.push(program.decl, resumeMember);
@@ -4180,7 +4871,7 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
  * hand-over and the resume channel and nothing else.
  */
 DeclPtr<Type> Resolver::erasedIterTypeOf(const Occurrence& handover, DeclPtr<Type> resume,
-                                         LocationId source) {
+                                         LocationId source, DeclPtr<Type> failure) {
     /*
      * The type itself is `mir::erasedIterTypeOf`'s and has been since J61 - a free function, because
      * `substituteType` mints one and cannot see a resolver. What is left here is the **instance**.
@@ -4193,7 +4884,7 @@ DeclPtr<Type> Resolver::erasedIterTypeOf(const Occurrence& handover, DeclPtr<Typ
      * instance may still be added.
      */
     auto made = program.erasedIters.size();
-    auto type = mir::erasedIterTypeOf(context, program, handover, resume, source, true);
+    auto type = mir::erasedIterTypeOf(context, program, handover, resume, source, true, failure);
     if(!type) return nullptr;
 
     if(program.erasedItersReady && program.erasedIters.size() != made) {
@@ -4229,6 +4920,10 @@ bool Resolver::erasedIterateInstance(Program::ErasedIter& pending) {
     subject.record = pending.type;
     subject.next = Function::Generated::IterErasedNext;
     subject.resume = Function::Generated::IterErasedResume;
+
+    // `iter(T | E)` is stepped by `IterateFailing` and answers `IterStep` - the same choice
+    // `iterIterateInstance` makes for a site type, read off the protocol instead of the record.
+    subject.failure = ((IterType*)decl()[pending.type])->failure;
 
     return iterateInstanceFor(subject, pending.handover, pending.resume, pending.source);
 }
@@ -4625,12 +5320,80 @@ DeclPtr<Function> Resolver::iterErasedItem(DeclPtr<Type> erased, LocationId sour
         interior = program.shapes.intern(slots.pointer(), slots.size());
     }
 
+    /*
+     * An **owning** hand-over (`iter(->T)`) is lent here as well, and the object keeps it (K8). The
+     * site type's `for` moves the item out through `f$take`, which clears `$held` beside the move; an
+     * erased consumer has the slot's address and not the record, and `$held`'s place in the record is
+     * the producer's, so nothing here could clear it. Answering the owner anyway was two defects at
+     * once: the lowering refused a one-value return of a type that lives in storage, and where it did
+     * not the record went on owing a teardown the consumer also ran - freed at the refill and again
+     * by the binding. Lent, the item is released where `next()` over the same object releases it: at
+     * the next step's refill or the object's teardown. What that costs is a move *out of* the
+     * binding (`return t` in the body), which is refused as the loan it is.
+     */
+    auto access = iterated.handover.contract.access();
+    if(access == Access::Owned) access = Access::Shared;
+
     item->result = Occurrence { iterated.handover.type,
-                                slotContract(iterated.handover.contract.access(), 0,
-                                             iterated.handover.contract.form()), interior };
+                                slotContract(access, 0, iterated.handover.contract.form()), interior };
     item->originSlots = 1;
 
     erasedItems.push(ErasedStep { erased, pointer, false });
+    return pointer;
+}
+
+/*
+ * `iter(T | E)$failure` - the failure an erased step answered, moved out (C1c, J218).
+ *
+ *      fn iter(T | E)$failure(self: iter(T | E), $at: %Y) -> ->E
+ *
+ * `$at` is the step's answer as it came back, `&$failure | 1`, so the body untags it and moves the
+ * `Exit` payload out of the `Outcome(exit, E)` it names - `f$failure`'s load, one indirection out.
+ * The shim finished the record before it answered, which hands the consumer the payload in place,
+ * and what comes back is owned.
+ *
+ * **`self` is there for the loan and nothing else** (K7): the body never reads it. `$at` points into
+ * the object's record, and a raw address roots nothing, so without a borrow of the object at this
+ * call the object's last use was the step - and a consumer that *owns* it (`->it` lent to a local,
+ * or a heap-boxed `let`) dropped it on the failed edge before this read, which then loaded the
+ * payload out of a released block (J220 §5: the reason read as zero). Reordering the drop at the one
+ * consumer was the alternative; the loan says it where every drop placement can read it.
+ */
+DeclPtr<Function> Resolver::iterErasedFailure(DeclPtr<Type> erased, LocationId source) {
+    for(auto& known: erasedFailures) {
+        if(known.record == erased) return known.step;
+    }
+
+    auto& iterated = *(IterType*)decl()[erased];
+
+    auto klass = program.roles.klass(intrinsic::Known::iterateFailing);
+    auto module = klass ? decl()[klass]->module : here();
+
+    auto base = program.uniqueSymbol(module, context,
+                                     stringView(typeText(context, decl(), erased)));
+
+    auto pointer = generatedFor(module, base, "$failure"_v, Function::Generated::IterErasedFailure,
+                                erased, nullptr, source);
+
+    auto made = decl()[pointer];
+
+    auto self = new (program.decl) Arg();
+    self->name = context.addUnqualifiedName("$self", 5);
+    self->source = source;
+    self->index = 0;
+    self->occurrence = borrowed(erased, Access::Shared);
+    made->args.push(program.decl, self - *program.decl);
+
+    auto at = new (program.decl) Arg();
+    at->name = context.addUnqualifiedName("$at", 3);
+    at->source = source;
+    at->index = 1;
+    at->occurrence = owned(program.types.pointerType(iterated.handover.type));
+    made->args.push(program.decl, at - *program.decl);
+
+    made->result = owned(iterated.failure);
+
+    erasedFailures.push(ErasedStep { erased, pointer, false });
     return pointer;
 }
 
@@ -4656,6 +5419,50 @@ Node* Resolver::adaptIterValue(Builder& builder, Node& value, RecordType& site,
     if(!shim) return nullptr;
 
     Node* held = nullptr;
+
+    /*
+     * A record that **borrows** - a producer that captured a loan, `bytesOf(ys)` over
+     * `iter fn bytesOf(xs: [U8])` - may not become an *owning* pair, and is refused rather than
+     * carried (J229).
+     *
+     * The site record says what it borrows in its shape, and the loan analysis roots it there. A
+     * heap-placed pair has no interior position to root anything in: its environment is its own
+     * block, so `Shapes::closure`'s one position is absent by design (`addFunValue`, where the drop
+     * reads that absence), the `FunValue` rule has nowhere to put the environment's origins, and the
+     * loan ended at the conversion. The lender was then dropped after its last *named* use, which is
+     * before a callee handed the pair ever stepped it - `sum(bytesOf(ys))` summed freed memory - and
+     * a pair returned or stored in a field read a frame that was gone.
+     *
+     * Carrying the loans instead needs a third reading of the pair's second word, an owned block with
+     * loans inside it, and would buy nothing today: every owning position this reaches - a `->`
+     * parameter, a result, a field, an element - has a declared type with no origin to say whose the
+     * loan is, so `checkCarriedOrigins` or the result's conformance would refuse the value one step
+     * later with a less exact sentence. That is the closure's own rule, too: a lambda that leaves its
+     * frame owns what it captured, and one capturing a borrow is refused where it is written. What
+     * stays open is every borrowing position - `for x in f(xs)`, a `let` held and stepped in the
+     * lender's frame, a `&it: iter(T)` parameter - where the pair is frame-placed and carries
+     * `Shapes::closure`, which is exactly the loan.
+     *
+     * `Shapes::noEnvironment` is a marker and not a loan, so a record whose only interior position
+     * says a captured function value has no environment borrows nothing.
+     */
+    auto borrowsInterior = [&](DeclPtr<OwnershipSchema> shape) {
+        if(Shapes::isEmpty(shape)) return false;
+
+        auto marker = decl()[decl()[program.shapes.noEnvironment()]->slots.get(decl(), 0)]->contract;
+        for(auto slot: decl()[shape]->slots.contents(decl())) {
+            if(!(decl()[slot]->contract == marker)) return true;
+        }
+
+        return false;
+    };
+
+    if(heap && borrowsInterior(valueOccurrence(value).shape)) {
+        context.diagnostics.error(
+            "this object borrows what its producer was handed, and an owning `iter(T)` position would keep it past that loan - step it at a borrowing position (`&it: iter(T)`, or a `let` in this frame), or hand the producer what it iterates with `->`"_v,
+            source);
+        return nullptr;
+    }
 
     if(valueOccurrence(value).contract.isOwned()) {
         /*
@@ -4800,8 +5607,12 @@ bool Resolver::iterItem(Function& producer, RecordType& record, const Occurrence
  * two pointer comparisons before anything is read.
  */
 bool Resolver::refuseNextOnResuming(Function& callee, const Substitution& with, LocationId source) {
+    // Both stepping classes - a failing object's `IterateFailing` has the same two members in the
+    // same order, and the same rule about `next` on a resuming producer (C1b).
     auto klass = program.roles.klass(intrinsic::Known::iterate);
-    if(!klass || callee.klass != klass || callee.classMember != kIterateNext) return true;
+    auto failing = program.roles.klass(intrinsic::Known::iterateFailing);
+    if(!callee.klass || (callee.klass != klass && callee.klass != failing)) return true;
+    if(callee.classMember != kIterateNext) return true;
     if(!with.count || !with.arguments[0]) return true;
 
     auto record = recordDeclarationOf(decl(), with.arguments[0]);
@@ -4904,6 +5715,34 @@ bool Resolver::refuseOpaqueObjectItem(Function& callee, GenRequirement requireme
         return false;
     }
 
+    return true;
+}
+
+/*
+ * `f$failure` - the failure moved out of `$failure`, and the record finished in the same breath.
+ *
+ *      fn f$failure(&self: f.Iter) -> ->E
+ *
+ * Called only where `$index` reads `kIterFailed`, which is the one state in which the field holds an
+ * `Exit`. `iterTake`'s reason for being a call, below, applies unchanged.
+ */
+bool Resolver::iterFailure(Function& producer, RecordType& record) {
+    auto pointer = iterGenerated(producer, record, "$failure"_v, Function::Generated::IterFailure);
+    auto made = decl()[pointer];
+    auto recordType = asBase<Type>(DeclPtr<RecordType>(&record - *program.decl));
+
+    auto self = new (program.decl) Arg();
+    self->name = context.addUnqualifiedName("$self", 5);
+    self->source = producer.source;
+    self->index = 0;
+    self->occurrence = borrowed(recordType, Access::Unique);
+    made->args.push(program.decl, self - *program.decl);
+
+    auto& outcome = *(RecordType*)decl()[record.field(decl(), record.failureField).occurrence.type];
+    made->result = owned(outcome.field(decl(), outcome.cons.get(decl(), kOutcomeExit).first)
+                             .occurrence.type);
+
+    record.producerFailure = pointer;
     return true;
 }
 

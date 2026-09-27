@@ -1,0 +1,65 @@
+{-
+   `?` over a borrow inside generic code - the other half of `TryCarrier.yana`.
+
+   `pair` is a class with a dependent error and a `take` answering a view, written with the view
+   inside a record, `Part`: a record holding a view carries its origin in its own schema, so
+   `Result(e, Part)` is an ordinary `Result` and `?` over it binds `h` with the loan on `input`.
+   Until J187 this was the only way to write it, because `Result(e, '[U8])` with `e` the class's
+   variable was refused at the declaration; the plan's own spelling is `TryCarrier.Source.yana`
+   now, where only the error is released when such a carrier dies. `takeFrom`'s own `?` is the
+   dispatch over `e`.
+
+   `sumTwo` is the qualified path in a generic body: `Result(Short, '[a])` names a variable, so its
+   `Try` instance is the open head's, and the payload is read out of the operand as in the
+   concrete case.
+-}
+
+class Source(s -> e):
+    fn fill(&self: s) -> Result(e, U8)
+
+data Input(s) {source: s, buffer: [U8], at: Size}
+data Part {bytes: '[U8]}
+
+fn (Source(s, e)) takeFrom(&self: Input(s), count: Size) -> Result(e, Part):
+    while length(self.buffer) - self.at < count:
+        let got = self.source.fill()?
+        push(self.buffer, got)
+    let start = self.at
+    self.at += count
+    return Ok(Part {bytes: self.buffer[start..start + count]})
+
+fn (Source(s, e)) pair(&input: Input(s)) -> Result(e, U8):
+    let h = input.takeFrom(2)?
+    return Ok(h.bytes[0] + h.bytes[1])
+
+data Bytes {left: U8}
+data Ended = Ended
+
+instance Source(Bytes, Ended):
+    fn fill(&self: Bytes) -> Result(Ended, U8):
+        if self.left == 0 then return Err(Ended)
+        self.left -= 1
+        return Ok(self.left + 1)
+
+data Short = Short
+data Cells(a) {items: [a], at: Size}
+
+fn (a) next(&self: Cells(a), count: Size) -> Result(Short, '[a]):
+    if length(self.items) - self.at < count then return Err(Short)
+    let start = self.at
+    self.at += count
+    return Ok(self.items[start..start + count])
+
+fn (Num(a)) sumTwo(&cells: Cells(a)) -> Result(Short, a):
+    let two = cells.next(2)?
+    return Ok(two[0] + two[1])
+
+fn main() -> I32:
+    let &total = 0 :: I32
+    let &input = Input {source: Bytes {left: 3}, buffer: [] :: [U8], at: 0}
+    if pair(input) is Ok(v) then total += (v :: I32)          -- 3 + 2
+    if pair(input) is Err(Ended) then total += 100
+    let &cells = Cells {items: [10, 20, 30] :: [I32], at: 0}
+    if sumTwo(cells) is Ok(v) then total += v * 1000              -- 30
+    if sumTwo(cells) is Err(Short) then total += 7
+    return total

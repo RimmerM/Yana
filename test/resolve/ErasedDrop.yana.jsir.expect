@@ -11,11 +11,14 @@ fn Counted.drop(one %r0) -> omitted
 fn Holder.drop(one %r6) -> omitted
   var $0: %r6
   block0(%0: %r6):
-    %1: %r0 = load global live: %r0
-    %2: %r0 = const 1n
-    %3: %r0 = binary.sub %1, %2
-    %4: %r0 = coerce %3
-    store global live: %r0, %4
+    %6: %r0 = load global live: %r0
+    %7: %r0 = const 1n
+    %8: %r0 = binary.sub %6, %7
+    %9: %r0 = coerce %8
+    store global live: %r0, %9
+    %10: %r6 = alias %0
+    %11: %r5 = load property %10.items: %r5
+    call Array(a).reclaim(I32) %11
     return
 
 fn main() -> one %r2
@@ -54,8 +57,8 @@ fn main() -> one %r2
     %23: %r11 = binary.ne %21, %22
     branch %23 -> block4 -> block3
   block2:
-    %156: %r2 = const -1
-    return %156
+    %151: %r2 = const -1
+    return %151
   block3:
     %24: %r0 = const 3n
     %25: %r0 = const 1n
@@ -71,15 +74,15 @@ fn main() -> one %r2
     %33: %r11 = binary.ne %31, %32
     branch %33 -> block6 -> block5
   block4:
-    %155: %r2 = const -2
-    return %155
+    %150: %r2 = const -2
+    return %150
   block5:
     %34: %r0 = const 0n
     %35: %r11 = binary.ne %29, %34
     branch %35 -> block8 -> block7
   block6:
-    %154: %r2 = const -4
-    return %154
+    %149: %r2 = const -4
+    return %149
   block7:
     %36: %r7 = host host.array
     %37: %r4 = const 0
@@ -114,8 +117,8 @@ fn main() -> one %r2
     %59: %r11 = binary.ne %57, %58
     branch %59 -> block10 -> block9
   block8:
-    %153: %r2 = const -5
-    return %153
+    %148: %r2 = const -5
+    return %148
   block9:
     call Array(a).reclaim(Counted) %6
     %60: %r0 = load global live: %r0
@@ -124,8 +127,8 @@ fn main() -> one %r2
     branch %62 -> block12 -> block11
   block10:
     call Array(a).reclaim(Counted) %6
-    %152: %r2 = const -6
-    return %152
+    %147: %r2 = const -6
+    return %147
   block11:
     %63: %r0 = const 11n
     %64: %r0 = const 1n
@@ -139,113 +142,102 @@ fn main() -> one %r2
     %71: %r6 = object %s0 %70, %63
     %72: %r6 = alias %71
     call Holder.drop %72
-    %73: %r6 = alias %71
-    %74: %r5 = load property %73.items: %r5
-    call Array(a).reclaim(I32) %74
-    %75: %r0 = load global live: %r0
-    %76: %r0 = const 0n
-    %77: %r11 = binary.ne %75, %76
-    branch %77 -> block14 -> block13
+    %73: %r0 = load global live: %r0
+    %74: %r0 = const 0n
+    %75: %r11 = binary.ne %73, %74
+    branch %75 -> block14 -> block13
   block12:
-    %151: %r2 = const -7
-    return %151
+    %146: %r2 = const -7
+    return %146
   block13:
-    %78: %r9 = const "ab"
-    %79: %r9 = const "cd"
-    %80: %r9 = const "ef"
-    %81: %r10 = host host.array %78, %79, %80
-    %84: %r2 = const 3
-    %86: %r9 = const ""
-    %90: %r2 = const 0
-    %91: %r2 = const 1
-    jump -> block22(%90, %86)
+    %76: %r9 = const "ab"
+    %77: %r9 = const "cd"
+    %78: %r9 = const "ef"
+    %79: %r10 = host host.array %76, %77, %78
+    %82: %r2 = const 3
+    %84: %r9 = const ""
+    %88: %r2 = const 0
+    %89: %r2 = const 1
+    jump -> block22(%88, %84)
   block14:
-    %150: %r2 = const -11
-    return %150
+    %145: %r2 = const -11
+    return %145
   block15:
-    %102: %r9 = const "ab"
-    %103: %r2 = const 3
-    %104: %r9 = const ""
-    %105: %r2 = const 0
-    %106: %r2 = const 1
-    jump -> block19(%104, %105)
+    %100: %r9 = const "ab"
+    %101: %r2 = const 3
+    %102: %r9 = const ""
+    %103: %r2 = const 0
+    %104: %r2 = const 1
+    jump -> block19(%102, %103)
   block16:
-    %132: %r2 = const -8
-    return %132
+    %130: %r2 = const -8
+    return %130
   block17:
-    %115: %r0 = load global live: %r0
-    %116: %r0 = const 0n
-    %117: %r11 = binary.ne %115, %116
-    %118: %r2 = const -10
-    %119: %r2 = const 0
-    %120: %r2 = select %117, %118, %119
-    return %120
+    %113: %r0 = load global live: %r0
+    %114: %r0 = const 0n
+    %115: %r11 = binary.ne %113, %114
+    %116: %r2 = const -10
+    %117: %r2 = const 0
+    %118: %r2 = select %115, %116, %117
+    return %118
   block18:
-    %121: %r2 = const -9
-    return %121
+    %119: %r2 = const -9
+    return %119
   block19(%0: %r9, %1: %r2):
-    %107: %r11 = binary.lt %1, %103
-    branch %107 -> block21 -> block20
+    %105: %r11 = binary.lt %1, %101
+    branch %105 -> block21 -> block20
   block20:
-    %108: %r9 = const "ababab"
-    %109: %r9 = alias %0
+    %106: %r9 = const "ababab"
+    %107: %r9 = alias %0
+    %108: %r9 = alias %106
+    %109: %r9 = alias %107
     %110: %r9 = alias %108
-    %111: %r9 = alias %109
-    %112: %r9 = alias %110
-    %113: %r11 = host host.binary "===" %111, %112
-    %114: %r11 = unary.not %113
-    branch %114 -> block18 -> block17
+    %111: %r11 = host host.binary "===" %109, %110
+    %112: %r11 = unary.not %111
+    branch %112 -> block18 -> block17
   block21:
-    %122: %r9 = alias %102
-    %123: %r9 = alias %0
+    %120: %r9 = alias %100
+    %121: %r9 = alias %0
+    %122: %r9 = alias %121
+    %123: %r9 = alias %120
     %124: %r9 = alias %123
     %125: %r9 = alias %122
-    %126: %r9 = alias %125
-    %127: %r9 = alias %124
-    %128: %r9 = alias %126
-    %129: %r9 = host host.binary "+" %127, %128
-    %130: %r2 = binary.add %1, %106
-    %131: %r2 = coerce %130
-    jump -> block19(%129, %131)
+    %126: %r9 = alias %124
+    %127: %r9 = host host.binary "+" %125, %126
+    %128: %r2 = binary.add %1, %104
+    %129: %r2 = coerce %128
+    jump -> block19(%127, %129)
   block22(%2: %r2, %3: %r9):
-    %93: %r11 = binary.lt %2, %84
-    branch %93 -> block23 -> block25
+    %91: %r11 = binary.lt %2, %82
+    branch %91 -> block23 -> block24
   block23:
-    %133: %r15 = convert %2
-    %134: %r15 = const 3
-    %135: %r11 = binary.ge %133, %134
-    branch %135 -> block26 -> block24
+    %131: %r10 = alias %79
+    %132: %r2 = alias %2
+    %133: %r2 = coerce %132
+    %134: %r9 = load element %131[%133]: %r9
+    %135: %r9 = alias %134
+    %136: %r9 = alias %3
+    %137: %r9 = alias %136
+    %138: %r9 = alias %135
+    %139: %r9 = alias %138
+    %140: %r9 = alias %137
+    %141: %r9 = alias %139
+    %142: %r9 = host host.binary "+" %140, %141
+    %143: %r2 = binary.add %2, %89
+    %144: %r2 = coerce %143
+    jump -> block22(%144, %142)
   block24:
-    %136: %r10 = alias %81
-    %137: %r2 = alias %2
-    %138: %r2 = coerce %137
-    %139: %r9 = load element %136[%138]: %r9
-    %140: %r9 = alias %139
-    %141: %r9 = alias %3
-    %142: %r9 = alias %141
-    %143: %r9 = alias %140
-    %144: %r9 = alias %143
-    %145: %r9 = alias %142
-    %146: %r9 = alias %144
-    %147: %r9 = host host.binary "+" %145, %146
-    %148: %r2 = binary.add %2, %91
-    %149: %r2 = coerce %148
-    jump -> block22(%149, %147)
-  block25:
-    %83: %r10 = alias %81
-    %94: %r10 = alias %83
-    call Array(a).reclaim(String) %94
-    %95: %r9 = const "abcdef"
-    %96: %r9 = alias %3
+    %81: %r10 = alias %79
+    %92: %r10 = alias %81
+    call Array(a).reclaim(String) %92
+    %93: %r9 = const "abcdef"
+    %94: %r9 = alias %3
+    %95: %r9 = alias %93
+    %96: %r9 = alias %94
     %97: %r9 = alias %95
-    %98: %r9 = alias %96
-    %99: %r9 = alias %97
-    %100: %r11 = host host.binary "===" %98, %99
-    %101: %r11 = unary.not %100
-    branch %101 -> block16 -> block15
-  block26:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %98: %r11 = host host.binary "===" %96, %97
+    %99: %r11 = unary.not %98
+    branch %99 -> block16 -> block15
 
 fn push(Counted)(one %r8, one %r0) -> omitted
   var $0: %r0
@@ -258,18 +250,17 @@ fn push(Counted)(one %r8, one %r0) -> omitted
     %7: %r7 = load property %0.items: %r7
     jump -> block2
   block1:
-    %14: %r7 = load property %0.items: %r7
-    %15: %r0 = alias %1
-    store element %14[%3]: %r0, %15
-    %16: %r15 = convert %6
-    %17: %r4 = convert %16
-    store property %0.length: %r4, %17
+    %13: %r7 = load property %0.items: %r7
+    %14: %r0 = alias %1
+    store element %13[%3]: %r0, %14
+    %15: %r15 = convert %6
+    %16: %r4 = convert %15
+    store property %0.length: %r4, %16
     return
   block2:
-    %11: %r7 = alias %7
-    %12: %r2 = host host.field "length" host-range %11
-    %13: %r11 = binary.le %6, %12
-    branch %13 -> block1 -> block3
+    %11: %r2 = host host.field "length" host-range %7
+    %12: %r11 = binary.le %6, %11
+    branch %12 -> block1 -> block3
   block3:
     call growJsArray(Counted) %0, %6
     jump -> block1
@@ -327,7 +318,7 @@ fn growJsArray(Counted)(one %r8, one %r2) -> omitted
     store property %0.items: %r7, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 33 adopted 1 sunk 2 numbered 3 decided 1 unboxed 0 updated 0 split 0 promoted 14 folded 1
+optimizer clones 0 aliased 0 forwarded 0 removed 39 adopted 1 sunk 2 numbered 2 decided 1 unboxed 0 updated 0 split 0 promoted 14 folded 0
 
 shape %s0 object Holder {items: %r5, tag: %r0}
 shape %s1 object Array {items: %r3, length: %r4}

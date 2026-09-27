@@ -1,0 +1,135 @@
+{-
+   An erased failing `iter(T | E)` whose object the consumer **owns** when it fails - K7, J220 §5.
+
+   The step answers `&$failure | 1`, an address inside the object's record, and a consumer that owns
+   the object drops it on the failed edge. Two things kept the reason alive past that drop and both
+   were missing: `iter(T | E)$failure` lends the object (so the drop comes after the read), and a
+   payload that lives in storage is copied out rather than loaded (so the inlined read does not go on
+   naming the record's bytes). Without them a reason read after the drop answered zero.
+
+   Every way an owned object reaches the loop: moved through a `->` parameter into a local, a
+   result held directly, a record field, a heap array's element pushed and removed, a reassigned
+   local, and `next()` over an owned one. The reason is a `Code` (plain bytes) or a `Tag` whose
+   release is counted, so a reason dropped twice or not at all is seen too. Digits: items, then 7
+   and the reason's value; a released `Tag` notes 9 and its id. `main` answers the cases that did
+   not match.
+
+   Native only: JavaScript refuses the erased `iter(T | E)` by name (`Failing.ErasedType.yana`).
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Code {value: Int, spare: Long}
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+iter fn upTo(n: Int, failAt: Int) -> (Int | Code):
+    for i in 1..=n:
+        if i == failAt then return Code {value: 4 + i, spare: 0}
+        yield i
+
+iter fn tagged(n: Int, failAt: Int) -> (Int | Tag):
+    for i in 1..=n:
+        if i == failAt then return Tag {id: i}
+        yield i
+
+fn made(n: Int, failAt: Int) -> iter(Int | Code) = upTo(n, failAt)
+
+fn madeTag(n: Int, failAt: Int) -> iter(Int | Tag) = tagged(n, failAt)
+
+-- J220's shape: built at the argument, moved through `->` and lent to a local.
+fn moved(->it: iter(Int | Code)) -> Int:
+    let &held = it
+    for x in held | e -> return e.value:
+        note(x :: Long)
+    return -1
+
+fn movedTag(->it: iter(Int | Tag)):
+    let &held = it
+    for x in held:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+
+-- A result straight back to the caller, which fails inside its own `for`.
+fn returned(n: Int, failAt: Int) -> Int:
+    let &it = made(n, failAt)
+    for x in it | e -> return e.value:
+        note(x :: Long)
+    return -1
+
+data Holder {source: iter(Int | Code), label: Int}
+
+fn fromField(->h: Holder) -> Int:
+    let &held = h
+    for x in held.source | e -> return e.value:
+        note(x :: Long)
+    return -1
+
+fn main() -> Int:
+    note(moved(upTo(4, 3)) :: Long)
+    expect(1, 127)
+
+    movedTag(tagged(3, 2))
+    expect(2, 17922)
+
+    note(returned(5, 4) :: Long)
+    expect(4, 1238)
+
+    note(fromField(Holder {source: made(2, 1), label: 6}) :: Long)
+    expect(8, 5)
+
+    -- A heap array's element, removed into a local that owns it.
+    let &many = [] :: [iter(Int | Tag)]
+    push(many, madeTag(3, 3))
+    push(many, madeTag(2, 9))
+    let Just(&->last) = remove(many, 1) | return 99
+    for x in last:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    let Just(&->first) = remove(many, 0) | return 98
+    for x in first:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(16, 12127933)
+
+    -- A reassigned local: the first object is released unfailed, the second fails.
+    let &again = madeTag(1, 9)
+    again = madeTag(4, 2)
+    for x in again:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(32, 17922)
+
+    -- `next()` over an owned object, through the failure to `Done`.
+    let &stepped = madeTag(2, 2)
+    for i in 0..3:
+        match stepped.next():
+            IterStep.Yield(v) -> note(v :: Long)
+            IterStep.Done -> note(0)
+            IterStep.Failed(tag):
+                note(7)
+                note(tag.id :: Long)
+    expect(64, 179220)
+
+    return failures

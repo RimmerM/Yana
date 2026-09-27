@@ -1,0 +1,40 @@
+{-
+   A run taken through a **window** keeps its length - K4 of `doc/inflight/Implementation-Streams.md`,
+   J203's G1. `BoundsInput.yana` is the same read of `Input.take`; this is `LimitedInput.take`, which
+   is `let run = self.parent.take(count)?` and then `Ok(run)`: a second carrier built from a borrow
+   of the first one's payload.
+
+   Two things lost the length, and the `.ssa.opt.expect` beside this holds **no refusal arm** in
+   `prefixed` because both were fixed. `opt/memory.cpp`'s `noteCopies` records what a borrowed
+   component held when its aggregate copied it, so a read of the second `Ok`'s `.length` reaches the
+   first one's `ArrayView`; and `opt/analysis.cpp`'s `addressMayReach` knows that `self.left -= count`,
+   a write into the parameter's storage between the two, cannot reach a slot of this body - the first
+   carrier's slot escapes into the second, so containment alone had said it might.
+
+   `main` reads frames of a two-byte length and that many bytes, for the `.run.expect`.
+-}
+
+import Stream
+
+@noinline fn prefixed(&frame: LimitedInput(SliceSource, Infallible)) -> Result(ReadFailure(Infallible), I64):
+    let prefix = frame.take(2)?
+    let count = readBigU16(prefix, 0) :: Size
+    let low = prefix[1] :: I64
+    let body = frame.take(count)?
+    return Ok((count :: I64) * 1000 + low + (length(body) :: I64))
+
+fn main() -> Int:
+    let bytes = [0, 3, 7, 8, 9, 0, 1, 5, 0, 9] :: [U8]
+    let &input = Input.over(sliceSource(bytes), 4)
+    let &answer = 0 :: I64
+
+    let &first = input.limited(5)
+    if prefixed(first) is Ok(value) then answer += value
+
+    let &second = input.limited(3)
+    if prefixed(second) is Ok(value) then answer += value * 10
+
+    let &third = input.limited(2)
+    if prefixed(third) is Err(Ended) then answer += 7
+
+    return truncate(answer % 251) :: Int

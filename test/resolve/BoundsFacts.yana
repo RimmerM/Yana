@@ -1,0 +1,67 @@
+{-
+   Bounds facts - a check a dominating length test already answers, decided (`compiler/resolve_ssa/
+   opt/bounds.cpp`, J189; P12 in `doc/inflight/Implementation-Streams.md`).
+
+   A finite decoder takes an ordinary `[U8]` and states one length test in front of its reads. Each
+   read behind it is a check comparing a literal offset with the length the test bounded - a
+   subscript's `8 >=u length`, an endian reader's `length < 4 || 5 >u length - 4` - and each has one
+   answer in the arm the test leaves. The `.ssa.opt.expect` beside this is where that is asserted:
+   `decodeHeader`, `bodyLength` and `window` carry no `abortProcess` arm at all.
+
+   The other three functions are the checks that must **survive**, and they are the half that
+   matters, because a fact applied where it does not hold is a read past the end:
+
+   - `survives` proves `length >= 4` and reads two bytes at 3 and one at 4, which need 5;
+   - `notDominating` tests the length but falls through to the read on both arms, so the join the
+     read is in has two ways in and the test answers nothing there;
+   - `otherView` tests a *different* view's length.
+
+   Each is run with an input the check lets through, so the answer below is reached on every build;
+   what shows the check is still there is the golden.
+-}
+
+data Header {version: U8, flags: U8, stream: U16, operation: U8, length: U32}
+
+-- The CQL frame header: exactly nine bytes, and every read behind the test decided.
+@noinline fn decodeHeader(bytes: [U8]) -> Maybe(Header):
+    if length(bytes) != 9 then return Nothing
+    return Just(Header {version: bytes[0], flags: bytes[1], stream: readBigU16(bytes, 2),
+                        operation: bytes[4], length: readBigU32(bytes, 5)})
+
+-- The same bound stated as the early return a decoder more often writes.
+@noinline fn bodyLength(bytes: [U8]) -> U32:
+    if length(bytes) < 9 then return 0
+    return readBigU32(bytes, 5) + (bytes[8] :: U32)
+
+-- A local view with a length only the test knows: the slice's clamps make it a computed number,
+-- and what the test and the check must agree on is that one value.
+@noinline fn window(bytes: [U8], from: Size) -> U32:
+    let view = bytes[from..length(bytes)]
+    if length(view) < 4 then return 0
+    return readBigU32(view, 0)
+
+-- Proven four, asked for five: both reads keep their checks.
+@noinline fn survives(bytes: [U8]) -> U32:
+    if length(bytes) < 4 then return 0
+    return (readBigU16(bytes, 3) :: U32) + (bytes[4] :: U32)
+
+-- A test that does not dominate the read.
+@noinline fn notDominating(bytes: [U8]) -> U32:
+    let &short = 0 :: U32
+    if length(bytes) < 9:
+        short = 1
+    return short + (bytes[8] :: U32)
+
+-- A test on another view says nothing about this one.
+@noinline fn otherView(bytes: [U8], other: [U8]) -> U32:
+    if length(other) < 9 then return 0
+    return bytes[8] :: U32
+
+fn main() -> Int:
+    let header = [4, 0, 0, 7, 5, 0, 0, 1, 2] :: [U8]
+    let Just(h) = decodeHeader(header) | return 1
+
+    let decoded = (h.version :: U32) + (h.flags :: U32) + (h.stream :: U32) + (h.operation :: U32) + h.length
+    let total = decoded + bodyLength(header) + window(header, 5) + survives(header) +
+                notDominating(header) + otherView(header, header)
+    return bitcast(total)

@@ -196,6 +196,15 @@ void optimizeBody(OptContext& opt) {
          * those are `cleanCfg`'s to fold. Above it rather than below, so the fold happens in the
          * same round the edge was cut in rather than in the next one.
          */
+        /*
+         * And the comparisons a dominating arm already answers - `opt/bounds.cpp`, J189 - in front
+         * of both, for the same reason divergence is: what it leaves is a constant condition, and
+         * `cleanCfg` below folds the branch on it and deletes the refusal arm in the same round.
+         * Behind the folds and `cse`, because what it needs is the test and the check reading one
+         * `length` value, and those are the passes that make it one.
+         */
+        runPass(decideBoundedComparisons);
+
         runPass(endNonReturningBlocks);
 
         runPass(cleanCfg);
@@ -222,8 +231,11 @@ void optimizeBody(OptContext& opt) {
         // And that is the whole list. What is *not* here is `range`: phase 8 built the branch-implied
         // facts, measured them over the corpus and did not keep them, and phase 11 rebuilt them on
         // promoted IR and got the same answer - README.md's two notes say what the numbers were and
-        // why they are structural. `inlineCalls` and `markProgramReachable` are not here either, and that is the other half of the arrangement: they are program-wide and run
-        // once, in front of this loop - see `optimizeProgram`.
+        // why they are structural. `decideBoundedComparisons` above is not that pass again: it
+        // relates a length to a constant rather than a value to itself (README.md, J189).
+        // `inlineCalls` and `markProgramReachable` are not here either, and that is the other half
+        // of the arrangement: they are program-wide and run once, in front of this loop - see
+        // `optimizeProgram`.
 
         if(!opt.changed) break;
     }

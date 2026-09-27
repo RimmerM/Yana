@@ -1,0 +1,34 @@
+{-
+   `it.next()` over an object lent `&` storage, handing over a view of it - accepted where `for x in
+   it` always was.
+
+   The item's origin is the loan of `it`, and `it` holds the exclusive loan of what the producer was
+   lent, so binding `Just(x)` out of the result reached `bytes` through both. The loan checker's
+   `skip` held only the first link, so the second met the new loan as a conflict: "bytes is already
+   borrowed exclusively and that borrow is still in use". A loan taken *through* an exclusive one is
+   what that loan's holder lends, and a later use of the holder - stepping `it` again while `x` is
+   live, or touching `bytes` - is still refused (`loans/Reject.StepThroughExclusive.yana`, J188).
+-}
+
+iter fn pairs(&xs: [U8]) -> '[U8]:
+    let &at = 0 :: Size
+    while at < length(xs):
+        let start = at
+        at = start + 2
+        xs[start] = xs[start] + 1
+        yield xs[start..start + 2]
+
+fn main() -> I32:
+    let &bytes = [1, 2, 3, 4, 5, 6] :: [U8]
+    let &sum = 0 :: I32
+
+    let &it = pairs(bytes)
+    while it.next() is Just(x):
+        sum = sum + (x[0] :: I32) * 10 + (x[1] :: I32)
+
+    let &again = pairs(bytes)
+    while True:
+        let Just(x) = again.next() | break
+        sum = sum + (x[0] :: I32) * 1000
+
+    return sum + (bytes[0] :: I32) * 100000

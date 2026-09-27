@@ -1,0 +1,595 @@
+module ResolveTest
+
+data Inner(e) = Broken {Broken: e} | Short drop derived reclaim derived
+
+data Outer(e) = Wrapped {Wrapped: Inner(e)} | Refused drop derived reclaim derived
+
+data Buffer {bytes: Array(U8), at: Size} reclaim derived
+
+data Inner(String) = Broken {Broken: String} | Short of Inner reclaim derived
+
+data Outer(String) = Wrapped {Wrapped: Inner(String)} | Refused of Outer reclaim derived
+
+data Inner(I32) = Broken {Broken: I32} | Short of Inner
+
+data Outer(I32) = Wrapped {Wrapped: Inner(I32)} | Refused of Outer
+
+instance Widen(Inner(e), Outer(e)): Inner(e).widen
+
+let string'188: [CodeUnit *9] = "too large"
+
+let string'189: [CodeUnit *5] = "ended"
+
+let string'190: [CodeUnit *9] = "too large"
+
+fn Inner(e).widen(from: Inner(e)) -> Outer(e) {
+  form specialized
+  slot #0 type e
+bb0:
+  %0: Inner(e) = read take (from)
+  %1: Outer(e) = aggregate.Wrapped take %0
+  return take %1
+}
+
+fn inner(n: I32 [shared call]) -> Result(Inner(String), I32) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 5
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = read copy.trivial (n)
+  %10: I32 = const 0
+  %11: Bool = lt inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb3:
+  %4: String = const String {units: Array {run: Run {items: &string'188, capacity: 9, ownsHeap: 0}, length: 9}}
+  %5: Inner(String) = aggregate.Broken take %4
+  %6: Result(Inner(String), I32) = aggregate.Err take %5
+  return take %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %17: I32 = read copy.trivial (n)
+  %18: I32 = const 3
+  %19: I32 = mul inspect %17 inspect %18
+  %20: Result(Inner(String), I32) = aggregate.Ok take %19
+  return take %20
+
+bb6:
+  %13: Inner(String) = aggregate.Short
+  %14: Result(Inner(String), I32) = aggregate.Err take %13
+  return take %14
+}
+
+fn concrete(n: I32 [shared call]) -> Result(Outer(String), I32) {
+  local local1: Outcome(I32, Inner(String))
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Result(Inner(String), I32) = call inner borrow.shared %0
+  %2: Outcome(I32, Inner(String)) = call toOutcome(Result(Inner(String), I32), I32, Inner(String)) take %1
+  write.init borrow.unique (local1) take %2
+  %4: U8 = read copy.trivial (local1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %12: I32 = read copy.trivial (local1.Proceed)
+  drop (local1)
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  write.init borrow.unique (v) take %13
+  %16: I32 = read copy.trivial (v)
+  %17: I32 = const 0
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %8: Inner(String) = read take (local1.Exit)
+  %9: Outer(String) = call widen(Inner(String), Outer(String)) take %8
+  %10: Result(Outer(String), I32) = call fromExit(Result(Outer(String), I32), I32, Outer(String)) take %9
+  return take %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: I32 = read copy.trivial (v)
+  %25: I32 = const 1
+  %26: I32 = add inspect %24 inspect %25
+  %27: Result(Outer(String), I32) = aggregate.Ok take %26
+  return take %27
+
+bb6:
+  %20: Outer(String) = aggregate.Refused
+  %21: Result(Outer(String), I32) = aggregate.Err take %20
+  return take %21
+}
+
+fn generic(r: Result(Inner(e), I32)) -> Result(Outer(e), I32) {
+  form specialized
+  slot #0 type e
+  local local1: Outcome(I32, Inner(e))
+  local v: I32
+
+bb0:
+  %0: Result(Inner(e), I32) = read take (r)
+  %1: Outcome(I32, Inner(e)) = call toOutcome(Result(Inner(e), I32), I32, Inner(e)) take %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %11: I32 = read copy.trivial (local1.Proceed)
+  drop (local1)
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  write.init borrow.unique (v) take %12
+  %15: I32 = read copy.trivial (v)
+  %16: I32 = const 2
+  %17: I32 = mul inspect %15 inspect %16
+  %18: Result(Outer(e), I32) = aggregate.Ok take %17
+  return take %18
+
+bb3:
+  %7: Inner(e) = read take (local1.Exit)
+  %8: Outer(e) = call widen(Inner(e), Outer(e)) take %7
+  %9: Result(Outer(e), I32) = call fromExit(Result(Outer(e), I32), I32, Outer(e)) take %8
+  return take %9
+}
+
+fn take(self: Buffer [unique slot 0], count: Size [shared call], failure: e) -> Result(Inner(e), Array(U8)) [owned here shape8 .1=shared slot 0 view] {
+  form specialized
+  slot #0 type e
+  local run: Array(U8) [shared slot 0 view]
+
+bb0:
+  %0: Size = read copy.trivial (self.at)
+  %1: Size = read copy.trivial (count)
+  %2: Size = add inspect %0 inspect %1
+  %3: Array(U8) [shared slot 0] = read borrow.shared (self.bytes) loan0
+  %4: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %3 roots{0}
+  %5: Size = call length(Array(U8)) borrow.shared %4
+  %6: Bool = gt inspect %2 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  drop (failure)
+  jump -> bb2
+
+bb2:
+  %13: Array(U8) [shared slot 0] = read borrow.shared (self.bytes) loan1
+  %14: Size = read copy.trivial (self.at)
+  %15: Size = read copy.trivial (self.at)
+  %16: Size = read copy.trivial (count)
+  %17: Size = add inspect %15 inspect %16
+  %18: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %13 roots{1}
+  %19: Array(U8) [shared slot 0 view] = call slice(U8) borrow.shared %18 borrow.shared %14 borrow.shared %17 roots{1}
+  write.init borrow.unique (run) borrow.shared %19
+  %21: Size [unique slot 0] = read borrow.unique (self.at) loan2
+  %22: Size = read copy.trivial (count)
+  %23: {} = call +=(Size) borrow.unique %21 borrow.shared %22
+  %24: Array(U8) [shared slot 0 view] = read borrow.shared (run) loan3 roots{1}
+  %25: Result(Inner(e), Array(U8)) [owned here shape8 .1=shared slot 0 view] = aggregate.Ok borrow.shared %24 roots.0{1, 3}
+  return take %25
+
+bb3:
+  %8: e = read take (failure)
+  %9: Inner(e) = aggregate.Broken take %8
+  %10: Result(Inner(e), Array(U8)) [owned here shape8 .1=shared slot 0 view] = aggregate.Err take %9
+  return take %10
+}
+
+fn viewed(b: Buffer [unique call]) -> Result(Outer(String), I32) {
+  local local1: Result(Inner(String), Array(U8)) [owned here shape8 .1=shared slot 0 view]
+  local local2: Outcome(Array(U8), Inner(String))
+  local run: Array(U8) [shared slot 0 view]
+  local local4: U8 [shared slot 0]
+  local local5: U8 [shared slot 0]
+
+bb0:
+  %0: Buffer [unique slot 0] = read borrow.unique (b) loan0
+  %1: Size = const 2
+  %2: String = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
+  %3: Result(Inner(String), Array(U8)) [owned here shape8 .1=shared slot 0 view] = call take(String) borrow.unique %0 borrow.shared %1 take %2 roots.0{0}
+  write.init borrow.unique (local1) take %3
+  %5: U8 = read copy.trivial (local1.#)
+  %6: U8 = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %22: Array(U8) [shared slot 0 view] = read borrow.shared (local1.Ok) loan1 roots{0}
+  jump -> bb2(borrow.shared %22)
+
+bb2(%23: Array(U8) [shared slot 0 view]):
+  write.init borrow.unique (run) borrow.shared %23
+  %26: Size = const 0
+  %27: Array(U8) [shared slot 0 view] = read borrow.shared (run) loan2 roots{0, 1}
+  %28: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %27 borrow.shared %26 roots{0, 1, 2}
+  write.init borrow.unique (local4) borrow.shared %28
+  %30: U8 = read copy.trivial (local4)
+  %31: I32 = convert inspect %30
+  %32: I32 = const 10
+  %33: I32 = mul inspect %31 inspect %32
+  %34: Size = const 1
+  %35: Array(U8) [shared slot 0 view] = read borrow.shared (run) loan3 roots{0, 1}
+  %36: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %35 borrow.shared %34 roots{0, 1, 3}
+  write.init borrow.unique (local5) borrow.shared %36
+  %38: U8 = read copy.trivial (local5)
+  drop (local1)
+  %39: I32 = convert inspect %38
+  %40: I32 = add inspect %33 inspect %39
+  %41: Result(Outer(String), I32) = aggregate.Ok take %40
+  return take %41
+
+bb3:
+  %9: Inner(String) = read take (local1.Err)
+  %10: Result(Inner(String), Array(U8)) = aggregate.Err take %9
+  %11: Outcome(Array(U8), Inner(String)) = call toOutcome(Result(Inner(String), Array(U8)), Array(U8), Inner(String)) take %10
+  write.init borrow.unique (local2) take %11
+  %13: U8 = read copy.trivial (local2.#)
+  %14: U8 = const 1
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb4
+
+bb4:
+  drop (local2)
+  unreachable
+
+bb5:
+  %17: Inner(String) = read take (local2.Exit)
+  %18: Outer(String) = call widen(Inner(String), Outer(String)) take %17
+  %19: Result(Outer(String), I32) = call fromExit(Result(Outer(String), I32), I32, Outer(String)) take %18
+  return take %19
+}
+
+fn half(n: I32 [shared call]) -> Result(I32, I32) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = rem inspect %0 inspect %1
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %10: I32 = read copy.trivial (n)
+  %11: Result(I32, I32) = aggregate.Err take %10
+  jump -> bb2(take %11)
+
+bb2(%12: Result(I32, I32)):
+  return take %12
+
+bb3:
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 2
+  %8: I32 = div inspect %6 inspect %7
+  %9: Result(I32, I32) = aggregate.Ok take %8
+  jump -> bb2(take %9)
+}
+
+fn numeric(n: I32 [shared call]) -> Result(I64, I32) {
+  local local1: Outcome(I32, I32)
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Result(I32, I32) = call half borrow.shared %0
+  %2: Outcome(I32, I32) = call toOutcome(Result(I32, I32), I32, I32) take %1
+  write.init borrow.unique (local1) take %2
+  %4: U8 = read copy.trivial (local1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %12: I32 = read copy.trivial (local1.Proceed)
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  write.init borrow.unique (v) take %13
+  %16: I32 = read copy.trivial (v)
+  %17: Result(I64, I32) = aggregate.Ok take %16
+  return take %17
+
+bb3:
+  %8: I32 = read copy.trivial (local1.Exit)
+  %9: I64 = convert inspect %8
+  %10: Result(I64, I32) = call fromExit(Result(I64, I32), I32, I64) take %9
+  return take %10
+}
+
+fn describe(r: Result(Outer(String), I32) [shared call]) -> I32 {
+  local v: I32
+  local text: String [shared call]
+  local local3: String
+
+bb0:
+  %0: U8 = read copy.trivial (r.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %7: U8 = read copy.trivial (r.#)
+  %8: U8 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb2
+
+bb2:
+  %34: U8 = read copy.trivial (r.#)
+  %35: U8 = const 0
+  %36: Bool = eq inspect %34 inspect %35
+  branch inspect %36 -> bb12 -> bb3
+
+bb3:
+  %47: I32 = const 3000
+  jump -> bb4(take %47)
+
+bb4(%48: I32):
+  return take %48
+
+bb5:
+  %4: I32 = read copy.trivial (r.Ok)
+  write.init borrow.unique (v) take %4
+  %6: I32 = read copy.trivial (v)
+  jump -> bb4(take %6)
+
+bb6:
+  %11: U8 = read copy.trivial (r.Err.#)
+  %12: U8 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  branch inspect %13 -> bb7 -> bb2
+
+bb7:
+  %15: U8 = read copy.trivial (r.Err.Wrapped.#)
+  %16: U8 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb8 -> bb2
+
+bb8:
+  %19: String [shared call] = read borrow.shared (r.Err.Wrapped.Broken) loan0
+  write.init borrow.unique (text) borrow.shared %19
+  %21: String [shared call] = read borrow.shared (text) loan1 roots{0}
+  %22: String [shared slot 0 view] = call.derivation view(String) borrow.shared %21 roots{0, 1}
+  %23: String = const String {units: Array {run: Run {items: &string'190, capacity: 9, ownsHeap: 0}, length: 9}}
+  write.init borrow.unique (local3) take %23
+  %25: String [shared slot 0] = read borrow.shared (local3) loan2
+  %26: String [shared slot 0 view] = call.derivation view(String) borrow.shared %25 roots{2}
+  %27: Bool = call ==(String) borrow.shared %22 borrow.shared %26
+  drop (local3)
+  branch inspect %27 -> bb11 -> bb9
+
+bb9:
+  %30: I32 = const 1002
+  jump -> bb10(take %30)
+
+bb10(%31: I32):
+  jump -> bb4(take %31)
+
+bb11:
+  %29: I32 = const 1001
+  jump -> bb10(take %29)
+
+bb12:
+  %38: U8 = read copy.trivial (r.Err.#)
+  %39: U8 = const 0
+  %40: Bool = eq inspect %38 inspect %39
+  branch inspect %40 -> bb13 -> bb3
+
+bb13:
+  %42: U8 = read copy.trivial (r.Err.Wrapped.#)
+  %43: U8 = const 1
+  %44: Bool = eq inspect %42 inspect %43
+  branch inspect %44 -> bb14 -> bb3
+
+bb14:
+  %46: I32 = const 2000
+  jump -> bb4(take %46)
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local local1: Result(Outer(String), I32)
+  local local2: Result(Outer(String), I32)
+  local local3: Result(Outer(String), I32)
+  local local4: Result(Outer(String), I32)
+  local local5: Result(Outer(I32), I32)
+  local n: I32
+  local local7: Result(Outer(I32), I32)
+  local v: I32
+  local & local9: Array(U8)
+  local & b: Buffer
+  local local11: Result(Outer(String), I32)
+  local local12: Result(Outer(String), I32)
+  local local13: Result(I64, I32)
+  local wide: I64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 [unique call] = read borrow.unique (total) loan0
+  %3: I32 = const 2
+  %4: Result(Outer(String), I32) = call concrete borrow.shared %3
+  write.init borrow.unique (local1) take %4
+  %6: Result(Outer(String), I32) [shared call] = read borrow.shared (local1) loan1
+  %7: I32 = call describe borrow.shared %6
+  drop (local1)
+  %8: {} = call +=(I32) borrow.unique %2 borrow.shared %7
+  %9: I32 [unique call] = read borrow.unique (total) loan2
+  %10: I32 = const 9
+  %11: Result(Outer(String), I32) = call concrete borrow.shared %10
+  write.init borrow.unique (local2) take %11
+  %13: Result(Outer(String), I32) [shared call] = read borrow.shared (local2) loan3
+  %14: I32 = call describe borrow.shared %13
+  drop (local2)
+  %15: {} = call +=(I32) borrow.unique %9 borrow.shared %14
+  %16: I32 [unique call] = read borrow.unique (total) loan4
+  %17: I32 = const -1
+  %18: Result(Outer(String), I32) = call concrete borrow.shared %17
+  write.init borrow.unique (local3) take %18
+  %20: Result(Outer(String), I32) [shared call] = read borrow.shared (local3) loan5
+  %21: I32 = call describe borrow.shared %20
+  drop (local3)
+  %22: {} = call +=(I32) borrow.unique %16 borrow.shared %21
+  %23: I32 [unique call] = read borrow.unique (total) loan6
+  %24: I32 = const 0
+  %25: Result(Outer(String), I32) = call concrete borrow.shared %24
+  write.init borrow.unique (local4) take %25
+  %27: Result(Outer(String), I32) [shared call] = read borrow.shared (local4) loan7
+  %28: I32 = call describe borrow.shared %27
+  drop (local4)
+  %29: {} = call +=(I32) borrow.unique %23 borrow.shared %28
+  %30: I32 = const 7
+  %31: Inner(I32) = aggregate.Broken take %30
+  %32: Result(Inner(I32), I32) = aggregate.Err take %31
+  %33: Result(Outer(I32), I32) = call generic(I32) take %32
+  write.init borrow.unique (local5) take %33
+  %35: U8 = read copy.trivial (local5.#)
+  %36: U8 = const 0
+  %37: Bool = eq inspect %35 inspect %36
+  branch inspect %37 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %56: I32 = const 4
+  %57: Result(Inner(I32), I32) = aggregate.Ok take %56
+  %58: Result(Outer(I32), I32) = call generic(I32) take %57
+  write.init borrow.unique (local7) take %58
+  %60: U8 = read copy.trivial (local7.#)
+  %61: U8 = const 1
+  %62: Bool = eq inspect %60 inspect %61
+  branch inspect %62 -> bb8 -> bb6
+
+bb3:
+  %39: U8 = read copy.trivial (local5.Err.#)
+  %40: U8 = const 0
+  %41: Bool = eq inspect %39 inspect %40
+  branch inspect %41 -> bb4 -> bb1
+
+bb4:
+  %43: U8 = read copy.trivial (local5.Err.Wrapped.#)
+  %44: U8 = const 0
+  %45: Bool = eq inspect %43 inspect %44
+  branch inspect %45 -> bb5 -> bb1
+
+bb5:
+  %47: I32 = read copy.trivial (local5.Err.Wrapped.Broken)
+  write.init borrow.unique (n) take %47
+  %49: I32 [unique call] = read borrow.unique (total) loan8
+  %50: I32 = read copy.trivial (n)
+  %51: I32 = const 10000
+  %52: I32 = mul inspect %50 inspect %51
+  %53: {} = call +=(I32) borrow.unique %49 borrow.shared %52
+  jump -> bb2
+
+bb6:
+  jump -> bb7
+
+bb7:
+  %73: U8 = const 1
+  %74: U8 = const 2
+  %75: U8 = const 3
+  %76: %U8 = run.slots U8 *3
+  %77: Size = bitcast inspect %76
+  %78: Size = const 0
+  %79: Bool = eq inspect %77 inspect %78
+  %80: {} = call checkCondition borrow.shared %79
+  %81: @bits(30) U32 = const 3
+  %82: @bits(2) U32 = const 1
+  %83: Run(U8) = aggregate.Run take %76 take %81 take %82
+  %84: @bits(30) U32 = const 3
+  %85: Array(U8) = aggregate.Array take %83 take %84
+  write.init borrow.unique (local9) take %85
+  %87: Size = const 0
+  write.init borrow.unique ([%%76][0]) take %73
+  %89: Size = const 1
+  write.init borrow.unique ([%%76][1]) take %74
+  %91: Size = const 2
+  write.init borrow.unique ([%%76][2]) take %75
+  %93: Array(U8) = read take (local9)
+  %94: Size = const 0
+  %95: Buffer = aggregate.Buffer take %93 take %94
+  write.init borrow.unique (b) take %95
+  %97: I32 [unique call] = read borrow.unique (total) loan10
+  %98: Buffer [unique call] = read borrow.unique (b) loan11
+  %99: Result(Outer(String), I32) = call viewed borrow.unique %98
+  write.init borrow.unique (local11) take %99
+  %101: Result(Outer(String), I32) [shared call] = read borrow.shared (local11) loan12
+  %102: I32 = call describe borrow.shared %101
+  drop (local11)
+  %103: {} = call +=(I32) borrow.unique %97 borrow.shared %102
+  %104: I32 [unique call] = read borrow.unique (total) loan13
+  %105: Buffer [unique call] = read borrow.unique (b) loan14
+  %106: Result(Outer(String), I32) = call viewed borrow.unique %105
+  drop (b)
+  write.init borrow.unique (local12) take %106
+  %108: Result(Outer(String), I32) [shared call] = read borrow.shared (local12) loan15
+  %109: I32 = call describe borrow.shared %108
+  drop (local12)
+  %110: {} = call +=(I32) borrow.unique %104 borrow.shared %109
+  %111: I32 = const 7
+  %112: Result(I64, I32) = call numeric borrow.shared %111
+  write.init borrow.unique (local13) take %112
+  %114: U8 = read copy.trivial (local13.#)
+  %115: U8 = const 0
+  %116: Bool = eq inspect %114 inspect %115
+  branch inspect %116 -> bb11 -> bb9
+
+bb8:
+  %64: I32 = read copy.trivial (local7.Ok)
+  write.init borrow.unique (v) take %64
+  %66: I32 [unique call] = read borrow.unique (total) loan9
+  %67: I32 = read copy.trivial (v)
+  %68: I32 = const 100000
+  %69: I32 = mul inspect %67 inspect %68
+  %70: {} = call +=(I32) borrow.unique %66 borrow.shared %69
+  jump -> bb7
+
+bb9:
+  jump -> bb10
+
+bb10:
+  %128: I32 = read copy.trivial (total)
+  %129: I32 = const 256
+  %130: I32 = rem inspect %128 inspect %129
+  return take %130
+
+bb11:
+  %118: I64 = read copy.trivial (local13.Err)
+  write.init borrow.unique (wide) take %118
+  %120: I32 [unique call] = read borrow.unique (total) loan16
+  %121: I64 = read copy.trivial (wide)
+  %122: I64 = const 1000000
+  %123: I64 = mul inspect %121 inspect %122
+  %124: I32 = convert inspect %123
+  %125: {} = call +=(I32) borrow.unique %120 borrow.shared %124
+  jump -> bb10
+}
+
+fn generic(I32)(r: Result(Inner(I32), I32)) -> Result(Outer(I32), I32) = <generic at I32>
+
+fn Inner(e).widen(String)(from: Inner(String)) -> Outer(String) = <Inner(e).widen at String>
+
+fn Inner(e).widen(I32)(from: Inner(I32)) -> Outer(I32) = <Inner(e).widen at I32>
+
+fn take(String)(self: Buffer [unique slot 0], count: Size [shared call], failure: String) -> Result(Inner(String), Array(U8)) [owned here shape8 .1=shared slot 0 view] = <take at String>
+
+entry main

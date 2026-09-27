@@ -197,16 +197,18 @@ bb0:
   lens.call holding(I32) borrow.unique %11 borrow.shared %12 -> bb2
 
 bb1:
-  %19: I32 = const 10
-  write.assign borrow.unique (source.value) take %19
-  %21: I32 = read copy.trivial (read)
-  %22: I32 = read copy.trivial (source.value)
-  %23: I32 = add inspect %21 inspect %22
-  return take %23
+  %19: I32 = read copy.trivial (box.held.value)
+  write.assign borrow.unique (read) take %19
+  %21: I32 = const 10
+  write.assign borrow.unique (source.value) take %21
+  %23: I32 = read copy.trivial (read)
+  %24: I32 = read copy.trivial (source.value)
+  %25: I32 = add inspect %23 inspect %24
+  return take %25
 
 bb2(%13: {}) handover({}) -> bb1:
   write.init borrow.unique (local4) take {}
-  %16: I32 = read copy.trivial (box.held.value)
+  %16: I32 = read copy.trivial (source.value)
   write.assign borrow.unique (read) take %16
   jump -> bb1
 }

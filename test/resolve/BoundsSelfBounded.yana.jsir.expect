@@ -1,0 +1,238 @@
+fn touch(parts %r5) -> one %r3
+  block0(%0: %r2, %1: %r3, %2: %r3):
+    return %1
+
+fn masked(one %r3) -> one %r3
+  block0(%0: %r3):
+    %1: %r3 = const 18
+    %2: %r3 = binary.shr %0, %1
+    %3: %r3 = coerce %2
+    %4: %r3 = const 63
+    %5: %r3 = binary.and %3, %4
+    %6: %r3 = coerce %5
+    %7: %r1 = load global table: %r1
+    %8: %r0 = load element %7[%6]: %r0
+    %9: %r3 = const 63
+    %10: %r3 = const 12
+    %11: %r3 = binary.shr %0, %10
+    %12: %r3 = coerce %11
+    %13: %r3 = binary.and %9, %12
+    %14: %r3 = coerce %13
+    %15: %r1 = load global table: %r1
+    %16: %r0 = load element %15[%14]: %r0
+    %17: %r3 = convert %8
+    %18: %r3 = convert %16
+    %19: %r3 = binary.add %17, %18
+    %20: %r3 = coerce %19
+    return %20
+
+fn shifted(one %r6) -> one %r3
+  block0(%0: %r6):
+    %1: %r6 = const 26
+    %2: %r6 = binary.shr %0, %1
+    %3: %r6 = coerce %2
+    %4: %r6 = convert %3
+    %5: %r3 = convert %4
+    %6: %r1 = load global table: %r1
+    %7: %r0 = load element %6[%5]: %r0
+    %8: %r3 = convert %7
+    return %8
+
+fn remainder(one %r6) -> one %r3
+  block0(%0: %r6):
+    %1: %r6 = const 64
+    %2: %r6 = binary.rem %0, %1
+    %3: %r6 = coerce %2
+    %4: %r3 = convert %3
+    %5: %r1 = load global table: %r1
+    %6: %r0 = load element %5[%4]: %r0
+    %7: %r3 = convert %6
+    return %7
+
+fn signedRemainder(one %r3) -> one %r3
+  block0(%0: %r3):
+    %1: %r3 = const 64
+    %2: %r3 = binary.rem %0, %1
+    %3: %r3 = coerce %2
+    %4: %r6 = const 64
+    %5: %r6 = convert %3
+    %6: %r10 = binary.ge %5, %4
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r1 = load global table: %r1
+    %8: %r0 = load element %7[%3]: %r0
+    %9: %r3 = convert %8
+    return %9
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn byte(one %r0) -> one %r3
+  block0(%0: %r0):
+    %1: %r3 = convert %0
+    %2: %r3 = const 63
+    %3: %r3 = binary.and %1, %2
+    %4: %r3 = coerce %3
+    %5: %r1 = load global table: %r1
+    %6: %r0 = load element %5[%4]: %r0
+    %7: %r3 = convert %6
+    return %7
+
+fn main() -> one %r3
+  var $0: %r8
+  var $1: %r11
+  block0:
+    %20: %r0 = const 0
+    %21: %r11 = array %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20, %20
+    %22: %r0 = const 1
+    %23: %r0 = const 2
+    %24: %r0 = const 3
+    %25: %r0 = const 4
+    %26: %r0 = const 5
+    %27: %r0 = const 6
+    %28: %r0 = const 7
+    %29: %r0 = const 8
+    %30: %r0 = const 9
+    %31: %r0 = const 10
+    %32: %r2 = host host.array %22, %23, %24, %25, %26, %27, %28, %29, %30, %31
+    %33: %r7 = const 10
+    %35: %r11 = alias %21
+    %36: %r2 = alias %35
+    %41: %r3 = const 0
+    %42: %r3 = const 1
+    %43: %r3 = const 2
+    %44: %r3 = const 3
+    %45: %r3 = const 4
+    %47: %r6 = const 12
+    %49: %r6 = const 6
+    %50: %r2 = alias %32
+    %51: %r2 = alias %36
+    %52: %r2 = alias %51
+    jump -> block1(%41)
+  block1(%0: %r3):
+    %53: %r6 = convert %0
+    %54: %r10 = binary.le %53, %47
+    branch %54 -> block2 -> block3
+  block2:
+    %55: %r10 = binary.le %53, %49
+    branch %55 -> block4 -> block3
+  block3:
+    %56: %r11 = alias %21
+    %57: %r2 = alias %56
+    %58: %r3 = const 16
+    %59: %r3 = const 0
+    %61: %r3 = const 0
+    %63: %r3 = const 1
+    %64: %r3 = const 2
+    %66: %r6 = const 8
+    jump -> block5(%61)
+  block4:
+    %124: %r0 = load element %50[%0]: %r0
+    store element %52[%0]: %r0, %124
+    %125: %r3 = binary.add %0, %42
+    %126: %r3 = coerce %125
+    %127: %r0 = load element %50[%126]: %r0
+    store element %52[%126]: %r0, %127
+    %128: %r3 = binary.add %0, %43
+    %129: %r3 = coerce %128
+    %130: %r0 = load element %50[%129]: %r0
+    store element %52[%129]: %r0, %130
+    %131: %r3 = binary.add %0, %44
+    %132: %r3 = coerce %131
+    %133: %r0 = load element %50[%132]: %r0
+    store element %52[%132]: %r0, %133
+    %134: %r3 = binary.add %0, %45
+    %135: %r3 = coerce %134
+    jump -> block1(%135)
+  block5(%1: %r3):
+    %67: %r10 = const 1
+    %68: %r6 = convert %1
+    %71: %r6 = const 14
+    %72: %r10 = binary.le %68, %71
+    %73: %r10 = binary.and %67, %72
+    branch %73 -> block6 -> block7
+  block6:
+    %74: %r10 = binary.le %68, %66
+    branch %74 -> block8 -> block7
+  block7:
+    %34: %r8 = object %s1 %32, %33
+    %75: %r8 = alias %34
+    call Array(a).reclaim(U8) %75
+    %76: %r3 = binary.add %0, %1
+    %77: %r3 = coerce %76
+    %78: %r3 = const 3.05419896E8
+    %79: %r3 = call masked %78
+    %80: %r6 = const 4.294967295E9
+    %81: %r3 = call shifted %80
+    %82: %r3 = binary.add %79, %81
+    %83: %r3 = coerce %82
+    %84: %r6 = const 1000
+    %85: %r3 = call remainder %84
+    %86: %r3 = binary.add %83, %85
+    %87: %r3 = coerce %86
+    %88: %r3 = const 1000
+    %89: %r3 = call signedRemainder %88
+    %90: %r3 = binary.add %87, %89
+    %91: %r3 = coerce %90
+    %92: %r0 = const 200
+    %93: %r3 = call byte %92
+    %94: %r3 = binary.add %91, %93
+    %95: %r3 = coerce %94
+    %96: %r3 = convert %77
+    %97: %r3 = const 1
+    %98: %r11 = alias %21
+    %99: %r0 = load element %98[%97]: %r0
+    %100: %r3 = convert %99
+    %101: %r3 = const 100
+    %102: %r3 = binary.mul %100, %101
+    %103: %r3 = coerce %102
+    %104: %r3 = binary.add %96, %103
+    %105: %r3 = coerce %104
+    %106: %r3 = const 1000
+    %107: %r3 = binary.mul %95, %106
+    %108: %r3 = coerce %107
+    %109: %r3 = binary.add %105, %108
+    %110: %r3 = coerce %109
+    return %110
+  block8:
+    %111: %r0 = load element %50[%1]: %r0
+    %112: %r2 = alias %57
+    %113: %r3 = alias %1
+    %114: %r3 = coerce %113
+    store element %112[%114]: %r0, %111
+    %115: %r3 = call touch %57, %58, %59
+    %116: %r3 = binary.add %1, %63
+    %117: %r3 = coerce %116
+    %118: %r0 = convert %115
+    %119: %r2 = alias %57
+    %120: %r3 = alias %117
+    %121: %r3 = coerce %120
+    store element %119[%121]: %r0, %118
+    %122: %r3 = binary.add %1, %64
+    %123: %r3 = coerce %122
+    jump -> block5(%123)
+
+fn Array(a).reclaim(U8)(one %r8) -> omitted
+  var $0: %r8
+  block0(%0: %r8):
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 32 adopted 0 sunk 1 numbered 2 decided 0 unboxed 1 updated 0 split 0 promoted 4 folded 7
+
+shape %s0 object ArrayView {items: %r2, length: %r3, offset: %r3}
+shape %s1 object Array {items: %r2, length: %r7}
+shape %s2 cell {$v: %r11 box}
+
+rep %r0 = number unsigned 8
+rep %r1 = array Uint8Array of %r0
+rep %r2 = array Uint8Array of %r0
+rep %r3 = number signed 32
+rep %r4 = object %s0
+rep %r5 = parts (%r2, %r3, %r3) as %r4
+rep %r6 = number unsigned 32
+rep %r7 = number unsigned 30
+rep %r8 = object %s1
+rep %r9 = void
+rep %r10 = number bool
+rep %r11 = array Uint8Array of %r0
+rep %r12 = object %s2

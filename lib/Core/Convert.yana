@@ -20,9 +20,17 @@
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
 -- whole of the rule for whether a conversion happens on its own or has to be written.
+--
+-- **`from` is consumed**, because the conversion that is not a number is a wrapper: `?` widens a
+-- read's `ReadFailure(e)` into the protocol's `CqlFailure(e)` by its `Read(...)` constructor, and
+-- a borrowed `from` cannot be handed to one - the instance would have to copy an error it cannot
+-- copy. The reason `?` converts is always an owned temporary, so consuming it costs nothing there;
+-- at a position naming a binding the conversion moves it, as any call of a `->` parameter does, and
+-- at the numeric rungs a scalar is copied either way. A borrowing class with `Copy` on the wrapper
+-- was the alternative, and it refuses exactly the owning errors (`e = IoError(String)`) it exists for.
 @builtin(widen)
 pub class Widen(a, b):
-  fn widen(from: a) -> b
+  fn widen(->from: a) -> b
 
 -- The lossy direction, and the only way to spell it: `::` widens and selects, it does not remove
 -- data. The method is `truncate` rather than `narrow` because "narrow" says the type got smaller

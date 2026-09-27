@@ -61,8 +61,10 @@ struct MovePath {
  * `position` is an index into the block's node list and means **before** that node: a drop is placed
  * at the point the object stopped being needed, and the node standing there is the one that made it
  * so - the `return`, the assignment that replaces it, the first instruction of the arm that does not
- * use it. `position == node count` is the end of a block that has no terminator, which a sealed body
- * does not have; every real drop therefore lands before a real node.
+ * use it. `position == node count` is past the terminator, and only a `lens.call`'s block has steps
+ * there: they run on that call's **leave path**, after the callee's cleanup, and release what the
+ * region held when a `return` inside it propagated out (K6). Every other drop lands before a real
+ * node.
  *
  * `conditional` is a path that was owned on some incoming paths and not on others - §5.10's `Maybe`.
  * The conversion reads the path's drop flag and branches; `Elaboration::flagged` is what says a path
@@ -77,27 +79,37 @@ struct MovePath {
  * move cannot empty is one that always holds a value.
  */
 struct DropStep {
-    DropStep(): position(0), conditional(0) {}
+    DropStep(): position(0), conditional(0), guarded(0) {}
 
-    DropStep(U32 block, U32 position, PlaceId place, MovePathId path, bool conditional):
-        block(block), position(position), conditional(conditional), place(place), path(path) {}
+    DropStep(U32 block, U32 position, PlaceId place, MovePathId path, bool conditional,
+             bool guarded = false):
+        block(block), position(position), conditional(conditional), guarded(guarded), place(place),
+        path(path) {}
 
     U32 block = 0;
 
     /*
-     * The position, and the flag in the bit above it.
+     * The position, and two flags in the bits above it.
      *
      * A `bool` after the ids is one byte and three of padding, and there is one of these per teardown
      * the analysis places in the whole program: the flag would cost four bytes to say one thing that
-     * has a free bit next to it. Thirty-one bits of position is a body with two billion nodes in one
-     * block, which is past what the `U32` node index itself allows.
+     * has a free bit next to it. Thirty bits of position is a body with a billion nodes in one
+     * block, which is past what any body this compiler has met comes near.
+     *
+     * `guarded` is a member of a **sum** released on its own while nothing has proved which
+     * constructor the sum holds - a sum that is whole on some paths into this point and taken apart
+     * on others (`walkBlock`). The conversion tests every sum on the place's way up for the
+     * constructor the field belongs to before running the teardown; on the paths where a take
+     * proved the constructor the test is true, and on the others it is the tag the derived teardown
+     * would have read.
      *
      * A constructor pair rather than default member initializers, because those are not allowed on a
      * bit-field before C++20 and this is built at C++17. The two of them are what keep the fields
      * initialized, which an `= default` would not.
      */
-    U32 position : 31;
+    U32 position : 30;
     U32 conditional : 1;
+    U32 guarded : 1;
 
     PlaceId place;
     MovePathId path;

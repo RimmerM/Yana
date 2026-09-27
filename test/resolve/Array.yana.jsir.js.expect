@@ -6,21 +6,20 @@ function main() {
   var v10 = { items: v8, length: 3 };
   push_I32(v10, 4);
   push_I32(v10, 5);
-  var v22 = remove_I32(v10, 1);
-  var v24 = remove_I32(v10, 99);
-  var v26 = remove_I32(v10, -1);
-  var v27 = v10.items;
-  var v29 = v10.length;
+  var v23 = remove_I32(v10, 1);
+  var v25 = remove_I32(v10, 99);
+  var v27 = remove_I32(v10, -1);
+  var v28 = v10.items;
+  var v30 = v10.length;
   var p0 = 0;
   var p1 = 0;
-  while (p1 < v29) {
-    if (p1 >>> 0 >= v29) throw $t;
-    p0 = p0 + v27[p1 | 0] | 0;
+  while (p1 < v30) {
+    p0 = p0 + v28[p1] | 0;
     p1 = p1 + 1 | 0;
   }
-  var v38 = p0 + v29 | 0;
-  var v42 = new Int32Array([7, 8, 9]);
-  return v38 + ((v42[0] + v42[1] | 0) + v42[2] | 0) | 0;
+  var v40 = p0 + v30 | 0;
+  var v44 = new Int32Array([7, 8, 9]);
+  return v40 + ((v44[0] + v44[1] | 0) + v44[2] | 0) | 0;
 }
 
 function push_I32(self, item) {
@@ -49,7 +48,6 @@ function growJsArray_I32(self, wanted) {
   var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
-var $t = "yana: a runtime check failed";
 
 // a typed array's growth - see Implementation-Containers.md, section 14
 function $grow(a, n) {
@@ -57,4 +55,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

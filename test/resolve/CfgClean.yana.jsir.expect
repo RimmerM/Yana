@@ -31,61 +31,48 @@ fn nested(one %r0) -> one %r0
     %13: %r0 = const 0
     %14: %r0 = const 2
     %15: %r0 = const 1
-    %16: %r0 = const 4
-    %17: %r0 = const 10
+    %16: %r0 = const 10
     jump -> block1(%13, %6)
   block1(%1: %r0, %2: %r0):
-    %18: %r2 = binary.lt %1, %0
-    branch %18 -> block2 -> block7(%12, %2)
+    %17: %r2 = binary.lt %1, %0
+    branch %17 -> block2 -> block5(%12, %2)
   block2:
-    %19: %r2 = binary.gt %1, %14
-    branch %19 -> block6 -> block3
+    %18: %r2 = binary.gt %1, %14
+    branch %18 -> block4 -> block3
   block3:
-    %20: %r2 = binary.gt %1, %16
-    branch %20 -> block11 -> block10
-  block4:
-    %27: %r0 = alias %11
-    call Held.drop %27
-    jump -> block5
-  block5:
-    %28: %r2 = const 0
-    jump -> block7(%28, %2)
-  block6:
-    %29: %r2 = const 0
-    %30: %r0 = alias %11
-    %32: %r0 = alias %30
-    %33: %r0 = alias %30
-    call Held.drop %33
-    %34: %r0 = const 4
-    %35: %r2 = binary.gt %32, %34
-    branch %35 -> block12(%2) -> block13
-  block7(%3: %r2, %4: %r0):
-    branch %3 -> block8 -> block9
-  block8:
-    %41: %r0 = alias %11
-    call Held.drop %41
-    jump -> block9
-  block9:
-    return %4
-  block10:
-    %21: %r0 = binary.mul %2, %17
+    %19: %r0 = binary.mul %2, %16
+    %20: %r0 = coerce %19
+    %21: %r0 = binary.add %20, %1
     %22: %r0 = coerce %21
-    %23: %r0 = binary.add %22, %1
+    %23: %r0 = binary.add %1, %15
     %24: %r0 = coerce %23
-    %25: %r0 = binary.add %1, %15
-    %26: %r0 = coerce %25
-    jump -> block1(%26, %24)
-  block11:
-    jump -> block4
-  block12(%5: %r0):
-    jump -> block7(%29, %5)
-  block13:
-    %36: %r0 = const 10
-    %37: %r0 = binary.mul %2, %36
-    %38: %r0 = coerce %37
-    %39: %r0 = binary.add %38, %32
-    %40: %r0 = coerce %39
-    jump -> block12(%40)
+    jump -> block1(%24, %22)
+  block4:
+    %25: %r2 = const 0
+    %26: %r0 = alias %11
+    %28: %r0 = alias %26
+    %29: %r0 = alias %26
+    call Held.drop %29
+    %30: %r0 = const 4
+    %31: %r2 = binary.gt %28, %30
+    branch %31 -> block8(%2) -> block9
+  block5(%3: %r2, %4: %r0):
+    branch %3 -> block6 -> block7
+  block6:
+    %37: %r0 = alias %11
+    call Held.drop %37
+    jump -> block7
+  block7:
+    return %4
+  block8(%5: %r0):
+    jump -> block5(%25, %5)
+  block9:
+    %32: %r0 = const 10
+    %33: %r0 = binary.mul %2, %32
+    %34: %r0 = coerce %33
+    %35: %r0 = binary.add %34, %28
+    %36: %r0 = coerce %35
+    jump -> block8(%36)
 
 fn main() -> one %r0
   var $0: %r0
@@ -137,7 +124,7 @@ fn main() -> one %r0
     %36: %r0 = coerce %35
     return %36
 
-optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 7 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 6 folded 0
 
 rep %r0 = number signed 32
 rep %r1 = void

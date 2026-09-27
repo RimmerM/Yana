@@ -1,0 +1,143 @@
+{-
+   The **erased** `iter(T | E)` - C1c, §6.6's `| E` at the one site J216 and J217 left.
+
+   A failing object reaching a position written `iter(T | E)` is the pair every erased object is,
+   and its step answers the item's address, null when it ran out, or `&$failure | 1` when it failed:
+   an `Outcome(exit, E)` holds the `I32` exit code, so it is at least four-aligned and bit zero is
+   free - for a zero-size `E` and a one-byte one as well, both of which run below. (That is the
+   failure's half; the item's is that an answer is a slot's address and a slot is two-aligned,
+   `Failing.ErasedOddItem.yana`.) The shim finishes
+   the record before it answers, so the consumer takes the failure in place and the object is `Done`
+   from then on.
+
+   Held as a field, a parameter, a result and a heap array's element; stepped with `for` and its
+   alternative, with `next()` (`IterateFailing`'s erased instance, answering `IterStep`), and with
+   `resume(v)`. Digits: an item (its value), an alternative (7 then what it saw), a `Tag` released
+   (9 then its id). `main` answers the cases that did not match.
+
+   Native only: JavaScript refuses the erased `iter(T | E)` by name, which this file's
+   `.jsir.errors.expect` holds.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+iter fn upTo(n: Int, failAt: Int) -> (Int | Tag):
+    let &i = 1 :: Int
+    while i <= n:
+        if i == failAt then return Tag {id: i}
+        yield i
+        i = i + 1
+
+-- A zero-size failure and a one-byte one: the tag bit is free in both, which is the alignment claim.
+iter fn empty(n: Int) -> (Int | {}):
+    for i in 1..=n:
+        yield i
+    return {}
+
+iter fn narrow(n: Int) -> (Int | U8):
+    for i in 1..=n:
+        yield i
+    return 6 :: U8
+
+-- Resuming and failing: each pass answers a step, and a negative one fails.
+iter fn walk(start: Int) -> (Int <- Int | Tag):
+    let &at = start
+    while at < 100:
+        let step = yield at
+        if step < 0 then return Tag {id: 4}
+        at = at + step
+
+data Holder {source: iter(Int | Tag), label: Int}
+
+fn made(n: Int, failAt: Int) -> iter(Int | Tag) = upTo(n, failAt)
+
+fn drain(&it: iter(Int | Tag)):
+    for x in it:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+
+fn main() -> Int:
+    -- A parameter, over an object the caller holds in its frame as the pair.
+    let &a = upTo(4, 3) :: iter(Int | Tag)
+    drain(a)
+    expect(1, 127933)
+
+    -- A result, and running out without failing: no alternative.
+    let &b = made(2, 9)
+    drain(b)
+    expect(2, 12)
+
+    -- A record field.
+    let &h = Holder {source: made(3, 2), label: 5}
+    for x in h.source:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    note(h.label :: Long)
+    expect(4, 179225)
+
+    -- A heap array's elements, each drained in turn.
+    let &many = [] :: [iter(Int | Tag)]
+    push(many, made(2, 1))
+    push(many, made(1, 9))
+    for i in 0..length(many):
+        drain(many[i])
+    expect(8, 79111)
+
+    -- `next()`: two items, the failure once, then `Done`.
+    let &n = made(3, 3)
+    for i in 0..4:
+        match n.next():
+            IterStep.Yield(v) -> note(v :: Long)
+            IterStep.Done -> note(0)
+            IterStep.Failed(tag):
+                note(7)
+                note(tag.id :: Long)
+    expect(16, 1279330)
+
+    -- `resume(v)` over an erased resuming object, failing on a negative step.
+    let &w = walk(1) :: iter(Int <- Int | Tag)
+    if w.resume(0) is IterStep.Yield(x) then note(x :: Long)
+    if w.resume(2) is IterStep.Yield(x) then note(x :: Long)
+    match w.resume(-1):
+        IterStep.Failed(tag):
+            note(7)
+            note(tag.id :: Long)
+        _ -> note(1)
+    if w.resume(1) is IterStep.Done then note(0)
+    expect(32, 1379440)
+
+    -- `{}` and `U8`, whose `Outcome`s are the smallest there are.
+    let &e = empty(2) :: iter(Int | {})
+    for x in e:
+        note(x :: Long)
+    | nothing -> note(7)
+    expect(64, 127)
+
+    let &u = narrow(2) :: iter(Int | U8)
+    for x in u:
+        note(x :: Long)
+    | byte:
+        note(7)
+        note(byte :: Long)
+    expect(128, 1276)
+
+    return failures

@@ -406,7 +406,7 @@ instance Reclaim([a]):
         for i in 0 .. count:
             let ->doomed = *(value.run.items + i)
 
-        releaseRun(value.run)
+        releaseRun(bitcast(value.run.items), value.run.ownsHeap)
 
 {-
    Joining two arrays, natively - `Core`'s `Append`. Array.yana is where the shape is argued.

@@ -731,6 +731,26 @@ pub class Drop(a):
   fn resume(&self: source's, ->v: resume) -> Maybe(source'item)
 
 {-
+   Stepping an iterator object **that can fail** - `iter fn f(...) -> (T | E)` kept as a value.
+
+   `Iterate`'s answer is `Maybe(item)`, and "ran out" and "failed with `e`" are one `Nothing` there,
+   so a failing object is not an `Iterate`: an instance would drop the failure on the floor, and at
+   an owning `E` leak it. This is the same two members with a third row on the answer - the choice
+   Analysis-External-Iterators.md §2.2 made, and the one that keeps `Iterate`'s answer unchanged for
+   every object that cannot fail. The two classes are told apart by the object: a step's instance
+   exists for exactly one of them, so `it.next()` names whichever one `it` has.
+
+   `Failed(e)` hands the failure over **owned**, once: the step that answers it leaves the object
+   finished, so a second `next()` answers `Done` and there is nothing left in it to release.
+   `qualified` because `Done` and `Failed` are names programs use for their own constructors.
+-}
+pub data qualified IterStep(e, y) = Yield(y) | Done | Failed(e)
+
+@builtin(iterateFailing) pub class IterateFailing(s -> item, error, resume):
+  fn next(&self: source's) -> IterStep(error, source'item)
+  fn resume(&self: source's, ->v: resume) -> IterStep(error, source'item)
+
+{-
    Exchanging the contents of storage.
 
    `->` takes a value out of a place and leaves it empty, which is why it needs the place to be one

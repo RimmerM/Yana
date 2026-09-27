@@ -3,55 +3,20 @@
 var trace = 0;
 
 // 
-function nested(p) {
-  var v2 = p.left;
-  var p1 = v2 > 0 ? v2 : null;
-  if (!(p1 === null) && p1 === 1) {
-    var v19 = p.right;
-    if (v19 > 0) return v19;
-  }
-  return 0;
-}
-
 function main() {
-  var s7, s9, s10, p6, p7, p10;
-  var s2 = null;
-  var v156 = ((!(s2 === null) && s2 > 1 ? Math.imul(s2, 10) : 0) === 0 ? 7 : 3) + 8 + 16 + 32;
-  var v159 = v156 + 64;
-  B12: {
-    s7 = 4;
-    if (!(s7 === null)) {
-      p6 = 300 + s7 | 0;
-      break B12;
+  var p0 = 4;
+  var p1 = 0;
+  while (p0 > 0) {
+    if (p0 > 2) {
+      p1 = p1 + p0 | 0;
+      p0 = p0 - 1 | 0;
+      continue;
     }
-    p6 = 0;
+    break;
   }
-  var v195 = p6 === 304 ? v156 + 192 : v159;
-  B14: {
-    s9 = null;
-    if (!(s9 === null)) {
-      p7 = 300 + s9 | 0;
-      break B14;
-    }
-    p7 = 0;
-  }
-  var v230 = p7 === 0 ? v195 + 256 : v195;
-  var v240 = nested({ left: 1, right: 7 }) === 7 ? v230 + 512 : v230;
-  var v250 = nested({ left: 2, right: 7 }) === 0 ? v240 + 1024 : v240;
-  var p8 = 4;
-  var p9 = 0;
-  L16: for (;;) {
-    p10 = p8 > 0 ? p8 : null;
-    s10 = p10;
-    if (!(s10 === null) && s10 > 2) {
-      p9 = p9 + s10 | 0;
-      p8 = p8 - 1 | 0;
-      continue L16;
-    }
-    var v275 = p9 === 7 ? v250 + 2048 : v250;
-    var v279 = trace + 7 | 0;
-    trace = v279;
-    return v279 === 7 ? v275 + 258048 : v275 + 126976;
-  }
+  var v38 = p1 === 7 ? 4095 : 2047;
+  var v42 = trace + 7 | 0;
+  trace = v42;
+  return v42 === 7 ? v38 + 258048 : v38 + 126976;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -1,0 +1,52 @@
+{-
+   What `?` over a borrow still refuses - the other half of `TryCarrier.yana`.
+
+   `written`, `peeked` and `opened` write `b` while the value `?` unwrapped is still live: the
+   payload carries the loan the callee published, exactly as it would have bound without the
+   carrier, so the write is the loan checker's ordinary refusal. `twice` in `TryCarrier.yana` is
+   the same write after the last use, and is accepted.
+
+   `leak` is the error end. An error that holds a loan of this frame - here `Win`, whose schema
+   names its origin - is what `?` would rebuild the enclosing carrier from, and the loan checker
+   refuses the return it becomes as it refuses `return Err(w)`.
+-}
+
+data Fail = Short
+data Buf {bytes: [U8], at: Size}
+data Win {space: &'[U8], used: Size}
+
+fn take(&self: Buf, count: Size) -> Result(Fail, '[U8]):
+    if length(self.bytes) - self.at < count then return Err(Short)
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+fn peek(self: s'Buf) -> Maybe(s'[U8]):
+    if self.at >= length(self.bytes) then return Nothing
+    return Just(self.bytes[self.at..self.at + 1])
+
+fn open(&self: Buf) -> Result(Fail, Win):
+    if length(self.bytes) < 2 then return Err(Short)
+    return Ok(Win {space: self.bytes[0..2], used: 0})
+
+fn written(&b: Buf) -> Result(Fail, U8):
+    let h = b.take(1)?
+    b.at = 0
+    return Ok(h[0])
+
+fn peeked(&b: Buf) -> Maybe(U8):
+    let p = b.peek()?
+    b.bytes[0] = 1
+    return Just(p[0])
+
+fn opened(&b: Buf) -> Result(Fail, U8):
+    let w = b.open()?
+    b.at = 0
+    return Ok(w.space[0])
+
+fn openErr(&self: Buf) -> Result(Win, Size) = Err(Win {space: self.bytes[0..1], used: 0})
+
+fn leak() -> Result(Win, Size):
+    let &b = Buf {bytes: [1, 2] :: [U8], at: 0}
+    let n = openErr(b)?
+    return Ok(n)

@@ -1,0 +1,84 @@
+{-
+   An erased object whose producer hands its items **over** - `iter(->T)` - K8.
+
+   It did not compile: `iter(T)$item` answered the slot's address as the owned item, which the
+   lowering refused ("incorrect number of values returned") for any item that lives in storage. And
+   the owned answer was wrong in a second way the lowering was not asking about: the record's `$held`
+   stayed set, so the object released the item again at the next refill and at its teardown after
+   the consumer's binding had. The site type's `for` moves out through `f$take`, which clears
+   `$held` beside the move; an erased consumer holds the slot's address and not the record, so it
+   cannot. So an erased `for` **lends** the item, exactly as `next()` over either form does, and the
+   object releases it where `next()`'s is released. Moving the binding out of the body is refused as
+   the loan it is (`Reject.ErasedOwnedMove.yana`).
+
+   A `Tag` owns a `String` and counts its releases, so a double release or a leak shows as a count.
+   `main` answers the cases that did not match.
+
+   Native only: JavaScript builds no erased object yet (P8).
+-}
+
+let &drops = 0
+let &failures = 0
+
+data Tag {id: Int, name: String}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        drops += 1
+
+iter fn tags(n: Int) -> ->Tag:
+    for i in 1..=n:
+        yield Tag {id: i, name: "tag number {i}"}
+
+fn erased(n: Int) -> iter(->Tag) = tags(n)
+
+fn named(t: Tag) = truncate(length(t.name)) :: Int
+
+fn expect(case: Int, got: Int, want: Int):
+    if got != want then failures += case
+
+fn looped(n: Int) -> Int:
+    let &it = erased(n)
+    let &sum = 0
+    for t in it:
+        sum += t.id * named(t)
+    return sum
+
+fn stopped(n: Int) -> Int:
+    let &it = erased(n)
+    for t in it:
+        if t.id == 2 then return t.id
+    return 0
+
+fn stepped(n: Int) -> Int:
+    let &it = erased(n)
+    let &sum = 0
+    while True:
+        match it.next():
+            Just(t) -> sum += t.id
+            Nothing -> return sum
+    return sum
+
+-- Delegating through a local erased child: the outer producer yields a copy of each borrowed item.
+iter fn relabelled(n: Int) -> ->Tag:
+    let &inner = erased(n)
+    for t in inner:
+        yield Tag {id: t.id + 10, name: "{t.name}!"}
+
+fn main() -> Int:
+    expect(1, looped(3), 12 + 24 + 36)
+    expect(2, drops, 3)
+
+    expect(4, stopped(4), 2)
+    expect(8, drops, 5)
+
+    expect(16, stepped(4), 10)
+    expect(32, drops, 9)
+
+    let &total = 0
+    for t in relabelled(2):
+        total += t.id + named(t)
+    expect(64, total, 11 + 13 + 12 + 13)
+    expect(128, drops, 13)
+
+    return failures

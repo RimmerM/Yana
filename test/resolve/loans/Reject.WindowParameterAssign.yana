@@ -1,0 +1,32 @@
+{-
+   Assigning a `&` window parameter as a whole, and a borrow into storage that owns.
+
+   collections.md gives `&xs: [a]` "elements mutable, extent fixed": the window is the caller's
+   elements, so `v = copy(w)` released the caller's array and wrote an owner where a descriptor was
+   (the caller then read a length of five billion), and `v = v[0..1]` was an internal error. The
+   bounds facts (J189) key a window parameter's length once per call on the same promise. Element
+   writes stay legal - `fill` below is accepted.
+
+   And a borrow assigned into a field that owns its array, reached through a `&` parameter: the
+   field's own contract decides, not the unique borrow it was reached through, so it is the ordinary
+   "`copy` it" refusal rather than "store consumes a guaranteed value".
+-}
+
+data Box {bytes: [U8]}
+
+fn fill(&v: [U8]):
+    for i in 0..length(v):
+        v[i] = 7
+
+fn shrinkOwned(&v: '[U8]):
+    let w = v[0..1]
+    v = copy(w)
+
+fn shrinkView(&v: '[U8]):
+    v = v[0..1]
+
+fn replaceOut(&out: [U8], view: [U8]):
+    out = view[1..length(view)]
+
+fn setField(&b: Box, view: [U8]):
+    b.bytes = view[1..length(view)]

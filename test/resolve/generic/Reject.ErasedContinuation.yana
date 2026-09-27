@@ -1,0 +1,15 @@
+{-
+   `@generic` asks for the form `checkErasable` declines where a `for` block reads the generic
+   environment (`ErasedContinuation.yana`, K8): the block is outlined into a function whose argument
+   zero is its captures, so the class call inside it has no environment to be read through.
+-}
+
+class Codec(c):
+    fn least(codec: c) -> Int
+
+let &total = 0
+
+@generic
+fn (Codec(c)) agree(codec: c):
+    for scratch in items([1, 2, 3]):
+        total += codec.least() * scratch

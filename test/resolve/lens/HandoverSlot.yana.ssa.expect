@@ -359,6 +359,7 @@ bb0:
   jump -> bb2
 
 bb1:
+  drop Array(I32) inspect %1
   %161: I32 trivial = load inspect %4
   return consume %161
 
@@ -820,7 +821,6 @@ bb1:
 
 bb2(%9: I32 [shared slot 0] guaranteed from{%1, %5}):
   %26: I32 trivial = load inspect %9
-  drop Array(I32) inspect %5
   %27: I32 trivial = const 1000000
   %28: I32 trivial = mul inspect %26 inspect %27
   call +=(I32) borrow %6 borrow %28

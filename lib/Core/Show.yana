@@ -212,16 +212,16 @@ fn showSigned(value: Long, &to: String):
    the host body is one line for all ten rather than one per width. The constraint is carried on the
    `js` declaration too, unused, so that the two `@platform` bodies have the one signature.
 -}
-@platform(native) fn (Widen(a, Long)) showFromSigned(value: a, &to: String):
+@platform(native) fn (TrivialCopy(a), Widen(a, Long)) showFromSigned(value: a, &to: String):
     showSigned(widen(value) :: Long, to)
 
-@platform(js) fn (Widen(a, Long)) showFromSigned(value: a, &to: String):
+@platform(js) fn (TrivialCopy(a), Widen(a, Long)) showFromSigned(value: a, &to: String):
     String.push(to, hostToString(value))
 
-@platform(native) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String):
+@platform(native) fn (TrivialCopy(a), Widen(a, U64)) showFromUnsigned(value: a, &to: String):
     pushUnsigned(widen(value) :: U64, to)
 
-@platform(js) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String):
+@platform(js) fn (TrivialCopy(a), Widen(a, U64)) showFromUnsigned(value: a, &to: String):
     String.push(to, hostToString(value))
 
 {-
@@ -236,16 +236,16 @@ fn showSigned(value: Long, &to: String):
    reason the wide pair is not a repetition of the native one: what these select on that target is
    nothing, because everything narrower than sixty-four bits is already a `number` there.
 -}
-@platform(native) fn (Widen(a, I32)) showFromSigned32(value: a, &to: String):
+@platform(native) fn (TrivialCopy(a), Widen(a, I32)) showFromSigned32(value: a, &to: String):
     showSigned32(widen(value) :: I32, to)
 
-@platform(js) fn (Widen(a, I32)) showFromSigned32(value: a, &to: String):
+@platform(js) fn (TrivialCopy(a), Widen(a, I32)) showFromSigned32(value: a, &to: String):
     String.push(to, hostToString(value))
 
-@platform(native) fn (Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
+@platform(native) fn (TrivialCopy(a), Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
     pushUnsigned32(widen(value) :: U32, to)
 
-@platform(js) fn (Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
+@platform(js) fn (TrivialCopy(a), Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
     String.push(to, hostToString(value))
 
 {-

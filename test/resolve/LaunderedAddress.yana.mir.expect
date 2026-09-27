@@ -257,138 +257,139 @@ bb0:
   %4: [I32 *2] [shared slot 0] = read borrow.shared (ends) loan0
   %5: %[I32 *2] [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
   %6: %I32 [owned here shape6 .*=shared slot 0] = bitcast inspect %5 roots.0{0}
-  %7: Size = call makePipe borrow.shared %6
-  %8: Size = const 0
-  %9: Bool = lt inspect %7 inspect %8
-  branch inspect %9 -> bb3 -> bb1
+  %7: USize = const 0
+  %8: Size = call makePipe borrow.shared %6 borrow.shared %7
+  %9: Size = const 0
+  %10: Bool = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %14: Size = const 0
-  %15: I32 = read copy.trivial (ends[0])
-  write.init borrow.unique (reader) take %15
-  %17: Size = const 1
-  %18: I32 = read copy.trivial (ends[1])
-  write.init borrow.unique (writer) take %18
-  %20: I32 = read copy.trivial (writer)
-  %21: I64 = const 3
-  %22: I64 = const 4
-  %23: {} = call send borrow.shared %20 borrow.shared %21 borrow.shared %22
-  %24: I32 = read copy.trivial (reader)
-  %25: I64 = call readCounter borrow.shared %24
-  write.init borrow.unique (first) take %25
-  %27: I32 = read copy.trivial (writer)
-  %28: I64 = const 10
-  %29: I64 = const 1
-  %30: {} = call send borrow.shared %27 borrow.shared %28 borrow.shared %29
-  %31: I32 = read copy.trivial (writer)
-  %32: I64 = const 17
-  %33: I64 = const 2
-  %34: {} = call send borrow.shared %31 borrow.shared %32 borrow.shared %33
-  %35: I32 = read copy.trivial (reader)
-  %36: I64 = call between borrow.shared %35
-  write.init borrow.unique (took) take %36
-  %38: I32 = read copy.trivial (writer)
-  %39: I64 = const 1
-  %40: I64 = const 5
-  %41: {} = call send borrow.shared %38 borrow.shared %39 borrow.shared %40
-  %42: I32 = read copy.trivial (writer)
-  %43: I64 = const 2
-  %44: I64 = const 6
-  %45: {} = call send borrow.shared %42 borrow.shared %43 borrow.shared %44
-  %46: I32 = read copy.trivial (writer)
-  %47: I64 = const 4
-  %48: I64 = const 7
-  %49: {} = call send borrow.shared %46 borrow.shared %47 borrow.shared %48
-  %50: I32 = read copy.trivial (reader)
-  %51: I64 = call loopRead borrow.shared %50
-  write.init borrow.unique (looped) take %51
-  %53: I32 = read copy.trivial (writer)
-  %54: I64 = const 20
-  %55: I64 = const 22
-  %56: {} = call send borrow.shared %53 borrow.shared %54 borrow.shared %55
-  %57: I32 = read copy.trivial (reader)
-  %58: I64 = call pointerParameter borrow.shared %57
-  write.init borrow.unique (viaPointer) take %58
-  %60: I32 = read copy.trivial (reader)
-  %61: Size = convert inspect %60
-  %62: Size = call closeFile borrow.shared %61
-  %63: I32 = read copy.trivial (writer)
-  %64: Size = convert inspect %63
-  %65: Size = call closeFile borrow.shared %64
-  %66: I32 = read copy.trivial (global reads)
-  %67: I32 = const 3
-  %68: Bool = ne inspect %66 inspect %67
-  branch inspect %68 -> bb6 -> bb4
+  %15: Size = const 0
+  %16: I32 = read copy.trivial (ends[0])
+  write.init borrow.unique (reader) take %16
+  %18: Size = const 1
+  %19: I32 = read copy.trivial (ends[1])
+  write.init borrow.unique (writer) take %19
+  %21: I32 = read copy.trivial (writer)
+  %22: I64 = const 3
+  %23: I64 = const 4
+  %24: {} = call send borrow.shared %21 borrow.shared %22 borrow.shared %23
+  %25: I32 = read copy.trivial (reader)
+  %26: I64 = call readCounter borrow.shared %25
+  write.init borrow.unique (first) take %26
+  %28: I32 = read copy.trivial (writer)
+  %29: I64 = const 10
+  %30: I64 = const 1
+  %31: {} = call send borrow.shared %28 borrow.shared %29 borrow.shared %30
+  %32: I32 = read copy.trivial (writer)
+  %33: I64 = const 17
+  %34: I64 = const 2
+  %35: {} = call send borrow.shared %32 borrow.shared %33 borrow.shared %34
+  %36: I32 = read copy.trivial (reader)
+  %37: I64 = call between borrow.shared %36
+  write.init borrow.unique (took) take %37
+  %39: I32 = read copy.trivial (writer)
+  %40: I64 = const 1
+  %41: I64 = const 5
+  %42: {} = call send borrow.shared %39 borrow.shared %40 borrow.shared %41
+  %43: I32 = read copy.trivial (writer)
+  %44: I64 = const 2
+  %45: I64 = const 6
+  %46: {} = call send borrow.shared %43 borrow.shared %44 borrow.shared %45
+  %47: I32 = read copy.trivial (writer)
+  %48: I64 = const 4
+  %49: I64 = const 7
+  %50: {} = call send borrow.shared %47 borrow.shared %48 borrow.shared %49
+  %51: I32 = read copy.trivial (reader)
+  %52: I64 = call loopRead borrow.shared %51
+  write.init borrow.unique (looped) take %52
+  %54: I32 = read copy.trivial (writer)
+  %55: I64 = const 20
+  %56: I64 = const 22
+  %57: {} = call send borrow.shared %54 borrow.shared %55 borrow.shared %56
+  %58: I32 = read copy.trivial (reader)
+  %59: I64 = call pointerParameter borrow.shared %58
+  write.init borrow.unique (viaPointer) take %59
+  %61: I32 = read copy.trivial (reader)
+  %62: Size = convert inspect %61
+  %63: Size = call closeFile borrow.shared %62
+  %64: I32 = read copy.trivial (writer)
+  %65: Size = convert inspect %64
+  %66: Size = call closeFile borrow.shared %65
+  %67: I32 = read copy.trivial (global reads)
+  %68: I32 = const 3
+  %69: Bool = ne inspect %67 inspect %68
+  branch inspect %69 -> bb6 -> bb4
 
 bb3:
-  %11: I32 = const 1
-  return take %11
+  %12: I32 = const 1
+  return take %12
 
 bb4:
   jump -> bb5
 
 bb5:
-  %73: I64 = read copy.trivial (first)
-  %74: I64 = const 304
-  %75: Bool = ne inspect %73 inspect %74
-  branch inspect %75 -> bb9 -> bb7
+  %74: I64 = read copy.trivial (first)
+  %75: I64 = const 304
+  %76: Bool = ne inspect %74 inspect %75
+  branch inspect %76 -> bb9 -> bb7
 
 bb6:
-  %70: I32 = const 6
-  return take %70
+  %71: I32 = const 6
+  return take %71
 
 bb7:
   jump -> bb8
 
 bb8:
-  %80: I64 = read copy.trivial (took)
-  %81: I64 = const 701
-  %82: Bool = ne inspect %80 inspect %81
-  branch inspect %82 -> bb12 -> bb10
+  %81: I64 = read copy.trivial (took)
+  %82: I64 = const 701
+  %83: Bool = ne inspect %81 inspect %82
+  branch inspect %83 -> bb12 -> bb10
 
 bb9:
-  %77: I32 = const 2
-  return take %77
+  %78: I32 = const 2
+  return take %78
 
 bb10:
   jump -> bb11
 
 bb11:
-  %87: I64 = read copy.trivial (looped)
-  %88: I64 = const 707
-  %89: Bool = ne inspect %87 inspect %88
-  branch inspect %89 -> bb15 -> bb13
+  %88: I64 = read copy.trivial (looped)
+  %89: I64 = const 707
+  %90: Bool = ne inspect %88 inspect %89
+  branch inspect %90 -> bb15 -> bb13
 
 bb12:
-  %84: I32 = const 3
-  return take %84
+  %85: I32 = const 3
+  return take %85
 
 bb13:
   jump -> bb14
 
 bb14:
-  %94: I64 = read copy.trivial (viaPointer)
-  %95: I64 = const 42
-  %96: Bool = ne inspect %94 inspect %95
-  branch inspect %96 -> bb18 -> bb16
+  %95: I64 = read copy.trivial (viaPointer)
+  %96: I64 = const 42
+  %97: Bool = ne inspect %95 inspect %96
+  branch inspect %97 -> bb18 -> bb16
 
 bb15:
-  %91: I32 = const 4
-  return take %91
+  %92: I32 = const 4
+  return take %92
 
 bb16:
   jump -> bb17
 
 bb17:
-  %101: I32 = const 0
-  return take %101
+  %102: I32 = const 0
+  return take %102
 
 bb18:
-  %98: I32 = const 5
-  return take %98
+  %99: I32 = const 5
+  return take %99
 }
 
 entry main

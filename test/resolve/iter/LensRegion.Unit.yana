@@ -1,0 +1,37 @@
+{-
+   A lens handing over **`{}`** inside an object - `withLock(m):`'s shape, J185.
+
+   The member's slot has no bytes, so the step neither stores the hand-over nor loads it back: it is
+   the constant. An unoptimized native build asserted on the load of zero bytes and JSIR refused the
+   store ("a store with no value"); the optimized native build removed both and hid it. The counted
+   `for` around the region is `LensRegion.Parameter.yana`'s dominance case without the parameter.
+-}
+
+let &trace = 0 :: I32
+
+lens fn around():
+    trace = trace * 10 + 1
+    yield {}
+    trace = trace * 10 + 2
+
+iter fn one() -> I32:
+    around():
+        yield 7
+
+iter fn counted(n: I32) -> I32:
+    for i in 0 .. n:
+        around():
+            yield i
+
+fn main() -> I32:
+    let &sum = 0 :: I32
+
+    let &it = one()
+    for x in it:
+        sum = sum + x
+
+    let &more = counted(3)
+    for x in more:
+        sum = sum + x * 10
+
+    return trace + sum

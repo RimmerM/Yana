@@ -85,10 +85,10 @@ function main() {
   var p17 = 0;
   var p20 = 0;
   while (p17 < 2) {
-    var v368 = Math.imul(p17, 10);
+    var v367 = Math.imul(p17, 10);
     p19 = 0;
     while (p19 < 2) {
-      p20 = p20 + (v368 + p19 | 0) | 0;
+      p20 = p20 + (v367 + p19 | 0) | 0;
       p19 = p19 + 1 | 0;
     }
     mid = mid + 1 | 0;
@@ -139,29 +139,30 @@ function main() {
   var p29 = 0;
   var p32 = 0;
   while (p29 < 4) {
-    locked = locked + 1 | 0;
+    var v272 = locked;
+    locked = v272 + 1 | 0;
     if (p29 === 1) {
       p31 = 2;
     } else {
       p32 = p32 + p29 | 0;
       p31 = 0;
     }
-    locked = locked + 10 | 0;
+    locked = v272 + 11 | 0;
     if (p31 === 0) {
       p29 = p29 + 1 | 0;
       continue;
     }
     break;
   }
-  var v290 = Math.imul(p32, 1000) + (locked + 100 | 0) | 0;
+  var v289 = Math.imul(p32, 1000) + (locked + 100 | 0) | 0;
   locked = 1011;
   log = 0;
   var p34 = 0;
   var p35 = 0;
   while (p34 < 3) {
-    var v356 = log;
-    p35 = p35 + (v356 + 1 | 0) | 0;
-    log = v356 + 11 | 0;
+    var v355 = log;
+    p35 = p35 + (v355 + 1 | 0) | 0;
+    log = v355 + 11 | 0;
     p34 = p34 + 1 | 0;
   }
   log = 1;
@@ -172,11 +173,11 @@ function main() {
     p36 = p36 + 1 | 0;
   }
   log = log + 11 | 0;
-  return ((((((((((((((((p1 + 5 | 0) + p3 | 0) + p6 | 0) + v100 | 0) + p11 | 0) + p14 | 0) + p16 | 0) + p35 | 0) + p37 | 0) + 11 | 0) + v168 | 0) + v213 | 0) + 2522 | 0) + v259 | 0) + v290 | 0) + 11011 | 0) + Math.imul(gone, 10000) | 0;
+  return ((((((((((((((((p1 + 5 | 0) + p3 | 0) + p6 | 0) + v100 | 0) + p11 | 0) + p14 | 0) + p16 | 0) + p35 | 0) + p37 | 0) + 11 | 0) + v168 | 0) + v213 | 0) + 2522 | 0) + v259 | 0) + v289 | 0) + 11011 | 0) + Math.imul(gone, 10000) | 0;
 }
 
 // `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

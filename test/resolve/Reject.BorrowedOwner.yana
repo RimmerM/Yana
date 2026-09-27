@@ -1,0 +1,29 @@
+-- A borrowed value at a position that owns what it holds (J200, K3). A subwindow is `slice`'s result
+-- and borrows the array it was cut from, so it cannot become the contents of an owning `[U8]` -
+-- whether that is a field, a `->` argument or an assignment into owning storage. ownership.md copies
+-- implicitly only a `TrivialCopy` value, and `copy(...)` is the spelling that says an allocation
+-- happens here. This used to reach the SSA verifier as "aggregate consumes a guaranteed value".
+
+data Run {bytes: [U8], at: Size}
+
+fn field(store: [U8], used: Size) -> Run:
+    let answer = Run {bytes: store[0..used], at: 1}
+    return answer
+
+fn take(->bytes: [U8]) -> Size = length(bytes)
+
+fn argument(store: [U8], used: Size) -> Size:
+    return take(store[0..used])
+
+fn assigned(store: [U8]) -> Size:
+    let &held = [] :: [U8]
+    held = store[1..length(store)]
+    return length(held)
+
+-- A borrowed `Size` at an owned field is copied by the read, so the rule is about what the value
+-- owes rather than about every borrow.
+fn at(run: 'Run) -> 'Size = run.at
+
+fn copied(store: [U8], run: Run) -> Run = Run {bytes: copy(store[0..1]), at: at(run)}
+
+fn main() -> Int = 0

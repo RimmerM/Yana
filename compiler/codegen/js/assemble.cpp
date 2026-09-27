@@ -717,7 +717,34 @@ struct Assembler {
         auto found = a.functionNames.getValue(U32(program.entry.offset));
         if(!found) return;
 
-        emitExpr(a, call(a, variable(a, found.unwrap())));
+        auto entry = call(a, variable(a, found.unwrap()));
+
+        /*
+         * **The status the program answered is the process's**, as `genProcessEntry` makes it
+         * natively: `(globalThis.process ?? {}).exitCode = main()`.
+         *
+         * Until J225 the call was emitted bare and its answer dropped, so `node Base.js` exited zero
+         * after a failed `@test` case and every JavaScript row of `run-base.sh` read green over a
+         * failure. `exitCode` rather than `process.exit(status)`, which would stop the process
+         * before output still queued on a pipe was written. Through `?? {}` so that a host with no
+         * `process` - a browser, and the `vm` context `node-harness.js` evaluates a fixture in -
+         * assigns to a throwaway object rather than throwing; and an assignment, so that the
+         * script's completion value is still the entry's answer, which is what the harness reads.
+         *
+         * Only for an answer that is a host number: Node refuses a `bigint` status with a
+         * `TypeError`, and converting one would change the completion value the harness prints for
+         * a 64-bit `main`. A unit entry answers `undefined`, which Node reads as zero.
+         */
+        auto result = decl()[program.entry]->result.type;
+        auto where = decl()[program.entry]->source;
+        auto rep = result ? jsRep(target, result, where) : JsRepId();
+        if(rep.valid() && target.rep(rep).kind == JsRepKind::Number && !target.rep(rep).isFloat()) {
+            auto process = field(a, variable(a, literalName(a, "globalThis"_v)), propertyName(a, "process"_v));
+            auto host = binary(a, BinaryOp::Nullish, process, asExpr(a, make<ObjectExpr>(a)));
+            entry = assign(a, field(a, host, propertyName(a, "exitCode"_v)), entry);
+        }
+
+        emitExpr(a, entry);
     }
 
     bool run(Net::Writer* dump) {

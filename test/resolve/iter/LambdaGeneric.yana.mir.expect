@@ -1,0 +1,256 @@
+module ResolveTest
+
+data doubled.lambda.env(a) {f: 0'(a) -> a} shape2
+
+data main.lambda.env {}
+
+data doubled(I32).Iter {$index: I32, $slot: I32, xs: ArrayView(I32), f: %(I32) -> I32, : I32, $items: items(Array(I32), I32).Iter} shape18
+
+data main.lambda'2.env {}
+
+data doubled(String).Iter {$index: I32, $slot: StringView, xs: ArrayView(String), f: %(String) -> String, : String, $items: items(Array(String), String).Iter} shape18 drop authored
+
+data doubled.lambda.env(I32) {f: 0'(I32) -> I32} of doubled.lambda.env shape2
+
+data doubled.lambda.env(String) {f: 0'(String) -> String} of doubled.lambda.env shape2
+
+instance Iterate(doubled(I32).Iter, I32, {}): doubled(I32)$next, doubled(I32)$resume
+
+instance Drop(doubled(String).Iter): doubled(String)$drop
+
+instance Iterate(doubled(String).Iter, String, {}): doubled(String)$next, doubled(String)$resume
+
+let string'188: [CodeUnit *1] = "a"
+
+let string'189: [CodeUnit *1] = "b"
+
+let string'190: [CodeUnit *1] = "!"
+
+lens fn doubled(xs: Array(a) [shared call view], f: (a) -> a [shared call], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & $yielded: I32
+  local x: a [shared slot 0]
+  local g: doubled.lambda.env
+  local local6: a
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan0
+  lens.call items(Array(a), a) borrow.shared %2 -> bb2
+
+bb1:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb2(%3: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: (a) -> a [shared slot 0] = read borrow.shared (f) loan1
+  %7: doubled.lambda.env = aggregate.doubled.lambda.env borrow.shared %6 roots.0{1}
+  write.init borrow.unique (g) take %7
+  %9: doubled.lambda.env = read copy.trivial (g) roots.0{1}
+  %10: a [shared slot 0] = read borrow.shared (x) loan2 roots{0}
+  %11: a = call borrow.shared %9 borrow.shared %10
+  write.init borrow.unique (local6) take %11
+  %13: a [shared call] = read borrow.shared (local6) loan3
+  %14: (a) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %15: I32 = call inspect %14 borrow.shared %13
+  drop (local6)
+  %16: I32 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  write.assign borrow.unique ($yielded) take %15
+  branch inspect %17 -> bb3 -> bb4
+
+bb3 handover(a [shared slot 0]) many:
+  jump -> bb1
+
+bb4 handover(a [shared slot 0]) many:
+  break -> bb1
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local & local1: Array(I32) object2
+  local local2: Array(I32) object2
+  local local3: (I32) -> I32 [owned here shape8 .0=unique call]
+  local & numbers: doubled(I32).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1]
+  local v: I32
+  local & local6: Array(String) object10
+  local local7: Array(String) object10
+  local local8: (String) -> String [owned here shape8 .0=unique call]
+  local & words: doubled(String).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1]
+  local w: String [shared call view]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 10
+  %3: I32 = const 20
+  %4: %I32 = run.slots I32 *2
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 2
+  %10: @bits(2) U32 = const 1
+  %11: Run(I32) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 2
+  %13: Array(I32) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local1) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %2
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %3
+  %19: Array(I32) = read take (local1)
+  write.init borrow.unique (local2) take %19
+  %21: Array(I32) [shared slot 0] = read borrow.shared (local2) loan0
+  %22: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %21 roots{0}
+  %23: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda
+  write.init borrow.unique (local3) take %23
+  %25: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local3) loan1
+  %26: doubled(I32).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = call doubled(I32)$new borrow.shared %22 borrow.shared %25 roots.0{0} roots.1{1}
+  write.init borrow.unique (numbers) take %26
+  jump -> bb1
+
+bb1:
+  %29: doubled(I32).Iter [unique call shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = read borrow.unique (numbers) loan2 roots.0{0} roots.1{1}
+  %30: I32 = const 0
+  %31: Bool = const False
+  %32: Bool = call doubled(I32)$step borrow.unique %29 take %30 take %31
+  branch inspect %32 -> bb3 -> bb2
+
+bb2:
+  drop (local2)
+  %40: String = const String {units: Array {run: Run {items: &string'188, capacity: 1, ownsHeap: 0}, length: 1}}
+  %41: String = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  %42: %String = run.slots String *2
+  %43: Size = bitcast inspect %42
+  %44: Size = const 0
+  %45: Bool = eq inspect %43 inspect %44
+  %46: {} = call checkCondition borrow.shared %45
+  %47: @bits(30) U32 = const 2
+  %48: @bits(2) U32 = const 1
+  %49: Run(String) = aggregate.Run take %42 take %47 take %48
+  %50: @bits(30) U32 = const 2
+  %51: Array(String) = aggregate.Array take %49 take %50
+  write.init borrow.unique (local6) take %51
+  %53: Size = const 0
+  write.init borrow.unique ([%%42][0]) take %40
+  %55: Size = const 1
+  write.init borrow.unique ([%%42][1]) take %41
+  %57: Array(String) = read take (local6)
+  write.init borrow.unique (local7) take %57
+  %59: Array(String) [shared slot 0] = read borrow.shared (local7) loan4
+  %60: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %59 roots{4}
+  %61: (String) -> String [owned here shape8 .0=unique call] = fun.value main.lambda'2
+  write.init borrow.unique (local8) take %61
+  %63: (String) -> String [shared call shape8 .0=unique call] = read borrow.shared (local8) loan5
+  %64: doubled(String).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = call doubled(String)$new borrow.shared %60 borrow.shared %63 roots.0{4} roots.1{5}
+  write.init borrow.unique (words) take %64
+  jump -> bb4
+
+bb3:
+  %34: I32 = read copy.trivial (numbers.$slot)
+  write.init borrow.unique (v) take %34
+  %36: I32 [unique call] = read borrow.unique (total) loan3
+  %37: I32 = read copy.trivial (v)
+  %38: {} = call +=(I32) borrow.unique %36 borrow.shared %37
+  jump -> bb1
+
+bb4:
+  %67: doubled(String).Iter [unique call shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = read borrow.unique (words) loan6 roots.0{4} roots.1{5}
+  %68: I32 = const 0
+  %69: Bool = const False
+  %70: Bool = call doubled(String)$step borrow.unique %67 take %68 take %69
+  branch inspect %70 -> bb6 -> bb5
+
+bb5:
+  drop (words)
+  drop (local7)
+  %81: I32 = read copy.trivial (total)
+  return take %81
+
+bb6:
+  %72: StringView = read copy.trivial (words.$slot)
+  %73: String [shared call view] = represent inspect %72
+  write.init borrow.unique (w) borrow.shared %73
+  %75: I32 [unique call] = read borrow.unique (total) loan7
+  %76: String [shared call view] = read borrow.shared (w) loan8
+  %77: Size = call length(String) borrow.shared %76
+  %78: I32 = convert inspect %77
+  %79: {} = call +=(I32) borrow.unique %75 borrow.shared %78
+  jump -> bb4
+}
+
+fn doubled.lambda(doubled.lambda.env: doubled.lambda.env [shared call], v: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: (a) -> a [shared slot 0] = read borrow.shared (doubled.lambda.env.f) loan0
+  %1: a [shared call] = read borrow.shared (v) loan1
+  %2: a = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+lens fn doubled(I32)(xs: Array(I32) [shared call view], f: (I32) -> I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <doubled at I32>
+
+fn doubled(I32)$new(xs: Array(I32) [shared slot 0 view], f: (I32) -> I32 [shared slot 1]) -> doubled(I32).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = <no body>
+
+fn doubled(I32)$step($self: doubled(I32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn doubled(I32)$next($self: doubled(I32).Iter [unique slot 0 shape17 .2.0.*=shared slot 0 .3.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn doubled(I32)$resume($self: doubled(I32).Iter [unique slot 0 shape17 .2.0.*=shared slot 0 .3.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], s: String [shared call view]) -> String {
+  local & local2: String
+  local local3: String
+
+bb0:
+  %0: Size = const 1
+  %1: String [shared call view] = read borrow.shared (s) loan0
+  %2: Maybe(Size) = call showBound(String) borrow.shared %1
+  %3: Size = call formatBound borrow.shared %2
+  %4: Size = add inspect %0 inspect %3
+  %5: String = call String.ofCapacity borrow.shared %4
+  write.init borrow.unique (local2) take %5
+  %7: String [shared call view] = read borrow.shared (s) loan1
+  %8: String [unique call] = read borrow.unique (local2) loan2
+  %9: {} = call show(String) borrow.shared %7 borrow.unique %8
+  %10: String [unique call] = read borrow.unique (local2) loan3
+  %11: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local3) take %11
+  %13: String [shared slot 0] = read borrow.shared (local3) loan4
+  %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{4}
+  %15: {} = call String.push borrow.unique %10 borrow.shared %14
+  drop (local3)
+  %16: String = read take (local2)
+  return take %16
+}
+
+lens fn doubled(String)(xs: Array(String) [shared call view], f: (String) -> String [shared call], $body: (String) -> I32 [shared call]) -> I32 = <doubled at String>
+
+fn doubled(String)$new(xs: Array(String) [shared slot 0 view], f: (String) -> String [shared slot 1]) -> doubled(String).Iter [owned here shape16 .2.0.*=shared slot 0 .3.*=shared slot 1] = <no body>
+
+fn doubled(String)$step($self: doubled(String).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn doubled(String)$drop($self: doubled(String).Iter) -> {} = <no body>
+
+fn doubled(String)$next($self: doubled(String).Iter [unique slot 0 shape17 .2.0.*=shared slot 0 .3.*=shared slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+
+fn doubled(String)$resume($self: doubled(String).Iter [unique slot 0 shape17 .2.0.*=shared slot 0 .3.*=shared slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+
+fn doubled.lambda(I32)(doubled.lambda.env: doubled.lambda.env(I32) [shared call], v: I32 [shared call]) -> I32 = <doubled.lambda at I32>
+
+fn doubled.lambda(String)(doubled.lambda.env: doubled.lambda.env(String) [shared call], v: String [shared call view]) -> String = <doubled.lambda at String>
+
+entry main

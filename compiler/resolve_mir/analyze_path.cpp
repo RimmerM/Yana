@@ -84,7 +84,10 @@ void Analysis::buildPaths() {
                  * body forgot, and a partial move out of the subject that this used to refuse.
                  */
                 auto local = body.local(base, LocalId(place->payload));
-                if(function.teardown && local->parameter == 0) teardownSubject = exact[i];
+                if(function.teardown && local->parameter == 0) {
+                    teardownSubject = exact[i];
+                    subjectOwnsMembers = ownsTeardownSubject(decl, function);
+                }
 
                 break;
             }

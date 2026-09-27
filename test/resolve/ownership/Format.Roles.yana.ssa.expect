@@ -2,11 +2,11 @@ module ResolveTest
 
 let & calls: I32 = 0
 
-let string'142: [CodeUnit *2] = "n="
+let string'188: [CodeUnit *2] = "n="
 
-let string'143: [CodeUnit *1] = "!"
+let string'189: [CodeUnit *1] = "!"
 
-let string'144: [CodeUnit *8] = "no holes"
+let string'190: [CodeUnit *8] = "no holes"
 
 fn bumped(of: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
@@ -61,7 +61,7 @@ bb0:
   %18: String owned = call String.ofCapacity borrow %17
   store inspect %1 consume %18
   %19: String [unique call] guaranteed from{%1} = load inspect %1
-  %20: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %20: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %2 consume %20
   %21: String [shared slot 0] guaranteed from{%2} = load inspect %2
   jump -> bb1
@@ -87,7 +87,7 @@ bb2(%22: String [shared slot 0 view] guaranteed from{%2}):
   %35: String [unique call] guaranteed from{%1} = load inspect %1
   call I32.show borrow %34 borrow %35
   %36: String [unique call] guaranteed from{%1} = load inspect %1
-  %37: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %37: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %3 consume %37
   %38: String [shared slot 0] guaranteed from{%3} = load inspect %3
   jump -> bb3
@@ -145,7 +145,7 @@ bb4(%39: String [shared slot 0 view] guaranteed from{%3}):
   call I32.show borrow %75 borrow %76
   %77: String owned = load inspect %8
   store inspect %9 consume %77
-  %78: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 8, ownsHeap: 0}, length: 8}}
+  %78: String owned = const String {units: Array {run: Run {items: &string'190, capacity: 8, ownsHeap: 0}, length: 8}}
   store inspect %10 consume %78
   %79: String [shared call] guaranteed from{%4} = load inspect %4
   jump -> bb5

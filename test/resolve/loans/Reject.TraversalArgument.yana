@@ -1,0 +1,46 @@
+{-
+   A traversal's arguments are the callee's for the whole of its region - Implementation-Streams P4,
+   J185.
+
+   `blocks` holds `&src` while the body runs: it resumes on every pass and reads `src.at` to find
+   the next block. The loan used to be kept alive only through the element's origins, so once `x`
+   was dead the body could write `s.at` under the producer - which compiled, and looped forever.
+   Every loan a `lens.call` passes is now live on every block its region encloses.
+-}
+
+data Src {bytes: [U8], at: Size}
+data Sink {total: I32}
+
+iter fn blocks(&src: Src) -> '[U8]:
+    while src.at < length(src.bytes):
+        let start = src.at
+        src.at = start + 2
+        yield src.bytes[start..start + 2]
+
+lens fn counting(&sink: Sink):
+    yield {}
+    sink.total = sink.total + 1
+
+-- Written after the element's last use, while `blocks` still has `&s`.
+fn rewind() -> I32:
+    let &s = Src {bytes: [1, 2, 3, 4, 5, 6] :: [U8], at: 0}
+    let &sum = 0 :: I32
+    for x in blocks(s):
+        sum = sum + (x[0] :: I32)
+        if sum < 20 then s.at = 0
+    return sum
+
+-- Read inside a lens's region, which holds `&sink` until its cleanup has run.
+fn peek() -> I32:
+    let &sink = Sink {total: 0}
+    let &seen = 0 :: I32
+    counting(sink):
+        seen = sink.total
+    return seen
+
+-- Lent shared to `items`, and written in the loop.
+fn grow() -> Size:
+    let &xs = [1, 2, 3] :: [I32]
+    for x in items(xs):
+        if x == 2 then push(xs, 4)
+    return length(xs)

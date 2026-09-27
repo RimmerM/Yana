@@ -58,8 +58,7 @@ fn main() -> one %r0
     %41: %r0 = const 0
     %42: %r0 = const 0
     %43: %r0 = const 4
-    %44: %r2 = const 4
-    %45: %r0 = const 1
+    %44: %r0 = const 1
     jump -> block9(%41, %42)
   block5:
     host host.throw "yana: a runtime check failed"
@@ -74,27 +73,20 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block9(%0: %r0, %1: %r0):
-    %46: %r3 = binary.lt %1, %43
-    branch %46 -> block11 -> block10
+    %45: %r3 = binary.lt %1, %43
+    branch %45 -> block11 -> block10
   block10:
-    %47: %r0 = binary.add %38, %0
-    %48: %r0 = coerce %47
-    return %48
+    %46: %r0 = binary.add %38, %0
+    %47: %r0 = coerce %46
+    return %47
   block11:
-    %49: %r0 = convert %1
-    %50: %r2 = convert %49
-    %51: %r3 = binary.ge %50, %44
-    branch %51 -> block13 -> block12
-  block12:
-    %52: %r0 = load element %40[%49]: %r0
-    %53: %r0 = binary.add %0, %52
-    %54: %r0 = coerce %53
-    %55: %r0 = binary.add %1, %45
-    %56: %r0 = coerce %55
-    jump -> block9(%54, %56)
-  block13:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %48: %r0 = convert %1
+    %49: %r0 = load element %40[%48]: %r0
+    %50: %r0 = binary.add %0, %49
+    %51: %r0 = coerce %50
+    %52: %r0 = binary.add %1, %44
+    %53: %r0 = coerce %52
+    jump -> block9(%51, %53)
 
 optimizer clones 1 aliased 1 forwarded 0 removed 2 adopted 0 sunk 2 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5 folded 0
 

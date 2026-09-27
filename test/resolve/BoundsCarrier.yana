@@ -1,0 +1,85 @@
+{-
+   The carrier after `?` - a sum an inlined callee returns, read back with no bounds check left
+   (J192; B3b of `doc/inflight/Implementation-Streams.md`).
+
+   `take` builds `Ok(bytes[at .. at + 9])`, and inlined its view is `ArrayView(items + at, 9)`
+   (J191). Its two returns meet as one `Result` block argument, `?` stores that into a frame slot and
+   tests the tag it just stored, and the payload is read back out of the slot - so until J192 the
+   length a later check compared was a reload, and `header` kept three refusal arms. Two rules take
+   it apart, both general over sums:
+
+   - `threadBranches` (`opt/cfg.cpp`) threads the join: each predecessor built its `Result` with an
+     `aggregate` whose constructor decides the tag test, so it performs the join's store itself and
+     jumps to the arm the tag selects;
+   - `forwardMemory` (`opt/memory.cpp`) reads a sum's tag and its stored constructor's fields out
+     of storage holding a known aggregate, sees through a block argument with one way in, and through
+     a `represent` of an aggregate nothing restates as unique - so `.Ok`'s `length` is the `9`.
+
+   The `.ssa.opt.expect` beside this asserts no refusal arm in:
+
+   - `header`: `Result` through `?`;
+   - `word`: `Maybe` through `?`;
+   - `found`: a three-constructor user sum under `is`, which is one tag test;
+
+   and the case that keeps its checks: `pair` matches the same sum, and a `match` over three
+   constructors tests the tag it loaded in the join again in the next arm's test, so the join
+   computes a value read outside it and cannot be threaded. The goldens for JavaScript assert the
+   same, and `.run.expect` holds both targets and `-no-ir-opt` to one answer.
+-}
+
+data Fail = Short
+data Buf {bytes: [U8], at: Size}
+
+data Piece(a) = Missing | Torn {at: Size} | Found(a)
+
+fn need(b: [U8], at: Size, count: Size) -> Bool =
+    length(b) >= count && (bitcast(at) :: USize) <= (bitcast(length(b) - count) :: USize)
+
+fn take(&self: Buf, count: Size) -> Result(Fail, '[U8]):
+    if !need(self.bytes, self.at, count) then return Err(Short)
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+fn peek(&b: Buf, count: Size) -> Maybe('[U8]):
+    if !need(b.bytes, b.at, count) then return Nothing
+    return Just(b.bytes[b.at .. b.at + count])
+
+@inline fn piece(&b: Buf, count: Size) -> Piece('[U8]):
+    if b.at < 0 then return Missing
+    if !need(b.bytes, b.at, count) then return Torn {at: b.at}
+    return Found(b.bytes[b.at .. b.at + count])
+
+@noinline fn header(&b: Buf) -> Result(Fail, U32):
+    let h = b.take(9)?
+    return Ok(readBigU32(h, 5) + (h[0] :: U32) + (h[8] :: U32))
+
+@noinline fn word(&b: Buf) -> Maybe(U32):
+    let h = peek(b, 4)?
+    return Just(readBigU32(h, 0) + (h[3] :: U32))
+
+@noinline fn pair(&b: Buf) -> U32 = match piece(b, 2):
+    Missing -> 0
+    Torn {at} -> truncate(at)
+    Found(h) -> (h[0] :: U32) + (h[1] :: U32)
+
+@noinline fn found(&b: Buf) -> U32:
+    if piece(b, 2) is Found(h) then return (h[0] :: U32) + (h[1] :: U32)
+    return 0
+
+fn main() -> Int:
+    let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] :: [U8]
+    let &b = Buf {bytes: copy(bytes), at: 1}
+    let &total = 0 :: I64
+    if header(b) is Ok(v) then total += (v :: I64)
+    if header(b) is Ok(v) then total += 1000000
+    if word(b) is Just(v) then total += (v :: I64)
+    b.at = 11
+    if word(b) is Nothing then total += 7
+    total += (pair(b) :: I64)
+    total += (found(b) :: I64)
+    b.at = 3
+    total += (found(b) :: I64) * 1000
+    total += (pair(b) :: I64)
+    print("{total} {b.at}")
+    return 0

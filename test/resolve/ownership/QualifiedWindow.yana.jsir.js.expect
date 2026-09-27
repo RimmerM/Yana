@@ -4,40 +4,39 @@ function main() {
   var p0;
   var v21 = ["ab", "cde", "f"];
   var v35 = [{ items: new Int32Array([1, 2]), length: 2 }, { items: new Int32Array([3, 4, 5]), length: 3 }];
-  var v48 = v21[1];
-  var v59 = v35[1];
-  var v60 = v59.items;
-  var v63 = v59.length;
-  var v74 = v35[0];
-  var v75 = v74.items;
-  var v78 = v74.length;
-  var v88 = v48.length;
-  if (2 >= v63) throw $t;
-  if (1 >= v78) throw $t;
+  var v47 = v21[1];
+  var v53 = v35[1];
+  var v54 = v53.items;
+  var v57 = v53.length;
+  var v63 = v35[0];
+  var v64 = v63.items;
+  var v67 = v63.length;
+  var v77 = v47.length;
+  if (2 >= v57) throw $t;
+  if (1 >= v67) throw $t;
   var s5 = "";
-  s5 = s5 + v48;
+  s5 = s5 + v47;
   s5 = s5 + " ";
-  s5 = s5 + String(v88);
+  s5 = s5 + String(v77);
   s5 = s5 + " ";
   s5 = s5 + String(7);
   s5 = s5 + " ";
-  s5 = s5 + String(v63);
+  s5 = s5 + String(v57);
   s5 = s5 + " ";
-  s5 = s5 + String(v60[2]);
+  s5 = s5 + String(v54[2]);
   s5 = s5 + " ";
   s5 = s5 + String(5);
   s5 = s5 + " ";
-  s5 = s5 + String(v78);
+  s5 = s5 + String(v67);
   s5 = s5 + " ";
-  s5 = s5 + String(v75[1]);
+  s5 = s5 + String(v64[1]);
   s5 = s5 + " ";
   s5 = s5 + String(3);
   console.log(s5);
   var p1 = 0;
   var p2 = 0;
   while (p1 < 3) {
-    if (p1 >>> 0 >= 3) throw $t;
-    p2 = (Math.imul(p2, 100) + Math.imul(v21[p1 | 0].length, 10) | 0) + p1 | 0;
+    p2 = (Math.imul(p2, 100) + Math.imul(v21[p1].length, 10) | 0) + p1 | 0;
     p1 = p1 + 1 | 0;
   }
   var s6 = "";
@@ -45,11 +44,11 @@ function main() {
   console.log(s6);
   B1: {
     B2: {
-      if (!(v48 === "cde" ^ 1)) {
-        if (v63 !== 3) break B2;
-        var v305 = v75[1];
+      if (!(v47 === "cde" ^ 1)) {
+        if (v57 !== 3) break B2;
+        var v291 = v64[1];
         Array_a_reclaim_Array_I32(v35);
-        p0 = v305 !== 2 ? 1 : 0;
+        p0 = v291 !== 2 ? 1 : 0;
         break B1;
       }
     }
@@ -67,4 +66,4 @@ function Array_a_reclaim_Array_I32(value) {
   }
 }
 var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -6,25 +6,23 @@ function main() {
   var p0 = 0;
   var p3 = 0;
   while (p0 < 2) {
-    if (p0 >>> 0 >= 2) throw $t;
-    p3 = p3 + v8[p0 | 0] | 0;
+    p3 = p3 + v8[p0] | 0;
     p0 = p0 + 1 | 0;
   }
   var p2 = 0;
   while (p2 < 2) {
-    if (p2 >>> 0 >= 2) throw $t;
-    p3 = p3 + v13[p2 | 0] | 0;
+    p3 = p3 + v13[p2] | 0;
     p2 = p2 + 1 | 0;
   }
-  var v36 = new Int32Array([10, 20]);
+  var v38 = new Int32Array([10, 20]);
   var p4 = 0;
   var p5 = 0;
   while (p4 < 2) {
     if (p4 >>> 0 >= 2) throw $t;
-    p5 = p5 + v36[p4 | 0] | 0;
+    p5 = p5 + v38[p4 | 0] | 0;
     p4 = p4 + 1 | 0;
   }
   return p3 + p5 | 0;
 }
 var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

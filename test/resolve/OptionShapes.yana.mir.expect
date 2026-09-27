@@ -2,9 +2,9 @@ module ResolveTest
 
 data Point {x: I32, y: I32}
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *6] = "abcdef"
+let string'189: [CodeUnit *6] = "abcdef"
 
 fn found(slot: I32 [unique slot 0]) -> Maybe(I32) [owned here shape4 .0=unique slot 0] {
 bb0:
@@ -141,7 +141,7 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 4
   write.init borrow.unique (number) take %0
-  %2: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   write.init borrow.unique (text) take %2
   %4: I32 = const 5
   %5: I32 = const 6
@@ -210,7 +210,7 @@ bb2:
   %69: I32 = mul inspect %67 inspect %68
   %70: {} = call put(I32) borrow.unique %66 take %69
   %71: String [unique call] = read borrow.unique (text) loan6
-  %72: String = const String {units: Array {run: Run {items: &string'143, capacity: 6, ownsHeap: 0}, length: 6}}
+  %72: String = const String {units: Array {run: Run {items: &string'189, capacity: 6, ownsHeap: 0}, length: 6}}
   %73: {} = call put(String) borrow.unique %71 take %72
   %74: I32 = read copy.trivial (here.x)
   %75: I32 = const 20

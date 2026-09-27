@@ -1,16 +1,16 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = "cd"
+let string'188: [CodeUnit *2] = "cd"
 
-let string'143: [CodeUnit *2] = "ef"
+let string'189: [CodeUnit *2] = "ef"
 
-let string'144: [CodeUnit *2] = "gh"
+let string'190: [CodeUnit *2] = "gh"
 
-let string'145: [CodeUnit *3] = "ijk"
+let string'191: [CodeUnit *3] = "ijk"
 
-let string'146: [CodeUnit *2] = "ab"
+let string'192: [CodeUnit *2] = "ab"
 
-let string'147: [CodeUnit *2] = "12"
+let string'193: [CodeUnit *2] = "12"
 
 fn joined'2(a: String, b: String) -> String {
 bb0:
@@ -32,11 +32,11 @@ bb0:
 fn twice(target: String [unique call]) -> {} {
 bb0:
   %0: String = read take (target)
-  %1: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %1: String = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   %2: String = call joined'2 take %0 take %1
   write.reinit borrow.unique (target) take %2
   %4: String = read take (target)
-  %5: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %5: String = const String {units: Array {run: Run {items: &string'189, capacity: 2, ownsHeap: 0}, length: 2}}
   %6: String = call joined'2 take %4 take %5
   write.reinit borrow.unique (target) take %6
   return
@@ -49,7 +49,7 @@ bb0:
 
 bb1:
   %6: String = read take (target)
-  %7: String = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %7: String = const String {units: Array {run: Run {items: &string'191, capacity: 3, ownsHeap: 0}, length: 3}}
   %8: String = call joined'2 take %6 take %7
   write.reinit borrow.unique (target) take %8
   jump -> bb2
@@ -59,7 +59,7 @@ bb2:
 
 bb3:
   %2: String = read take (target)
-  %3: String = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %3: String = const String {units: Array {run: Run {items: &string'190, capacity: 2, ownsHeap: 0}, length: 2}}
   %4: String = call joined'2 take %2 take %3
   write.reinit borrow.unique (target) take %4
   jump -> bb2
@@ -69,10 +69,10 @@ fn main() -> I32 {
   local & acc: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'146, capacity: 2, ownsHeap: 0}, length: 2}}
+  %0: String = const String {units: Array {run: Run {items: &string'192, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (acc) take %0
   %2: String [unique call] = read borrow.unique (acc) loan0
-  %3: String = const String {units: Array {run: Run {items: &string'147, capacity: 2, ownsHeap: 0}, length: 2}}
+  %3: String = const String {units: Array {run: Run {items: &string'193, capacity: 2, ownsHeap: 0}, length: 2}}
   %4: {} = call append borrow.unique %2 take %3
   %5: String [unique call] = read borrow.unique (acc) loan1
   %6: {} = call twice borrow.unique %5

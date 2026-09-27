@@ -1,0 +1,18 @@
+-- `?` after a `for` source that is a call answering `Maybe(iter(Int))`, not a traversal: the
+-- parser reads the `?` as the loop's failure channel, and the refusal says to bind the call first.
+
+iter fn upto(n: Int) -> Int:
+    for i in 0..n:
+        yield i
+
+fn make(n: Int) -> Maybe(iter(Int)) = if n > 0 then Just(upto(n)) else Nothing
+
+fn total(n: Int) -> Maybe(Int):
+    let &t = 0
+    for x in make(n)?:
+        t += x
+    return Just(t)
+
+fn main() -> Int:
+    if total(4) is Just(t) then print("{t}")
+    return 0

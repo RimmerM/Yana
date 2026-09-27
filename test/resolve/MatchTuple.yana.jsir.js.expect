@@ -8,39 +8,12 @@ function Held_drop(self) {
 }
 
 function main() {
-  var p0, p1;
-  var s0 = 3;
-  var s1 = 4;
-  var v14 = 1;
-  B0: {
-    if (v14 === 1 && !(s1 === null)) {
-      p0 = s0 === s1 ? 1 : 0;
-      break B0;
-    }
-    if (v14 === 0 && s1 === null) {
-      p0 = 1;
-      break B0;
-    }
-    p0 = 0;
-  }
-  var v45 = p0 ? 1000 : 0;
-  B3: {
-    if (v14 === 1 && !(s1 === null)) {
-      p1 = s0 + s1;
-      break B3;
-    }
-    if (v14 === 1 && s1 === null) {
-      p1 = s0;
-      break B3;
-    }
-    p1 = 0;
-  }
   $td$Maybe_Held(3);
   $td$Maybe_Held(4);
-  return ((v45 + p1 | 0) + Math.imul(drops, 10) | 0) + 7 | 0;
+  return (7 + Math.imul(drops, 10) | 0) + 7 | 0;
 }
 
 function $td$Maybe_Held(a0) {
   if (a0 !== null) Held_drop(a0);
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

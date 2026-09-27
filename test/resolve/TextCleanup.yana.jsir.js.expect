@@ -31,13 +31,13 @@ function displaced() {
   var v63 = hashKey_I32(1);
   var v64 = v28.mask;
   if (v64 === 0) {
-    var v108 = v28.keys;
-    var v109 = v108.items;
-    var v112 = v108.length;
+    var v106 = v28.keys;
+    var v107 = v106.items;
+    var v110 = v106.length;
     p5 = 0;
     B2: {
-      while (p5 < v112) {
-        if (v109[p5] === 1) break B2;
+      while (p5 < v110) {
+        if (v107[p5] === 1) break B2;
         p5 = p5 + 1 | 0;
       }
       p5 = -1;
@@ -50,13 +50,13 @@ function displaced() {
         var v81 = v28.index;
         var v82 = v81.items;
         if (p0 >>> 0 >= v81.length) throw $t;
-        var v93 = v82[p0 | 0];
-        if (v93 === -1) {
+        var v91 = v82[p0];
+        if (v91 === -1) {
           p5 = -1;
           break B4;
         }
-        if (v93 >= 0 && v28.keys.items[v93] === 1) {
-          p5 = v93;
+        if (v91 >= 0 && v28.keys.items[v91] === 1) {
+          p5 = v91;
           break B4;
         }
         p0 = p0 + 1 & v64;
@@ -66,9 +66,9 @@ function displaced() {
     }
   }
   if (p5 < 0) throw $t;
-  var v132 = v28.values[p5].length;
+  var v130 = v28.values[p5].length;
   Array_a_reclaim_Array_I32(v28.values);
-  return v132;
+  return v130;
 }
 
 function swapped(n) {
@@ -138,11 +138,10 @@ function indexPlace($g, self, at, h) {
     var v19 = self.index;
     var v20 = v19.items;
     if (p4 >>> 0 >= v19.length) throw $t;
-    var v29 = p4 | 0;
-    var v31 = v20[v29];
-    if (v31 < 0) {
-      v20[v29] = at;
-      if (v31 === -1) self.live = self.live + 1 & 1073741823;
+    var v29 = v20[p4];
+    if (v29 < 0) {
+      v20[p4] = at;
+      if (v29 === -1) self.live = self.live + 1 & 1073741823;
       return;
     }
     p4 = p4 + 1 & v6;
@@ -158,7 +157,7 @@ function indexReset($g, self) {
     var v15 = self.index;
     var v16 = v15.items;
     if (p2 >>> 0 >= v15.length) throw $t;
-    v16[p2 | 0] = -1;
+    v16[p2] = -1;
     p2 = p2 + 1 | 0;
   }
   self.live = 0;
@@ -188,10 +187,10 @@ function insert_I32_Array_I32(self, key, value) {
   var v38 = (v33 ^ v33 >>> 16) >>> 0;
   var v39 = self.mask;
   if (v39 === 0) {
-    var v89 = self.keys.length;
+    var v85 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v89) {
+      while (p3 < v85) {
         if (self.keys.items[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
@@ -202,16 +201,16 @@ function insert_I32_Array_I32(self, key, value) {
     p7 = 0;
     B3: {
       while (p7 <= v39) {
-        var v58 = self.index;
-        var v59 = v58.items;
-        if (p6 >>> 0 >= v58.length) throw $t;
-        var v70 = v59[p6 | 0];
-        if (v70 === -1) {
+        var v56 = self.index;
+        var v57 = v56.items;
+        if (p6 >>> 0 >= v56.length) throw $t;
+        var v66 = v57[p6];
+        if (v66 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v70 >= 0 && self.keys.items[v70] === key) {
-          p3 = v70;
+        if (v66 >= 0 && self.keys.items[v66] === key) {
+          p3 = v66;
           break B3;
         }
         p6 = p6 + 1 & v39;
@@ -221,38 +220,38 @@ function insert_I32_Array_I32(self, key, value) {
     }
   }
   if (p3 >= 0) {
-    var v178 = self.values;
-    var v182 = v178[p3];
-    v178[p3] = value;
-    return v182;
+    var v171 = self.values;
+    var v175 = v171[p3];
+    v171[p3] = value;
+    return v175;
   }
-  var v104 = self.keys;
-  var v108 = v104.length;
-  push_I32(v104, key);
-  var v111 = self.values;
-  var v113 = v111.length;
-  var v116 = v113 + 1;
-  v111[v113] = value;
-  self.values.length = v116 & 1073741823;
-  var v133 = self.mask;
+  var v100 = self.keys;
+  var v104 = v100.length;
+  push_I32(v100, key);
+  var v107 = self.values;
+  var v109 = v107.length;
+  var v112 = v109 + 1;
+  v107[v109] = value;
+  self.values.length = v112 & 1073741823;
+  var v127 = self.mask;
   B6: {
-    if (v133 === 0) {
-      var v165 = v108 + 1;
-      if (v165 > 64) {
+    if (v127 === 0) {
+      var v158 = v104 + 1;
+      if (v158 > 64) {
         p10 = 16;
-        while ((p10 - (p10 >>> 3) | 0) < v165) {
+        while ((p10 - (p10 >>> 3) | 0) < v158) {
           p10 = p10 + p10 | 0;
         }
         indexRebuild_I32_Array_I32(self, p10);
       }
     } else {
-      var v141 = v133 + 1;
-      if (self.live + 1 > v141 - (v141 >>> 3)) {
-        p4 = Math.imul(v108 + 1, 2) > v141 ? v141 + v141 | 0 : v141;
+      var v134 = v127 + 1;
+      if (self.live + 1 > v134 - (v134 >>> 3)) {
+        p4 = Math.imul(v104 + 1, 2) > v134 ? v134 + v134 | 0 : v134;
         indexRebuild_I32_Array_I32(self, p4);
         break B6;
       }
-      indexPlace($ge$indexPlace, self, v108, v38);
+      indexPlace($ge$indexPlace, self, v104, v38);
     }
   }
   return null;
@@ -271,9 +270,9 @@ function indexRebuild_I32_Array_I32(self, slots) {
   self.index.length = slots & 1073741823;
   self.mask = slots - 1 & 1073741823;
   indexReset($ge$indexReset, self);
-  var v26 = self.keys.length;
+  var v24 = self.keys.length;
   var p2 = 0;
-  while (p2 < v26) {
+  while (p2 < v24) {
     indexPlace($ge$indexPlace, self, p2, hashKey_I32(self.keys.items[p2]));
     p2 = p2 + 1 | 0;
   }
@@ -308,4 +307,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

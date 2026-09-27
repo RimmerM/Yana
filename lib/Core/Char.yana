@@ -92,25 +92,25 @@ instance FromInt(Char):
    *into* a `Char` implicitly - an integer is not a character - and `Char.fromU32` is the checked way.
 -}
 instance Widen(Char, U32):
-    fn widen(from: Char) -> U32 = from.0
+    fn widen(->from: Char) -> U32 = from.0
 
 instance Widen(Char, I32):
-    fn widen(from: Char) -> I32 = bitcast(from.0)
+    fn widen(->from: Char) -> I32 = bitcast(from.0)
 
 instance Widen(Char, U64):
-    fn widen(from: Char) -> U64 = from.0
+    fn widen(->from: Char) -> U64 = from.0
 
 instance Widen(Char, I64):
-    fn widen(from: Char) -> I64 = from.0
+    fn widen(->from: Char) -> I64 = from.0
 
 instance Widen(Char, WideInt):
-    fn widen(from: Char) -> WideInt = from.0
+    fn widen(->from: Char) -> WideInt = from.0
 
 instance Widen(Char, Size):
-    fn widen(from: Char) -> Size = bitcast(from.0) :: I32
+    fn widen(->from: Char) -> Size = bitcast(from.0) :: I32
 
 instance Widen(Char, USize):
-    fn widen(from: Char) -> USize = from.0
+    fn widen(->from: Char) -> USize = from.0
 
 instance Narrow(Char, U8):
     fn truncate(from: Char) -> U8 = truncate(from.0)

@@ -151,6 +151,23 @@ Local* Builder::addParameter(Arg& declared) {
 
     local->parameter = declared.index;
     local->callNames = declared.callNames;
+
+    /*
+     * The subject of an authored `Drop` that owns its value gets every member's place, as a
+     * partially moved record's surviving fields do below in `fieldPlace` - K5, and
+     * `mir::Ownership::dropOwnsValue`.
+     *
+     * What the body does not consume is torn down at its end one member at a time, which needs a
+     * path per member for `placeDrops` to put the teardown on: a body that names no field at all
+     * (`print("closing")`) is exactly the one that owes every member's. A **sum** has no such set -
+     * which arm is live is the tag's answer - and dies whole instead; the conversion expands that
+     * step into tag-tested member drops (`Conversion::emitDrop`).
+     */
+    if(declared.index == 0 && ownsTeardownSubject(declBase(), function)) {
+        auto& record = *(RecordType*)declBase()[declared.occurrence.type];
+        if(record.cons.size() <= 1 && record.fields.size()) fieldPlace(*localPlace(*local), 0);
+    }
+
     return local;
 }
 

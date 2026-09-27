@@ -19,6 +19,18 @@ Substitution substitutionOf(DeclBase base, Function& function) {
                           arguments.size() };
 }
 
+DeclPtr<Function> funValueTarget(Context& context, Program& program, Function& enclosing,
+                                 DeclPtr<Function> callee, LocationId source) {
+    auto base = *program.decl;
+    if(!callee || !base[callee]->gen) return callee;
+
+    auto with = substitutionOf(base, enclosing);
+    if(with.isEmpty() || with.owner != base[callee]->gen) return callee;
+
+    auto made = specializeFunction(context, program, callee, with.arguments, with.count, source);
+    return made ? made : callee;
+}
+
 /*
  * The removals this argument list has to pass - `Disposal` in `decl.h`, and waypoint G4's check.
  *
@@ -215,6 +227,7 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     function->hot = written.hot;
     function->noInline = written.noInline;
     function->teardown = written.teardown;
+    function->authoredReclaim = written.authoredReclaim;
 
     // And whether it *is* a view's derivation, on the same terms: `Contiguous(Array(a), a).elements`
     // specialized at `a := I32` is still the member that makes a window out of a container, and the
@@ -249,6 +262,14 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     }
 
     function->result = substituteOccurrence(context, program, written.result, with);
+
+    /*
+     * A lifted lambda's environment, which a lambda written in a generic body has (C3): argument
+     * zero's type substituted with the rest, and where the storage goes copied, since the placement
+     * was decided from the position the lambda was written at and no argument list changes that.
+     */
+    function->environment = substituteType(context, program, written.environment, with);
+    function->environmentStorage = written.environmentStorage;
 
     // What this argument list has to pass - see above. After the signature rather than before it, so
     // that a diagnostic here leaves a complete declaration behind for the passes that walk on.
@@ -898,17 +919,37 @@ DeclPtr<GenEnvironment> environmentFor(Context& context, Program& program, DeclP
  * Design.md puts the choice "per instantiation" at a call site, and that is exactly where a legal
  * alternative exists.
  *
- * The number is far above anything the corpus reaches - six specializations in the largest fixture
- * and five of any one generic - and deliberately so, because **a crossed budget is a diagnostic
- * rather than a fallback**. What a budget is *for* is declining the marginal specialization and
- * emitting the erased form instead, and that form now exists - but the form is chosen by
- * `selectGenForms`, before any specialization is made, and how many argument lists a generic is
- * reached at is what *this* walk discovers. So the two are one round apart: turning the decline into
- * a fallback is deciding the form after a first specialization round, which is the term the G6 note
- * named and the pass this file does not have. Until then the number sits where it cannot fire on a
- * program that did nothing unusual, and the message names `@generic` as the answer.
+ * The number is far above anything a real program reaches, and deliberately so, because **a crossed
+ * budget is a diagnostic rather than a fallback**. What a budget is *for* is declining the marginal
+ * specialization and emitting the erased form instead, and that form now exists - but the form is
+ * chosen by `selectGenForms`, before any specialization is made, and how many argument lists a
+ * generic is reached at is what *this* walk discovers. So the two are one round apart: turning the
+ * decline into a fallback is deciding the form after a first specialization round, which is the term
+ * the G6 note named and the pass this file does not have. Until then the number sits where it cannot
+ * fire on a program that did nothing unusual, and the message names `@generic` as the answer.
+ *
+ * **128, measured - K1.** It was 32, chosen when the largest program was a fixture reaching six, and
+ * `test/base` - the whole library's `@test` suite compiled as one program - is the program the
+ * paragraph above was waiting for: it reached exactly 32 at `releaseRun`, once per heap array
+ * element type anywhere in the library, and J193 and J194 each had to write a test around the
+ * thirty-third. `releaseRun` no longer multiplies (it takes its run untyped); what is left at the top
+ * is `values` and `checkEqual` at 28 and `growArray`, `reserve`, `resize` and `isNull` at 25, each
+ * once per element or compared type, which is the ordinary shape of a library that grows - the
+ * largest bench program, the lexer, peaks at 7. So 128 is four times the one real program's peak.
+ * Not uncapped: the growth-chain bound (`growthPermitted`) ends a polymorphic recursion on its own,
+ * but a generated program can still reach a generic at a combinatorial number of lists, and this is
+ * what says so by name instead of by the size of the binary.
+ *
+ * **What was not done, and is the better answer where it applies.** Most of those bodies do not
+ * depend on the element type beyond a pointer - `releaseRun` read two fields of a `Run(a)` whose
+ * layout is the same at every `a`, and `isNull` is a pointer test - so their specializations are one
+ * body under several names. Sharing them needs a proof that a variable is used only as the pointee
+ * of `%` and never sized, stepped over or loaded through, over every node and every callee that
+ * sees it; a wrong answer there is a pointer stepped by one byte instead of by an element, silently.
+ * The library change was the safe half of that and this is the other; the proof waits for a slice
+ * that can afford one.
  */
-static constexpr U32 kSpecializationsPerGeneric = 32;
+static constexpr U32 kSpecializationsPerGeneric = 128;
 
 static bool specializationPermitted(Context& context, Program& program, DeclPtr<Function> callee,
                                     DeclPtr<Type>* args, Size count, LocationId source) {
@@ -935,6 +976,59 @@ static bool specializationPermitted(Context& context, Program& program, DeclPtr<
     }
 
     return true;
+}
+
+/*
+ * A call of one of an `openSite` record's generated functions, in a specialization of the body that
+ * built the object - P16. The node names the open record's member; what runs is the same member of
+ * the record minted at this body's arguments, which `substituteType` answers. Matched by kind, since
+ * every one of them is a handle on the record or a member of its one `Iterate` instance.
+ *
+ * Left alone where the substitution does not close the record, which is the generic body itself.
+ */
+static void openSiteMember(Context& context, Program& program, Function& enclosing,
+                           Function& named, LocationId source, CallSite& into) {
+    auto base = *program.decl;
+    auto concrete = substituteType(context, program, named.generatedRecord,
+                                   substitutionOf(base, enclosing));
+    if(concrete == named.generatedRecord || base[concrete]->kind != Type::Record) return;
+
+    auto& record = *(RecordType*)base[concrete];
+    DeclPtr<Function> target = nullptr;
+
+    switch(named.generated) {
+        case Function::Generated::IterNew: target = record.producerNew; break;
+        case Function::Generated::IterStep: target = record.producerStep; break;
+        case Function::Generated::IterWalk: target = record.producerWalk; break;
+        case Function::Generated::IterItem: target = record.producerItem; break;
+        case Function::Generated::IterTake: target = record.producerTake; break;
+        case Function::Generated::IterFailure: target = record.producerFailure; break;
+        case Function::Generated::IterDrop:
+            target = teardownMember(context, program, intrinsic::Known::drop, concrete, source);
+            break;
+        case Function::Generated::IterNext:
+        case Function::Generated::IterResume:
+            for(auto instance: base[record.module]->instances.contents(base)) {
+                auto& made = *base[instance];
+                if(!made.args.size() || made.args.get(base, 0) != concrete) continue;
+
+                for(auto member: made.members.contents(base)) {
+                    if(member && base[member]->generated == named.generated) target = member;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+
+    if(!target) {
+        context.diagnostics.error(
+            "internal: %@ has no counterpart in the object this specialization builds"_v, source,
+            context.findName(named.name));
+        return;
+    }
+
+    into.target = target;
 }
 
 void callTarget(Context& context, Program& program, Function& enclosing, CallRequest node,
@@ -1025,8 +1119,18 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
         return callableTarget(context, program, enclosing, node, into);
     }
 
-    // A plain call. The overwhelmingly common case, and it allocates nothing and asks nothing.
-    if(!node.typeArguments->size()) return;
+    // A plain call. The overwhelmingly common case, and it allocates nothing and asks nothing -
+    // unless it names a member of an object a generic body built at its own variables (P16).
+    if(!node.typeArguments->size()) {
+        auto& named = *base[node.callee];
+        if(named.generated != Function::Generated::None && named.generatedRecord &&
+           base[named.generatedRecord]->kind == Type::Record &&
+           ((RecordType*)base[named.generatedRecord])->openSite) {
+            openSiteMember(context, program, enclosing, named, node.source, into);
+        }
+
+        return;
+    }
 
     /*
      * The node's arguments are written in the *enclosing declaration's* terms, so they are read
@@ -1558,6 +1662,60 @@ static bool checkErasable(Context& context, Program& program, Function& function
         if(!erasableType(decl, valueType(node))) return refuse(valueType(node), node.source);
     }
 
+    /*
+     * And no **continuation** that reads the environment - K8, J219's "names requirement 0 of
+     * runsAgree.cont".
+     *
+     * A `for` over an `iter fn` or a lens call's block is outlined by the conversion into a function
+     * of its own (`agree.cont`), and argument zero of that function is its captures record - the one
+     * slot the generic environment would need as well, which is the lambda's refusal
+     * (`resolve_lambda.cpp`) met again one tier down. So a class call, a generic call or a value at an
+     * open type inside one has no environment to be read through, and the verifier caught the class
+     * call naming a requirement of a signature that states none. Nothing refused it before because
+     * the form is measured: a body specialized at one argument list is never erased, which is why
+     * J219's one-instance reduction did not reproduce it and two instances did.
+     *
+     * Declining the form is always available and is the answer the lambda gets - the body is
+     * specialized. Threading the environment into the continuation's record is the alternative, and
+     * waits on the same change the lambda's does.
+     */
+    auto inContinuation = [&](ContinuationId id) {
+        for(auto at = id; at.valid(); at = body.region(mir, at)->parent) {
+            if(body.region(mir, at)->kind == Continuation::Handover) return true;
+        }
+        return false;
+    };
+
+    for(auto blockPointer: body.blocks.contents(mir)) {
+        auto& block = *mir[blockPointer];
+        if(!inContinuation(block.region)) continue;
+
+        for(auto nodePointer: block.nodes.contents(mir)) {
+            auto& node = *mir[nodePointer];
+            auto open = hasResult(node.kind) && !isConcreteType(decl, valueType(node));
+
+            if(!open && (node.kind == Node::Call || isLensCall(node.kind))) {
+                auto request = isLensCall(node.kind) ? callRequestOf((NodeLensCall&)node)
+                                                     : callRequestOf((NodeCall&)node);
+                open = request.genCallable != NodeCall::kNoCallable;
+
+                for(auto argument: request.typeArguments->contents(mir)) {
+                    if(!isConcreteType(decl, argument)) open = true;
+                }
+            }
+
+            if(!open) continue;
+
+            if(report) {
+                context.diagnostics.error(
+                    "%@ is compiled once, and this is inside a `for` or lens block that is outlined into a function of its own, which cannot reach the generic environment yet - remove `@generic` so the function is specialized"_v,
+                    node.source, context.findName(function.name));
+            }
+
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -1606,10 +1764,11 @@ static bool erasureFits(GenCost cost) {
  * the form decision forces to `Specialized` is held to `kSpecializationsPerGeneric` like any other,
  * and that refusal is an error rather than a fallback (see `specializationPermitted`), so the floor
  * as J145 built it turned `second(x: a, n: I32) = n` called at 40 record types - erased and correct
- * before - into "specialized at more than 32 argument lists" (`generic/ErasureFloorCap.yana`).
- * Exempting a floor-chosen copy from the cap was the other way to it and was not taken: the cap is
- * the only thing that ends a polymorphic recursion, and a four-node body can be one
- * (`fn (a) f(x: a) = f({x})`).
+ * before - into "specialized at more than 32 argument lists" (`generic/ErasureFloorCap.yana`, at
+ * 130 lists since K1 raised the cap to 128). Exempting a floor-chosen copy from the cap was the other
+ * way to it and was not taken: when J148 wrote this the cap was the only thing that ended a
+ * polymorphic recursion, and a four-node body can be one (`fn (a) f(x: a) = f({x})`). The growth
+ * bound (`growthPermitted`) ends that one now, but a copy per list is still a copy per list.
  */
 static constexpr U32 kErasureFloor = 4;
 
@@ -1690,14 +1849,19 @@ struct GenericReach {
      *
      * Up to one past `kSpecializationsPerGeneric` - J148. The first two answer `erasureSavesCopies`
      * (one list or several); the rest are what lets `erasureTooSmall` specialize only a generic the
-     * specializing walk cannot then refuse for being reached at too many. A fixed row rather than
-     * an array, because this lives in a `HashMap` whose slots are raw storage the caller fills; a
-     * member that owns a buffer would be one nothing here destroys.
+     * specializing walk cannot then refuse for being reached at too many.
+     *
+     * Held as a chain through `ArgumentLists::seen` rather than as a row here - K1. The row was a
+     * fixed array of `kMaxLists` pointers, because this lives in a `HashMap` whose slots are raw
+     * storage the caller fills and a member owning a buffer would be one nothing here destroys; that
+     * was 264 bytes a generic at a cap of 32 and would be 1 KiB at 128, in every slot of a table
+     * holding every generic any call names, for a count that almost always stops at one or two.
      */
     static constexpr Size kMaxVariables = 8;
     static constexpr Size kMaxLists = kSpecializationsPerGeneric + 1;
+    static constexpr U32 kNoList = ~U32(0);
 
-    MirList<DeclPtr<Type>>* lists[kMaxLists] = {};
+    U32 first = kNoList;
     U32 distinct = 0;
 
     // Reached in a way that names no list here - the four `many`s above but the second list. A
@@ -1711,6 +1875,19 @@ struct GenericReach {
     bool underCap() const { return !unreadable && distinct <= kSpecializationsPerGeneric; }
 };
 
+// One list a generic was seen at, and the next one the same generic was - a chain per generic
+// through one array for the whole count. A plain `Array` rather than a `SmallArray`: there is one of
+// these per `selectGenForms` and it is pointed into by index from every row of the table.
+struct SeenList {
+    MirList<DeclPtr<Type>>* list;
+    U32 next;
+};
+
+struct ArgumentLists {
+    HashMap<U32, GenericReach> reach;
+    Array<SeenList> seen;
+};
+
 /*
  * One call's contribution, and the only thing that reads a node here.
  *
@@ -1722,14 +1899,14 @@ struct GenericReach {
 // The row for one generic, made on first sight. `HashMap::add` hands back raw storage, so a fresh
 // slot is filled here rather than left holding whatever the bucket did - `internSpecialization` says
 // the same thing about its own.
-static GenericReach& reachFor(HashMap<U32, GenericReach>& lists, DeclPtr<Function> callee) {
-    auto entry = lists.add(callee.offset);
+static GenericReach& reachFor(ArgumentLists& lists, DeclPtr<Function> callee) {
+    auto entry = lists.reach.add(callee.offset);
     if(!entry.existed) *entry.value = GenericReach {};
 
     return *entry.value;
 }
 
-static void noteArgumentList(DeclBase base, HashMap<U32, GenericReach>& lists,
+static void noteArgumentList(DeclBase base, ArgumentLists& lists,
                              DeclPtr<Function> callee, MirList<DeclPtr<Type>>* arguments,
                              MirBase mir) {
     auto& reach = reachFor(lists, callee);
@@ -1747,8 +1924,8 @@ static void noteArgumentList(DeclBase base, HashMap<U32, GenericReach>& lists,
         if(!isConcreteType(base, type)) { reach.unreadable = true; return; }
     }
 
-    for(U32 known = 0; known < reach.distinct; known++) {
-        auto seen = reach.lists[known]->contents(mir);
+    for(auto known = reach.first; known != GenericReach::kNoList; known = lists.seen[known].next) {
+        auto seen = lists.seen[known].list->contents(mir);
         if(seen.size() != written.size()) continue;
 
         auto same = true;
@@ -1756,17 +1933,21 @@ static void noteArgumentList(DeclBase base, HashMap<U32, GenericReach>& lists,
         if(same) return;
     }
 
-    reach.lists[reach.distinct++] = arguments;
+    // `reach` is a slot of the table and `lists.seen` a different container, so pushing here moves
+    // nothing `reach` points into.
+    lists.seen.push(SeenList { arguments, reach.first });
+    reach.first = U32(lists.seen.size() - 1);
+    reach.distinct++;
 }
 
-static void markMany(HashMap<U32, GenericReach>& lists, DeclPtr<Function> callee) {
+static void markMany(ArgumentLists& lists, DeclPtr<Function> callee) {
     reachFor(lists, callee).unreadable = true;
 }
 
 // Every body in the program, once. `module->functions` is the whole list - `verifyProgram` walks the
 // same one and it is what a specialization is later filed into - and at this point it holds only
 // what was written, since nothing has specialized anything yet.
-static void countArgumentLists(Program& program, HashMap<U32, GenericReach>& lists) {
+static void countArgumentLists(Program& program, ArgumentLists& lists) {
     auto base = *program.decl;
     auto mir = *program.mir;
 
@@ -1817,13 +1998,13 @@ static void countArgumentLists(Program& program, HashMap<U32, GenericReach>& lis
 // Whether every argument list the generic can be specialized at is one written here, and there are
 // no more of them than the cap - so `erasureTooSmall` may choose the specialized form (J148). No
 // entry is no call node, and so no specialization at all.
-static bool reachedUnderCap(HashMap<U32, GenericReach>& lists, DeclPtr<Function> pointer) {
-    auto reach = lists.get(pointer.offset);
+static bool reachedUnderCap(ArgumentLists& lists, DeclPtr<Function> pointer) {
+    auto reach = lists.reach.get(pointer.offset);
     return reach.isNothing() || reach.unwrap().underCap();
 }
 
-static bool erasureSavesCopies(HashMap<U32, GenericReach>& lists, DeclPtr<Function> pointer) {
-    auto reach = lists.get(pointer.offset);
+static bool erasureSavesCopies(ArgumentLists& lists, DeclPtr<Function> pointer) {
+    auto reach = lists.reach.get(pointer.offset);
     if(reach.isNothing()) return true;
 
     auto& counted = reach.unwrap();
@@ -1837,7 +2018,7 @@ void selectGenForms(Context& context, Program& program) {
     // Counted first and read below, because the answer is about the *program* and the decision is
     // made one declaration at a time - the same reason this pass exists rather than the form being
     // derived where it is wanted.
-    HashMap<U32, GenericReach> argumentLists;
+    ArgumentLists argumentLists;
     countArgumentLists(program, argumentLists);
 
     for(auto modulePointer: program.modules) {
@@ -1891,12 +2072,14 @@ void selectGenForms(Context& context, Program& program) {
             }
 
             /*
-             * The three kinds of generic whose form is not a choice, each for its own reason.
+             * The four kinds of generic whose form is not a choice, each for its own reason.
              *
              * A **selected member** is reached from the instance table and specialized there. A
              * **teardown** is called by the compiler at a fixed signature, which is the one place a
              * body's ABI is not the caller's to decide. A **lens** has no standalone body at all -
-             * it is resolved into its caller - so there is nothing to compile once.
+             * it is resolved into its caller - so there is nothing to compile once. A **lifted
+             * lambda** of a generic body (C3) holds its captures in argument zero, which is where an
+             * erased body's environment would have to go.
              *
              * Answered silently, and there is nothing to report: neither attribute has a placement
              * inside a `class` or an `instance` - the parser refuses one there - and a teardown and
@@ -1904,7 +2087,7 @@ void selectGenForms(Context& context, Program& program) {
              * form these are given, and a message would be about a measurement nobody ran.
              */
             if(selectedMember(decl, program, functionPointer) || function.teardown ||
-               function.lens || !function.mir) {
+               function.lens || function.environment || !function.mir) {
                 function.form = GenForm::Specialized;
                 continue;
             }

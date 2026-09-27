@@ -2598,6 +2598,8 @@ void Analysis::buildOriginLog() {
  * returned all reach this as the same statement about uses.
  */
 void Analysis::computeLoanExtents() {
+    heldRegions.clear();
+    regionCall.clear();
     if(!loanCount) return;
 
     loanIn.reset(blockCount, loanCount);
@@ -2621,6 +2623,53 @@ void Analysis::computeLoanExtents() {
      */
     BitMatrix minted;
     minted.reset(blockCount, loanCount);
+
+    /*
+     * What a traversal holds for as long as its region runs - every loan its arguments carry, per
+     * `lens.call` region (Implementation-Streams P4, J185).
+     *
+     * A lens call lends its arguments to a callee that is **still running** while the region's
+     * blocks run: an `iter fn` resumes on every fall-out and a lens runs its cleanup after the last
+     * one, both with those arguments in hand. So the loans are live on every block the region
+     * encloses, exactly as an argument's loan is live across an ordinary call. Before this they were
+     * live only through the hand-over's origins, so once the element's last use had passed nothing
+     * held them: `for x in blocks(s): ...; s.at = 0` was accepted while `blocks` still had `&s`, and
+     * looped forever. Stated here as a use at every block of the region, rather than as origins of
+     * the hand-over, because it is a fact about the call's extent and not about any value - a lens
+     * handing over `{}` holds `&m` all the same. `computeLiveness` reads the same rows, so the
+     * storage behind them is not released inside the region either.
+     */
+    {
+        OriginCursor replay { *this };
+        for(U32 b = 0; b < blockCount; b++) {
+            replay.enter(b);
+
+            auto count = nodeCount(b);
+            for(U32 n = 0; n < count; n++) {
+                auto& node = nodeAt(b, n);
+
+                if(isLensCall(node.kind)) {
+                    auto& call = (NodeLensCall&)node;
+                    if(call.region.valid()) {
+                        if(!heldRegions.size()) regionHeld.reset(U32(body.regions.size()), loanCount);
+                        heldRegions.push(call.region.index);
+
+                        while(regionCall.size() <= call.region.index) regionCall.push(kNoCall);
+                        regionCall[call.region.index] = b;
+
+                        auto row = regionHeld.row(call.region.index);
+                        for(auto operand: call.arguments.contents(base)) {
+                            forEachOperandOrigin(replay, operand, [&](U32, const U64* origins) {
+                                BitMatrix::unionInto(row, origins, loanWords);
+                            });
+                        }
+                    }
+                }
+
+                stepOriginsForward(replay, node);
+            }
+        }
+    }
 
     sweepForward([&](U32 index) {
         auto block = this->block(index);
@@ -2663,6 +2712,164 @@ void Analysis::computeLoanExtents() {
     SmallArray<U64, 4> entering;
     for(U32 w = 0; w < loanWords; w++) entering.push(0);
 
+    /*
+     * Which loans anything **holds** at a block's exit - K8, J219 §4.
+     *
+     * `minted` says a loan may exist there, which is a fact about paths and not about holders: a
+     * local that lent from `b` before a loop and is re-pointed inside it holds the new loan once the
+     * assignment has run, but the old one still reaches the latch along the path that skipped the
+     * assignment, so `minted` kept it and it was carried round the back edge and up through the very
+     * block that had replaced it - where the replacing read of `b` was refused as "already borrowed
+     * exclusively". What can carry a loan across an edge is exactly two things, because every value
+     * operand names a node of its own block (`verify.cpp`): a local, whose row is the exit state,
+     * and a value the edge hands to a block argument. A loan neither holds is dead on the edge
+     * whatever the successor goes on to use, since nothing the successor reads can be rooted in it.
+     *
+     * Only loans the state is kept over are masked. The rest (`kNotStored`) never cross an edge by
+     * construction, and a call bound is not held by anything - it is a region's extent.
+     *
+     * "A local" is a local that is **read again** before it is replaced: the state keeps a row for
+     * every local whether or not anything will read it, and the `{x | at: ...}` temporary that built
+     * the previous value of `x` still names the old loan long after it is dead. So the rows are
+     * filtered by a holder liveness computed here - a use is any operand rooted in the local, a kill
+     * is an `Init` or `Assign` of the whole local - which is not `computeLiveness`, because that one
+     * runs after this and keeps storage alive *for* the loans this computes. Three kinds of local are
+     * taken as live rather than argued: a parameter, everywhere (a `&` one lends back to the caller);
+     * a local something borrowed, wherever one of its own loans crosses the edge (what is reached
+     * through that loan is its contents); and one replaced by an `Assign` of a value with a teardown,
+     * which is a use of the value it releases.
+     */
+    SmallArray<U64, 4> heldCompact;
+    SmallArray<U64, 4> held;
+    for(U32 w = 0; w < stateWords; w++) heldCompact.push(0);
+    for(U32 w = 0; w < loanWords; w++) held.push(0);
+
+    auto localCount = U32(body.locals.size());
+    auto localWords = (localCount + 63) / 64;
+
+    SmallArray<U64, 4> alwaysHeld;
+    for(U32 w = 0; w < localWords; w++) alwaysHeld.push(0);
+
+    for(U32 l = 0; l < localCount; l++) {
+        if(body.local(base, LocalId(l))->isParameter()) BitMatrix::set(alwaysHeld.pointer(), l);
+    }
+
+    // The local each loan was taken of, for the third kind above: a borrowed local's row counts
+    // wherever one of its own loans is live across the edge.
+    SmallArray<U32, 16> loanRoot;
+    for(U32 l = 0; l < mirLoans; l++) {
+        auto loan = body.loan(base, LoanId(l));
+        auto root = loan->place.valid() ? rootOf(loan->place) : nullptr;
+        loanRoot.push(root && root->kind == Place::Local ? root->payload : ~U32(0));
+    }
+
+    // The whole local a write replaces, or invalid - the one kill the holder liveness has.
+    auto replaced = [&](Node& node) -> U32 {
+        if(node.kind != Node::Write) return ~U32(0);
+
+        auto& write = (NodeWrite&)node;
+        if(write.destination.source() != SourceKind::Place) return ~U32(0);
+        if(write.mode != Destination::Init && write.mode != Destination::Assign) return ~U32(0);
+
+        auto place = body.place(base, write.destination.placeId());
+        if(place->parent || place->kind != Place::Local) return ~U32(0);
+
+        auto local = body.local(base, LocalId(place->payload));
+        if(write.mode == Destination::Assign &&
+           !isTriviallyCopyableAt(*program.decl, local->occurrence)) {
+            return ~U32(0);
+        }
+
+        return place->payload;
+    };
+
+    auto stepHolders = [&](U64* holders, Node& node) {
+        auto killed = replaced(node);
+        if(killed != ~U32(0)) BitMatrix::clear(holders, killed);
+
+        forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+            if(operand.source() != SourceKind::Place) return;
+            if(killed != ~U32(0) && &operand == &((NodeWrite&)node).destination) return;
+
+            auto root = rootOf(operand.placeId());
+            if(root->kind == Place::Local) BitMatrix::set(holders, root->payload);
+        });
+    };
+
+    BitMatrix holderOut;
+    holderOut.reset(blockCount, localCount);
+    {
+        BitMatrix holderIn;
+        holderIn.reset(blockCount, localCount);
+
+        SmallArray<U64, 4> holders;
+        for(U32 w = 0; w < localWords; w++) holders.push(0);
+
+        for(auto changed = true; changed && localCount;) {
+            changed = false;
+
+            for(U32 index = blockCount; index-- > 0;) {
+                BitMatrix::zero(holders.pointer(), localWords);
+                forEachSuccessor(index, [&](U32 target) {
+                    BitMatrix::unionInto(holders.pointer(), holderIn.row(target), localWords);
+                });
+
+                BitMatrix::replace(holderOut.row(index), holders.pointer(), localWords);
+
+                for(U32 n = nodeCount(index); n > 0; n--) stepHolders(holders.pointer(), nodeAt(index, n - 1));
+                if(BitMatrix::replace(holderIn.row(index), holders.pointer(), localWords)) changed = true;
+            }
+        }
+    }
+
+    SmallArray<U64, 4> lent;
+    for(U32 w = 0; w < localWords; w++) lent.push(0);
+
+    auto collectHeld = [&](U32 index, Node& last, const U64* crossing) {
+        BitMatrix::zero(lent.pointer(), localWords);
+        for(U32 l = 0; l < mirLoans; l++) {
+            if(loanRoot[l] != ~U32(0) && BitMatrix::test(crossing, l)) BitMatrix::set(lent.pointer(), loanRoot[l]);
+        }
+
+        BitMatrix::zero(heldCompact.pointer(), stateWords);
+        if(localWidth()) {
+            auto state = localsAt(localOut, index);
+            auto holding = holderOut.row(index);
+
+            for(U32 l = 0; l < localCount; l++) {
+                if(!BitMatrix::test(holding, l) && !BitMatrix::test(alwaysHeld.pointer(), l) &&
+                   !BitMatrix::test(lent.pointer(), l)) {
+                    continue;
+                }
+
+                for(U32 row = localRow[l]; row < localRow[l + 1]; row++) {
+                    BitMatrix::unionInto(heldCompact.pointer(), state + Size(row) * stateWords,
+                                         stateWords);
+                }
+            }
+        }
+
+        expandInto(heldCompact.pointer(), held.pointer());
+
+        forEachEdge(base, last, [&](Edge& edge) {
+            for(auto operand: edge.arguments.contents(base)) {
+                if(operand.source() != SourceKind::Result) continue;
+
+                auto node = operand.nodeId();
+                for(U32 p = 0; p < valuePositions(node); p++) {
+                    BitMatrix::unionInto(held.pointer(), originsOfValue(node, p), loanWords);
+                }
+            }
+        });
+    };
+
+    auto maskHeld = [&](U64* loans) {
+        for(U32 l = 0; l < loanCount; l++) {
+            if(!BitMatrix::test(loans, l) || callBound(l) || stateIndex[l] == kNotStored) continue;
+            if(!BitMatrix::test(held.pointer(), l)) BitMatrix::clear(loans, l);
+        }
+    };
+
     sweepBackward([&](U32 index) {
         auto block = this->block(index);
         BitMatrix::zero(live.pointer(), loanWords);
@@ -2670,6 +2877,7 @@ void Analysis::computeLoanExtents() {
         auto count = block->nodes.size();
         if(count) {
             auto last = base[block->nodes.get(base, count - 1)];
+
             forEachEdge(base, *last, [&](Edge& edge) {
                 if(!edge.target) return;
 
@@ -2698,6 +2906,20 @@ void Analysis::computeLoanExtents() {
 
             auto reachable = minted.row(index);
             for(U32 w = 0; w < loanWords; w++) live[w] &= reachable[w];
+
+            collectHeld(index, *last, live.pointer());
+            maskHeld(live.pointer());
+        }
+
+        // Every traversal whose region this block is inside holds its arguments here - see
+        // `regionHeld` above. At the exit, and never killed inside the block, since the loans were
+        // taken before the call.
+        for(auto r: heldRegions) {
+            if(!body.encloses(base, ContinuationId(r), block->region)) continue;
+
+            auto reachable = minted.row(index);
+            auto held = regionHeld.row(r);
+            for(U32 w = 0; w < loanWords; w++) live[w] |= held[w] & reachable[w];
         }
 
         BitMatrix::replace(loansAt(loanOut, index), live.pointer(), loanWords);
@@ -3057,10 +3279,11 @@ bool Analysis::checkLoans() {
      * are never asked. What is left per access is proportional to what the access touches.
      */
     SmallArray<U64, 4> scratch, reachedSet, overlapping, conflict, frontier, probe, skipSet;
-    SmallArray<U64, 4> exclusiveConflict;
+    SmallArray<U64, 4> exclusiveConflict, through;
     for(U32 w = 0; w < loanWords; w++) {
         scratch.push(0); reachedSet.push(0); overlapping.push(0); conflict.push(0);
         frontier.push(0); probe.push(0); skipSet.push(0); exclusiveConflict.push(0);
+        through.push(0);
     }
 
     /*
@@ -3838,6 +4061,9 @@ bool Analysis::checkLoans() {
             // the loans this place's origins reach, closure included.
             if(BitMatrix::intersects(refused.pointer(), reachedSet.pointer(), loanWords)) return;
 
+            // Kept for the reborrow test below, since the walks the candidates ask for overwrite it.
+            BitMatrix::copy(through.pointer(), reachedSet.pointer(), loanWords);
+
             conflictsOf(cursor, reached, live, conflict.pointer());
         }
 
@@ -3860,6 +4086,24 @@ bool Analysis::checkLoans() {
 
         for(auto l: candidates) {
             if(skip && BitMatrix::test(skip, l)) continue;
+
+            /*
+             * A loan **this one is taken through** - an exclusive loan the place's origins reach at
+             * any depth, rather than only at the first, which is all `skip` holds.
+             *
+             * `it.next()` over an object lent `&s` hands back a view whose origin is the loan of
+             * `it`, and `it` holds the exclusive loan of `s`: binding `Just(x)` out of that result
+             * reaches `s` through both, and met the loan of `s` as a conflict - "s is already
+             * borrowed exclusively" - where `for x in it` was accepted (J188). Taking a loan through
+             * a unique one is what the unique loan's holder lends, and every link between them
+             * stays live for as long as the new loan does, so a later use of the holder is what
+             * meets it. Only unique links are excused: `reachFrom` lists a place behind a shared one
+             * too, and a unique loan taken through a shared one is not a reborrow.
+             */
+            if(kind == AccessKind::TakeLoan && BitMatrix::test(through.pointer(), l) &&
+               BitMatrix::test(uniqueLoans.pointer(), l)) {
+                continue;
+            }
             // A copy is gone before a reservation activates - see `uniqueLoans`.
             if(kind == AccessKind::Copy && BitMatrix::test(reserved.pointer(), l)) continue;
 
@@ -4646,7 +4890,29 @@ Analysis::Lender Analysis::classifyLender(U32 l) {
             return Lender::Frame;
     }
 
+    /*
+     * A loan of a place that is **itself a borrow** - the payload of a `Result(Fail, '[U8])` held in
+     * a temporary, which is where `take(2)?` and `match take(2): Ok(h) -> ...` read it from. What the
+     * read hands on is the reference the field holds, and its roots already carry the field's slot,
+     * so the lender to judge is whoever lent *that* - exactly the local case below, asked of the
+     * place rather than of its root. Judged as the temporary holding it instead, the unwrapped view
+     * of a parameter could not be returned ("refers to a temporary") while the same view bound
+     * without the carrier could (P1, J184).
+     *
+     * Only a field of a local this frame **owns** and that is not a parameter: those are the two
+     * whose own row below is "this frame's storage", and a field of one that is a borrow is the one
+     * place that answer is wrong. A parameter's fields, and a borrowed local's, are judged by the
+     * rows that already know whose they are - `Reject.ClassBorrow.yana` is a call-bounded parameter
+     * a reborrow would have waved through.
+     */
     auto& local = *body.local(base, LocalId(root->payload));
+
+    if(body.place(base, loan.place) != root && !local.isParameter() && !local.environment &&
+       local.occurrence.contract.isOwned()) {
+        auto& placed = body.place(base, loan.place)->occurrence.contract;
+        if(!placed.isOwned() && placed.origin() == Origin::Slot) return Lender::Reborrow;
+    }
+
     if(local.environment) return Lender::Environment;
     if(temporaryLocal(local)) return staticLiteralLoan(loan, *root) ? Lender::Program : Lender::Temporary;
     if(local.isParameter()) return frameOwnedParameter(local) ? Lender::Frame : Lender::Parameter;
@@ -5525,11 +5791,13 @@ static FunSource valueTargets(DeclBase decl, MirBase base, Body& body, Operand o
  */
 enum class IterateCall { Other, Producer, Erased };
 
-static IterateCall iterateCallOf(DeclBase decl, DeclPtr<Class> iterate, DeclPtr<Function> callee,
+template<class Classes>
+static IterateCall iterateCallOf(DeclBase decl, const Classes& iterate, DeclPtr<Function> callee,
                                  DeclPtr<Type> subject, DeclPtr<Function>& producer) {
-    if(!iterate || !callee || !subject) return IterateCall::Other;
+    if(!iterate.plain || !callee || !subject) return IterateCall::Other;
     if(decl[callee]->specializes) callee = decl[callee]->specializes;
-    if(decl[callee]->klass != iterate) return IterateCall::Other;
+    auto klass = decl[callee]->klass;
+    if(!klass || (klass != iterate.plain && klass != iterate.failing)) return IterateCall::Other;
 
     if(decl[subject]->kind == Type::Iter) return IterateCall::Erased;
     if(decl[subject]->kind != Type::Record) return IterateCall::Other;
@@ -5554,8 +5822,8 @@ static DeclPtr<Type> firstTypeArgument(MirBase base, MirList<DeclPtr<Type>>* typ
  * substituted types choose where these two take the member's row. A concrete step call names the
  * object's own member and has no type arguments, so what that step releases is `objectParts`'s.
  */
-template<class OnFunction, class OnTeardown, class OnIndirect>
-static void forEachCallRun(DeclBase decl, MirBase base, DeclPtr<Class> iterate, DeclPtr<Function> callee,
+template<class Classes, class OnFunction, class OnTeardown, class OnIndirect>
+static void forEachCallRun(DeclBase decl, MirBase base, const Classes& iterate, DeclPtr<Function> callee,
                            MirList<DeclPtr<Type>>* typeArguments, OnFunction&& onFunction,
                            OnTeardown&& onTeardown, OnIndirect&& onIndirect) {
     if(typeArguments) {
@@ -6272,7 +6540,8 @@ void computeGlobalEffects(Context& context, Program& program, GlobalEffects& int
     auto decl = *program.decl;
     RowBuilder builder { context, program, into, decl, *program.mir };
     auto& direct = builder.direct;
-    into.iterateClass = program.roles.klass(intrinsic::Known::iterate);
+    into.iterateClass.plain = program.roles.klass(intrinsic::Known::iterate);
+    into.iterateClass.failing = program.roles.klass(intrinsic::Known::iterateFailing);
 
     for(auto modulePointer: program.modules) {
         for(auto globalPointer: decl[modulePointer]->globals.contents(decl)) {

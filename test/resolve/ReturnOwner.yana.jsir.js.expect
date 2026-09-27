@@ -11,7 +11,6 @@ function collect(xs$0, xs$1, xs$2) {
   var v9 = { items: new Int32Array([]), length: 0 };
   var p3 = 0;
   while (p3 < xs$1) {
-    if (p3 >>> 0 >= xs$1 >>> 0) throw $t;
     push_I32(v9, xs$0[xs$2 + p3 | 0]);
     p3 = p3 + 1 | 0;
   }
@@ -24,64 +23,63 @@ function main() {
   var v17 = v14.items;
   var v23 = v14.length;
   if (0 >= v23) throw $t;
-  var v26 = v17[0];
+  var v27 = v17[0];
   if (1 >= v23) throw $t;
-  var v40 = v26 + Math.imul(v17[1], 2) | 0;
+  var v38 = v27 + Math.imul(v17[1], 2) | 0;
   if (2 >= v23) throw $t;
-  var v54 = v40 + Math.imul(v17[2], 4) | 0;
+  var v49 = v38 + Math.imul(v17[2], 4) | 0;
   if (3 >= v23) throw $t;
-  var v69 = v54 + Math.imul(v17[3], 8) | 0;
-  var v76 = { items: new Int32Array([]), length: 0 };
+  var v61 = v49 + Math.imul(v17[3], 8) | 0;
+  var v68 = { items: new Int32Array([]), length: 0 };
   var p0 = 0;
   while (p0 < 4) {
-    if (p0 >>> 0 >= 4) throw $t;
-    push_I32(v76, v9[p0 | 0]);
+    push_I32(v68, v9[p0]);
     p0 = p0 + 1 | 0;
   }
-  var v82 = v76.items;
-  var v87 = v76.length;
-  if (0 >= v87) throw $t;
-  var v92 = v69 + v82[0] | 0;
-  if (1 >= v87) throw $t;
-  var v106 = v92 + Math.imul(v82[1], 2) | 0;
-  if (2 >= v87) throw $t;
-  var v120 = v106 + Math.imul(v82[2], 4) | 0;
-  if (3 >= v87) throw $t;
-  var v134 = v120 + Math.imul(v82[3], 8) | 0;
-  var v144 = { items: new Int32Array([]), length: 0 };
+  var v75 = v68.items;
+  var v80 = v68.length;
+  if (0 >= v80) throw $t;
+  var v86 = v61 + v75[0] | 0;
+  if (1 >= v80) throw $t;
+  var v97 = v86 + Math.imul(v75[1], 2) | 0;
+  if (2 >= v80) throw $t;
+  var v108 = v97 + Math.imul(v75[2], 4) | 0;
+  if (3 >= v80) throw $t;
+  var v119 = v108 + Math.imul(v75[3], 8) | 0;
+  var v129 = { items: new Int32Array([]), length: 0 };
   var p1 = 0;
   while (p1 < 4) {
     if (p1 >>> 0 >= 4) throw $t;
-    push_I32(v144, Math.imul(v9[p1 | 0], 2));
+    push_I32(v129, Math.imul(v9[p1 | 0], 2));
     p1 = p1 + 1 | 0;
   }
-  var v155 = v144.items;
-  var v160 = v144.length;
-  if (0 >= v160) throw $t;
-  var v165 = v134 + v155[0] | 0;
-  if (1 >= v160) throw $t;
-  var v179 = v165 + Math.imul(v155[1], 2) | 0;
-  if (2 >= v160) throw $t;
-  var v193 = v179 + Math.imul(v155[2], 4) | 0;
-  if (3 >= v160) throw $t;
-  var v207 = v193 + Math.imul(v155[3], 8) | 0;
-  var v212 = new Int32Array([5, 6, 7, 8]);
-  var v267 = (((v207 + v212[0] | 0) + Math.imul(v212[1], 2) | 0) + Math.imul(v212[2], 4) | 0) + Math.imul(v212[3], 8) | 0;
+  var v140 = v129.items;
+  var v145 = v129.length;
+  if (0 >= v145) throw $t;
+  var v151 = v119 + v140[0] | 0;
+  if (1 >= v145) throw $t;
+  var v162 = v151 + Math.imul(v140[1], 2) | 0;
+  if (2 >= v145) throw $t;
+  var v173 = v162 + Math.imul(v140[2], 4) | 0;
+  if (3 >= v145) throw $t;
+  var v184 = v173 + Math.imul(v140[3], 8) | 0;
+  var v189 = new Int32Array([5, 6, 7, 8]);
+  var v223 = (((v184 + v189[0] | 0) + Math.imul(v189[1], 2) | 0) + Math.imul(v189[2], 4) | 0) + Math.imul(v189[3], 8) | 0;
   if (reclaims) return -1;
-  var v277 = { slots: collect(v9, 4, 0) };
+  var v233 = { slots: collect(v9, 4, 0) };
   if (reclaims) {
-    Cell_drop(v277);
+    Cell_drop(v233);
     return -2;
   }
-  var v284 = v277.slots;
-  var v285 = v284.items;
-  var v291 = v284.length;
-  if (0 >= v291) throw $t;
-  var v296 = v267 + v285[0] | 0;
-  if (3 >= v291) throw $t;
-  var v305 = v285[3];
-  Cell_drop(v277);
-  return v296 + v305 | 0;
+  var v240 = v233.slots;
+  var v241 = v240.items;
+  var v247 = v240.length;
+  if (0 >= v247) throw $t;
+  var v253 = v223 + v241[0] | 0;
+  if (3 >= v247) throw $t;
+  var v259 = v241[3];
+  Cell_drop(v233);
+  return v253 + v259 | 0;
 }
 
 function push_I32(self, item) {
@@ -108,4 +106,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

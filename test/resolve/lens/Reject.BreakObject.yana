@@ -1,0 +1,22 @@
+{-
+   `break` and `continue` out of a lens call inside an `iter fn` are built where the producer runs as
+   a continuation (Break.yana) and refused where it is built as an object: the landing reads the
+   loop's carried values, which on a path resuming inside the lens were defined by an earlier step,
+   and the spill plan does not yet carry them across.
+-}
+
+lens fn scope():
+    yield {}
+
+iter fn guarded(n: Int) -> Int:
+    for i in 0..n:
+        scope():
+            if i == 3 then break
+            yield i
+
+fn main() -> Int:
+    let &it = guarded(5)
+    let &sum = 0
+    for x in it:
+        sum += x
+    return sum

@@ -1,0 +1,116 @@
+{-
+   An iterator **object** over a failing traversal - P2 (J216), `doc/inflight/Design-Iterator-Objects.md`
+   §6.6's `| E` row.
+
+   `let it = f(...)` where `f` declares `-> (T | E)` builds the ordinary record with one more field,
+   `$failure`, and the step leaves `$index` at a value of its own where the producer failed. A `for`
+   over the object owes an alternative exactly as `for x in f(...)` does, in either position; the
+   failure is terminal, so a second loop over a failed object runs nothing and handles nothing; a
+   `break` leaves without the alternative; and a producer that fails only while being torn down has
+   its failure dropped rather than handed to nobody.
+
+   Digits: an item (its value), a failure handled (7 then its id), a `Tag` released (9 then its id).
+   A `Tag` is released at its last use, which is the read of `tag.id` and so before the `note` it
+   feeds - once, in every case. `main` answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        note(value.id :: Long)
+
+iter fn upTo(n: Int, failAt: Int) -> (Int | String):
+    let &i = 0 :: Int
+    while i < n:
+        if i == failAt then return "failed at {i}"
+        yield i
+        i = i + 1
+
+-- Fails with an owning value, and fails after its loop too - which is reached on the teardown path.
+iter fn tagged(n: Int, failAt: Int) -> (Int | Tag):
+    let &i = 0 :: Int
+    while i < n:
+        if i == failAt then return Tag {id: i}
+        yield i
+        i = i + 1
+    return Tag {id: 5}
+
+-- J186's generic failure, as an object: one record per `a`.
+iter fn (a) thenFail(n: Int, ->reason: a) -> (Int | a):
+    yield n
+    return reason
+
+data Holder {source: upTo.Iter, tag: Int}
+
+fn main() -> Int:
+    -- The alternative in its arm position, then the same object again: it answers `Done`.
+    let &it = upTo(5, 3)
+    for x in it:
+        note(x :: Long)
+    | reason:
+        if reason == "failed at 3" then note(7)
+    for x in it:
+        note(1)
+    | reason -> note(8)
+    expect(1, 127)
+
+    -- Running out is not failing.
+    let &clean = upTo(3, 9)
+    for x in clean:
+        note(x :: Long)
+    | reason -> note(7)
+    expect(2, 12)
+
+    -- An owning failure, handed to the alternative and released there once.
+    let &owning = tagged(5, 2)
+    for x in owning:
+        note(x :: Long)
+    | tag:
+        note(7)
+        note(tag.id :: Long)
+    expect(4, 17922)
+
+    -- A `break` runs no alternative, and the teardown that follows reaches the producer's last
+    -- `return Tag {id: 5}`: that failure is released, not handed over.
+    let &left = tagged(5, 4)
+    for x in left:
+        if x == 1 then break
+        note(x :: Long)
+    | tag -> note(7)
+    note(3)
+    expect(8, 953)
+
+    -- Held in a record field, stepped where it is.
+    let &held = Holder {source: upTo(4, 2), tag: 6}
+    for x in held.source:
+        note(x :: Long)
+    | reason -> note(7)
+    expect(16, 17)
+
+    -- Generic `E`, at an owning and at a trivial failure.
+    let &named = thenFail(4, "four")
+    for x in named:
+        note(x :: Long)
+    | reason:
+        if reason == "four" then note(7)
+    expect(32, 47)
+
+    let &counted = thenFail(3, Tag {id: 6})
+    for x in counted:
+        note(x :: Long)
+    | tag -> note(tag.id :: Long)
+    expect(64, 3966)
+
+    return failures

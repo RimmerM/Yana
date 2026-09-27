@@ -1,0 +1,221 @@
+
+decodeHeader<complex>(%bytes$items: Ptr, %bytes$length: I64): I32, I32, I32, I32, I32, I32 {
+  b_0 {
+    %v_1 = cmp_neq %bytes$length, 9: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = load %bytes$items, 1: I32
+    %v_5 = add %bytes$items, 1: Ptr
+    %v_6 = load %v_5, 1: I32
+    %v_7 = add %bytes$items, 2: Ptr
+    %v_8 = load %v_7, 2: I32
+    %v_9 = imm 8: I32
+    %v_10 = shl %v_8, %v_9: I32
+    %v_11 = shr %v_8, %v_9: I32
+    %v_12 = or %v_10, %v_11: I32
+    %v_13 = and %v_12, 65535: I32
+    %v_14 = add %bytes$items, 4: Ptr
+    %v_15 = load %v_14, 1: I32
+    %v_16 = add %bytes$items, 5: Ptr
+    %v_17 = load %v_16, 4: I32
+    %v_18 = bswap %v_17: I32
+    ret 1, %v_18, %v_13, %v_4, %v_6, %v_15
+  }
+
+  b_2 {
+    ret 0, 0, 0, 0, 0, 0
+  }
+}
+
+bodyLength<complex>(%bytes$items: Ptr, %bytes$length: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %bytes$length, 9: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = add %bytes$items, 5: Ptr
+    %v_5 = load %v_4, 4: I32
+    %v_6 = bswap %v_5: I32
+    %v_7 = add %bytes$items, 8: Ptr
+    %v_8 = load %v_7, 1: I32
+    %v_9 = add %v_6, %v_8: I32
+    ret %v_9
+  }
+
+  b_2 {
+    ret 0
+  }
+}
+
+window<complex>(%bytes$items: Ptr, %bytes$length: I64, %from: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %from, 0: I32
+    %v_2 = select %v_1, 0, %from: I64
+    %v_3 = cmp_igt %v_2, %bytes$length: I32
+    %v_4 = select %v_3, %bytes$length, %v_2: I64
+    %v_5 = cmp_ilt %bytes$length, %v_4: I32
+    %v_6 = select %v_5, %v_4, %bytes$length: I64
+    %v_7 = cmp_igt %v_6, %bytes$length: I32
+    %v_8 = select %v_7, %bytes$length, %v_6: I64
+    %v_9 = add %bytes$items, %v_4: Ptr
+    %v_10 = sub %v_8, %v_4: I64
+    %v_11 = cmp_ilt %v_10, 4: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = load %v_9, 4: I32
+    %v_15 = bswap %v_14: I32
+    ret %v_15
+  }
+
+  b_12 {
+    ret 0
+  }
+}
+
+survives<complex>(%bytes$items: Ptr, %bytes$length: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %bytes$length, 4: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = sub %bytes$length, 2: I64
+    %v_5 = cmp_gt 3, %v_4: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_8 {
+    %v_9 = add %bytes$items, 4: Ptr
+    %v_10 = load %v_9, 1: I32
+    %v_11 = add %v_12, %v_10: I32
+    ret %v_11
+  }
+
+  b_6 {
+    %v_13 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_7 {
+    %v_14 = add %bytes$items, 3: Ptr
+    %v_15 = load %v_14, 2: I32
+    %v_16 = imm 8: I32
+    %v_17 = shl %v_15, %v_16: I32
+    %v_18 = shr %v_15, %v_16: I32
+    %v_19 = or %v_17, %v_18: I32
+    %v_12 = and %v_19, 65535: I32
+    %v_20 = cmp_ge 4, %bytes$length: I32
+    je %v_20, b_6, b_8
+  }
+}
+
+notDominating<complex>(%bytes$items: Ptr, %bytes$length: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %bytes$length, 9: I32
+    %v_2 = cmp_ge 8, %bytes$length: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %bytes$items, 8: Ptr
+    %v_6 = load %v_5, 1: I32
+    %v_7 = add %v_1, %v_6: I32
+    ret %v_7
+  }
+
+  b_3 {
+    %v_8 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+otherView<complex>(%bytes$items: Ptr, %bytes$length: I64, %other$length: I64): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %other$length, 9: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = cmp_ge 8, %bytes$length: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_6 {
+    %v_7 = add %bytes$items, 8: Ptr
+    %v_8 = load %v_7, 1: I32
+    ret %v_8
+  }
+
+  b_5 {
+    %v_9 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 9, 1: Ptr
+    store %v_1, 4, 1
+    %v_2 = add %v_1, 1: Ptr
+    store %v_2, 0, 1
+    %v_3 = add %v_1, 2: Ptr
+    store %v_3, 0, 1
+    %v_4 = add %v_1, 3: Ptr
+    store %v_4, 7, 1
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, 5, 1
+    %v_6 = add %v_1, 5: Ptr
+    store %v_6, 0, 1
+    %v_7 = add %v_1, 6: Ptr
+    store %v_7, 0, 1
+    %v_8 = add %v_1, 7: Ptr
+    store %v_8, 1, 1
+    %v_9 = add %v_1, 8: Ptr
+    store %v_9, 2, 1
+    %v_10 = imm 9: I64
+    %v_11, %v_12, %v_13, %v_14, %v_15, %v_16 = call_complex decodeHeader, %v_1, %v_10: I32, I32, I32, I32, I32, I32
+    %v_17 = and %v_11, 255: I32
+    %v_18 = cmp_eq %v_17, 1: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    ret 1
+  }
+
+  b_19 {
+    %v_21 = and %v_13, 65535: I32
+    %v_22 = and %v_14, 255: I32
+    %v_23 = and %v_15, 255: I32
+    %v_24 = and %v_16, 255: I32
+    %v_25 = add %v_22, %v_23: I32
+    %v_26 = add %v_25, %v_21: I32
+    %v_27 = add %v_26, %v_24: I32
+    %v_28 = add %v_27, %v_12: I32
+    %v_29 = call_complex bodyLength, %v_1, %v_10: I32
+    %v_30 = add %v_28, %v_29: I32
+    %v_31 = call_complex window, %v_1, %v_10, 5: I32
+    %v_32 = add %v_30, %v_31: I32
+    %v_33 = call_complex survives, %v_1, %v_10: I32
+    %v_34 = add %v_32, %v_33: I32
+    %v_35 = call_complex notDominating, %v_1, %v_10: I32
+    %v_36 = add %v_34, %v_35: I32
+    %v_37 = call_complex otherView, %v_1, %v_10, %v_10: I32
+    %v_38 = add %v_36, %v_37: I32
+    ret %v_38
+  }
+}
+

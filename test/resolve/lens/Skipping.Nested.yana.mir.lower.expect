@@ -2,65 +2,45 @@ mut @log = [0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    store @log, 0, 4
     store @log, 3, 4
-    %v_1 = loads @log, 4: I32
     store @log, 0, 4
-    store @log, 100, 4
-    %v_2 = loads @log, 4: I32
     store @log, 0, 4
     store @log, 1000, 4
-    %v_3 = loads @log, 4: I32
     store @log, 0, 4
-    jmp b_4
+    jmp b_1
   }
 
-  b_5 {
-    jmp b_6
-  }
-
-  b_7 {
-    %v_8 = cmp_eq %v_9, 2: I32
-    je %v_8, b_10, b_4
+  b_2 {
+    jmp b_3
   }
 
   b_4 {
-    %v_11 = phi [b_7, %v_9], [b_0, 0]: I32
-    %v_12 = shl %v_11, 1: I32
+    %v_5 = cmp_eq %v_6, 2: I32
+    je %v_5, b_7, b_1
+  }
+
+  b_1 {
+    %v_8 = phi [b_4, %v_6], [b_0, 0]: I32
+    %v_9 = shl %v_8, 1: I32
+    %v_10 = loads @log, 4: I32
+    %v_11 = add %v_10, %v_9: I32
+    store @log, %v_11, 4
+    %v_6 = add %v_8, 1: I32
+    %v_12 = cmp_ilt %v_6, 4: I32
+    je %v_12, b_4, b_2
+  }
+
+  b_7 {
     %v_13 = loads @log, 4: I32
-    %v_14 = add %v_13, %v_12: I32
+    %v_14 = add %v_13, 9: I32
     store @log, %v_14, 4
-    %v_9 = add %v_11, 1: I32
-    %v_15 = cmp_ilt %v_9, 4: I32
-    je %v_15, b_7, b_5
+    jmp b_3
   }
 
-  b_10 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_16 = phi [b_5, 0], [b_10, 1]: I32
-    %v_17 = phi [b_5, 0], [b_10, 9]: I32
-    je %v_16, b_18, b_19
-  }
-
-  b_18 {
-    %v_20 = loads @log, 4: I32
-    %v_21 = add %v_20, %v_17: I32
-    store @log, %v_21, 4
-    jmp b_19
-  }
-
-  b_19 {
-    %v_22 = loads @log, 4: I32
-    %v_23 = imul %v_1, 1000000: I32
-    %v_24 = imul %v_2, 10000: I32
-    %v_25 = add %v_23, %v_24: I32
-    %v_26 = imul %v_3, 100: I32
-    %v_27 = add %v_25, %v_26: I32
-    %v_28 = add %v_27, %v_22: I32
-    ret %v_28
+  b_3 {
+    %v_15 = loads @log, 4: I32
+    %v_16 = add 4100000, %v_15: I32
+    ret %v_16
   }
 }
 

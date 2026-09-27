@@ -1,0 +1,42 @@
+{-
+   `Stream.Input`'s runs are loans of the input - L3 of `doc/inflight/Implementation-Streams.md`,
+   Analysis-Streams §5.1's invalidation rule, stated by the loan checker over the library's own
+   declarations.
+
+   - `stale`: a run from `take` read after the next `take`, which may have compacted or refilled the
+     buffer the run points into;
+   - `staleLine`: the same through `takeUntil` and `next`;
+   - `parentInside`: the parent read inside a `within` block, while the window holds it exclusively;
+   - `parentInFrame`: the parent consumed inside an exact frame, before `finishFrame` ended it.
+-}
+
+import Stream
+
+fn stale(&input: Input(SliceSource, Infallible)) -> U8:
+    let Ok(first) = input.take(2) | return 0
+    let Ok(second) = input.take(2) | return 0
+    return first[0] + second[0]
+
+fn staleLine(&input: Input(SliceSource, Infallible)) -> U8:
+    let Ok(line) = input.takeUntil("\n", 80) | return 0
+    let Ok(rest) = input.next() | return 0
+    return line[0] + rest[0]
+
+fn parentInside(&input: Input(SliceSource, Infallible)) -> U8:
+    let window = input.within(4) in:
+        let Ok(run) = window.take(1) | return 0
+        let Ok(around) = input.take(1) | return 0
+        return run[0] + around[0]
+    return 0
+
+fn parentInFrame(&input: Input(SliceSource, Infallible)) -> Size:
+    let &frame = input.exactFrame(4)
+    input.consume(1)
+    let Ok(_) = finishFrame(frame) | return 0
+    return 1
+
+fn main() -> Int:
+    let source = [1, 2, 3, 4, 10, 5] :: [U8]
+    let &input = Input.over(sliceSource(source), 4)
+    let bytes = stale(input) + staleLine(input) + parentInside(input)
+    return truncate(parentInFrame(input)) + (bytes :: Int)

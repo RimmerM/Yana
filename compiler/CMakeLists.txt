@@ -267,6 +267,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/opt/inline.cpp
     resolve_ssa/opt/reach.cpp
     resolve_ssa/opt/check.cpp
+    resolve_ssa/opt/bounds.cpp
     resolve_ssa/lower/repr.h
     resolve_ssa/lower/repr.cpp
     resolve_ssa/lower/repr_print.h

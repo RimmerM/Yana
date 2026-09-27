@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = "ab"
+let string'188: [CodeUnit *2] = "ab"
 
-let string'143: [CodeUnit *4] = "abcd"
+let string'189: [CodeUnit *4] = "abcd"
 
 fn put(slot: a [unique call], value: a) -> {} = <no body>
 
@@ -26,10 +26,10 @@ bb0:
   %11: I32 [unique call] guaranteed from{%2} = load inspect %2
   %12: I32 trivial = const 9
   call put(I32) borrow %11 consume %12
-  %13: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %13: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %3 consume %13
   %14: String [unique call] guaranteed from{%3} = load inspect %3
-  %15: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %15: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   call put(String) borrow %14 consume %15
   %16: I32 trivial = const 1
   %17: I32 trivial = const 2

@@ -4,41 +4,34 @@ var replacementChar = 65533;
 
 // 
 function main() {
-  var s6, p5, p7, p8;
+  var s6, p5;
   var p4 = 0;
   var p3 = 0;
   while (p3 < "a,b,c".length) {
     if (("a,b,c".charCodeAt(p3) | 0) === 44) p4 = p4 + 1 | 0;
     p3 = p3 + 1 | 0;
   }
-  var v69 = 3218 + Math.imul(p4, 10000) | 0;
+  var v66 = 3218 + Math.imul(p4, 10000) | 0;
   B2: {
     if (0 < "x".length ^ 1) {
       p5 = { f0: replacementChar, f1: 0 };
     } else {
       B3: {
-        if (0 < "x".length ^ 1) {
-          p7 = null;
-        } else {
-          if (1 < "x".length ^ 1) {
-            p7 = null;
-            break B3;
+        if (!(0 < "x".length ^ 1)) {
+          if (1 < "x".length ^ 1) break B3;
+          var v107 = "x".charCodeAt(0) >>> 0;
+          var v113 = "x".charCodeAt(1) >>> 0;
+          if (v107 >= 55296 & v107 <= 56319 && v113 >= 56320 & v113 <= 57343) {
+            s6 = (65536 + (v107 - 55296 << 10 >>> 0) >>> 0) + (v113 - 56320 >>> 0) >>> 0;
+            p5 = { f0: s6, f1: 2 };
+            break B2;
           }
-          var v110 = "x".charCodeAt(0) >>> 0;
-          var v116 = "x".charCodeAt(1) >>> 0;
-          p7 = v110 >= 55296 & v110 <= 56319 && v116 >= 56320 & v116 <= 57343 ? (65536 + (v110 - 55296 << 10 >>> 0) >>> 0) + (v116 - 56320 >>> 0) >>> 0 : null;
         }
       }
-      s6 = p7;
-      if (!(s6 === null)) {
-        p5 = { f0: s6, f1: 2 };
-        break B2;
-      }
-      var v159 = "x".charCodeAt(0) >>> 0;
-      p8 = (v159 >= 55296 & v159 <= 57343 || v159 >= 1114112) ? 65533 : v159;
-      p5 = { f0: p8, f1: 1 };
+      var v155 = "x".charCodeAt(0) >>> 0;
+      p5 = { f0: v155 >= 55296 & v155 <= 57343 ? 65533 : v155, f1: 1 };
     }
   }
-  return (p5.f0 === 120 && "x" === "x" ? v69 + 100000 | 0 : v69) + 1000000 | 0;
+  return (p5.f0 === 120 && "x" === "x" ? v66 + 100000 | 0 : v66) + 1000000 | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

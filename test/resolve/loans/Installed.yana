@@ -68,14 +68,17 @@ fn fieldOrigin() -> Int:
     source.value = 5
     return read + source.value
 
--- 17: a lens, and the source written once both the region and the destination are over.
+-- 17: a lens, and the source written once both the region and the destination are over. `box` is
+-- read after the region, because `holding` holds `&box` until its continuation is done (J185); the
+-- source is lent shared, so reading it inside is fine.
 fn throughLens() -> Int:
     let &seed = Cell {value: 1}
     let &source = Cell {value: 7}
     let &box = Store {held: seed}
     let &read = 0
     holding(box, source):
-        read = box.held.value
+        read = source.value
+    read = box.held.value
     source.value = 10
     return read + source.value
 

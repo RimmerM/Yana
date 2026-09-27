@@ -1,0 +1,49 @@
+{-
+   A dot call reaching a lens declared in the receiver's namespace - `x.f(y)` is `f(x, y)` for every
+   callee, a `lens fn Counter.scoped` included.
+
+   A lens call decides that it is one from the callee's name, before the receiver is resolved, so the
+   receiver's namespace is read off its declaration: a local, or a field path from one. Both are
+   here, beside a bare lens of the same name, which the namespaced one wins over exactly as it does
+   for an ordinary dot call.
+-}
+
+data Counter {value: Int, entered: Int}
+data Holder {counter: Counter}
+
+let &log = 0
+
+lens fn Counter.scoped(&self: Counter, step: Int) -> Int:
+    self.entered += 1
+    yield self.value
+    self.value += step
+
+lens fn Counter.touch(&self: Counter):
+    self.entered += 10
+    yield {}
+    self.entered += 100
+
+-- The bare name, which a `Counter` receiver does not reach.
+lens fn scoped(x: Int, step: Int) -> Int:
+    log += 1000
+    yield x + step
+
+fn main() -> Int:
+    let &c = Counter {value: 5, entered: 0}
+
+    let v = c.scoped(2) in:
+        log += v                         -- 5
+
+    c.touch():
+        log += 1                         -- the lens holds `c`, so the block cannot read it
+
+    let &h = Holder {counter: c}
+    let w = h.counter.scoped(3) in:
+        log += w                         -- 7
+
+    let bare = 1
+    let u = bare.scoped(1) in:
+        log += u                         -- 2, and 1000 from the bare lens
+
+    -- 5 + 1 + 7 + 1002, then 10 for the counter's final value and 112 for its entries: 1137.
+    return log + h.counter.value + h.counter.entered

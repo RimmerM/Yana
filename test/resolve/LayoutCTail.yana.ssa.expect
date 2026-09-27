@@ -1,0 +1,125 @@
+module ResolveTest
+
+fn main() -> I32 {
+bb0:
+  %0: %Nest address = alloc frame Nest
+  %1: %USize address = alloc frame USize
+  %2: %USize address = alloc frame USize
+  %3: I64 trivial = const 0
+  %4: I8 trivial = const 0
+  %5: Tail trivial = aggregate.Tail consume %3 consume %4
+  %6: Size trivial = call sizeOf(Tail) borrow %5
+  %7: Size trivial = const 16
+  %8: Bool trivial = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I64 trivial = const 0
+  %10: I8 trivial = const 0
+  %11: Tail trivial = aggregate.Tail consume %9 consume %10
+  %12: [Tail *3] trivial = aggregate.0 consume %11 consume %11 consume %11
+  %13: Size trivial = call sizeOf([Tail *3]) borrow %12
+  %14: Size trivial = const 48
+  %15: Bool trivial = ne inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb3:
+  %16: I32 trivial = const 1
+  return consume %16
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %17: I64 trivial = const 0
+  %18: I8 trivial = const 0
+  %19: Tail trivial = aggregate.Tail consume %17 consume %18
+  %20: I8 trivial = const 0
+  %21: Nest trivial = aggregate.Nest consume %19 consume %20
+  %22: Size trivial = call sizeOf(Nest) borrow %21
+  %23: Size trivial = const 24
+  %24: Bool trivial = ne inspect %22 inspect %23
+  branch inspect %24 -> bb9 -> bb7
+
+bb6:
+  %25: I32 trivial = const 2
+  return consume %25
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %26: I64 trivial = const 0
+  %27: I8 trivial = const 0
+  %28: Tight trivial = aggregate.Tight consume %26 consume %27
+  %29: Size trivial = call sizeOf(Tight) borrow %28
+  %30: Size trivial = const 9
+  %31: Bool trivial = ne inspect %29 inspect %30
+  branch inspect %31 -> bb12 -> bb10
+
+bb9:
+  %32: I32 trivial = const 3
+  return consume %32
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %33: I64 trivial = const 0
+  %34: I8 trivial = const 0
+  %35: Plain trivial = aggregate.Plain consume %33 consume %34
+  %36: Size trivial = call sizeOf(Plain) borrow %35
+  %37: Size trivial = const 9
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb15 -> bb13
+
+bb12:
+  %39: I32 trivial = const 4
+  return consume %39
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %40: I64 trivial = const 1
+  %41: I8 trivial = const 2
+  %42: Tail trivial = aggregate.Tail consume %40 consume %41
+  %43: I8 trivial = const 3
+  %44: Nest trivial = aggregate.Nest consume %42 consume %43
+  store inspect %0 consume %44
+  %45: Nest [shared slot 0] guaranteed from{%0} = load inspect %0
+  %46: %Nest [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %45
+  %47: USize trivial = bitcast inspect %46
+  store inspect %1 consume %47
+  %48: %I8 address = field.addr .tag inspect %0
+  %49: I8 [shared slot 0] guaranteed from{%0} = load inspect %48
+  %50: %I8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %49
+  %51: USize trivial = bitcast inspect %50
+  store inspect %2 consume %51
+  %52: USize trivial = load inspect %2
+  %53: USize trivial = load inspect %1
+  %54: USize trivial = sub inspect %52 inspect %53
+  %55: USize trivial = const 16
+  %56: Bool trivial = ne inspect %54 inspect %55
+  branch inspect %56 -> bb18 -> bb16
+
+bb15:
+  %57: I32 trivial = const 5
+  return consume %57
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %58: I32 trivial = const 0
+  return consume %58
+
+bb18:
+  %59: I32 trivial = const 6
+  return consume %59
+}
+
+entry main

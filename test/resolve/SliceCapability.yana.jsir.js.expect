@@ -10,18 +10,15 @@ function readView(v) {
 function main() {
   var v9 = new Int32Array([3, 1, 2]);
   if (v9[0] !== 3) return -1n;
-  v9[0] = v9[0] + 1 | 0;
-  v9[1] = v9[1] + 1 | 0;
-  if (v9[0] !== 4) return -2n;
-  if (v9[1] !== 2) return -3n;
+  v9[0] = 4;
+  var v29 = v9[1] + 1 | 0;
+  v9[1] = v29;
+  if (v29 !== 2) return -3n;
   if (readView({ buf: { items: v9, length: 3, offset: 0 }, at: 2 }) !== 2) return -4n;
-  var v87 = { items: v9, length: 3, offset: 0 };
-  if (readView({ buf: v87, at: 0 }) !== 4) return -5n;
-  if (0 >= v87.length >>> 0) throw $t;
-  var v103 = v87.items;
-  var v105 = v87.offset;
-  v103[v105] = 100;
-  if (v103[v105] !== 100) return -6n;
+  var v45 = { items: v9, length: 3, offset: 0 };
+  if (readView({ buf: v45, at: 0 }) !== 4) return -5n;
+  if (0 >= v45.length >>> 0) throw $t;
+  v45.items[v45.offset] = 100;
   return BigInt.asIntN(64, BigInt(v9[1] + v9[2] | 0));
 }
 var $t = "yana: a runtime check failed";

@@ -1,0 +1,142 @@
+{-
+   A skipping lens whose failure type is a variable of its signature - Implementation-Streams.md's
+   P14, and the `WindowOutput` half of its codec core (§3.4).
+
+   `| E` is read beside the hand-over like any other position, so a failure written over a type
+   variable - the class's `error`, a generic function's own `e`, or a record of one (`Wrap(e)`) -
+   is `Outcome(exit, E)` at that variable, and every call is specialized, so each specialization
+   answers the concrete wrapper its instance names. What this file asserts is that the call site
+   agrees: a skip block's reason is the failure *in the caller's terms*, substituted, and not the
+   callee's declaration read back - which for a class member names the class's variable.
+
+     - `WindowOutput` is the protocol with two dependent parameters, one of them the failure, and
+       `copyInto` is the driver generic in both, using the member in block form with an
+       alternative that wraps what it failed with.
+     - Two instances fail with different kinds of type: a scalar enum and a record with a teardown,
+       so the reason a skip hands over owes a drop in one specialization and nothing in the other.
+     - `peek` fails with `Wrap(e)`, a failure type that is itself generic.
+     - `echo` is the smallest case, `(a | a)`: the hand-over and the failure the same variable.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data OutputWindow(unit) {space: &'[unit], used: Size}
+
+fn commit(&window: OutputWindow(unit), count: Size):
+    window.used += count
+
+class WindowOutput(o -> unit, error):
+    lens fn withWindow(&output: o, minimum: Size, preferred: Size) -> (&OutputWindow(unit) | error)
+
+data OutFail = OutFull | OutClosed
+
+-- Windows over one fixed buffer; fails with a scalar once it is full.
+data FixedWindows {storage: [U8], used: Size}
+
+instance WindowOutput(FixedWindows, U8, OutFail):
+    lens fn withWindow(&output: FixedWindows, minimum: Size, preferred: Size) -> (&OutputWindow(U8) | OutFail):
+        let room = length(output.storage) - output.used
+        if room < minimum then return OutFull
+        let take = if room < preferred then room else preferred
+        let start = output.used
+        let &w = OutputWindow {space: output.storage.sliceMut(start, start + take), used: 0}
+        yield w
+        output.used = start + w.used
+
+-- The same, failing with a value that owns something: every reason it hands over has to die once.
+data GuardedWindows {storage: [U8], used: Size, id: I32}
+
+instance WindowOutput(GuardedWindows, U8, Guard):
+    lens fn withWindow(&output: GuardedWindows, minimum: Size, preferred: Size) -> (&OutputWindow(U8) | Guard):
+        let room = length(output.storage) - output.used
+        if room < minimum then return Guard {id: output.id}
+        let take = if room < preferred then room else preferred
+        let start = output.used
+        let &w = OutputWindow {space: output.storage.sliceMut(start, start + take), used: 0}
+        yield w
+        output.used = start + w.used
+
+data Wrap(e) = Wrap(e)
+
+-- Copies `bytes` through windows of at most three, and fails with what the output failed with.
+fn (WindowOutput(o, U8, e)) copyInto(&output: o, bytes: [U8]) -> Result(Wrap(e), Size):
+    let &at = 0 :: Size
+    while at < length(bytes):
+        let w = output.withWindow(1, 3) | reason -> return Err(Wrap(reason)) in:
+            let &n = 0 :: Size
+            while n < length(w.space) && at < length(bytes):
+                w.space[n] = bytes[at] + 1
+                n += 1
+                at += 1
+            w.commit(n)
+    return Ok(at)
+
+-- The alternative that binds nothing: the owned reason is dropped by the caller all the same.
+fn (WindowOutput(o, U8, e)) fits(&output: o, count: Size) -> Bool:
+    let w = output.withWindow(count, count) | else -> return False in:
+        w.commit(count)
+    return True
+
+-- A free generic lens whose failure is a record of its own variable.
+lens fn (a) peek(value: a, empty: Bool, ->reason: a) -> (a | Wrap(a)):
+    if empty then return Wrap(reason)
+    yield value
+
+lens fn (a) echo(->value: a, fail: Bool) -> (a | a):
+    if fail then return value
+    yield value
+
+fn fixedScore(r: Result(Wrap(OutFail), Size)) -> I32 = match r:
+    Ok(n) -> truncate(n)
+    Err(Wrap(OutFull)) -> 100
+    Err(Wrap(OutClosed)) -> 200
+
+fn guardedScore(r: Result(Wrap(Guard), Size)) -> I32 = match r:
+    Ok(n) -> truncate(n)
+    Err(Wrap(g)) -> 1000 * g.id
+
+fn zeros(n: Size) -> [U8]:
+    let &xs = [] :: [U8]
+    for i in 0..n:
+        push(xs, 0)
+    return xs
+
+fn main() -> I32:
+    -- 7 bytes into 16: all of them, 2..8 written.
+    let &a = FixedWindows {storage: zeros(16), used: 0}
+    let ra = fixedScore(copyInto(a, [1, 2, 3, 4, 5, 6, 7]))
+    let wa = (truncate(a.used) :: I32) * 10 + (a.storage[6] :: I32)          -- 70 + 8
+
+    -- 7 into 5: two windows, then the third fails with `OutFull`.
+    let &b = FixedWindows {storage: zeros(5), used: 0}
+    let rb = fixedScore(copyInto(b, [1, 2, 3, 4, 5, 6, 7]))         -- 100
+    let wb = (truncate(b.used) :: I32)                                      -- 5
+
+    -- The owning failure: 7 into 4 fails with guard 3, which `guardedScore` reads and then drops.
+    let &c = GuardedWindows {storage: zeros(4), used: 0, id: 3}
+    let rc = guardedScore(copyInto(c, [1, 2, 3, 4, 5, 6, 7]))       -- 3000, trace 3
+
+    -- `fits` discards its reason: guard 5 dies there, and the one that fit leaves none.
+    let &d = GuardedWindows {storage: zeros(4), used: 0, id: 5}
+    let fd = (if fits(d, 3) then 1 else 0) + (if fits(d, 3) then 10 else 0)  -- 1, trace 8
+
+    let &peeked = 0
+    let p = peek(4, False, 9) | Wrap(r) -> print("unreachable {r}") in:
+        peeked += p                                                  -- 4
+    let q = peek(4, True, 9) | Wrap(r) -> peeked += r * 10 in:       -- 90
+        peeked += q * 1000
+
+    let &echoed = 0
+    let e = echo(Guard {id: 20}, False) | g -> echoed += 1 in:
+        echoed += e.id                                               -- 20, dropped: trace 28
+    let f = echo(Guard {id: 400}, True) | g -> echoed += g.id in:    -- 400, dropped: trace 428
+        echoed += 100000
+
+    -- 7 + 78 + 100 + 5 + 3000 + 1 + 94 + 420 + 428 = 4133
+    return ra + wa + rb + wb + rc + fd + peeked + echoed + trace

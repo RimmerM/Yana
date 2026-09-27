@@ -2,9 +2,9 @@ module ResolveTest
 
 let & trace: Size = 0
 
-let string'142: [CodeUnit *2] = "ab"
+let string'188: [CodeUnit *2] = "ab"
 
-let string'143: [CodeUnit *1] = "x"
+let string'189: [CodeUnit *1] = "x"
 
 iter words.Iter of words {
   $index: I32
@@ -60,7 +60,7 @@ bb0:
   store inspect %10 consume %12
   %13: Size trivial = const 0
   store inspect %0 consume %13
-  %14: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %14: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %1 consume %14
   %15: String [shared slot 0] guaranteed from{%1} = load inspect %1
   jump -> bb13
@@ -98,7 +98,7 @@ bb4:
 
 bb5:
   drop guards.Iter inspect %4
-  %56: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %56: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
   %57: Bool trivial = const True
   store inspect %9 consume %57
   store inspect %6 consume %56

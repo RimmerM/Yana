@@ -1,0 +1,258 @@
+mut @trace = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @failures = [0, 0, 0, 0]
+mut @released = [0, 0, 0, 0]
+
+Tag.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @trace, 8: I64
+    %v_3 = imul %v_2, 10: I64
+    %v_4 = add %v_3, 9: I64
+    store @trace, %v_4, 8
+    %v_5 = loads @released, 4: I32
+    %v_6 = shl 1, %v_0: I32
+    %v_7 = or %v_5, %v_6: I32
+    store @released, %v_7, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 3, 4
+    %v_2, %v_3, %v_4, %v_5, %v_6, %v_7, %v_8 = call_complex upTo$new, %v_1, 5: I64, I32, I32, I32, I32, I32, I32
+    %v_9 = imm 1: I32
+    jmp b_10
+  }
+
+  b_11 {
+    %v_12 = loads @trace, 8: I64
+    %v_13 = cmp_neq %v_12, 18829: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_10 {
+    %v_16 = phi [b_0, %v_3], [b_17, %v_9]: I32
+    %v_18 = phi [b_0, %v_6], [b_17, %v_19]: I32
+    %v_20 = phi [b_0, %v_7], [b_17, %v_21]: I32
+    %v_22 = phi [b_0, %v_8], [b_17, %v_23]: I32
+    %v_24 = bitcast %v_2: Ptr
+    %v_25 = cmp_eq %v_16, 1: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_27 {
+    %v_28 = cmp_eq %v_16, 0: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = loads @trace, 8: I64
+    %v_32 = imul %v_31, 10: I64
+    %v_33 = add %v_32, 1: I64
+    store @trace, %v_33, 8
+    jmp b_34
+  }
+
+  b_26 {
+    %v_35 = add %v_18, %v_22: I32
+    jmp b_34
+  }
+
+  b_34 {
+    %v_21 = phi [b_29, %v_5], [b_26, %v_20]: I32
+    %v_23 = phi [b_29, 1], [b_26, %v_22]: I32
+    %v_19 = phi [b_29, 0], [b_26, %v_35]: I32
+    %v_36 = cmp_ilt %v_19, %v_21: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_38 {
+    %v_39 = loads @released, 4: I32
+    %v_40 = loads %v_24, 4: I32
+    %v_41 = shl 1, %v_40: I32
+    %v_42 = and %v_39, %v_41: I32
+    %v_43 = cmp_eq %v_42, 0: I32
+    %v_44 = select %v_43, 2, 7: I64
+    %v_45 = loads @trace, 8: I64
+    %v_46 = imul %v_45, 10: I64
+    %v_47 = add %v_46, %v_44: I64
+    store @trace, %v_47, 8
+    jmp b_30
+  }
+
+  b_30 {
+    %v_48 = phi [b_27, %v_16], [b_38, 2147483647]: I32
+    call_complex upTo$drop, %v_2, %v_48
+    %v_49 = load %v_1, 4: I32
+    call_complex Tag.drop, %v_49
+    %failures = global @failures: Ptr
+    %v_50 = loads %failures, 4: I32
+    %v_51 = add %v_50, 1024: I32
+    store %failures, %v_51, 4
+    jmp b_11
+  }
+
+  b_37 {
+    %v_52 = cmp_eq %v_19, 2: I32
+    je %v_52, b_53, b_17
+  }
+
+  b_17 {
+    %v_54 = loads @trace, 8: I64
+    %v_55 = imul %v_54, 10: I64
+    %v_56 = add %v_55, 8: I64
+    store @trace, %v_56, 8
+    jmp b_10
+  }
+
+  b_53 {
+    call_complex upTo$drop, %v_2, %v_9
+    %v_57 = load %v_1, 4: I32
+    call_complex Tag.drop, %v_57
+    jmp b_11
+  }
+
+  b_14 {
+    %failures = global @failures: Ptr
+    %v_58 = loads %failures, 4: I32
+    %v_59 = add %v_58, 1: I32
+    store %failures, %v_59, 4
+    jmp b_15
+  }
+
+  b_15 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    %v_60 = alloca 4, 4: Ptr
+    store %v_60, 3, 4
+    %v_61, %v_62, %v_63, %v_64, %v_65, %v_66, %v_67 = call_complex upTo$new, %v_60, 2: I64, I32, I32, I32, I32, I32, I32
+    jmp b_68
+  }
+
+  b_68 {
+    %v_69 = phi [b_15, %v_62], [b_70, 1]: I32
+    %v_71 = phi [b_15, %v_65], [b_70, %v_72]: I32
+    %v_73 = phi [b_15, %v_66], [b_70, %v_74]: I32
+    %v_75 = phi [b_15, %v_67], [b_70, %v_76]: I32
+    %v_77 = bitcast %v_61: Ptr
+    %v_78 = cmp_eq %v_69, 1: I32
+    je %v_78, b_79, b_80
+  }
+
+  b_80 {
+    %v_81 = cmp_eq %v_69, 0: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    %v_84 = loads @trace, 8: I64
+    %v_85 = imul %v_84, 10: I64
+    %v_86 = add %v_85, 1: I64
+    store @trace, %v_86, 8
+    jmp b_87
+  }
+
+  b_79 {
+    %v_88 = add %v_71, %v_75: I32
+    jmp b_87
+  }
+
+  b_87 {
+    %v_74 = phi [b_82, %v_64], [b_79, %v_73]: I32
+    %v_76 = phi [b_82, 1], [b_79, %v_75]: I32
+    %v_72 = phi [b_82, 0], [b_79, %v_88]: I32
+    %v_89 = cmp_ilt %v_72, %v_74: I32
+    je %v_89, b_70, b_90
+  }
+
+  b_90 {
+    %v_91 = loads @released, 4: I32
+    %v_92 = loads %v_77, 4: I32
+    %v_93 = shl 1, %v_92: I32
+    %v_94 = and %v_91, %v_93: I32
+    %v_95 = cmp_eq %v_94, 0: I32
+    %v_96 = select %v_95, 2, 7: I64
+    %v_97 = loads @trace, 8: I64
+    %v_98 = imul %v_97, 10: I64
+    %v_99 = add %v_98, %v_96: I64
+    store @trace, %v_99, 8
+    jmp b_83
+  }
+
+  b_83 {
+    %v_100 = phi [b_80, %v_69], [b_90, 2147483647]: I32
+    call_complex upTo$drop, %v_61, %v_100
+    %v_101 = load %v_60, 4: I32
+    call_complex Tag.drop, %v_101
+    %v_102 = loads @trace, 8: I64
+    %v_103 = cmp_neq %v_102, 18829: I32
+    je %v_103, b_104, b_105
+  }
+
+  b_70 {
+    %v_106 = loads @trace, 8: I64
+    %v_107 = imul %v_106, 10: I64
+    %v_108 = add %v_107, 8: I64
+    store @trace, %v_108, 8
+    jmp b_68
+  }
+
+  b_104 {
+    %failures = global @failures: Ptr
+    %v_109 = loads %failures, 4: I32
+    %v_110 = add %v_109, 2: I32
+    store %failures, %v_110, 4
+    jmp b_105
+  }
+
+  b_105 {
+    store @trace, 0, 8
+    store @released, 0, 4
+    %v_111 = loads @failures, 4: I32
+    ret %v_111
+  }
+}
+
+upTo$new<complex>(%t: Ptr, %n: I32): I64, I32, I32, I32, I32, I32, I32 {
+  b_0 {
+    %v_1 = bitcast %t: I64
+    ret %v_1, 0, 0, %n, 0, 0, 0
+  }
+}
+
+upTo$drop<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = bitcast %v_0: Ptr
+    %v_4 = cmp_eq %v_1, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_7 {
+    ret 
+  }
+
+  b_6 {
+    %v_8 = cmp_eq %v_1, 0: I32
+    je %v_8, b_9, b_7
+  }
+
+  b_9 {
+    jmp b_7
+  }
+
+  b_5 {
+    %v_10 = loads @released, 4: I32
+    %v_11 = loads %v_3, 4: I32
+    %v_12 = shl 1, %v_11: I32
+    %v_13 = and %v_10, %v_12: I32
+    %v_14 = cmp_eq %v_13, 0: I32
+    %v_15 = select %v_14, 2, 7: I64
+    %v_16 = loads @trace, 8: I64
+    %v_17 = imul %v_16, 10: I64
+    %v_18 = add %v_17, %v_15: I64
+    store @trace, %v_18, 8
+    jmp b_7
+  }
+}
+

@@ -45,45 +45,31 @@ fn offsetWideRoundTrip(one %r3) -> one %r3
 
 fn main() -> one %r7
   block0:
-    %14: %r3 = const 78187493530n
-    %15: %r3 = call wideRoundTrip %14
-    %16: %r3 = const 151488268715n
-    %17: %r3 = call offsetWideRoundTrip %16
-    %51: %r7 = const 155
-    %52: %r3 = const 78187493530n
-    %53: %r9 = binary.eq %15, %52
-    %54: %r7 = const 1
-    %55: %r7 = const 0
-    %56: %r7 = select %53, %54, %55
-    %57: %r7 = binary.add %51, %56
-    %58: %r7 = coerce %57
-    %59: %r3 = const 151488268715n
-    %60: %r9 = binary.eq %17, %59
-    %61: %r7 = const 1
-    %62: %r7 = const 0
-    %63: %r7 = select %60, %61, %62
-    %64: %r7 = binary.add %58, %63
-    %65: %r7 = coerce %64
-    %66: %r7 = const 2
-    %67: %r7 = binary.add %65, %66
-    %68: %r7 = coerce %67
-    jump -> block3
-  block1:
-    %76: %r7 = const 0
-    jump -> block2(%76)
-  block2(%0: %r7):
-    %78: %r7 = binary.add %68, %0
-    %79: %r7 = coerce %78
-    return %79
-  block3:
-    jump -> block4
-  block4:
-    jump -> block5
-  block5:
-    %77: %r7 = const 2
-    jump -> block2(%77)
+    %13: %r3 = const 78187493530n
+    %14: %r3 = call wideRoundTrip %13
+    %15: %r3 = const 151488268715n
+    %16: %r3 = call offsetWideRoundTrip %15
+    %45: %r7 = const 155
+    %46: %r3 = const 78187493530n
+    %47: %r9 = binary.eq %14, %46
+    %48: %r7 = const 1
+    %49: %r7 = const 0
+    %50: %r7 = select %47, %48, %49
+    %51: %r7 = binary.add %45, %50
+    %52: %r7 = coerce %51
+    %53: %r3 = const 151488268715n
+    %54: %r9 = binary.eq %16, %53
+    %55: %r7 = const 1
+    %56: %r7 = const 0
+    %57: %r7 = select %54, %55, %56
+    %58: %r7 = binary.add %52, %57
+    %59: %r7 = coerce %58
+    %60: %r7 = const 4
+    %61: %r7 = binary.add %59, %60
+    %62: %r7 = coerce %61
+    return %62
 
-optimizer clones 0 aliased 0 forwarded 0 removed 58 adopted 2 sunk 0 numbered 0 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 4
+optimizer clones 0 aliased 0 forwarded 0 removed 46 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 shape %s0 object WideBits {value: %r0, tail: %r1}
 shape %s1 object OffsetWide {prefix: %r5, value: %r0, suffix: %r5}

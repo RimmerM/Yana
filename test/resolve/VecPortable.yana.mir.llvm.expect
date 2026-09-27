@@ -122,39 +122,39 @@ define fastcc i32 @main() #0 {
   %2 = load i32, ptr @seed, align 1
   %.splatinsert = insertelement <4 x i32> poison, i32 %2, i64 0
   %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
-  br i1 false, label %7, label %51
+  br i1 false, label %7, label %42
 
-3:                                                ; preds = %54
+3:                                                ; preds = %45
   %4 = call fastcc i32 @arithmetic(<4 x i32> %.splat)
   %5 = icmp ne i32 %4, 0
   %6 = zext i1 %5 to i32
   br i1 %5, label %13, label %8
 
-7:                                                ; preds = %54, %53, %52, %51, %1
-  br i1 false, label %71, label %60
+7:                                                ; preds = %45, %44, %43, %42, %1
+  br i1 false, label %62, label %51
 
 8:                                                ; preds = %3
   %9 = call <4 x float> @llvm.fabs.v4f32(<4 x float> splat (float -1.500000e+00))
   %10 = extractelement <4 x float> %9, i32 0
   %11 = fcmp une float %10, 1.500000e+00
   %12 = zext i1 %11 to i32
-  br i1 %11, label %20, label %72
+  br i1 %11, label %20, label %63
 
 13:                                               ; preds = %3
   %14 = call fastcc i32 @arithmetic(<4 x i32> %.splat)
   %15 = mul i32 %14, 10
   ret i32 %15
 
-16:                                               ; preds = %74
+16:                                               ; preds = %65
   %17 = call fastcc i32 @rearrangement()
   %18 = icmp ne i32 %17, 0
   %19 = zext i1 %18 to i32
   br i1 %18, label %35, label %23
 
-20:                                               ; preds = %74, %73, %72, %8
+20:                                               ; preds = %65, %64, %63, %8
   %21 = fcmp une float %10, 1.500000e+00
   %22 = zext i1 %21 to i32
-  br i1 %21, label %94, label %83
+  br i1 %21, label %85, label %74
 
 23:                                               ; preds = %16
   %24 = load i32, ptr @seed, align 1
@@ -170,186 +170,175 @@ define fastcc i32 @main() #0 {
   %32 = ashr i32 %31, 16
   %33 = icmp ne i32 %32, 2
   %34 = zext i1 %33 to i32
-  br i1 %33, label %39, label %95
+  br i1 %33, label %39, label %86
 
 35:                                               ; preds = %16
   %36 = call fastcc i32 @rearrangement()
   %37 = mul i32 %36, 1000
   ret i32 %37
 
-38:                                               ; preds = %110
+38:                                               ; preds = %101
   ret i32 271
 
-39:                                               ; preds = %110, %102, %95, %23
-  %40 = load i32, ptr @seed, align 1
-  %.splatinsert3 = insertelement <4 x i32> poison, i32 %40, i64 0
-  %.splat4 = shufflevector <4 x i32> %.splatinsert3, <4 x i32> poison, <4 x i32> zeroinitializer
-  %41 = insertelement <4 x i32> %.splat4, i32 5, i32 0
-  %42 = trunc <4 x i32> %.splat4 to <4 x i16>
-  %43 = trunc <4 x i32> %41 to <4 x i16>
-  %44 = shufflevector <4 x i16> %42, <4 x i16> %43, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
-  %45 = extractelement <8 x i16> %44, i32 0
-  %46 = zext i16 %45 to i32
-  %47 = shl i32 %46, 16
-  %48 = ashr i32 %47, 16
-  %49 = icmp ne i32 %48, 2
-  %50 = zext i1 %49 to i32
-  br i1 %49, label %139, label %117
+39:                                               ; preds = %101, %93, %86, %23
+  %40 = icmp ne i32 %32, 2
+  %41 = zext i1 %40 to i32
+  br i1 %40, label %130, label %108
 
-51:                                               ; preds = %1
-  br i1 false, label %7, label %52
+42:                                               ; preds = %1
+  br i1 false, label %7, label %43
+
+43:                                               ; preds = %42
+  br i1 false, label %7, label %44
+
+44:                                               ; preds = %43
+  br i1 false, label %7, label %45
+
+45:                                               ; preds = %44
+  %46 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 3>)
+  %47 = icmp ne i32 %46, 6
+  %48 = zext i1 %47 to i32
+  br i1 %47, label %7, label %3
+
+49:                                               ; preds = %62, %61, %60, %59, %54
+  %50 = phi i32 [ %58, %54 ], [ -4, %59 ], [ -3, %60 ], [ -2, %61 ], [ -1, %62 ]
+  ret i32 %50
+
+51:                                               ; preds = %7
+  br i1 false, label %61, label %52
 
 52:                                               ; preds = %51
-  br i1 false, label %7, label %53
+  br i1 false, label %60, label %53
 
 53:                                               ; preds = %52
-  br i1 false, label %7, label %54
+  br i1 false, label %59, label %54
 
 54:                                               ; preds = %53
   %55 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 3>)
   %56 = icmp ne i32 %55, 6
   %57 = zext i1 %56 to i32
-  br i1 %56, label %7, label %3
+  %58 = select i1 %56, i32 -6, i32 0
+  br label %49
 
-58:                                               ; preds = %71, %70, %69, %68, %63
-  %59 = phi i32 [ %67, %63 ], [ -4, %68 ], [ -3, %69 ], [ -2, %70 ], [ -1, %71 ]
-  ret i32 %59
+59:                                               ; preds = %53
+  br label %49
 
-60:                                               ; preds = %7
-  br i1 false, label %70, label %61
+60:                                               ; preds = %52
+  br label %49
 
-61:                                               ; preds = %60
-  br i1 false, label %69, label %62
+61:                                               ; preds = %51
+  br label %49
 
-62:                                               ; preds = %61
-  br i1 false, label %68, label %63
+62:                                               ; preds = %7
+  br label %49
 
-63:                                               ; preds = %62
-  %64 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 3>)
-  %65 = icmp ne i32 %64, 6
-  %66 = zext i1 %65 to i32
-  %67 = select i1 %65, i32 -6, i32 0
-  br label %58
+63:                                               ; preds = %8
+  br i1 false, label %20, label %64
 
-68:                                               ; preds = %62
-  br label %58
+64:                                               ; preds = %63
+  br i1 false, label %20, label %65
 
-69:                                               ; preds = %61
-  br label %58
+65:                                               ; preds = %64
+  %66 = call <4 x float> @llvm.fabs.v4f32(<4 x float> zeroinitializer)
+  %67 = extractelement <4 x float> %66, i32 0
+  %68 = fdiv float 1.000000e+00, %67
+  %69 = fcmp olt float %68, 0.000000e+00
+  %70 = zext i1 %69 to i32
+  br i1 %69, label %20, label %16
 
-70:                                               ; preds = %60
-  br label %58
+71:                                               ; preds = %85, %84, %83, %76
+  %72 = phi i32 [ %82, %76 ], [ -3, %83 ], [ -2, %84 ], [ -1, %85 ]
+  %73 = mul i32 %72, 100
+  ret i32 %73
 
-71:                                               ; preds = %7
-  br label %58
+74:                                               ; preds = %20
+  br i1 false, label %84, label %75
 
-72:                                               ; preds = %8
-  br i1 false, label %20, label %73
+75:                                               ; preds = %74
+  br i1 false, label %83, label %76
 
-73:                                               ; preds = %72
-  br i1 false, label %20, label %74
+76:                                               ; preds = %75
+  %77 = call <4 x float> @llvm.fabs.v4f32(<4 x float> zeroinitializer)
+  %78 = extractelement <4 x float> %77, i32 0
+  %79 = fdiv float 1.000000e+00, %78
+  %80 = fcmp olt float %79, 0.000000e+00
+  %81 = zext i1 %80 to i32
+  %82 = select i1 %80, i32 -4, i32 0
+  br label %71
 
-74:                                               ; preds = %73
-  %75 = call <4 x float> @llvm.fabs.v4f32(<4 x float> zeroinitializer)
-  %76 = extractelement <4 x float> %75, i32 0
-  %77 = fdiv float 1.000000e+00, %76
-  %78 = fcmp olt float %77, 0.000000e+00
-  %79 = zext i1 %78 to i32
-  br i1 %78, label %20, label %16
+83:                                               ; preds = %75
+  br label %71
 
-80:                                               ; preds = %94, %93, %92, %85
-  %81 = phi i32 [ %91, %85 ], [ -3, %92 ], [ -2, %93 ], [ -1, %94 ]
-  %82 = mul i32 %81, 100
-  ret i32 %82
+84:                                               ; preds = %74
+  br label %71
 
-83:                                               ; preds = %20
-  br i1 false, label %93, label %84
+85:                                               ; preds = %20
+  br label %71
 
-84:                                               ; preds = %83
-  br i1 false, label %92, label %85
+86:                                               ; preds = %23
+  %87 = extractelement <8 x i16> %28, i32 4
+  %88 = zext i16 %87 to i32
+  %89 = shl i32 %88, 16
+  %90 = ashr i32 %89, 16
+  %91 = icmp ne i32 %90, 5
+  %92 = zext i1 %91 to i32
+  br i1 %91, label %39, label %93
 
-85:                                               ; preds = %84
-  %86 = call <4 x float> @llvm.fabs.v4f32(<4 x float> zeroinitializer)
-  %87 = extractelement <4 x float> %86, i32 0
-  %88 = fdiv float 1.000000e+00, %87
-  %89 = fcmp olt float %88, 0.000000e+00
-  %90 = zext i1 %89 to i32
-  %91 = select i1 %89, i32 -4, i32 0
-  br label %80
+93:                                               ; preds = %86
+  %94 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %95 = sext <4 x i16> %94 to <4 x i32>
+  %96 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 4, i32 5, i32 6, i32 7>
+  %97 = sext <4 x i16> %96 to <4 x i32>
+  %98 = extractelement <4 x i32> %95, i32 0
+  %99 = icmp ne i32 %98, 2
+  %100 = zext i1 %99 to i32
+  br i1 %99, label %39, label %101
 
-92:                                               ; preds = %84
-  br label %80
+101:                                              ; preds = %93
+  %102 = extractelement <4 x i32> %97, i32 0
+  %103 = icmp ne i32 %102, 5
+  %104 = zext i1 %103 to i32
+  br i1 %103, label %39, label %38
 
-93:                                               ; preds = %83
-  br label %80
+105:                                              ; preds = %130, %129, %128, %123
+  %106 = phi i32 [ %127, %123 ], [ -4, %128 ], [ -3, %129 ], [ -2, %130 ]
+  %107 = mul i32 %106, 10000
+  ret i32 %107
 
-94:                                               ; preds = %20
-  br label %80
+108:                                              ; preds = %39
+  %109 = extractelement <8 x i16> %28, i32 4
+  %110 = zext i16 %109 to i32
+  %111 = shl i32 %110, 16
+  %112 = ashr i32 %111, 16
+  %113 = icmp ne i32 %112, 5
+  %114 = zext i1 %113 to i32
+  br i1 %113, label %129, label %115
 
-95:                                               ; preds = %23
-  %96 = extractelement <8 x i16> %28, i32 4
-  %97 = zext i16 %96 to i32
-  %98 = shl i32 %97, 16
-  %99 = ashr i32 %98, 16
-  %100 = icmp ne i32 %99, 5
-  %101 = zext i1 %100 to i32
-  br i1 %100, label %39, label %102
+115:                                              ; preds = %108
+  %116 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %117 = sext <4 x i16> %116 to <4 x i32>
+  %118 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 4, i32 5, i32 6, i32 7>
+  %119 = sext <4 x i16> %118 to <4 x i32>
+  %120 = extractelement <4 x i32> %117, i32 0
+  %121 = icmp ne i32 %120, 2
+  %122 = zext i1 %121 to i32
+  br i1 %121, label %128, label %123
 
-102:                                              ; preds = %95
-  %103 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-  %104 = sext <4 x i16> %103 to <4 x i32>
-  %105 = shufflevector <8 x i16> %28, <8 x i16> %28, <4 x i32> <i32 4, i32 5, i32 6, i32 7>
-  %106 = sext <4 x i16> %105 to <4 x i32>
-  %107 = extractelement <4 x i32> %104, i32 0
-  %108 = icmp ne i32 %107, 2
-  %109 = zext i1 %108 to i32
-  br i1 %108, label %39, label %110
+123:                                              ; preds = %115
+  %124 = extractelement <4 x i32> %119, i32 0
+  %125 = icmp ne i32 %124, 5
+  %126 = zext i1 %125 to i32
+  %127 = select i1 %125, i32 -5, i32 0
+  br label %105
 
-110:                                              ; preds = %102
-  %111 = extractelement <4 x i32> %106, i32 0
-  %112 = icmp ne i32 %111, 5
-  %113 = zext i1 %112 to i32
-  br i1 %112, label %39, label %38
+128:                                              ; preds = %115
+  br label %105
 
-114:                                              ; preds = %139, %138, %137, %132
-  %115 = phi i32 [ %136, %132 ], [ -4, %137 ], [ -3, %138 ], [ -2, %139 ]
-  %116 = mul i32 %115, 10000
-  ret i32 %116
+129:                                              ; preds = %108
+  br label %105
 
-117:                                              ; preds = %39
-  %118 = extractelement <8 x i16> %44, i32 4
-  %119 = zext i16 %118 to i32
-  %120 = shl i32 %119, 16
-  %121 = ashr i32 %120, 16
-  %122 = icmp ne i32 %121, 5
-  %123 = zext i1 %122 to i32
-  br i1 %122, label %138, label %124
-
-124:                                              ; preds = %117
-  %125 = shufflevector <8 x i16> %44, <8 x i16> %44, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-  %126 = sext <4 x i16> %125 to <4 x i32>
-  %127 = shufflevector <8 x i16> %44, <8 x i16> %44, <4 x i32> <i32 4, i32 5, i32 6, i32 7>
-  %128 = sext <4 x i16> %127 to <4 x i32>
-  %129 = extractelement <4 x i32> %126, i32 0
-  %130 = icmp ne i32 %129, 2
-  %131 = zext i1 %130 to i32
-  br i1 %130, label %137, label %132
-
-132:                                              ; preds = %124
-  %133 = extractelement <4 x i32> %128, i32 0
-  %134 = icmp ne i32 %133, 5
-  %135 = zext i1 %134 to i32
-  %136 = select i1 %134, i32 -5, i32 0
-  br label %114
-
-137:                                              ; preds = %124
-  br label %114
-
-138:                                              ; preds = %117
-  br label %114
-
-139:                                              ; preds = %39
-  br label %114
+130:                                              ; preds = %39
+  br label %105
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)

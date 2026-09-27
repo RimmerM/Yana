@@ -7,14 +7,15 @@ function main() {
   var v4 = new Int32Array([1, 2, 3]);
   var v9 = log + 20 | 0;
   log = v9;
-  v4[1] = v9 > 1000 ? 0 : 20;
-  var v52 = (v4[0] + v4[1] | 0) + v4[2] | 0;
+  var v13 = v9 > 1000 ? 0 : 20;
+  v4[1] = v13;
+  var v33 = (v4[0] + v13 | 0) + v4[2] | 0;
+  var v37 = new Int32Array([1, 2, 3]);
+  var v44 = v37[1];
+  v37[1] = 20;
+  var v52 = v33 + (v44 + 20 | 0) | 0;
   var v56 = new Int32Array([1, 2, 3]);
-  var v68 = v56[1];
   v56[1] = 20;
-  var v91 = v52 + (v68 + v56[1] | 0) | 0;
-  var v95 = new Int32Array([1, 2, 3]);
-  v95[1] = 20;
-  return (v91 + ((v95[0] + v95[1] | 0) + v95[2] | 0) | 0) + log | 0;
+  return (v52 + ((v56[0] + 20 | 0) + v56[2] | 0) | 0) + log | 0;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

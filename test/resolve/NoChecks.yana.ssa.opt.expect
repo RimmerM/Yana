@@ -11,34 +11,25 @@ bb0:
   %8: [I32 *4] trivial = aggregate.0 consume %4 consume %5 consume %6 consume %7
   store inspect %0 consume %8
   %9: [I32 *4] trivial = copy inspect %0
-  %11: Size trivial = const 2
   store inspect %1 consume %9
   %12: [I32 *4] [shared slot 0] guaranteed from{%1} = load inspect %1
   %85: [I32 *4] [shared slot 0 owner] guaranteed from{%1} = load inspect %12
   %86: %[I32 *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %85
-  %132: %I32 trivial = bitcast inspect %86
+  %131: %I32 trivial = bitcast inspect %86
   %88: Size trivial = const 4
-  %89: ArrayView(I32) trivial = aggregate.ArrayView consume %132 consume %88
-  %131: Size trivial = const 0
-  %111: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %132 inspect %131
-  %113: ArrayView(I32) trivial = aggregate.ArrayView consume %111 consume %11
-  %114: Array(I32) [shared slot 0 view] guaranteed = represent inspect %113
-  %18: Array(I32) [shared slot 0 view] guaranteed from{%1} = load inspect %114
-  %29: Array(I32) [shared slot 0 view] guaranteed from{%18} = load inspect %18
-  %115: %%I32 address = field.addr .items inspect %29
-  %116: %I32 trivial = load inspect %115
-  %117: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %116
+  %89: ArrayView(I32) trivial = aggregate.ArrayView consume %131 consume %88
   %124: Size trivial = const 0
-  %34: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %117 inspect %124
+  %107: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %131 inspect %124
+  %125: Size trivial = const 2
+  %109: ArrayView(I32) trivial = aggregate.ArrayView consume %107 consume %125
+  %126: %I32 trivial = represent inspect %107
+  %113: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %126
+  %127: Size trivial = const 0
+  %34: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %113 inspect %127
   %35: I32 [shared slot 0] guaranteed = load inspect %34
   %36: I32 trivial = load inspect %35
-  %40: Array(I32) [shared slot 0 view] guaranteed from{%1} = load inspect %114
-  %51: Array(I32) [shared slot 0 view] guaranteed from{%40} = load inspect %40
-  %118: %%I32 address = field.addr .items inspect %51
-  %119: %I32 trivial = load inspect %118
-  %120: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %119
   %54: Size trivial = metric stride I32
-  %56: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %120 inspect %54
+  %56: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %113 inspect %54
   %57: I32 [shared slot 0] guaranteed = load inspect %56
   %58: I32 trivial = load inspect %57
   %59: I32 trivial = add inspect %36 inspect %58

@@ -276,83 +276,75 @@ fn main() -> one %r1
     %33: %r2 = binary.lt %5, %22
     branch %33 -> block12 -> block10
   block12:
-    %126: %r17 = convert %5
-    %127: %r17 = const 7
-    %128: %r2 = binary.ge %126, %127
-    branch %128 -> block14 -> block13
+    %126: %r7 = alias %17
+    %127: %r1 = alias %5
+    %128: %r1 = coerce %127
+    %132: %r0 = load element %126[%128]: %r0
+    %133: %r1 = call wavelength %132
+    %134: %r0 = load element %126[%128]: %r0
+    %135: %r1 = call rank %134
+    %136: %r1 = binary.mul %135, %29
+    %137: %r1 = coerce %136
+    %138: %r1 = binary.add %133, %137
+    %139: %r1 = coerce %138
+    %140: %r0 = load element %126[%128]: %r0
+    %141: %r1 = call seven %140
+    %142: %r1 = binary.add %139, %141
+    %143: %r1 = coerce %142
+    %144: %r0 = load element %126[%128]: %r0
+    %145: %r1 = call wavelengthAgain %144
+    %146: %r1 = binary.add %143, %145
+    %147: %r1 = coerce %146
+    %148: %r5 = convert %147
+    %149: %r5 = binary.add %6, %148
+    %150: %r5 = coerce %149
+    %151: %r0 = load element %126[%128]: %r0
+    %152: %r2 = call warm %151
+    branch %152 -> block13 -> block14(%150)
   block13:
-    %129: %r7 = alias %17
-    %130: %r1 = alias %5
-    %131: %r1 = coerce %130
-    %135: %r0 = load element %129[%131]: %r0
-    %136: %r1 = call wavelength %135
-    %137: %r0 = load element %129[%131]: %r0
-    %138: %r1 = call rank %137
-    %139: %r1 = binary.mul %138, %29
-    %140: %r1 = coerce %139
-    %141: %r1 = binary.add %136, %140
-    %142: %r1 = coerce %141
-    %143: %r0 = load element %129[%131]: %r0
-    %144: %r1 = call seven %143
-    %145: %r1 = binary.add %142, %144
-    %146: %r1 = coerce %145
-    %147: %r0 = load element %129[%131]: %r0
-    %148: %r1 = call wavelengthAgain %147
-    %149: %r1 = binary.add %146, %148
-    %150: %r1 = coerce %149
-    %151: %r5 = convert %150
-    %152: %r5 = binary.add %6, %151
-    %153: %r5 = coerce %152
-    %154: %r0 = load element %129[%131]: %r0
-    %155: %r2 = call warm %154
-    branch %155 -> block15 -> block16(%153)
-  block14:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block15:
-    %156: %r5 = binary.add %153, %30
-    %157: %r5 = coerce %156
-    jump -> block16(%157)
-  block16(%7: %r5):
-    %158: %r0 = load element %129[%131]: %r0
-    %159: %r5 = call wide %158
-    %160: %r5 = binary.add %7, %159
-    %161: %r5 = coerce %160
-    %162: %r0 = load element %129[%131]: %r0
-    %163: %r6 = call pair %162
-    %164: %r6 = alias %163
-    %165: %r1 = load property %164.left: %r1
-    %166: %r1 = binary.mul %165, %31
-    %167: %r1 = coerce %166
-    %168: %r6 = alias %163
-    %169: %r1 = load property %168.right: %r1
-    %170: %r1 = binary.add %167, %169
-    %171: %r1 = coerce %170
-    %172: %r5 = convert %171
-    %173: %r5 = binary.add %161, %172
-    %174: %r5 = coerce %173
-    %175: %r3 = load var $5: %r3
-    %176: %r3 = alias %175
-    %177: %r0 = load element %129[%131]: %r0
-    %178: %r3 = call name %177
-    %179: %r3 = alias %176
-    %180: %r3 = alias %179
-    %181: %r3 = alias %178
-    %182: %r3 = alias %181
-    %183: %r3 = alias %180
-    %184: %r3 = alias %182
-    %185: %r3 = host host.binary "+" %183, %184
-    store var $5: %r3, %185
-    %186: %r1 = binary.add %5, %28
-    %187: %r1 = coerce %186
-    jump -> block11(%187, %174)
+    %153: %r5 = binary.add %150, %30
+    %154: %r5 = coerce %153
+    jump -> block14(%154)
+  block14(%7: %r5):
+    %155: %r0 = load element %126[%128]: %r0
+    %156: %r5 = call wide %155
+    %157: %r5 = binary.add %7, %156
+    %158: %r5 = coerce %157
+    %159: %r0 = load element %126[%128]: %r0
+    %160: %r6 = call pair %159
+    %161: %r6 = alias %160
+    %162: %r1 = load property %161.left: %r1
+    %163: %r1 = binary.mul %162, %31
+    %164: %r1 = coerce %163
+    %165: %r6 = alias %160
+    %166: %r1 = load property %165.right: %r1
+    %167: %r1 = binary.add %164, %166
+    %168: %r1 = coerce %167
+    %169: %r5 = convert %168
+    %170: %r5 = binary.add %158, %169
+    %171: %r5 = coerce %170
+    %172: %r3 = load var $5: %r3
+    %173: %r3 = alias %172
+    %174: %r0 = load element %126[%128]: %r0
+    %175: %r3 = call name %174
+    %176: %r3 = alias %173
+    %177: %r3 = alias %176
+    %178: %r3 = alias %175
+    %179: %r3 = alias %178
+    %180: %r3 = alias %177
+    %181: %r3 = alias %179
+    %182: %r3 = host host.binary "+" %180, %181
+    store var $5: %r3, %182
+    %183: %r1 = binary.add %5, %28
+    %184: %r1 = coerce %183
+    jump -> block11(%184, %171)
 
 fn Array(a).reclaim(Colour)(one %r9) -> omitted
   var $0: %r9
   block0(%0: %r9):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 1 numbered 1 decided 0 unboxed 1 updated 0 split 0 promoted 13 folded 1
+optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 1 numbered 1 decided 0 unboxed 1 updated 0 split 0 promoted 13 folded 0
 
 shape %s0 object Pair {left: %r1, right: %r1}
 shape %s1 object Array {items: %r7, length: %r8}
@@ -377,5 +369,4 @@ rep %r13 = parts (%r7, %r1, %r1) as %r12
 rep %r14 = object %s4
 rep %r15 = array Int32Array of %r1
 rep %r16 = boolean
-rep %r17 = number unsigned 32
-rep %r18 = array Array of %r3
+rep %r17 = array Array of %r3

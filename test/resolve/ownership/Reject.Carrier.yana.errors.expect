@@ -4,7 +4,7 @@
 45:20: error: the reason this function exits with must be Bool, and this is {}
 55:20: error: `?` cannot be written in a transparent `lens fn` - it answers by calling its continuation, so it has no return edge of its own for `?` to take. A lens that may skip declares the carrier it skips through with `| E`, and `?` is accepted in one of those
 54:0: error: a path through transparent reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`
-61:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild
+61:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild. An iterator that may fail says so with `| E`, and `?` is accepted in one of those
 73:37: error: `?.` produces Maybe(I32) rather than I32 - a chain containing it comes back wrapped, because the skip goes to the end of the chain and not out of this function. `?` is the operator that leaves, so write `(x?).field` if that is what was meant
 76:43: error: `?.` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
 80:48: error: Node has no field called missing

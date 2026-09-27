@@ -1,0 +1,145 @@
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r2
+  var $2: %r2
+  block0:
+    %9: %r2 = const "a"
+    %10: %r5 = fun.code main.lambda
+    %11: %r5 = const null
+    %13: %r2 = alias %9
+    %14: %r5 = alias %10
+    %15: %r5 = alias %11
+    %16: %r2 = call.value %14, %15, %13
+    %17: %r5 = alias %10
+    %18: %r5 = alias %11
+    %19: %r2 = call.value %17, %18, %16
+    %20: %r2 = const "a"
+    %21: %r5 = fun.code main.lambda'2
+    %22: %r5 = const null
+    %24: %r5 = alias %21
+    %25: %r5 = alias %22
+    %26: %r2 = call.value %24, %25, %20
+    %27: %r2 = alias %26
+    %28: %r5 = alias %21
+    %29: %r5 = alias %22
+    %30: %r2 = call.value %28, %29, %27
+    %31: %r0 = const 3
+    %32: %r5 = fun.code main.lambda'3
+    %33: %r5 = const null
+    %35: %r5 = alias %32
+    %36: %r5 = alias %33
+    %37: %r0 = call.value %35, %36, %31
+    %38: %r5 = alias %32
+    %39: %r5 = alias %33
+    %40: %r0 = call.value %38, %39, %37
+    %41: %r2 = alias %19
+    %42: %r2 = alias %41
+    %43: %r2 = alias %42
+    %44: %r2 = alias %43
+    %45: %r0 = host host.field "length" host-range %44
+    %46: %r0 = const 10
+    %47: %r0 = binary.mul %45, %46
+    %48: %r0 = coerce %47
+    %49: %r2 = alias %30
+    %50: %r2 = alias %49
+    %51: %r2 = alias %50
+    %52: %r2 = alias %51
+    %53: %r0 = host host.field "length" host-range %52
+    %54: %r0 = binary.add %48, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = convert %55
+    %57: %r0 = binary.add %56, %40
+    %58: %r0 = coerce %57
+    return %58
+
+fn main.lambda(one %r1, one %r2) -> one %r2 env
+  var $0: %r2
+  block0(%0: %r1, %1: %r2):
+    %2: %r2 = alias %1
+    %3: %r2 = alias %2
+    %4: %r2 = alias %3
+    %5: %r2 = alias %4
+    %6: %r0 = host host.field "length" host-range %5
+    %8: %r2 = const ""
+    store var $0: %r2, %8
+    %9: %r2 = const "b"
+    %10: %r2 = load var $0: %r2
+    %11: %r2 = alias %10
+    %12: %r2 = alias %9
+    %13: %r2 = alias %11
+    %14: %r2 = alias %12
+    %15: %r2 = host host.binary "+" %13, %14
+    store var $0: %r2, %15
+    %16: %r2 = alias %1
+    %17: %r2 = alias %16
+    %18: %r2 = load var $0: %r2
+    %19: %r2 = alias %18
+    %20: %r2 = alias %17
+    %21: %r2 = alias %19
+    %22: %r2 = alias %20
+    %23: %r2 = host host.binary "+" %21, %22
+    store var $0: %r2, %23
+    %24: %r2 = load var $0: %r2
+    %25: %r2 = alias %24
+    return %25
+
+fn main.lambda'2(one %r3, one %r2) -> one %r2 env
+  var $0: %r2
+  block0(%0: %r3, %1: %r2):
+    %2: %r2 = alias %1
+    %3: %r2 = alias %2
+    %4: %r2 = alias %3
+    %5: %r2 = alias %4
+    %6: %r0 = host host.field "length" host-range %5
+    %8: %r2 = alias %1
+    %9: %r2 = alias %8
+    %10: %r2 = alias %9
+    %11: %r2 = alias %10
+    %12: %r0 = host host.field "length" host-range %11
+    %14: %r2 = const ""
+    store var $0: %r2, %14
+    %15: %r2 = alias %1
+    %16: %r2 = alias %15
+    %17: %r2 = load var $0: %r2
+    %18: %r2 = alias %17
+    %19: %r2 = alias %16
+    %20: %r2 = alias %18
+    %21: %r2 = alias %19
+    %22: %r2 = host host.binary "+" %20, %21
+    store var $0: %r2, %22
+    %23: %r2 = alias %1
+    %24: %r2 = alias %23
+    %25: %r2 = load var $0: %r2
+    %26: %r2 = alias %25
+    %27: %r2 = alias %24
+    %28: %r2 = alias %26
+    %29: %r2 = alias %27
+    %30: %r2 = host host.binary "+" %28, %29
+    store var $0: %r2, %30
+    %31: %r2 = load var $0: %r2
+    %32: %r2 = alias %31
+    return %32
+
+fn main.lambda'3(one %r4, one %r0) -> one %r0 env
+  block0(%0: %r4, %1: %r0):
+    %2: %r0 = const 2
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+optimizer clones 0 aliased 0 forwarded 12 removed 18 adopted 3 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3 folded 0
+
+shape %s0 object main.lambda.env {}
+shape %s1 object main.lambda'2.env {}
+shape %s2 object main.lambda'3.env {}
+shape %s3 fun {$c: %r5 code, $e: %r5 env}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = string
+rep %r3 = object %s1
+rep %r4 = object %s2
+rep %r5 = erased
+rep %r6 = object %s3
+rep %r7 = number unsigned 8
+rep %r8 = nullable of %r0

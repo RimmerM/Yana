@@ -1800,6 +1800,11 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
                        member.contract.access());
         if(!value) { ok = false; continue; }
 
+        if(!checkOwnedFill(*value, expected, member.contract.access(), argument.value.source)) {
+            ok = false;
+            continue;
+        }
+
         /*
          * A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
          * declaration-time refusal applied to a value whose interior shape the declaration cannot
@@ -3105,6 +3110,15 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
             return nullptr;
         }
 
+        /*
+         * An owner this expression made, lent to a borrowing parameter, gets the frame slot a direct
+         * call's argument gets (`holdBorrowed`, as `prepareArguments` has it). Without it `f(f(x))`
+         * over `f: (String) -> String` lent the inner result as a bare register that nothing
+         * consumed - "owned value reaches return unconsumed" in the verifier (J205 §4, fixed J206).
+         */
+        value = holdBorrowed(builder, *value, requestOf(declared), declared.type,
+                             argument.value.source);
+
         slots[index] = value;
     }
 
@@ -3664,6 +3678,18 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
     }
 
     auto length = array.length;
+
+    /*
+     * An array of no slots has nothing for a fill to fill, and its literal is `[]` - which is what
+     * the message says. Read as a fill it was one component for an aggregate of none, which the
+     * builder asserted on rather than reported (J194).
+     */
+    if(length == 0 && written != 0) {
+        context.diagnostics.error("%@ holds nothing, so its literal is `[]`"_v, expr.source,
+                                  typeText(context, decl(), hint));
+        return Nothing();
+    }
+
     auto fill = written == 1 && length != 1;
 
     if(!fill && written != length) {
@@ -5094,6 +5120,8 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
         adapted = coerce(builder, *adapted, expected, source, "an argument"_v,
                          position.contract.access());
         if(!adapted) return nullptr;
+
+        if(!checkOwnedFill(*adapted, expected, position.contract.access(), source)) return nullptr;
     }
 
     // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
@@ -5207,6 +5235,12 @@ Node* Resolver::finishCallBody(Builder& builder, Function& callee, SmallArray<No
      */
     if(hint) typeArguments.bindResult(callee.result.type, hint);
 
+    // `it.next()` on an object whose passes owe it a value - refused where the site type is written
+    // out, and checked at run time through the class. See `refuseNextOnResuming`. Before the
+    // dependency is filled, because a failing object has no instance to fill it from and the
+    // sentence that names why is this one.
+    if(!refuseNextOnResuming(callee, typeArguments.with(), source)) return nullptr;
+
     // What the callee's own constraints decide, before anything is called undecided - a functional
     // dependency's whole purpose is that these positions have an answer no argument supplied, and
     // that its answer beats the one the result position wished for.
@@ -5218,10 +5252,6 @@ Node* Resolver::finishCallBody(Builder& builder, Function& callee, SmallArray<No
     }
 
     if(!dischargeRequirements(callee, typeArguments, source)) return nullptr;
-
-    // `it.next()` on an object whose passes owe it a value - refused where the site type is written
-    // out, and checked at run time through the class. See `refuseNextOnResuming`.
-    if(!refuseNextOnResuming(callee, typeArguments.with(), source)) return nullptr;
 
     // Another body of this function, where one was read and its condition holds - bound and checked
     // against the baseline's signature above, which the replacement's is the same as. See
@@ -5503,7 +5533,8 @@ DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
     // The one position an open hint is still a hint - `isOpenFunPosition`, where the whole of the
     // rule is. What comes back binds the variable the position left open, through the same `bind`
     // every other argument goes through.
-    return isOpenFunPosition(resolver.decl(), type) ? type : nullptr;
+    auto rigid = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
+    return isOpenFunPosition(resolver.decl(), type, rigid) ? type : nullptr;
 }
 
 DeclPtr<Type> TypeArguments::resultHint(DeclPtr<Type> declared, DeclPtr<Type> result,

@@ -1,0 +1,67 @@
+{-
+   `Stream`'s codec core, specialized - L4 of `doc/inflight/Implementation-Streams.md`.
+
+   `transformCopy` is one codec body written once over `BlockInput` and `WindowOutput` (§3.4), and
+   `fixedShout` is it at `SliceBlocks` and `FixedWindows`: the caller's fixed input into the caller's
+   fixed output. What the `.ssa.opt.expect` beside this asserts is Analysis-Streams §6.5's structural
+   claim for that case - the input's one yield and the window's lens are inlined into the codec's
+   loop, so there is **no iterator object and no closure** carried around it, and the window costs
+   one test (`commit`'s) per window rather than one per byte.
+
+   `main` runs the same body through the other adapters - a fragmenting stream in, an array and a
+   staged sink out - for the `.run.expect` every build of this corpus shares.
+-}
+
+import Stream
+
+data CopyFailure(ie, oe) = InputFailed(ie) | OutputFailed(oe)
+
+fn upper(byte: U8) -> U8 = if byte is "a"..="z" then byte - 32 else byte
+
+fn (BlockInput(i, U8, ie), WindowOutput(o, U8, oe)) transformCopy(&input: i, &output: o) -> Result(CopyFailure(ie, oe), {}):
+    for block in input.blocks() | e -> return Err(InputFailed(e)):
+        let &at = 0 :: Size
+        while at < length(block):
+            let window = output.withWindow(1, 64) | e -> return Err(OutputFailed(e)) in:
+                let &n = 0 :: Size
+                while n < length(window.space) && need(block, at, 1):
+                    window.space[n] = upper(block[at])
+                    n += 1
+                    at += 1
+                window.commit(n)
+    let Ok(_) = output.finish() | Err(->e) -> return Err(OutputFailed(e))
+    return Ok({})
+
+-- How much was written, or -1 when the output was full.
+@noinline fn fixedShout(values: '[U8], &store: '[U8]) -> Size:
+    let &input = sliceBlocks(values)
+    let &output = fixedWindows(store)
+    if transformCopy(input, output) is Ok(_) then return output.used
+    return -1
+
+fn checksum(bytes: [U8]) -> Size:
+    let &total = 0 :: Size
+    for i in 0..length(bytes):
+        total = (total * 31 + (bytes[i] :: Size)) % 1000003
+    return total
+
+fn main() -> Int:
+    let text = ["w", "i", "n", "d", "o", "w", "s", " ", "a", "n", "d", " ", "b", "l", "o", "c", "k", "s"] :: [U8]
+
+    let &store = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8]
+    let written = fixedShout(text, store)
+    let &small = [0, 0, 0, 0] :: [U8]
+    let full = fixedShout(text, small)
+
+    let &grown = [] :: [U8]
+    let &streamed = Input.over(fragments(copy(text), [1, 2, 5] :: [Size]), 3)
+    let &appended = arrayWindows(grown)
+    let &answer = if transformCopy(streamed, appended) is Ok(_) then checksum(grown) else 0
+
+    let &sink = failingSink(-1)
+    let &scratch = [0, 0, 0, 0, 0] :: [U8]
+    let &again = Input.over(fragments(copy(text), [4, 1] :: [Size]), 2)
+    let &staged = sinkWindows(sink, scratch)
+    if transformCopy(again, staged) is Ok(_) && checksum(sink.bytes) == answer then answer += 1
+
+    return truncate((answer * 100 + written) * 10 + full + 1) :: Int

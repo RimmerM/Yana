@@ -1,0 +1,62 @@
+{-
+   A `return` out of a `for` over an iterator *object* releases the object - stepping its producer
+   with a cancel request, which runs the producer's cleanup - before the storage the object was lent
+   (K6; `lens/ReturnDrop.yana` is the same question for the internal form).
+
+   The object's teardown is an ordinary drop placed at the `return`, and the lender is released at
+   the same position; the drop walk's "a value that borrows and has a teardown goes first" is what
+   orders them. Native only: JSIR does not yet convert an object whose producer takes a record by
+   borrow ("a call argument whose representation disagrees with its callee's convention").
+
+   Digits: the producer's entry (1), its cleanup finding its argument still there (2) or released
+   (7), the body's own work (8), a `Tag` released (9). `main` answers the cases that did not match.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+let &released = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+    released = 0
+
+data Tag {id: Int}
+
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        note(9)
+        released = released `or` (1 `shl` value.id)
+
+fn alive(t: Tag) = (released `and` (1 `shl` t.id)) == 0
+
+iter fn upTo(t: Tag, n: Int) -> Int:
+    note(1)
+    for i in 0..n:
+        yield i
+    note(if alive(t) then 2 else 7)
+
+fn objectReturn() -> Int:
+    let t = Tag {id: 3}
+    let &it = upTo(t, 5)
+    for i in it:
+        if i == 2 then return i
+        note(8)
+    return 0
+
+fn objectDone() -> Int:
+    let t = Tag {id: 3}
+    let &it = upTo(t, 2)
+    for i in it:
+        note(8)
+    return 1
+
+fn main() -> Int:
+    if objectReturn() != 2 then failures += 1024
+    expect(1, 18829)
+    if objectDone() != 1 then failures += 1024
+    expect(2, 18829)
+    return failures

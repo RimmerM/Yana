@@ -2,11 +2,11 @@ module ResolveTest
 
 data Box {s: String} reclaim derived
 
-let string'142: [CodeUnit *4] = "text"
+let string'188: [CodeUnit *4] = "text"
 
-let string'143: [CodeUnit *5] = "other"
+let string'189: [CodeUnit *5] = "other"
 
-let string'144: [CodeUnit *4] = "text"
+let string'190: [CodeUnit *4] = "text"
 
 fn consume(s: String) -> I32 {
 bb0:
@@ -17,7 +17,7 @@ bb0:
 
 fn make() -> String {
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 4, ownsHeap: 0}, length: 4}}
   return take %0
 }
 
@@ -67,7 +67,7 @@ bb0:
   %2: String [unique call] = read borrow.unique (c) loan0
   write.init borrow.unique (d) borrow.unique %2
   %4: String [unique call] = read borrow.unique (d) loan1 roots{0}
-  %5: String = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %5: String = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (local2) take %5
   %7: String [shared slot 0] = read borrow.shared (local2) loan2
   %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{2}
@@ -129,7 +129,7 @@ fn literal() -> I32 {
   local c: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  %0: String = const String {units: Array {run: Run {items: &string'190, capacity: 4, ownsHeap: 0}, length: 4}}
   write.init borrow.unique (c) take %0
   %2: String = read take (c)
   %3: I32 = call consume take %2

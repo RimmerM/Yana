@@ -10,111 +10,75 @@ fn main() -> one %r0
   var $3: %r0
   var $4: %r6
   block0:
-    %4: %r0 = const 3
-    %5: %r0 = alias %4
-    store var $2: %r0, %5
     %6: %r0 = const 1
     %7: %r0 = const 2
     %8: %r0 = const 3
     %9: %r2 = host host.array %6, %7, %8
     %10: %r3 = const 3
-    %12: %r0 = const 5
-    %13: %r0 = alias %12
-    store var $3: %r0, %13
     jump -> block1
   block1:
-    %14: %r0 = load var $2: %r0
-    %15: %r0 = alias %14
-    %16: %r0 = binary.add %15, %4
-    %17: %r0 = coerce %16
-    store var $2: %r0, %17
     jump -> block2
   block2:
-    %18: %r0 = load var $2: %r0
-    %19: %r0 = alias %18
-    %21: %r0 = alias %18
-    %22: %r0 = binary.add %21, %19
-    %23: %r0 = coerce %22
-    store var $2: %r0, %23
-    %24: %r0 = load var $2: %r0
-    %26: %r0 = alias %24
-    call Guard.drop %26
-    %27: %r0 = const 3
-    %28: %r0 = const 0
+    %17: %r0 = const 12
+    %18: %r0 = alias %17
+    call Guard.drop %18
+    %19: %r0 = const 3
+    %20: %r0 = const 0
     jump -> block3
   block3:
-    %33: %r2 = alias %9
-    store element %33[%28]: %r0, %27
-    jump -> block4
-  block4:
-    %38: %r2 = alias %9
-    %39: %r0 = load element %38[%28]: %r0
+    %25: %r2 = alias %9
+    store element %25[%20]: %r0, %19
     %11: %r4 = object %s0 %9, %10
-    %40: %r4 = alias %11
-    call Array(a).reclaim(Size) %40
-    %41: %r0 = convert %39
-    %25: %r0 = alias %24
-    %42: %r0 = binary.add %25, %41
-    %43: %r0 = coerce %42
-    jump -> block7
+    %26: %r4 = alias %11
+    call Array(a).reclaim(Size) %26
+    jump -> block5
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block6:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block7:
-    %44: %r0 = load var $3: %r0
-    %45: %r0 = const 10
-    %47: %r0 = alias %44
-    %48: %r0 = binary.add %47, %45
-    %49: %r0 = coerce %48
-    store var $3: %r0, %49
-    %50: %r0 = load var $3: %r0
-    %51: %r0 = alias %50
-    %52: %r0 = alias %50
-    call Guard.drop %52
-    %53: %r0 = binary.add %43, %51
-    %54: %r0 = coerce %53
-    %55: %r0 = const 0
-    %56: %r8 = object %s3 %55
-    %61: %r0 = const 1
-    store property %56.$v: %r0, %61
-    %62: %r5 = const "$v"
-    %63: %r6 = object %s2 %56, %62
-    %66: %r6 = alias %63
-    %67: %r0 = load cell %66: %r0
-    %68: %r6 = alias %66
-    %69: %r0 = load cell %68: %r0
-    %70: %r0 = const 10
-    %71: %r0 = binary.add %69, %70
-    %72: %r0 = coerce %71
-    %73: %r6 = alias %66
-    store cell %73: %r0, %72
-    %75: %r6 = alias %63
-    %76: %r0 = load cell %75: %r0
-    %78: %r6 = alias %63
-    %79: %r0 = load cell %78: %r0
-    %80: %r0 = binary.add %79, %76
-    %81: %r0 = coerce %80
-    %82: %r6 = alias %78
-    store cell %82: %r0, %81
-    %83: %r0 = load property %56.$v: %r0
-    %84: %r0 = const 100
-    %85: %r0 = binary.mul %67, %84
-    %86: %r0 = coerce %85
-    %87: %r0 = binary.add %86, %83
-    %88: %r0 = coerce %87
-    %89: %r0 = binary.add %54, %88
-    %90: %r0 = coerce %89
-    return %90
+    %28: %r0 = const 15
+    %29: %r0 = alias %28
+    call Guard.drop %29
+    %30: %r0 = const 30
+    %31: %r0 = const 0
+    %32: %r8 = object %s3 %31
+    %37: %r0 = const 1
+    store property %32.$v: %r0, %37
+    %38: %r5 = const "$v"
+    %39: %r6 = object %s2 %32, %38
+    %42: %r6 = alias %39
+    %43: %r0 = load cell %42: %r0
+    %44: %r6 = alias %42
+    %45: %r0 = load cell %44: %r0
+    %46: %r0 = const 10
+    %47: %r0 = binary.add %45, %46
+    %48: %r0 = coerce %47
+    %49: %r6 = alias %42
+    store cell %49: %r0, %48
+    %51: %r6 = alias %39
+    %52: %r0 = load cell %51: %r0
+    %54: %r6 = alias %39
+    %55: %r0 = load cell %54: %r0
+    %56: %r0 = binary.add %55, %52
+    %57: %r0 = coerce %56
+    %58: %r6 = alias %54
+    store cell %58: %r0, %57
+    %59: %r0 = load property %32.$v: %r0
+    %60: %r0 = const 100
+    %61: %r0 = binary.mul %43, %60
+    %62: %r0 = coerce %61
+    %63: %r0 = binary.add %62, %59
+    %64: %r0 = coerce %63
+    %65: %r0 = binary.add %30, %64
+    %66: %r0 = coerce %65
+    return %66
 
 fn Array(a).reclaim(Size)(one %r4) -> omitted
   var $0: %r4
   block0(%0: %r4):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 27 adopted 0 sunk 1 numbered 13 decided 2 unboxed 2 updated 0 split 1 promoted 4 folded 6
+optimizer clones 0 aliased 0 forwarded 0 removed 34 adopted 0 sunk 1 numbered 3 decided 1 unboxed 2 updated 0 split 1 promoted 6 folded 3
 
 shape %s0 object Array {items: %r2, length: %r3}
 shape %s1 object Ref {p: %r6}

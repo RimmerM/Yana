@@ -134,12 +134,15 @@ bb0:
 fn lambdaParameter() -> I32 {
 bb0:
   %0: %lambdaParameter.lambda.env address = alloc frame lambdaParameter.lambda.env
-  %1: lambdaParameter.lambda.env trivial = aggregate.lambdaParameter.lambda.env
-  store inspect %0 consume %1
-  %2: lambdaParameter.lambda.env trivial = copy inspect %0
-  %3: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value lambdaParameter.lambda'2
-  %4: I32 trivial = call lambdaParameter.lambda borrow %2 borrow %3
-  return consume %4
+  %1: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %2: lambdaParameter.lambda.env trivial = aggregate.lambdaParameter.lambda.env
+  store inspect %0 consume %2
+  %3: lambdaParameter.lambda.env trivial = copy inspect %0
+  %4: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value lambdaParameter.lambda'2
+  store inspect %1 consume %4
+  %5: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %6: I32 trivial = call lambdaParameter.lambda borrow %3 borrow %5
+  return consume %6
 }
 
 fn viaAlias(op: (I32, I32) -> I32 [shared call]) -> I32 {

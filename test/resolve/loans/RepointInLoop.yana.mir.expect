@@ -1,0 +1,204 @@
+module ResolveTest
+
+data Buf {bytes: Array(U8), at: Size} reclaim derived
+
+data Run {bytes: 0'Array(U8), at: Size} shape1
+
+fn grab(self: Buf [unique slot 0]) -> Array(U8) [shared slot 0 view] {
+bb0:
+  %0: Size [unique slot 0] = read borrow.unique (self.at) loan0
+  %1: Size = const 1
+  %2: {} = call +=(Size) borrow.unique %0 borrow.shared %1
+  %3: Array(U8) [shared slot 0] = read borrow.shared (self.bytes) loan1
+  %4: Size = const 0
+  %5: Size = read copy.trivial (self.at)
+  %6: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %3 roots{1}
+  %7: Array(U8) [shared slot 0 view] = call slice(U8) borrow.shared %6 borrow.shared %4 borrow.shared %5 roots{1}
+  return borrow.shared %7
+}
+
+fn refilled(b: Buf [unique call]) -> Size {
+  local & x: Run
+  local & sum: Size
+  local local3: U8 [shared slot 0]
+  local & local4: Run
+
+bb0:
+  %0: Buf [unique slot 0] = read borrow.unique (b) loan0
+  %1: Array(U8) [shared slot 0 view] = call grab borrow.unique %0 roots{0}
+  %2: Size = const 0
+  %3: Run = aggregate.Run borrow.shared %1 take %2 roots.0{0}
+  write.init borrow.unique (x) take %3
+  %5: Size = const 0
+  write.init borrow.unique (sum) take %5
+  jump -> bb1
+
+bb1:
+  %8: Size = read copy.trivial (sum)
+  %9: Size = const 20
+  %10: Bool = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %41: Size = read copy.trivial (sum)
+  return take %41
+
+bb3:
+  %12: Size = read copy.trivial (x.at)
+  %13: Array(U8) [shared slot 0 view] = read borrow.shared (x.bytes) loan1 roots{0, 2}
+  %14: Size = call length(Array(U8)) borrow.shared %13
+  %15: Bool = eq inspect %12 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: Size [unique call] = read borrow.unique (sum) loan3
+  %25: Size = read copy.trivial (x.at)
+  %26: Array(U8) [shared slot 0 view] = read borrow.shared (x.bytes) loan4 roots{0, 2}
+  %27: U8 [shared slot 0] = call.subscript get(Array(U8), Size, U8) borrow.shared %26 borrow.shared %25 roots{0, 2, 4}
+  write.init borrow.unique (local3) borrow.shared %27
+  %29: U8 = read copy.trivial (local3)
+  %30: Size = convert inspect %29
+  %31: {} = call +=(Size) borrow.unique %24 borrow.shared %30
+  %32: Run = read copy.trivial (x) roots.0{0, 2}
+  write.init borrow.unique (local4) take %32
+  %34: Size = read copy.trivial (x.at)
+  %35: Size = const 1
+  %36: Size = add inspect %34 inspect %35
+  write.assign borrow.unique (local4.at) take %36
+  %38: Run = read copy.trivial (local4) roots.0{0, 2}
+  write.assign borrow.unique (x) take %38
+  jump -> bb1
+
+bb6:
+  %17: Buf [unique slot 0] = read borrow.unique (b) loan2
+  %18: Array(U8) [shared slot 0 view] = call grab borrow.unique %17 roots{2}
+  %19: Size = const 0
+  %20: Run = aggregate.Run borrow.shared %18 take %19 roots.0{2}
+  write.assign borrow.unique (x) take %20
+  jump -> bb5
+}
+
+fn everyPass(b: Buf [unique call]) -> Size {
+  local & x: Run
+  local & sum: Size
+  local & local3: I32
+  local local4: I32
+
+bb0:
+  %0: Buf [unique slot 0] = read borrow.unique (b) loan0
+  %1: Array(U8) [shared slot 0 view] = call grab borrow.unique %0 roots{0}
+  %2: Size = const 0
+  %3: Run = aggregate.Run borrow.shared %1 take %2 roots.0{0}
+  write.init borrow.unique (x) take %3
+  %5: Array(U8) [shared slot 0 view] = read borrow.shared (x.bytes) loan1 roots{0}
+  %6: Size = call length(Array(U8)) borrow.shared %5
+  write.init borrow.unique (sum) take %6
+  %8: I32 = const 0
+  %9: I32 = const 3
+  %10: I32 = const 1
+  write.init borrow.unique (local3) take %8
+  jump -> bb1(take %9, take %10)
+
+bb1(%11: I32, %12: I32):
+  %19: I32 = read copy.trivial (local3)
+  %20: Bool = lt inspect %19 inspect %11
+  branch inspect %20 -> bb4(take %11, take %12) -> bb3(take %11, take %12)
+
+bb2(%13: I32, %14: I32):
+  %36: I32 = read copy.trivial (local3)
+  %37: I32 = add inspect %36 inspect %14
+  write.assign borrow.unique (local3) take %37
+  jump -> bb1(take %13, take %14)
+
+bb3(%15: I32, %16: I32):
+  %40: Size = read copy.trivial (sum)
+  return take %40
+
+bb4(%21: I32, %22: I32):
+  %24: I32 = read copy.trivial (local3)
+  write.init borrow.unique (local4) take %24
+  %26: Buf [unique slot 0] = read borrow.unique (b) loan2
+  %27: Array(U8) [shared slot 0 view] = call grab borrow.unique %26 roots{2}
+  %28: Size = const 0
+  %29: Run = aggregate.Run borrow.shared %27 take %28 roots.0{2}
+  write.assign borrow.unique (x) take %29
+  %31: Size [unique call] = read borrow.unique (sum) loan3
+  %32: Array(U8) [shared slot 0 view] = read borrow.shared (x.bytes) loan4 roots{2}
+  %33: Size = call length(Array(U8)) borrow.shared %32
+  %34: {} = call +=(Size) borrow.unique %31 borrow.shared %33
+  jump -> bb2(take %21, take %22)
+}
+
+fn main() -> I32 {
+  local & local0: Array(U8)
+  local & b: Buf
+  local first: Size
+  local second: Size
+
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 2
+  %2: U8 = const 3
+  %3: U8 = const 4
+  %4: U8 = const 5
+  %5: U8 = const 6
+  %6: U8 = const 7
+  %7: U8 = const 8
+  %8: U8 = const 9
+  %9: %U8 = run.slots U8 *9
+  %10: Size = bitcast inspect %9
+  %11: Size = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  %13: {} = call checkCondition borrow.shared %12
+  %14: @bits(30) U32 = const 9
+  %15: @bits(2) U32 = const 1
+  %16: Run(U8) = aggregate.Run take %9 take %14 take %15
+  %17: @bits(30) U32 = const 9
+  %18: Array(U8) = aggregate.Array take %16 take %17
+  write.init borrow.unique (local0) take %18
+  %20: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %0
+  %22: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %1
+  %24: Size = const 2
+  write.init borrow.unique ([%%9][2]) take %2
+  %26: Size = const 3
+  write.init borrow.unique ([%%9][3]) take %3
+  %28: Size = const 4
+  write.init borrow.unique ([%%9][4]) take %4
+  %30: Size = const 5
+  write.init borrow.unique ([%%9][5]) take %5
+  %32: Size = const 6
+  write.init borrow.unique ([%%9][6]) take %6
+  %34: Size = const 7
+  write.init borrow.unique ([%%9][7]) take %7
+  %36: Size = const 8
+  write.init borrow.unique ([%%9][8]) take %8
+  %38: Array(U8) = read take (local0)
+  %39: Size = const 0
+  %40: Buf = aggregate.Buf take %38 take %39
+  write.init borrow.unique (b) take %40
+  %42: Buf [unique call] = read borrow.unique (b) loan0
+  %43: Size = call refilled borrow.unique %42
+  write.init borrow.unique (first) take %43
+  %45: Size = const 0
+  write.assign borrow.unique (b.at) take %45
+  %47: Buf [unique call] = read borrow.unique (b) loan1
+  %48: Size = call everyPass borrow.unique %47
+  write.init borrow.unique (second) take %48
+  %50: Size = read copy.trivial (first)
+  %51: Size = const 2
+  %52: Size = mul inspect %50 inspect %51
+  %53: Size = read copy.trivial (second)
+  %54: Size = add inspect %52 inspect %53
+  %55: Size = read copy.trivial (b.at)
+  drop (b)
+  %56: Size = add inspect %54 inspect %55
+  %57: I32 = convert inspect %56
+  return take %57
+}
+
+entry main

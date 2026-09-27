@@ -16,46 +16,34 @@ fn main() -> one %r0
   var $1: %r0
   block0:
     %5: %r0 = const 7
-    jump -> block7
+    jump -> block3
   block1:
-    %15: %r0 = load global trace: %r0
-    %16: %r0 = const 7
-    %17: %r4 = binary.ne %15, %16
-    branch %17 -> block4 -> block3
+    %13: %r0 = const 7
+    jump -> block4
   block2:
-    %38: %r0 = const -12
-    return %38
+    %22: %r0 = const -13
+    return %22
   block3:
-    %20: %r0 = const 7
-    jump -> block8
-  block4:
-    %37: %r0 = const -13
-    return %37
-  block5:
-    %30: %r0 = load global trace: %r0
-    %31: %r0 = const 77
-    %32: %r4 = binary.ne %30, %31
-    %33: %r0 = const -15
-    %34: %r0 = const 4242
-    %35: %r0 = select %32, %33, %34
-    return %35
-  block6:
-    %36: %r0 = const -14
-    return %36
-  block7:
     %6: %r0 = alias %5
-    %8: %r0 = alias %6
-    %12: %r0 = alias %8
-    call Guard.drop %12
-    jump -> block1
-  block8:
-    %21: %r0 = alias %20
-    %23: %r0 = alias %21
-    %27: %r0 = alias %23
-    call Guard.drop %27
-    jump -> block5
+    %7: %r0 = alias %6
+    call Guard.drop %7
+    %8: %r0 = load global trace: %r0
+    %9: %r0 = const 7
+    %10: %r4 = binary.ne %8, %9
+    branch %10 -> block2 -> block1
+  block4:
+    %14: %r0 = alias %13
+    %15: %r0 = alias %14
+    call Guard.drop %15
+    %16: %r0 = load global trace: %r0
+    %17: %r0 = const 77
+    %18: %r4 = binary.ne %16, %17
+    %19: %r0 = const -15
+    %20: %r0 = const 4242
+    %21: %r0 = select %18, %19, %20
+    return %21
 
-optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 0 sunk 0 numbered 4 decided 2 unboxed 2 updated 0 split 0 promoted 3 folded 6
+optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 2 updated 0 split 0 promoted 3 folded 0
 
 shape %s0 object Pair {a: %r0, b: %r0}
 shape %s1 cell {$v: %r0 box}

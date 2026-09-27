@@ -655,6 +655,31 @@ DeclPtr<RecordType> recordDeclarationOf(DeclBase base, DeclPtr<Type> type) {
     return record.instanceOf ? record.instanceOf : DeclPtr<RecordType>(type.offset);
 }
 
+IterStepRows iterStepRows(DeclBase base, DeclPtr<Type> type) {
+    IterStepRows rows;
+    auto declaration = recordDeclarationOf(base, type);
+    if(!declaration) return rows;
+
+    auto& record = *base[declaration];
+    for(U16 i = 0; i < record.cons.size(); i++) {
+        auto constructor = record.cons.get(base, i);
+
+        if(!constructor.count) {
+            rows.done = i;
+            continue;
+        }
+
+        auto carried = record.fields.get(base, constructor.first).occurrence.type;
+        if(!carried || base[carried]->kind != Type::Variable) continue;
+
+        auto index = ((VariableType*)base[carried])->index;
+        if(index == 0) rows.failed = i;
+        if(index == 1) rows.yield = i;
+    }
+
+    return rows;
+}
+
 /*
  * The sub-patterns a constructor pattern supplies, one per field of its arm and null where it
  * supplies none.

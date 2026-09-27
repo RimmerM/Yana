@@ -17,8 +17,7 @@ function makeSummer_lambda(makeSummer_lambda_env) {
   var p1 = 0;
   var p2 = 0;
   while (p2 < v7) {
-    if (p2 >>> 0 >= v7) throw $t;
-    p1 = p1 + v4[p2 | 0] | 0;
+    p1 = p1 + v4[p2] | 0;
     p2 = p2 + 1 | 0;
   }
   return p1;
@@ -27,7 +26,6 @@ function makeSummer_lambda(makeSummer_lambda_env) {
 function $td$makeSummer_lambda(makeSummer_lambda_env) {
 }
 makeSummer_lambda.$h = $td$makeSummer_lambda;
-var $t = "yana: a runtime check failed";
 
 // a function value's release - the environment word, then the lambda's own header
 function $fd(p) {
@@ -37,4 +35,4 @@ function $fd(p) {
     if (h) h(e);
   }
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

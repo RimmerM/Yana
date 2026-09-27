@@ -28,27 +28,19 @@ fn main() -> one %r0
     %30: %r0 = coerce %29
     return %30
   block3:
-    %32: %r8 = convert %1
-    %34: %r8 = const 4
-    %35: %r7 = binary.ge %32, %34
-    branch %35 -> block5 -> block4
-  block4:
-    %36: %r3 = alias %14
-    %37: %r3 = alias %36
-    %38: %r0 = alias %16
-    %39: %r0 = binary.add %38, %1
-    %40: %r0 = coerce %39
-    %41: %r0 = load element %37[%40]: %r0
-    %42: %r0 = binary.add %0, %41
-    %43: %r0 = coerce %42
-    %44: %r0 = binary.add %1, %26
-    %45: %r0 = coerce %44
-    jump -> block1(%43, %45)
-  block5:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %32: %r3 = alias %14
+    %33: %r3 = alias %32
+    %34: %r0 = alias %16
+    %35: %r0 = binary.add %34, %1
+    %36: %r0 = coerce %35
+    %37: %r0 = load element %33[%36]: %r0
+    %38: %r0 = binary.add %0, %37
+    %39: %r0 = coerce %38
+    %40: %r0 = binary.add %1, %26
+    %41: %r0 = coerce %40
+    jump -> block1(%39, %41)
 
-optimizer clones 1 aliased 1 forwarded 4 removed 16 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 1 promoted 4 folded 1
+optimizer clones 1 aliased 1 forwarded 3 removed 15 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 1 promoted 4 folded 0
 
 shape %s0 cell {$v: %r1 box}
 shape %s1 object Held {view: %r4, tag: %r0}
@@ -62,5 +54,3 @@ rep %r4 = object %s2
 rep %r5 = parts (%r3, %r0, %r0) as %r4
 rep %r6 = object %s1
 rep %r7 = number bool
-rep %r8 = number unsigned 32
-rep %r9 = void

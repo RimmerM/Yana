@@ -348,7 +348,22 @@ Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, Lo
             ? substituteType(context, program, declaring.resume.type, with)
             : program.types.unit;
 
-        if(handover == want.handover && sameType(resume, want.resume)) {
+        /*
+         * And the failure, which is part of the protocol: an `iter(T)` consumer owes no
+         * alternative, so a failing object may not reach one, and an object that cannot fail is not
+         * an `iter(T | E)` either - its consumer would be handling a row that never comes.
+         */
+        DeclPtr<Type> failure = nullptr;
+        if(site->failureField) {
+            auto& outcome = *(RecordType*)decl()[site->field(decl(), site->failureField).occurrence.type];
+            failure = outcome.field(decl(), outcome.cons.get(decl(), kOutcomeExit).first)
+                          .occurrence.type;
+        }
+
+        auto sameFailure = failure && want.failure ? sameType(failure, want.failure)
+                                                   : failure == want.failure;
+
+        if(handover == want.handover && sameType(resume, want.resume) && sameFailure) {
             return adaptIterValue(builder, value, *site, to, access == Access::Owned, source);
         }
     }

@@ -55,6 +55,21 @@ struct Builder {
     ContinuationId region() const { return currentRegion; }
 
     /*
+     * Emitting into an *enclosing* region from inside a nested one, answering the region it
+     * replaced - the landing block a `break` out of a lens call reaches when its loop's edges carry
+     * values (`Resolver::resolveExit`). The region must enclose the current one and already have its
+     * entry, so nothing about it changes but where the next block is made.
+     */
+    ContinuationId switchRegion(ContinuationId to) {
+        assertTrue(body.encloses(base(), to, currentRegion));
+        auto was = currentRegion;
+        currentRegion = to;
+        return was;
+    }
+
+    void restoreRegion(ContinuationId was) { currentRegion = was; }
+
+    /*
      * The storage one declared parameter names.
      *
      * A parameter is an ordinary local whose contents the *call* established, so it is created here

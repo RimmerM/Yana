@@ -1,0 +1,856 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r0 = load global trace: %r0
+    %4: %r0 = const 10n
+    %5: %r0 = binary.mul %3, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = binary.add %6, %2
+    %8: %r0 = coerce %7
+    store global trace: %r0, %8
+    return
+
+fn sum(one %r1, one %r4) -> omitted
+  var $0: %r4
+  var $1: %r0
+  block0(%0: %r1, %1: %r4):
+    %11: %r5 = const 1
+    %12: %r5 = const 1
+    %13: %r5 = const 1
+    %14: %r1 = const 0
+    %15: %r1 = const 1
+    %16: %r1 = const 1
+    jump -> block1(%14)
+  block1(%2: %r1):
+    %17: %r5 = binary.lt %2, %0
+    branch %17 -> block3 -> block2(%11, %12, %13)
+  block2(%3: %r5, %4: %r5, %5: %r5):
+    branch %3 -> block9 -> block10
+  block3:
+    %18: %r5 = binary.eq %2, %16
+    branch %18 -> block5 -> block4
+  block4:
+    %19: %r1 = binary.add %2, %15
+    %20: %r1 = coerce %19
+    jump -> block1(%20)
+  block5:
+    %21: %r4 = alias %1
+    %22: %r3 = load property %21.$tag: %r3
+    %23: %r3 = const 0
+    %24: %r5 = binary.eq %22, %23
+    branch %24 -> block8 -> block6
+  block6:
+    %25: %r0 = const 7n
+    %26: %r0 = load global trace: %r0
+    %27: %r0 = const 10n
+    %28: %r0 = binary.mul %26, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.add %29, %25
+    %31: %r0 = coerce %30
+    store global trace: %r0, %31
+    %32: %r4 = alias %1
+    type.drop %32
+    jump -> block7
+  block7:
+    %45: %r5 = const 0
+    %46: %r5 = const 0
+    %47: %r5 = const 0
+    jump -> block2(%47, %46, %45)
+  block8:
+    %33: %r4 = alias %1
+    %34: %r0 = load property %33.g: %r0
+    %35: %r4 = alias %1
+    %36: %r0 = load property %35.h: %r0
+    call Guard.drop %36
+    %37: %r0 = alias %34
+    call Guard.drop %37
+    %38: %r0 = const 8n
+    %39: %r0 = load global trace: %r0
+    %40: %r0 = const 10n
+    %41: %r0 = binary.mul %39, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %42, %38
+    %44: %r0 = coerce %43
+    store global trace: %r0, %44
+    jump -> block7
+  block9:
+    %49: %r4 = alias %1
+    %50: %r3 = load property %49.$tag: %r3
+    %51: %r3 = const 0
+    %52: %r5 = binary.eq %50, %51
+    branch %52 -> block11 -> block12
+  block10:
+    branch %4 -> block13 -> block14
+  block11:
+    %53: %r4 = alias %1
+    %54: %r0 = load property %53.g: %r0
+    call Guard.drop %54
+    jump -> block12
+  block12:
+    jump -> block10
+  block13:
+    %56: %r4 = alias %1
+    %57: %r3 = load property %56.$tag: %r3
+    %58: %r3 = const 0
+    %59: %r5 = binary.eq %57, %58
+    branch %59 -> block15 -> block16
+  block14:
+    branch %5 -> block17 -> block18
+  block15:
+    %60: %r4 = alias %1
+    %61: %r0 = load property %60.h: %r0
+    call Guard.drop %61
+    jump -> block16
+  block16:
+    jump -> block14
+  block17:
+    %63: %r4 = alias %1
+    %64: %r3 = load property %63.$tag: %r3
+    %65: %r3 = const 1
+    %66: %r5 = binary.eq %64, %65
+    branch %66 -> block19 -> block20
+  block18:
+    %69: %r0 = const 7n
+    %70: %r0 = load global trace: %r0
+    %71: %r0 = const 10n
+    %72: %r0 = binary.mul %70, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %73, %69
+    %75: %r0 = coerce %74
+    store global trace: %r0, %75
+    return
+  block19:
+    %67: %r4 = alias %1
+    %68: %r0 = load property %67.B: %r0
+    call Guard.drop %68
+    jump -> block20
+  block20:
+    jump -> block18
+
+fn Flagged.drop(one %r6) -> omitted
+  var $0: %r6
+  var $1: %r0
+  block0(%0: %r6):
+    %6: %r5 = const 1
+    %7: %r6 = alias %0
+    %8: %r5 = load property %7.flag: %r5
+    branch %8 -> block3 -> block1
+  block1:
+    jump -> block2(%6)
+  block2(%1: %r5):
+    %20: %r0 = const 7n
+    %21: %r0 = load global trace: %r0
+    %22: %r0 = const 10n
+    %23: %r0 = binary.mul %21, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %24, %20
+    %26: %r0 = coerce %25
+    store global trace: %r0, %26
+    branch %1 -> block4 -> block5
+  block3:
+    %9: %r5 = const 0
+    %10: %r6 = alias %0
+    %11: %r0 = load property %10.x: %r0
+    %12: %r0 = alias %11
+    call Guard.drop %12
+    %13: %r0 = const 8n
+    %14: %r0 = load global trace: %r0
+    %15: %r0 = const 10n
+    %16: %r0 = binary.mul %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = binary.add %17, %13
+    %19: %r0 = coerce %18
+    store global trace: %r0, %19
+    jump -> block2(%9)
+  block4:
+    %28: %r6 = alias %0
+    %29: %r0 = load property %28.x: %r0
+    call Guard.drop %29
+    jump -> block5
+  block5:
+    %30: %r6 = alias %0
+    %31: %r0 = load property %30.y: %r0
+    call Guard.drop %31
+    return
+
+fn expect(one %r1, one %r0) -> omitted
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = load global trace: %r0
+    %3: %r5 = binary.ne %2, %1
+    branch %3 -> block2 -> block1
+  block1:
+    %16: %r0 = const 0n
+    store global trace: %r0, %16
+    return
+  block2:
+    %4: %r1 = load global failures: %r1
+    %5: %r1 = const 100
+    %6: %r1 = binary.div %4, %5
+    %7: %r1 = coerce %6
+    %8: %r1 = const 100
+    %9: %r1 = binary.mul %7, %8
+    %10: %r1 = coerce %9
+    %11: %r1 = const 100
+    %12: %r1 = binary.add %10, %11
+    %13: %r1 = coerce %12
+    %14: %r1 = binary.add %13, %0
+    %15: %r1 = coerce %14
+    store global failures: %r1, %15
+    jump -> block1
+
+fn main() -> one %r1
+  var $0: %r6
+  var $1: %r6
+  var $2: %r7
+  var $3: %r0
+  var $4: %r7
+  var $5: %r7
+  var $6: %r0
+  var $7: %r7
+  var $8: %r7
+  var $9: %r0
+  var $10: %r7
+  var $11: %r7
+  var $12: %r7
+  var $13: %r0
+  var $14: %r7
+  var $15: %r8
+  var $16: %r0
+  var $17: %r8
+  var $18: %r7
+  var $19: %r0
+  var $20: %r7
+  var $21: %r0
+  var $22: %r7
+  var $23: %r7
+  var $24: %r4
+  var $25: %r0
+  var $26: %r4
+  var $27: %r0
+  var $28: %r0
+  var $29: %r0
+  var $30: %r0
+  var $31: %r0
+  var $32: %r0
+  var $33: %r0
+  var $34: %r0
+  var $35: %r0
+  var $36: %r0
+  var $37: %r0
+  var $38: %r0
+  var $39: %r0
+  var $40: %r0
+  var $41: %r0
+  var $42: %r0
+  var $43: %r0
+  var $44: %r0
+  var $45: %r0
+  var $46: %r7
+  var $47: %r0
+  var $48: %r7
+  var $49: %r0
+  var $50: %r0
+  var $51: %r0
+  var $52: %r0
+  var $53: %r0
+  var $54: %r0
+  var $55: %r0
+  var $56: %r0
+  var $57: %r0
+  var $58: %r3
+  var $59: %r0
+  var $60: %r0
+  var $61: %r0
+  var $62: %r3
+  var $63: %r0
+  var $64: %r0
+  var $65: %r0
+  var $66: %r0
+  var $67: %r0
+  var $68: %r0
+  var $69: %r0
+  block0:
+    %2: %r0 = const 1n
+    %6: %r0 = alias %2
+    %7: %r0 = const 2n
+    %11: %r0 = alias %6
+    %12: %r0 = alias %11
+    call Guard.drop %12
+    %13: %r0 = const 8n
+    %14: %r0 = load global trace: %r0
+    %15: %r0 = const 10n
+    %16: %r0 = binary.mul %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = binary.add %17, %13
+    %19: %r0 = coerce %18
+    %20: %r0 = const 7n
+    %21: %r0 = const 10n
+    %22: %r0 = binary.mul %19, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = binary.add %23, %20
+    %25: %r0 = coerce %24
+    store global trace: %r0, %25
+    jump -> block1
+  block1:
+    %8: %r0 = alias %7
+    %27: %r0 = alias %8
+    call Guard.drop %27
+    %28: %r1 = const 1
+    %29: %r0 = const 1872n
+    call expect %28, %29
+    %30: %r0 = const 3n
+    %35: %r0 = const 4n
+    %38: %r0 = const 7n
+    %39: %r0 = load global trace: %r0
+    %40: %r0 = const 10n
+    %41: %r0 = binary.mul %39, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %42, %38
+    %44: %r0 = coerce %43
+    store global trace: %r0, %44
+    jump -> block2
+  block2:
+    %34: %r0 = alias %30
+    %47: %r0 = alias %34
+    call Guard.drop %47
+    jump -> block3
+  block3:
+    %36: %r0 = alias %35
+    %49: %r0 = alias %36
+    call Guard.drop %49
+    %50: %r1 = const 2
+    %51: %r0 = const 734n
+    call expect %50, %51
+    %52: %r0 = const 1n
+    %53: %r0 = alias %52
+    %54: %r0 = const 2n
+    %61: %r0 = alias %53
+    %62: %r0 = alias %61
+    call Guard.drop %62
+    %63: %r0 = const 8n
+    %64: %r0 = load global trace: %r0
+    %65: %r0 = const 10n
+    %66: %r0 = binary.mul %64, %65
+    %67: %r0 = coerce %66
+    %68: %r0 = binary.add %67, %63
+    %69: %r0 = coerce %68
+    %70: %r0 = const 7n
+    %71: %r0 = const 10n
+    %72: %r0 = binary.mul %69, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %73, %70
+    %75: %r0 = coerce %74
+    store global trace: %r0, %75
+    jump -> block4
+  block4:
+    %55: %r0 = alias %54
+    %77: %r0 = alias %55
+    call Guard.drop %77
+    %78: %r1 = const 3
+    %79: %r0 = const 1872n
+    call expect %78, %79
+    %80: %r0 = const 3n
+    %82: %r0 = const 4n
+    %88: %r0 = const 7n
+    %89: %r0 = load global trace: %r0
+    %90: %r0 = const 10n
+    %91: %r0 = binary.mul %89, %90
+    %92: %r0 = coerce %91
+    %93: %r0 = binary.add %92, %88
+    %94: %r0 = coerce %93
+    store global trace: %r0, %94
+    jump -> block5
+  block5:
+    %81: %r0 = alias %80
+    %97: %r0 = alias %81
+    call Guard.drop %97
+    jump -> block6
+  block6:
+    %83: %r0 = alias %82
+    %99: %r0 = alias %83
+    call Guard.drop %99
+    %100: %r1 = const 4
+    %101: %r0 = const 734n
+    call expect %100, %101
+    %102: %r1 = const 2
+    %103: %r0 = const 1n
+    %107: %r0 = alias %103
+    %108: %r0 = const 2n
+    %111: %r5 = const 1
+    %112: %r1 = const 0
+    %113: %r1 = const 1
+    %114: %r1 = const 1
+    jump -> block7(%112)
+  block7(%0: %r1):
+    %115: %r5 = binary.lt %0, %102
+    branch %115 -> block8 -> block11(%111)
+  block8:
+    %116: %r5 = binary.eq %0, %114
+    branch %116 -> block10 -> block9
+  block9:
+    %117: %r1 = binary.add %0, %113
+    %118: %r1 = coerce %117
+    jump -> block7(%118)
+  block10:
+    %119: %r5 = const 0
+    %121: %r0 = alias %107
+    %122: %r0 = alias %121
+    call Guard.drop %122
+    %123: %r0 = const 8n
+    %124: %r0 = load global trace: %r0
+    %125: %r0 = const 10n
+    %126: %r0 = binary.mul %124, %125
+    %127: %r0 = coerce %126
+    %128: %r0 = binary.add %127, %123
+    %129: %r0 = coerce %128
+    store global trace: %r0, %129
+    jump -> block11(%119)
+  block11(%1: %r5):
+    %130: %r0 = const 7n
+    %131: %r0 = load global trace: %r0
+    %132: %r0 = const 10n
+    %133: %r0 = binary.mul %131, %132
+    %134: %r0 = coerce %133
+    %135: %r0 = binary.add %134, %130
+    %136: %r0 = coerce %135
+    store global trace: %r0, %136
+    branch %1 -> block12 -> block13
+  block12:
+    %139: %r0 = alias %107
+    call Guard.drop %139
+    jump -> block13
+  block13:
+    %109: %r0 = alias %108
+    %141: %r0 = alias %109
+    call Guard.drop %141
+    %142: %r1 = const 5
+    %143: %r0 = const 1872n
+    call expect %142, %143
+    %144: %r0 = const 3n
+    %149: %r0 = const 4n
+    %152: %r0 = const 7n
+    %153: %r0 = load global trace: %r0
+    %154: %r0 = const 10n
+    %155: %r0 = binary.mul %153, %154
+    %156: %r0 = coerce %155
+    %157: %r0 = binary.add %156, %152
+    %158: %r0 = coerce %157
+    store global trace: %r0, %158
+    jump -> block14
+  block14:
+    %148: %r0 = alias %144
+    %161: %r0 = alias %148
+    call Guard.drop %161
+    jump -> block15
+  block15:
+    %150: %r0 = alias %149
+    %163: %r0 = alias %150
+    call Guard.drop %163
+    %164: %r1 = const 6
+    %165: %r0 = const 734n
+    call expect %164, %165
+    %166: %r0 = const 1n
+    %167: %r0 = alias %166
+    %168: %r0 = const 2n
+    %169: %r0 = alias %168
+    %172: %r0 = alias %167
+    call Guard.drop %172
+    %173: %r0 = alias %169
+    call Guard.drop %173
+    %174: %r0 = const 8n
+    %175: %r0 = load global trace: %r0
+    %176: %r0 = const 10n
+    %177: %r0 = binary.mul %175, %176
+    %178: %r0 = coerce %177
+    %179: %r0 = binary.add %178, %174
+    %180: %r0 = coerce %179
+    store global trace: %r0, %180
+    jump -> block16
+  block16:
+    jump -> block17
+  block17:
+    %181: %r0 = const 7n
+    %182: %r0 = const 10n
+    %183: %r0 = binary.mul %180, %182
+    %184: %r0 = coerce %183
+    %185: %r0 = binary.add %184, %181
+    %186: %r0 = coerce %185
+    store global trace: %r0, %186
+    %187: %r1 = const 7
+    %188: %r0 = const 1287n
+    call expect %187, %188
+    %189: %r0 = const 3n
+    %193: %r0 = alias %189
+    %194: %r0 = const 4n
+    %195: %r0 = alias %194
+    %198: %r0 = alias %193
+    %200: %r0 = alias %195
+    call Guard.drop %200
+    %201: %r0 = alias %198
+    call Guard.drop %201
+    %202: %r0 = const 8n
+    %203: %r0 = load global trace: %r0
+    %204: %r0 = const 10n
+    %205: %r0 = binary.mul %203, %204
+    %206: %r0 = coerce %205
+    %207: %r0 = binary.add %206, %202
+    %208: %r0 = coerce %207
+    store global trace: %r0, %208
+    jump -> block18
+  block18:
+    jump -> block19
+  block19:
+    %209: %r0 = const 7n
+    %210: %r0 = const 10n
+    %211: %r0 = binary.mul %208, %210
+    %212: %r0 = coerce %211
+    %213: %r0 = binary.add %212, %209
+    %214: %r0 = coerce %213
+    store global trace: %r0, %214
+    %215: %r1 = const 8
+    %216: %r0 = const 4387n
+    call expect %215, %216
+    %217: %r0 = const 5n
+    %222: %r0 = const 6n
+    jump -> block20
+  block20:
+    %221: %r0 = alias %217
+    %227: %r0 = alias %221
+    call Guard.drop %227
+    jump -> block21
+  block21:
+    jump -> block22
+  block22:
+    %223: %r0 = alias %222
+    %230: %r0 = alias %223
+    call Guard.drop %230
+    jump -> block23
+  block23:
+    %231: %r0 = const 7n
+    %232: %r0 = load global trace: %r0
+    %233: %r0 = const 10n
+    %234: %r0 = binary.mul %232, %233
+    %235: %r0 = coerce %234
+    %236: %r0 = binary.add %235, %231
+    %237: %r0 = coerce %236
+    store global trace: %r0, %237
+    %238: %r1 = const 9
+    %239: %r0 = const 567n
+    call expect %238, %239
+    %240: %r0 = const 1n
+    %246: %r0 = alias %240
+    %247: %r0 = const 2n
+    %250: %r0 = const 3n
+    %255: %r0 = alias %246
+    %256: %r0 = alias %255
+    call Guard.drop %256
+    %257: %r0 = const 8n
+    %258: %r0 = load global trace: %r0
+    %259: %r0 = const 10n
+    %260: %r0 = binary.mul %258, %259
+    %261: %r0 = coerce %260
+    %262: %r0 = binary.add %261, %257
+    %263: %r0 = coerce %262
+    %264: %r0 = const 7n
+    %265: %r0 = const 10n
+    %266: %r0 = binary.mul %263, %265
+    %267: %r0 = coerce %266
+    %268: %r0 = binary.add %267, %264
+    %269: %r0 = coerce %268
+    %270: %r0 = const 7n
+    %271: %r0 = const 10n
+    %272: %r0 = binary.mul %269, %271
+    %273: %r0 = coerce %272
+    %274: %r0 = binary.add %273, %270
+    %275: %r0 = coerce %274
+    store global trace: %r0, %275
+    jump -> block24
+  block24:
+    %248: %r0 = alias %247
+    %278: %r0 = alias %248
+    call Guard.drop %278
+    %251: %r0 = alias %250
+    %280: %r0 = alias %251
+    call Guard.drop %280
+    %281: %r1 = const 10
+    %282: %r0 = const 187723n
+    call expect %281, %282
+    %283: %r0 = const 4n
+    %290: %r0 = const 5n
+    %293: %r0 = const 6n
+    %297: %r0 = const 7n
+    %298: %r0 = load global trace: %r0
+    %299: %r0 = const 10n
+    %300: %r0 = binary.mul %298, %299
+    %301: %r0 = coerce %300
+    %302: %r0 = binary.add %301, %297
+    %303: %r0 = coerce %302
+    %304: %r0 = const 7n
+    %305: %r0 = const 10n
+    %306: %r0 = binary.mul %303, %305
+    %307: %r0 = coerce %306
+    %308: %r0 = binary.add %307, %304
+    %309: %r0 = coerce %308
+    store global trace: %r0, %309
+    jump -> block25
+  block25:
+    %289: %r0 = alias %283
+    %314: %r0 = alias %289
+    call Guard.drop %314
+    jump -> block26
+  block26:
+    %291: %r0 = alias %290
+    %317: %r0 = alias %291
+    call Guard.drop %317
+    %294: %r0 = alias %293
+    %319: %r0 = alias %294
+    call Guard.drop %319
+    %320: %r1 = const 11
+    %321: %r0 = const 77456n
+    call expect %320, %321
+    %322: %r0 = const 1n
+    %326: %r0 = alias %322
+    %327: %r0 = const 2n
+    %331: %r0 = alias %326
+    %332: %r0 = alias %331
+    call Guard.drop %332
+    %333: %r0 = const 8n
+    %334: %r0 = load global trace: %r0
+    %335: %r0 = const 10n
+    %336: %r0 = binary.mul %334, %335
+    %337: %r0 = coerce %336
+    %338: %r0 = binary.add %337, %333
+    %339: %r0 = coerce %338
+    store global trace: %r0, %339
+    jump -> block27
+  block27:
+    %328: %r0 = alias %327
+    %342: %r0 = alias %328
+    call Guard.drop %342
+    %343: %r1 = const 12
+    %344: %r0 = const 182n
+    call expect %343, %344
+    %345: %r0 = const 3n
+    %349: %r0 = alias %345
+    %350: %r0 = const 4n
+    %354: %r0 = alias %349
+    %355: %r0 = alias %354
+    call Guard.drop %355
+    %356: %r0 = const 8n
+    %357: %r0 = load global trace: %r0
+    %358: %r0 = const 10n
+    %359: %r0 = binary.mul %357, %358
+    %360: %r0 = coerce %359
+    %361: %r0 = binary.add %360, %356
+    %362: %r0 = coerce %361
+    store global trace: %r0, %362
+    %366: %r0 = const 7n
+    %367: %r0 = const 10n
+    %368: %r0 = binary.mul %362, %367
+    %369: %r0 = coerce %368
+    %370: %r0 = binary.add %369, %366
+    %371: %r0 = coerce %370
+    store global trace: %r0, %371
+    jump -> block28
+  block28:
+    %351: %r0 = alias %350
+    %373: %r0 = alias %351
+    call Guard.drop %373
+    %375: %r1 = const 13
+    %376: %r0 = const 3874n
+    call expect %375, %376
+    %377: %r0 = const 5n
+    %382: %r0 = const 6n
+    jump -> block29
+  block29:
+    %381: %r0 = alias %377
+    %388: %r0 = alias %381
+    call Guard.drop %388
+    jump -> block30
+  block30:
+    %383: %r0 = alias %382
+    %390: %r0 = alias %383
+    call Guard.drop %390
+    %391: %r1 = const 14
+    %392: %r0 = const 56n
+    call expect %391, %392
+    %393: %r0 = const 1n
+    %398: %r0 = const 2n
+    %404: %r0 = const 7n
+    %405: %r0 = load global trace: %r0
+    %406: %r0 = const 10n
+    %407: %r0 = binary.mul %405, %406
+    %408: %r0 = coerce %407
+    %409: %r0 = binary.add %408, %404
+    %410: %r0 = coerce %409
+    store global trace: %r0, %410
+    jump -> block31
+  block31:
+    %397: %r0 = alias %393
+    %413: %r0 = alias %397
+    call Guard.drop %413
+    jump -> block32
+  block32:
+    %399: %r0 = alias %398
+    %415: %r0 = alias %399
+    call Guard.drop %415
+    %417: %r1 = const 15
+    %418: %r0 = const 712n
+    call expect %417, %418
+    %419: %r1 = const 2
+    %420: %r0 = const 1n
+    %421: %r0 = alias %420
+    %422: %r0 = const 2n
+    %423: %r0 = alias %422
+    %424: %r3 = const 0
+    %425: %r0 = const 0n
+    %426: %r4 = object %s0 %424, %421, %423, %425
+    call sum %419, %426
+    %427: %r1 = const 16
+    %428: %r0 = const 2187n
+    call expect %427, %428
+    %429: %r0 = const 3n
+    %431: %r0 = const 4n
+    jump -> block33
+  block33:
+    jump -> block34
+  block34:
+    %430: %r0 = alias %429
+    %443: %r0 = alias %430
+    call Guard.drop %443
+    jump -> block35
+  block35:
+    jump -> block36
+  block36:
+    jump -> block37
+  block37:
+    jump -> block38
+  block38:
+    %432: %r0 = alias %431
+    %446: %r0 = alias %432
+    call Guard.drop %446
+    jump -> block39
+  block39:
+    jump -> block40
+  block40:
+    jump -> block41
+  block41:
+    jump -> block42
+  block42:
+    jump -> block43
+  block43:
+    %447: %r0 = const 7n
+    %448: %r0 = load global trace: %r0
+    %449: %r0 = const 10n
+    %450: %r0 = binary.mul %448, %449
+    %451: %r0 = coerce %450
+    %452: %r0 = binary.add %451, %447
+    %453: %r0 = coerce %452
+    store global trace: %r0, %453
+    %454: %r1 = const 17
+    %455: %r0 = const 347n
+    call expect %454, %455
+    %456: %r1 = const 2
+    %457: %r0 = const 5n
+    %458: %r0 = alias %457
+    %459: %r3 = const 1
+    %460: %r0 = const 0n
+    %461: %r0 = const 0n
+    %462: %r4 = object %s0 %459, %460, %461, %458
+    call sum %456, %462
+    %463: %r1 = const 18
+    %464: %r0 = const 757n
+    call expect %463, %464
+    %465: %r0 = const 6n
+    jump -> block44
+  block44:
+    jump -> block45
+  block45:
+    jump -> block46
+  block46:
+    jump -> block47
+  block47:
+    jump -> block48
+  block48:
+    jump -> block49
+  block49:
+    jump -> block50
+  block50:
+    jump -> block51
+  block51:
+    %466: %r0 = alias %465
+    %478: %r0 = alias %466
+    call Guard.drop %478
+    jump -> block52
+  block52:
+    jump -> block53
+  block53:
+    %479: %r0 = const 7n
+    %480: %r0 = load global trace: %r0
+    %481: %r0 = const 10n
+    %482: %r0 = binary.mul %480, %481
+    %483: %r0 = coerce %482
+    %484: %r0 = binary.add %483, %479
+    %485: %r0 = coerce %484
+    store global trace: %r0, %485
+    %486: %r1 = const 19
+    %487: %r0 = const 67n
+    call expect %486, %487
+    %488: %r0 = const 1n
+    %489: %r0 = alias %488
+    %490: %r0 = const 2n
+    %491: %r0 = alias %490
+    %492: %r5 = const 1
+    %493: %r6 = object %s1 %489, %491, %492
+    %494: %r6 = alias %493
+    call Flagged.drop %494
+    %495: %r0 = const 3n
+    %496: %r0 = alias %495
+    %497: %r0 = const 4n
+    %498: %r0 = alias %497
+    %499: %r5 = const 0
+    %500: %r6 = object %s1 %496, %498, %499
+    %501: %r6 = alias %500
+    call Flagged.drop %501
+    %502: %r1 = const 20
+    %503: %r0 = const 1872734n
+    call expect %502, %503
+    %504: %r1 = load global failures: %r1
+    return %504
+
+optimizer clones 0 aliased 0 forwarded 0 removed 249 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 19 promoted 62 folded 0
+
+shape %s0 object Sum {$tag: %r3 tag, g: %r0, h: %r0, B: %r0}
+shape %s1 object Flagged {x: %r0, y: %r0, flag: %r5}
+shape %s2 object Rec {x: %r0, y: %r0}
+shape %s3 object Outer {inner: %r7, z: %r0}
+
+rep %r0 = bigint signed
+rep %r1 = number signed 32
+rep %r2 = void
+rep %r3 = number unsigned 8
+rep %r4 = object %s0
+rep %r5 = number bool
+rep %r6 = object %s1
+rep %r7 = object %s2
+rep %r8 = object %s3
+rep %r9 = nullable of %r1
+rep %r10 = nullable of %r1
+fn (one %r4) -> omitted
+  block0(%0: %r4):
+    %1: %r3 = load property %0.$tag: %r3
+    switch %1 case 0 -> block2 case 1 -> block3 else -> block1
+  block1:
+    return
+  block2:
+    %2: %r0 = load property %0.g: %r0
+    call Guard.drop %2
+    %3: %r0 = load property %0.h: %r0
+    call Guard.drop %3
+    jump -> block1
+  block3:
+    %4: %r0 = load property %0.B: %r0
+    call Guard.drop %4
+    jump -> block1
+

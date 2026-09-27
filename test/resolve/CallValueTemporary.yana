@@ -1,0 +1,18 @@
+{-
+   An owner made by a call through a function value, lent to another call through one, is held in a
+   temporary of the frame and dropped there - what a direct call's borrowing argument gets
+   (`holdBorrowed`). `f(f(x))` at `String` was "internal: owned value reaches return unconsumed"
+   until J206 (J205 §4): the inner result was lent as a bare register nothing consumed. A trivially
+   copyable result, which every earlier fixture through a function value used, has nothing to drop
+   and hid it.
+-}
+
+fn twice(x: String, f: (String) -> String) -> String = f(f(x))
+
+fn (a) twiceGeneric(x: a, f: (a) -> a) -> a = f(f(x))
+
+fn main() -> Int:
+    let one = twice("a", (s: String) -> "b{s}")
+    let two = twiceGeneric("a", (s: String) -> "{s}{s}")
+    let three = twiceGeneric(3, (n: Int) -> n * 2)
+    return truncate(length(one) * 10 + length(two)) + three

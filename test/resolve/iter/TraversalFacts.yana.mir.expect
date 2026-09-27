@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *6] = "banana"
+let string'188: [CodeUnit *6] = "banana"
 
-let string'143: [CodeUnit *5] = "a
+let string'189: [CodeUnit *5] = "a
 b
 c"
 
-let string'144: [CodeUnit *1] = "x"
+let string'190: [CodeUnit *1] = "x"
 
 fn countA(text: String [shared call view]) -> I32 {
   local & n: I32
@@ -340,7 +340,7 @@ bb0:
   write.init borrow.unique ([%%3][2]) take %2
   %20: Array(I32) = read take (local0)
   write.init borrow.unique (a) take %20
-  %22: String = const String {units: Array {run: Run {items: &string'142, capacity: 6, ownsHeap: 0}, length: 6}}
+  %22: String = const String {units: Array {run: Run {items: &string'188, capacity: 6, ownsHeap: 0}, length: 6}}
   write.init borrow.unique (local2) take %22
   %24: String [shared slot 0] = read borrow.shared (local2) loan0
   %25: String [shared slot 0 view] = call.derivation view(String) borrow.shared %24 roots{0}
@@ -390,7 +390,7 @@ bb0:
   %68: I32 = call nested borrow.shared %67
   drop (local5)
   %69: I32 = add inspect %30 inspect %68
-  %70: String = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %70: String = const String {units: Array {run: Run {items: &string'189, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (local6) take %70
   %72: String [shared slot 0] = read borrow.shared (local6) loan3
   %73: String [shared slot 0 view] = call.derivation view(String) borrow.shared %72 roots{3}
@@ -399,7 +399,7 @@ bb0:
   %75: I32 = add inspect %69 inspect %74
   write.init borrow.unique (r) take %75
   %77: I32 [unique call] = read borrow.unique (r) loan4
-  %78: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %78: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %79: I32 = const 4
   %80: Size = const 1
   %81: Map(String, I32) = call newMap(String, I32) borrow.shared %80

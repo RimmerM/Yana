@@ -514,216 +514,217 @@ bb0:
   %6: [I32 *2] [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: %[I32 *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
   %8: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
-  %9: Size trivial = call makePipe borrow %8
-  %10: Size trivial = const 0
-  %11: Bool trivial = lt inspect %9 inspect %10
-  branch inspect %11 -> bb3 -> bb1
+  %9: USize trivial = const 0
+  %10: Size trivial = call makePipe borrow %8 borrow %9
+  %11: Size trivial = const 0
+  %12: Bool trivial = lt inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %12: Size trivial = const 0
-  %13: %I32 address = element.addr inspect %0 inspect %12
-  %14: I32 trivial = load inspect %13
-  %15: %I32 address = global.addr reader
-  store inspect %15 consume %14
-  %16: USize trivial = const 33
-  %17: %I32 address = global.addr reader
-  %18: I32 trivial = load inspect %17
-  %19: Size trivial = convert inspect %18
-  %20: USize trivial = bitcast inspect %19
-  %21: USize trivial = const 1000
-  %22: Size trivial = native syscall inspect %16 inspect %20 inspect %21
-  %23: Size trivial = const 1000
-  %24: Bool trivial = ne inspect %22 inspect %23
-  branch inspect %24 -> bb6 -> bb4
+  %13: Size trivial = const 0
+  %14: %I32 address = element.addr inspect %0 inspect %13
+  %15: I32 trivial = load inspect %14
+  %16: %I32 address = global.addr reader
+  store inspect %16 consume %15
+  %17: USize trivial = const 33
+  %18: %I32 address = global.addr reader
+  %19: I32 trivial = load inspect %18
+  %20: Size trivial = convert inspect %19
+  %21: USize trivial = bitcast inspect %20
+  %22: USize trivial = const 1000
+  %23: Size trivial = native syscall inspect %17 inspect %21 inspect %22
+  %24: Size trivial = const 1000
+  %25: Bool trivial = ne inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
 
 bb3:
-  %25: I32 trivial = const 1
-  return consume %25
+  %26: I32 trivial = const 1
+  return consume %26
 
 bb4:
   jump -> bb5
 
 bb5:
-  %26: Size trivial = const 1
-  %27: %I32 address = element.addr inspect %0 inspect %26
-  %28: I32 trivial = load inspect %27
-  store inspect %1 consume %28
-  %29: I32 trivial = const 0
-  store inspect %2 consume %29
-  %30: I32 trivial = load inspect %1
-  %31: I64 trivial = const 3
-  %32: I64 trivial = const 4
-  call send borrow %30 borrow %31 borrow %32
-  %33: %I32 address = global.addr reader
-  %34: I32 trivial = load inspect %33
-  %35: I64 trivial = call viaLet borrow %34
-  %36: I64 trivial = const 304
-  %37: Bool trivial = ne inspect %35 inspect %36
-  branch inspect %37 -> bb9 -> bb7
+  %27: Size trivial = const 1
+  %28: %I32 address = element.addr inspect %0 inspect %27
+  %29: I32 trivial = load inspect %28
+  store inspect %1 consume %29
+  %30: I32 trivial = const 0
+  store inspect %2 consume %30
+  %31: I32 trivial = load inspect %1
+  %32: I64 trivial = const 3
+  %33: I64 trivial = const 4
+  call send borrow %31 borrow %32 borrow %33
+  %34: %I32 address = global.addr reader
+  %35: I32 trivial = load inspect %34
+  %36: I64 trivial = call viaLet borrow %35
+  %37: I64 trivial = const 304
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb9 -> bb7
 
 bb6:
-  %38: I32 trivial = const 1
-  return consume %38
+  %39: I32 trivial = const 1
+  return consume %39
 
 bb7:
   jump -> bb8
 
 bb8:
-  %39: I32 trivial = load inspect %1
-  %40: I64 trivial = const 5
-  %41: I64 trivial = const 6
-  call send borrow %39 borrow %40 borrow %41
-  %42: %I32 address = global.addr reader
-  %43: I32 trivial = load inspect %42
-  %44: I64 trivial = call viaArray borrow %43
-  %45: I64 trivial = const 506
-  %46: Bool trivial = ne inspect %44 inspect %45
-  branch inspect %46 -> bb12 -> bb10
+  %40: I32 trivial = load inspect %1
+  %41: I64 trivial = const 5
+  %42: I64 trivial = const 6
+  call send borrow %40 borrow %41 borrow %42
+  %43: %I32 address = global.addr reader
+  %44: I32 trivial = load inspect %43
+  %45: I64 trivial = call viaArray borrow %44
+  %46: I64 trivial = const 506
+  %47: Bool trivial = ne inspect %45 inspect %46
+  branch inspect %47 -> bb12 -> bb10
 
 bb9:
-  %47: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %48: I32 trivial = const 1
-  call +=(I32) borrow %47 borrow %48
+  %48: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %49: I32 trivial = const 1
+  call +=(I32) borrow %48 borrow %49
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %49: I32 trivial = load inspect %1
-  %50: I64 trivial = const 7
-  %51: I64 trivial = const 8
-  call send borrow %49 borrow %50 borrow %51
-  %52: %I32 address = global.addr reader
-  %53: I32 trivial = load inspect %52
-  %54: I64 trivial = call viaBoxed borrow %53
-  %55: I64 trivial = const 708
-  %56: Bool trivial = ne inspect %54 inspect %55
-  branch inspect %56 -> bb15 -> bb13
+  %50: I32 trivial = load inspect %1
+  %51: I64 trivial = const 7
+  %52: I64 trivial = const 8
+  call send borrow %50 borrow %51 borrow %52
+  %53: %I32 address = global.addr reader
+  %54: I32 trivial = load inspect %53
+  %55: I64 trivial = call viaBoxed borrow %54
+  %56: I64 trivial = const 708
+  %57: Bool trivial = ne inspect %55 inspect %56
+  branch inspect %57 -> bb15 -> bb13
 
 bb12:
-  %57: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %58: I32 trivial = const 2
-  call +=(I32) borrow %57 borrow %58
+  %58: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %59: I32 trivial = const 2
+  call +=(I32) borrow %58 borrow %59
   jump -> bb11
 
 bb13:
   jump -> bb14
 
 bb14:
-  %59: I32 trivial = load inspect %1
-  %60: I64 trivial = const 9
-  %61: I64 trivial = const 1
-  call send borrow %59 borrow %60 borrow %61
-  %62: %I32 address = global.addr reader
-  %63: I32 trivial = load inspect %62
-  %64: I64 trivial = call viaPointerField borrow %63
-  %65: I64 trivial = const 901
-  %66: Bool trivial = ne inspect %64 inspect %65
-  branch inspect %66 -> bb18 -> bb16
+  %60: I32 trivial = load inspect %1
+  %61: I64 trivial = const 9
+  %62: I64 trivial = const 1
+  call send borrow %60 borrow %61 borrow %62
+  %63: %I32 address = global.addr reader
+  %64: I32 trivial = load inspect %63
+  %65: I64 trivial = call viaPointerField borrow %64
+  %66: I64 trivial = const 901
+  %67: Bool trivial = ne inspect %65 inspect %66
+  branch inspect %67 -> bb18 -> bb16
 
 bb15:
-  %67: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %68: I32 trivial = const 4
-  call +=(I32) borrow %67 borrow %68
+  %68: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %69: I32 trivial = const 4
+  call +=(I32) borrow %68 borrow %69
   jump -> bb14
 
 bb16:
   jump -> bb17
 
 bb17:
-  %69: I32 trivial = load inspect %1
-  %70: I64 trivial = const 2
-  %71: I64 trivial = const 3
-  call send borrow %69 borrow %70 borrow %71
-  %72: %I32 address = global.addr reader
-  %73: I32 trivial = load inspect %72
-  %74: I64 trivial = call viaVector borrow %73
-  %75: I64 trivial = const 203
-  %76: Bool trivial = ne inspect %74 inspect %75
-  branch inspect %76 -> bb21 -> bb19
+  %70: I32 trivial = load inspect %1
+  %71: I64 trivial = const 2
+  %72: I64 trivial = const 3
+  call send borrow %70 borrow %71 borrow %72
+  %73: %I32 address = global.addr reader
+  %74: I32 trivial = load inspect %73
+  %75: I64 trivial = call viaVector borrow %74
+  %76: I64 trivial = const 203
+  %77: Bool trivial = ne inspect %75 inspect %76
+  branch inspect %77 -> bb21 -> bb19
 
 bb18:
-  %77: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %78: I32 trivial = const 8
-  call +=(I32) borrow %77 borrow %78
+  %78: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %79: I32 trivial = const 8
+  call +=(I32) borrow %78 borrow %79
   jump -> bb17
 
 bb19:
   jump -> bb20
 
 bb20:
-  %79: I32 trivial = load inspect %1
-  %80: I64 trivial = const 4
-  %81: I64 trivial = const 5
-  call send borrow %79 borrow %80 borrow %81
-  %82: %I32 address = global.addr reader
-  %83: I32 trivial = load inspect %82
-  %84: I64 trivial = call viaLoop borrow %83
-  %85: I64 trivial = const 405
-  %86: Bool trivial = ne inspect %84 inspect %85
-  branch inspect %86 -> bb24 -> bb22
+  %80: I32 trivial = load inspect %1
+  %81: I64 trivial = const 4
+  %82: I64 trivial = const 5
+  call send borrow %80 borrow %81 borrow %82
+  %83: %I32 address = global.addr reader
+  %84: I32 trivial = load inspect %83
+  %85: I64 trivial = call viaLoop borrow %84
+  %86: I64 trivial = const 405
+  %87: Bool trivial = ne inspect %85 inspect %86
+  branch inspect %87 -> bb24 -> bb22
 
 bb21:
-  %87: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %88: I32 trivial = const 16
-  call +=(I32) borrow %87 borrow %88
+  %88: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %89: I32 trivial = const 16
+  call +=(I32) borrow %88 borrow %89
   jump -> bb20
 
 bb22:
   jump -> bb23
 
 bb23:
-  %89: I64 trivial = call keepThenPoke
-  %90: I64 trivial = const 55
-  %91: Bool trivial = ne inspect %89 inspect %90
-  branch inspect %91 -> bb27 -> bb25
+  %90: I64 trivial = call keepThenPoke
+  %91: I64 trivial = const 55
+  %92: Bool trivial = ne inspect %90 inspect %91
+  branch inspect %92 -> bb27 -> bb25
 
 bb24:
-  %92: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %93: I32 trivial = const 32
-  call +=(I32) borrow %92 borrow %93
+  %93: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %94: I32 trivial = const 32
+  call +=(I32) borrow %93 borrow %94
   jump -> bb23
 
 bb25:
   jump -> bb26
 
 bb26:
-  %94: %I32 address = global.addr reads
-  %95: I32 trivial = load inspect %94
-  %96: I32 trivial = const 7
-  %97: Bool trivial = ne inspect %95 inspect %96
-  branch inspect %97 -> bb30 -> bb28
+  %95: %I32 address = global.addr reads
+  %96: I32 trivial = load inspect %95
+  %97: I32 trivial = const 7
+  %98: Bool trivial = ne inspect %96 inspect %97
+  branch inspect %98 -> bb30 -> bb28
 
 bb27:
-  %98: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %99: I32 trivial = const 64
-  call +=(I32) borrow %98 borrow %99
+  %99: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %100: I32 trivial = const 64
+  call +=(I32) borrow %99 borrow %100
   jump -> bb26
 
 bb28:
   jump -> bb29
 
 bb29:
-  %100: Size trivial = const 1000
-  %101: Size trivial = call closeFile borrow %100
-  %102: %I32 address = global.addr reader
-  %103: I32 trivial = load inspect %102
-  %104: Size trivial = convert inspect %103
-  %105: Size trivial = call closeFile borrow %104
-  %106: I32 trivial = load inspect %1
-  %107: Size trivial = convert inspect %106
-  %108: Size trivial = call closeFile borrow %107
-  %109: I32 trivial = load inspect %2
-  return consume %109
+  %101: Size trivial = const 1000
+  %102: Size trivial = call closeFile borrow %101
+  %103: %I32 address = global.addr reader
+  %104: I32 trivial = load inspect %103
+  %105: Size trivial = convert inspect %104
+  %106: Size trivial = call closeFile borrow %105
+  %107: I32 trivial = load inspect %1
+  %108: Size trivial = convert inspect %107
+  %109: Size trivial = call closeFile borrow %108
+  %110: I32 trivial = load inspect %2
+  return consume %110
 
 bb30:
-  %110: I32 [unique call] guaranteed from{%2} = load inspect %2
-  %111: I32 trivial = const 128
-  call +=(I32) borrow %110 borrow %111
+  %111: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %112: I32 trivial = const 128
+  call +=(I32) borrow %111 borrow %112
   jump -> bb29
 }
 

@@ -1,138 +1,18 @@
 fn main() -> one %r0
-  var $0: %r4
-  var $1: %r2
-  var $2: %r4
-  var $3: %r2
-  var $4: %r3
-  var $5: %r0
-  var $6: %r3
-  var $7: %r0
-  var $8: %r0
-  var $9: %r1
-  var $10: %r0
-  var $11: %r0
-  var $12: %r1
-  var $13: %r0
-  var $14: %r0
   block0:
-    %4: %r0 = const 5
-    %5: %r0 = const 0
-    store var $7: %r0, %5
-    %7: %r2 = alias %4
-    store var $1: %r2, %7
-    %8: %r2 = load var $1: %r2
-    %9: %r2 = const null
-    %10: %r6 = binary.eq %8, %9
-    %11: %r1 = const 1
-    %12: %r1 = const 0
-    %13: %r1 = select %10, %12, %11
-    %14: %r1 = const 1
-    %15: %r7 = binary.eq %13, %14
-    branch %15 -> block2 -> block1
-  block1:
-    %16: %r4 = const null
-    jump -> block3(%16)
-  block2:
-    %18: %r0 = load var $1: %r0
-    %19: %r0 = const 1
-    %20: %r0 = binary.add %18, %19
-    %21: %r0 = coerce %20
-    store var $7: %r0, %21
-    %22: %r0 = const 1
-    %23: %r4 = alias %22
-    jump -> block3(%23)
-  block3(%0: %r4):
-    %24: %r4 = alias %0
-    %25: %r4 = const null
-    %26: %r6 = binary.eq %24, %25
-    %27: %r1 = const 0
-    %28: %r1 = const 1
-    %29: %r1 = select %26, %28, %27
-    %30: %r1 = const 1
-    %31: %r7 = binary.eq %29, %30
-    %32: %r0 = const 0
-    %33: %r0 = load var $7: %r0
-    %34: %r0 = select %31, %32, %33
-    %35: %r0 = const 10
-    %36: %r0 = binary.mul %34, %35
-    %37: %r0 = coerce %36
-    %38: %r0 = const 0
-    store var $8: %r0, %38
-    %40: %r2 = const null
-    store var $3: %r2, %40
-    %41: %r2 = load var $3: %r2
-    %42: %r2 = const null
-    %43: %r6 = binary.eq %41, %42
-    %44: %r1 = const 1
-    %45: %r1 = const 0
-    %46: %r1 = select %43, %45, %44
-    %47: %r1 = const 1
-    %48: %r7 = binary.eq %46, %47
-    branch %48 -> block8 -> block7
-  block4(%1: %r0):
-    %85: %r0 = const 10
-    %86: %r0 = binary.mul %1, %85
-    %87: %r0 = coerce %86
-    %88: %r0 = binary.add %69, %87
-    %89: %r0 = coerce %88
-    %94: %r0 = const 1
-    jump -> block12
-  block5:
-    jump -> block4(%74)
-  block6:
-    %84: %r0 = alias %77
-    jump -> block4(%84)
-  block7:
-    %49: %r4 = const null
-    jump -> block9(%49)
-  block8:
-    %51: %r0 = load var $3: %r0
-    %52: %r0 = const 1
-    %53: %r0 = binary.add %51, %52
-    %54: %r0 = coerce %53
-    store var $8: %r0, %54
-    %55: %r0 = const 1
-    %56: %r4 = alias %55
-    jump -> block9(%56)
-  block9(%2: %r4):
-    %57: %r4 = alias %2
-    %58: %r4 = const null
-    %59: %r6 = binary.eq %57, %58
-    %60: %r1 = const 0
-    %61: %r1 = const 1
-    %62: %r1 = select %59, %61, %60
-    %63: %r1 = const 1
-    %64: %r7 = binary.eq %62, %63
-    %65: %r0 = const 0
-    %66: %r0 = load var $8: %r0
-    %67: %r0 = select %64, %65, %66
-    %68: %r0 = binary.add %37, %67
-    %69: %r0 = coerce %68
-    %74: %r0 = const 7
-    jump -> block5
-  block10(%3: %r0):
-    %105: %r0 = binary.add %89, %3
-    %106: %r0 = coerce %105
-    return %106
-  block11:
-    %102: %r0 = load var $5: %r0
-    jump -> block10(%102)
-  block12:
-    %104: %r0 = alias %94
-    jump -> block10(%104)
+    %16: %r0 = const 131
+    return %16
 
-optimizer clones 0 aliased 0 forwarded 0 removed 41 adopted 0 sunk 0 numbered 0 decided 2 unboxed 2 updated 0 split 2 promoted 6 folded 2
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
-shape %s0 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
-shape %s1 cell {$v: %r0 box}
+shape %s0 cell {$v: %r0 box}
+shape %s1 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8
 rep %r2 = nullable of %r0
-rep %r3 = object %s0
-rep %r4 = nullable of %r0
-rep %r5 = object %s1
-rep %r6 = boolean
-rep %r7 = number bool
-rep %r8 = void
-rep %r9 = array Int32Array of %r0
+rep %r3 = nullable of %r0
+rep %r4 = void
+rep %r5 = object %s0
+rep %r6 = array Int32Array of %r0
+rep %r7 = object %s1

@@ -44,10 +44,6 @@ static bool suspendsAt(Node& node) {
         // a call and this is what replaced it, which is the one difference worth noting here.
         case Node::RunSlots:
 
-        // A machine operation runs and comes back: the kernel is not a Yana function, so nothing
-        // reachable through one can hand over.
-        case Node::Native:
-
         // And a host operation, for the same reason one target further out: what runs is the
         // engine's, so it may do anything except hand control to a Yana continuation - which is
         // what suspending is. `hostThrow` leaves without coming back, and that is not a suspension
@@ -82,6 +78,21 @@ static bool suspendsAt(Node& node) {
         case Node::Switch:
         case Node::Unreachable:
             return false;
+        /*
+         * A machine operation runs and comes back - the kernel is not a Yana function - with one
+         * exception, and it is the row the comment above predicted: **`stackSwitch`** hands the
+         * processor to another stack, which is `lib/Fiber`'s `suspendOn`, and this frame resumes only
+         * when something switches back. `stackInit` prepares a stack and returns without entering
+         * it, and `cloneThread` starts a thread beside this one; neither hands this frame's control
+         * away.
+         *
+         * Here and not on the call it replaced (P13, J220): the expansion leaves no call behind, so
+         * the bodyless declaration's conservative summary that `expand_native.cpp` counted on was
+         * never read, and `explain` said `suspends: no` for `Switching.yana`'s `count`.
+         */
+        case Node::Native:
+            return ((NodeNative&)node).op == NativeOp::StackSwitch;
+
         case Node::KindCount:
             break;
     }
@@ -568,6 +579,14 @@ struct Interprocedural {
                  * generated body that is not one of the four, and the one the reachability walk
                  * could not otherwise see. `emitIterStepper` is where it is emitted and says why.
                  */
+                // And `f$failure`, which a failing object's `next` and `resume` call to answer
+                // `Failed(e)` - `answerItem`, C1b.
+                if((function->generated == Function::Generated::IterNext ||
+                    function->generated == Function::Generated::IterResume) &&
+                   site.producerFailure) {
+                    root(site.producerFailure);
+                }
+
                 if(function->generated == Function::Generated::IterNext && site.producer) {
                     auto& declaring = bodyOwnerOf(decl, *decl[site.producer]);
 
@@ -655,6 +674,10 @@ struct Interprocedural {
                         if(child.producerWalk) root(child.producerWalk);
                         if(child.producerItem) root(child.producerItem);
                         if(child.producerTake) root(child.producerTake);
+
+                        // And its `f$failure`, which a failing child's embedded `advance` calls to
+                        // hand the reason to the region's alternative (C1b).
+                        if(child.producerFailure) root(child.producerFailure);
 
                         /*
                          * And the window a nested hand-over may be adapted through - `chunks` hands
@@ -752,7 +775,10 @@ struct Interprocedural {
                 }
 
                 if(node->kind == Node::FunValue) {
-                    auto callee = ((NodeFunValue*)node)->callee;
+                    // Under this body's substitution - a lambda lifted in a generic body is generic
+                    // in it, and this is the walk that makes its specialization (`funValueTarget`).
+                    auto callee = funValueTarget(context, program, *function,
+                                                 ((NodeFunValue*)node)->callee, node->source);
                     root(callee);
 
                     /*

@@ -1260,8 +1260,10 @@ struct Function {
      * The type rather than a flag, because the field has a second reader: the SSA lowering builds
      * the environment from it, and a flag would send that reader back to the parameter to find out
      * what it is building. **Argument zero is one slot, not two** - a generic environment for an
-     * erased body, captures for a closure - so a lifted lambda is never generic, which
-     * `resolveLambda` refuses at the point the two would collide rather than here.
+     * erased body, captures for a closure - so a lifted lambda is never *erased*: one written in a
+     * generic body shares that body's `gen` and is always specialized (C3), and one in a body
+     * compiled once is refused by `liftFunction` at the point the two would collide. A
+     * specialization's is the substituted record - `specializeFunction` copies it.
      */
     DeclPtr<Type> environment = nullptr;
 
@@ -1748,6 +1750,19 @@ struct Function {
          * drop elaboration every MIR body goes through.
          */
         IterObject,
+
+        /*
+         * `f$failure` - what a failing object failed with, moved out of the record
+         * (`RecordType::producerFailure`, P2).
+         */
+        IterFailure,
+
+        /*
+         * `iter(T | E)$failure` - the same, read out of an erased step's **answer** (C1c, J218):
+         * `$at` is `&$failure | 1`, and the body untags it and moves the `Exit` payload out.
+         * `generatedRecord` is the erased type, as for `IterErasedItem`.
+         */
+        IterErasedFailure,
     };
     Generated generated = Generated::None;
 
@@ -2203,6 +2218,17 @@ struct Program {
     bool typesClassified = false;
 
     /*
+     * A structural question asked before `classifyTypes` - `TrivialCopy(U8)` - is a bug, except in
+     * the one pass that may ask it early and knows it: `checkInstanceSuperclasses`, which runs when the
+     * instance table is complete and the classification is not, and an `instance` of a class whose
+     * context is `(Copy(unit))` reaches `TrivialCopy` through Core's `(TrivialCopy(a)) Copy(a)`.
+     * While `deferStructural` is set such a question answers "not known" and sets
+     * `structuralDeferred`, and the pass checks that instance again after the classification.
+     */
+    bool deferStructural = false;
+    bool structuralDeferred = false;
+
+    /*
      * Whether any field in this program is an indirection - `RecordField::boxed`, written by `@box`
      * or by `breakLayoutCycles`.
      *
@@ -2352,9 +2378,33 @@ struct Program {
          */
         virtual DeclPtr<Function> objectMaker(DeclPtr<Function> member, DeclPtr<Function> entry,
                                               LocationId source) = 0;
+
+        /*
+         * The site type of `producer` (the generic) at these concrete arguments, minted if nothing
+         * has minted it - what an `openSite` record becomes in a specialization of the body that
+         * built it (P16). Null where the mint refused, which has reported.
+         */
+        virtual DeclPtr<Type> siteAt(DeclPtr<Function> producer, DeclPtr<Type>* arguments,
+                                     Size count, LocationId source) = 0;
     };
 
     IterObjects* iterObjects = nullptr;
+
+    /*
+     * Every `openSite` record met under a concrete substitution, and the site type it became there -
+     * P16. Filled through `iterObjects` while the reachability walk specializes the bodies that
+     * built them, and read afterwards by the conversion, which substitutes the same types again
+     * after the resolver is gone. A list and a linear scan: a program has a handful of these.
+     */
+    struct OpenSite {
+        DeclPtr<Type> open = nullptr;
+        DeclPtr<Type> concrete = nullptr;
+        U32 first = 0;
+        U32 count = 0;
+    };
+
+    Array<OpenSite> openSites;
+    Array<DeclPtr<Type>> openSiteArguments;
 
     /*
      * What each function may do to the program's globals - `analyze_internal.h`, made by

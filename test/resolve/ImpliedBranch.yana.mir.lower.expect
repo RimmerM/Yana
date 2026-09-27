@@ -95,19 +95,19 @@ signs<complex>(%x: I32): I32 {
     je %v_1, b_2, b_3
   }
 
-  b_4 {
-    %v_5 = phi [b_3, %v_6], [b_2, 1]: I32
-    ret %v_5
+  b_3 {
+    %v_4 = cmp_igt %x, 3: I32
+    %v_5 = select %v_4, 2, 3: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_3, %v_5], [b_2, 1]: I32
+    ret %v_7
   }
 
   b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    %v_7 = cmp_igt %x, 3: I32
-    %v_6 = select %v_7, 2, 3: I32
-    jmp b_4
+    jmp b_6
   }
 }
 

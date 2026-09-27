@@ -22,60 +22,48 @@ main<complex>(): I32 {
     %v_12 = add %v_11, 1: I32
     store @log, %v_12, 4
     %v_13 = cmp_ile %v_10, 0: I32
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    %v_16 = shl %v_10, 1: I32
-    %v_17 = add %v_5, %v_16: I32
-    %v_18 = add %v_11, 101: I32
-    store @log, %v_18, 4
-    jmp b_19
-  }
-
-  b_14 {
-    jmp b_19
-  }
-
-  b_19 {
-    %v_20 = phi [b_15, 0], [b_14, 1]: I32
-    %v_6 = phi [b_15, %v_17], [b_14, %v_5]: I32
-    je %v_20, b_9, b_3
+    je %v_13, b_14, b_3
   }
 
   b_3 {
+    %v_15 = shl %v_10, 1: I32
+    %v_6 = add %v_5, %v_15: I32
+    %v_16 = add %v_11, 101: I32
+    store @log, %v_16, 4
     jmp b_1
   }
 
+  b_14 {
+    jmp b_9
+  }
+
   b_9 {
-    %v_21 = phi [b_1, %v_5], [b_19, %v_6]: I32
-    %v_22 = loads @log, 4: I32
-    %v_23 = add %v_22, 101: I32
+    %v_17 = loads @log, 4: I32
+    %v_18 = add %v_17, 101: I32
+    store @log, %v_18, 4
+    %v_19 = add %v_17, 102: I32
+    store @log, %v_19, 4
+    %v_20 = add %v_17, 103: I32
+    store @log, %v_20, 4
+    %v_21 = loads @sideEffect, 4: I32
+    %v_22 = add %v_21, 14: I32
+    store @sideEffect, %v_22, 4
+    %v_23 = add %v_17, 203: I32
     store @log, %v_23, 4
-    %v_24 = add %v_22, 102: I32
+    %v_24 = add %v_17, 204: I32
     store @log, %v_24, 4
-    %v_25 = add %v_22, 103: I32
+    %v_25 = add %v_17, 205: I32
     store @log, %v_25, 4
-    %v_26 = loads @sideEffect, 4: I32
-    %v_27 = add %v_26, 14: I32
-    store @sideEffect, %v_27, 4
-    %v_28 = add %v_22, 203: I32
+    %v_26 = add %v_21, 54: I32
+    store @sideEffect, %v_26, 4
+    %v_27 = add %v_17, 305: I32
+    store @log, %v_27, 4
+    %v_28 = add %v_17, 306: I32
     store @log, %v_28, 4
-    %v_29 = add %v_22, 204: I32
-    store @log, %v_29, 4
-    %v_30 = add %v_22, 205: I32
-    store @log, %v_30, 4
-    %v_31 = add %v_26, 54: I32
-    store @sideEffect, %v_31, 4
-    %v_32 = add %v_22, 305: I32
-    store @log, %v_32, 4
-    %v_33 = add %v_22, 306: I32
-    store @log, %v_33, 4
-    %v_34 = add %v_21, 10: I32
-    %v_35 = add %v_34, 18446744073709551615: I32
-    %v_36 = add %v_35, %v_31: I32
-    %v_37 = add %v_36, %v_33: I32
-    ret %v_37
+    %v_29 = add %v_5, 9: I32
+    %v_30 = add %v_29, %v_26: I32
+    %v_31 = add %v_30, %v_28: I32
+    ret %v_31
   }
 }
 

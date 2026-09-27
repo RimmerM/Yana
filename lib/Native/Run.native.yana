@@ -160,12 +160,25 @@ pub fn resize(&self: Run(a), wanted: Size) -> Bool:
 {-
    The placement test - Implementation-Storage.md §5.
 
-   Written as a plain function taking the run by borrow as well as as the instance below, because a
-   container built on runs has to be able to release its own without owning it out of itself: moving
-   a field out of the value an authored `Reclaim` was handed is a partial move, and duplicating this
-   comparison in every such container is the thing worth avoiding. It is storage release and nothing
-   else, which is what makes it a permitted call inside an authored `Reclaim` - see
-   checkReclaimShape.
+   Written as a plain function as well as as the instance below, because a container built on runs
+   has to be able to release its own without owning it out of itself: moving a field out of the value
+   an authored `Reclaim` was handed is a partial move, and duplicating this comparison in every such
+   container is the thing worth avoiding. It is storage release and nothing else, which is what makes
+   it a permitted call inside an authored `Reclaim` - see checkReclaimShape.
+
+   **It takes the run's two fields, untyped, rather than the `Run(a)`** - K1. Taking the run made it
+   a generic, and every array teardown in a program calls it, so it was specialized once per heap
+   array element type anywhere in the program: `test/base` reached 32 copies of it, the budget
+   `resolve_mir/specialize.cpp` holds each generic to, and J193 and J194 each wrote a test around the
+   thirty-third. Every copy was the same body, because nothing here depends on `a` - the slots are
+   handed back as bytes and the tag is a field at the same place in every `Run(a)`. Two alternatives
+   were weighed. `@generic` compiles it once, but an erased body is one the SSA inliner may not copy,
+   so every teardown would pay a call and an environment for a comparison. And the compiler could
+   share the copies itself, which needs a proof that a variable is only ever the pointee of a `%`
+   and is never sized or stepped over - the better answer, and `kSpecializationsPerGeneric`'s note
+   says why it is not this one. The cost is that a caller writes `bitcast(run.items)` and
+   `run.ownsHeap` instead of `run`; the lowered teardown is the same instructions, with the bitcast
+   (a no-op) above the test rather than below it.
 
    Inline, frame and region storage release nothing: the owner's own bytes, the frame returning, and
    the region closing are what hand those back. Only the allocator's is this function's to give
@@ -178,10 +191,10 @@ pub fn resize(&self: Run(a), wanted: Size) -> Bool:
    of thing that may happen in bulk at a point the author did not choose.
 
    **This is one comparison and not a call**, which is Implementation-Containers.md §13.2's first
-   step: a callee taking an aggregate by the default convention is a memory-typed value parameter,
-   and the inliner binds it to the caller's own place (`bindParameters` in `resolve_ssa/opt`),
-   so this test is spliced into whatever reads it and the teardown holding it is spliced into the
-   `drop` that runs it.
+   step: the body is a test and a call, well under the inliner's budget, so it is spliced into the
+   teardown that calls it and that teardown into the `drop` that runs it. (It took the run as an
+   aggregate until K1, which the inliner bound to the caller's own place; the two fields are read
+   there now instead, and fold the same way.)
 
    And it *folds*, which is what §2 claims: the tag is a constant in the literal's own `Run`
    allocation and reaches the array through whole-aggregate copies, and `compiler/opt` (deleted in
@@ -190,11 +203,11 @@ pub fn resize(&self: Run(a), wanted: Size) -> Bool:
    something wrote through a borrow, and a grown one - where the question is real.
 -}
 @builtin(releaseRun)
-pub fn releaseRun(self: Run(a)):
-    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
+pub fn releaseRun(slots: %U8, ownsHeap: HeapFlag):
+    if ownsHeap == runFromHeap then freeHeap(slots)
 
 instance Reclaim(Run(a)):
-    fn reclaim(->value: Run(a)): releaseRun(value)
+    fn reclaim(->value: Run(a)): releaseRun(bitcast(value.items), value.ownsHeap)
 
 {-
    `values` and `valuesMut` **were here and are now `Core/Array.native.yana`'s.**

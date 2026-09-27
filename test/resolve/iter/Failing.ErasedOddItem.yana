@@ -1,0 +1,92 @@
+{-
+   An erased step's item answer is **a slot's address**, never the lent value's own - the review of
+   J218. `&$failure | 1` and a delegating level's tagged link are told from an item by bit zero, and
+   J218 argued only the failure's half (an `Outcome` is four-aligned). An `-> &U8` item is at any
+   byte, so every odd element read as a failure - whose `$failure` then untagged arbitrary memory
+   and moved an owning `E` out of it - and a delegating producer's odd element read as a link to
+   step. A one-byte *slot* after a `[U8 *3]` capture landed odd the same way. The answer is now the
+   slot's address, which the consumer loads where the producer lends, and a slot is laid out at
+   least two-aligned.
+
+   Digits: an item (its value), an alternative (7 then the length of what it saw).
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+-- An owning failure, so a failure read out of an item's address frees what is not a `String`.
+data Fail = Broken {why: String}
+
+-- Lends each byte: the answers are the addresses of consecutive bytes, half of them odd.
+iter fn bytesOf(&xs: [U8], failAt: Size) -> (&U8 | Fail):
+    for i in 0..length(xs):
+        if i == failAt then return Broken {why: "at {i}"}
+        yield xs[i]
+
+-- A one-byte slot after a three-byte capture, which an `Auto` layout places first.
+iter fn shifted(tag: [U8 *3], n: U8, failAt: U8) -> (U8 | Fail):
+    let &i = 0 :: U8
+    while i < n:
+        if i == failAt then return Broken {why: "stop"}
+        yield i + tag[0]
+        i += 1
+
+-- Delegation over lent bytes: an odd element must not read as a level entered.
+iter fn walk(&xs: [U8], i: Size) -> &U8:
+    if i < length(xs):
+        yield xs[i]
+        for x in walk(xs, i + 1):
+            yield x
+
+-- Delegation over the odd slot.
+iter fn walkShifted(tag: [U8 *3], i: U8) -> U8:
+    if i < 5:
+        yield i + tag[0]
+        for x in walkShifted(tag, i + 1):
+            yield x
+
+fn main() -> Int:
+    let &xs = [1, 2, 3, 4, 5] :: [U8]
+    let tag = [1, 2, 3] :: [U8 *3]
+
+    let &clean = bytesOf(xs, 100) :: iter(&U8 | Fail)
+    for b in clean:
+        note(widen(b))
+    | reason:
+        note(7)
+    expect(1, 12345)
+
+    let &failing = bytesOf(xs, 3) :: iter(&U8 | Fail)
+    for b in failing:
+        note(widen(b))
+    | reason:
+        note(7)
+        note(widen(length(reason.why)))
+    expect(2, 12374)
+
+    let &small = shifted(tag, 5, 3) :: iter(U8 | Fail)
+    for b in small:
+        note(widen(b))
+    | reason:
+        note(7)
+        note(widen(length(reason.why)))
+    expect(4, 12374)
+
+    let &lent = walk(xs, 0)
+    for b in lent:
+        note(widen(b))
+    expect(8, 12345)
+
+    let &deep = walkShifted(tag, 0)
+    for b in deep:
+        note(widen(b))
+    expect(16, 12345)
+
+    return failures

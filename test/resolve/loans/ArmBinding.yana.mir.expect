@@ -1,9 +1,9 @@
 module ResolveTest
 
-let string'142: [CodeUnit *11] = "  one
+let string'188: [CodeUnit *11] = "  one
 two  "
 
-let string'143: [CodeUnit *0] = ""
+let string'189: [CodeUnit *0] = ""
 
 fn source(flag: Bool [shared call]) -> Maybe(String) {
   local local1: String
@@ -20,7 +20,7 @@ bb2(%9: Maybe(String)):
   return take %9
 
 bb3:
-  %2: String = const String {units: Array {run: Run {items: &string'142, capacity: 11, ownsHeap: 0}, length: 11}}
+  %2: String = const String {units: Array {run: Run {items: &string'188, capacity: 11, ownsHeap: 0}, length: 11}}
   write.init borrow.unique (local1) take %2
   %4: String [shared slot 0] = read borrow.shared (local1) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
@@ -54,7 +54,7 @@ bb0:
   branch inspect %5 -> bb3 -> bb1
 
 bb1:
-  %10: String = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %10: String = const String {units: Array {run: Run {items: &string'189, capacity: 0, ownsHeap: 0}, length: 0}}
   write.init borrow.unique (local5) take %10
   flag (local5) = held
   %12: String [shared call] = read borrow.shared (local5) loan2

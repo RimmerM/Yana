@@ -9,38 +9,30 @@ fn main() -> one %r1
     %10: %r1 = const 8
     %11: %r1 = const 0
     %12: %r1 = const 1
+    %13: %r9 = const 3
+    %14: %r4 = alias %4
     jump -> block1(%11)
   block1(%0: %r1):
-    %13: %r9 = convert %0
-    %14: %r9 = const 3
-    %15: %r0 = binary.ge %13, %14
-    branch %15 -> block5 -> block2
+    %15: %r9 = convert %0
+    %16: %r0 = binary.ge %15, %13
+    branch %16 -> block5 -> block2
   block2:
-    %16: %r4 = alias %4
-    %17: %r1 = alias %0
-    %18: %r1 = coerce %17
-    %19: %r1 = load element %16[%18]: %r1
-    %20: %r0 = binary.lt %19, %10
-    branch %20 -> block4 -> block3
+    %17: %r1 = load element %14[%0]: %r1
+    %18: %r0 = binary.lt %17, %10
+    branch %18 -> block4 -> block3
   block3:
-    jump -> block6
-  block4:
-    %31: %r1 = binary.add %0, %12
-    %32: %r1 = coerce %31
-    jump -> block1(%32)
-  block5:
-    call checkFailed
-    unreachable
-  block6:
-    %26: %r1 = alias %19
     %6: %r6 = object %s0 %4, %5
-    %27: %r6 = alias %6
-    call Array(a).reclaim(I32) %27
-    %28: %r1 = const 8
-    %29: %r1 = binary.sub %26, %28
-    %30: %r1 = coerce %29
-    return %30
-  block7:
+    %19: %r6 = alias %6
+    call Array(a).reclaim(I32) %19
+    %20: %r1 = const 8
+    %21: %r1 = binary.sub %17, %20
+    %22: %r1 = coerce %21
+    return %22
+  block4:
+    %23: %r1 = binary.add %0, %12
+    %24: %r1 = coerce %23
+    jump -> block1(%24)
+  block5:
     call checkFailed
     unreachable
 
@@ -138,7 +130,7 @@ fn Array(a).reclaim(I32)(one %r6) -> omitted
   block0(%0: %r6):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 1 numbered 4 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 2
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 1 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1 folded 1
 
 shape %s0 object Array {items: %r4, length: %r5}
 shape %s1 object ArrayView {items: %r4, length: %r1, offset: %r1}

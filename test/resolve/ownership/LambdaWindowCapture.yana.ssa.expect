@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
 fn bump(v: I32 [unique call], n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [unique call] guaranteed, %1: I32 trivial):
@@ -724,7 +724,7 @@ bb0:
   %101: I32 trivial = const 7
   %102: I32 trivial = call bit borrow %99 borrow %100 borrow %101
   %103: I32 trivial = add inspect %98 inspect %102
-  %104: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %104: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   store inspect %7 consume %104
   %105: String [shared slot 0] guaranteed from{%7} = load inspect %7
   jump -> bb1

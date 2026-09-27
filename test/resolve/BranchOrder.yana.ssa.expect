@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = "99"
+let string'188: [CodeUnit *2] = "99"
 
-let string'143: [CodeUnit *2] = "19"
+let string'189: [CodeUnit *2] = "19"
 
 fn withAnd(text: String [shared call view], keep: I32 [shared call], out: String [unique call]) -> I32 {
 bb0(%0: String [shared call view] guaranteed, %1: I32 trivial, %2: String [unique call] guaranteed):
@@ -274,7 +274,7 @@ bb0:
   %6: String owned = call String.ofCapacity borrow %5
   store inspect %1 consume %6
   %7: I32 trivial = load inspect %0
-  %8: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %8: String owned = const String {units: Array {run: Run {items: &string'188, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %2 consume %8
   %9: String [shared slot 0] guaranteed from{%2} = load inspect %2
   jump -> bb1
@@ -301,7 +301,7 @@ bb2(%10: String [shared slot 0 view] guaranteed from{%2}):
   %25: I32 trivial = add inspect %7 inspect %24
   store inspect %0 consume %25
   %26: I32 trivial = load inspect %0
-  %27: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %27: String owned = const String {units: Array {run: Run {items: &string'189, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %3 consume %27
   %28: String [shared slot 0] guaranteed from{%3} = load inspect %3
   jump -> bb3

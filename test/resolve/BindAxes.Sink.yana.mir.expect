@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "abc"
+let string'188: [CodeUnit *3] = "abc"
 
-let string'143: [CodeUnit *4] = "wxyz"
+let string'189: [CodeUnit *4] = "wxyz"
 
-let string'144: [CodeUnit *1] = "z"
+let string'190: [CodeUnit *1] = "z"
 
-let string'145: [CodeUnit *1] = "q"
+let string'191: [CodeUnit *1] = "q"
 
 fn rebuilt(seed: String) -> String {
   local & acc: String object0
@@ -15,7 +15,7 @@ bb0:
   %0: String = read take (seed)
   write.init borrow.unique (acc) take %0
   drop (acc)
-  %2: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'188, capacity: 3, ownsHeap: 0}, length: 3}}
   write.reinit borrow.unique (acc) take %2
   %4: String = read take (acc)
   return take %4
@@ -28,7 +28,7 @@ bb0:
   %0: String = read take (seed)
   write.init borrow.unique (acc) take %0
   drop (acc)
-  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %2: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
   write.reinit borrow.unique (acc) take %2
   %4: String [shared call] = read borrow.shared (acc) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
@@ -41,14 +41,14 @@ fn main() -> I32 {
   local local0: String
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %0: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
   %1: String = call rebuilt take %0
   write.init borrow.unique (local0) take %1
   %3: String [shared slot 0] = read borrow.shared (local0) loan0
   %4: String [shared slot 0 view] = call.derivation view(String) borrow.shared %3 roots{0}
   %5: Size = call length(String) borrow.shared %4
   drop (local0)
-  %6: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: String = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   %7: Size = call scoped take %6
   %8: Size = add inspect %5 inspect %7
   %9: I32 = convert inspect %8

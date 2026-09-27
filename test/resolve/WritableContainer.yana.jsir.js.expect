@@ -4,11 +4,10 @@ function main() {
   var v3 = new Int32Array([1, 2, 3]);
   if (v3[0] !== 1) return -1n;
   v3[0] = 9;
-  if (v3[0] !== 9) return -2n;
   sortRange_I32(v3, 3, 0, 0, 2, Math.imul(2, 32 - (Math.clz32(3) | 0) | 0));
-  var v52 = new Int32Array([5, 4]);
-  v52[0] = 9;
-  return BigInt.asIntN(64, BigInt(((Math.imul(v3[0], 100) + Math.imul(v3[1], 10) | 0) + v3[2] | 0) + v52[0] | 0));
+  var v39 = new Int32Array([5, 4]);
+  v39[0] = 9;
+  return BigInt.asIntN(64, BigInt(((Math.imul(v3[0], 100) + Math.imul(v3[1], 10) | 0) + v3[2] | 0) + v39[0] | 0));
 }
 
 function sortRange_I32(xs$0, xs$1, xs$2, first, last, depth) {
@@ -25,32 +24,32 @@ function sortRange_I32(xs$0, xs$1, xs$2, first, last, depth) {
           siftDown_I32(xs$0, xs$1, xs$2, p9, p13, p14);
           p13 = p13 - 1 | 0;
         }
-        var v90 = p9 >>> 0;
+        var v78 = p9 >>> 0;
         while (p14 > p9) {
-          var v93 = xs$1 >>> 0;
-          if (v90 >= v93) throw $t;
-          var v97 = xs$2 + p9 | 0;
-          if (p14 >>> 0 >= v93) throw $t;
-          var v103 = xs$2 + p14 | 0;
-          var v104 = xs$0[v97];
-          xs$0[v97] = xs$0[v103];
-          xs$0[v103] = v104;
-          var v107 = p14 - 1 | 0;
-          siftDown_I32(xs$0, xs$1, xs$2, p9, p9, v107);
-          p14 = v107;
+          var v81 = xs$1 >>> 0;
+          if (v78 >= v81) throw $t;
+          var v85 = xs$2 + p9 | 0;
+          if (p14 >>> 0 >= v81) throw $t;
+          var v89 = xs$2 + p14 | 0;
+          var v90 = xs$0[v85];
+          xs$0[v85] = xs$0[v89];
+          xs$0[v89] = v90;
+          var v93 = p14 - 1 | 0;
+          siftDown_I32(xs$0, xs$1, xs$2, p9, p9, v93);
+          p14 = v93;
         }
         return;
       }
-      var v65 = p8 - 1 | 0;
-      var v66 = partitionRange_I32(xs$0, xs$1, xs$2, p9, p14);
-      if ((v66 - p9 | 0) < (p14 - v66 | 0)) {
-        sortRange_I32(xs$0, xs$1, xs$2, p9, v66 - 1 | 0, v65);
-        p9 = v66 + 1 | 0;
+      var v53 = p8 - 1 | 0;
+      var v54 = partitionRange_I32(xs$0, xs$1, xs$2, p9, p14);
+      if ((v54 - p9 | 0) < (p14 - v54 | 0)) {
+        sortRange_I32(xs$0, xs$1, xs$2, p9, v54 - 1 | 0, v53);
+        p9 = v54 + 1 | 0;
       } else {
-        sortRange_I32(xs$0, xs$1, xs$2, v66 + 1 | 0, p14, v65);
-        p14 = v66 - 1 | 0;
+        sortRange_I32(xs$0, xs$1, xs$2, v54 + 1 | 0, p14, v53);
+        p14 = v54 - 1 | 0;
       }
-      p8 = v65;
+      p8 = v53;
       continue L0;
     }
     break L0;
@@ -65,12 +64,12 @@ function sortRange_I32(xs$0, xs$1, xs$2, first, last, depth) {
       var v37 = xs$2 + p12 | 0;
       var v39 = p12 - 1 | 0;
       if (v39 >>> 0 >= v33) throw $t;
-      var v45 = xs$2 + v39 | 0;
-      var v46 = xs$0[v37];
-      var v47 = xs$0[v45];
-      if (v46 < v47) {
-        xs$0[v37] = v47;
-        xs$0[v45] = v46;
+      var v43 = xs$2 + v39 | 0;
+      var v44 = xs$0[v37];
+      var v45 = xs$0[v43];
+      if (v44 < v45) {
+        xs$0[v37] = v45;
+        xs$0[v43] = v44;
         p12 = v39;
         continue;
       }
@@ -87,37 +86,37 @@ function partitionRange_I32(xs$0, xs$1, xs$2, low, high) {
   if (v16 >= v17) throw $t;
   var v21 = xs$2 + v15 | 0;
   if (low >>> 0 >= v17) throw $t;
-  var v27 = xs$2 + low | 0;
-  var v28 = xs$0[v21];
-  var v29 = xs$0[v27];
-  if (v28 < v29) {
-    xs$0[v21] = v29;
-    xs$0[v27] = v28;
+  var v25 = xs$2 + low | 0;
+  var v26 = xs$0[v21];
+  var v27 = xs$0[v25];
+  if (v26 < v27) {
+    xs$0[v21] = v27;
+    xs$0[v25] = v26;
   }
   if (high >>> 0 >= v17) throw $t;
-  var v48 = xs$2 + high | 0;
-  var v54 = xs$0[v48];
-  var v55 = xs$0[v27];
-  if (v54 < v55) {
-    xs$0[v48] = v55;
-    xs$0[v27] = v54;
+  var v36 = xs$2 + high | 0;
+  var v39 = xs$0[v36];
+  var v40 = xs$0[v25];
+  if (v39 < v40) {
+    xs$0[v36] = v40;
+    xs$0[v25] = v39;
   }
-  var v79 = xs$0[v48];
-  var v80 = xs$0[v21];
-  if (v79 < v80) {
-    xs$0[v48] = v80;
-    xs$0[v21] = v79;
+  var v49 = xs$0[v36];
+  var v50 = xs$0[v21];
+  if (v49 < v50) {
+    xs$0[v36] = v50;
+    xs$0[v21] = v49;
   }
-  var v104 = xs$0[v21];
-  xs$0[v21] = xs$0[v27];
-  xs$0[v27] = v104;
+  var v59 = xs$0[v21];
+  xs$0[v21] = xs$0[v25];
+  xs$0[v25] = v59;
   var p6 = high + 1 | 0;
   var p5 = low;
   L3: for (;;) {
     p5 = p5 + 1 | 0;
     while (p5 < high) {
       if (p5 >>> 0 >= v17) throw $t;
-      if (xs$0[xs$2 + p5 | 0] < xs$0[v27]) {
+      if (xs$0[xs$2 + p5 | 0] < xs$0[v25]) {
         p5 = p5 + 1 | 0;
         continue;
       }
@@ -126,7 +125,7 @@ function partitionRange_I32(xs$0, xs$1, xs$2, low, high) {
     p6 = p6 - 1 | 0;
     while (p6 > low) {
       if (p6 >>> 0 >= v17) throw $t;
-      if (xs$0[v27] < xs$0[xs$2 + p6 | 0]) {
+      if (xs$0[v25] < xs$0[xs$2 + p6 | 0]) {
         p6 = p6 - 1 | 0;
         continue;
       }
@@ -134,19 +133,19 @@ function partitionRange_I32(xs$0, xs$1, xs$2, low, high) {
     }
     if (p5 >= p6) {
       if (p6 >>> 0 >= v17) throw $t;
-      var v172 = xs$2 + p6 | 0;
-      var v173 = xs$0[v27];
-      xs$0[v27] = xs$0[v172];
-      xs$0[v172] = v173;
+      var v116 = xs$2 + p6 | 0;
+      var v117 = xs$0[v25];
+      xs$0[v25] = xs$0[v116];
+      xs$0[v116] = v117;
       return p6;
     }
     if (p5 >>> 0 >= v17) throw $t;
-    var v153 = xs$2 + p5 | 0;
+    var v102 = xs$2 + p5 | 0;
     if (p6 >>> 0 >= v17) throw $t;
-    var v159 = xs$2 + p6 | 0;
-    var v160 = xs$0[v153];
-    xs$0[v153] = xs$0[v159];
-    xs$0[v159] = v160;
+    var v106 = xs$2 + p6 | 0;
+    var v107 = xs$0[v102];
+    xs$0[v102] = xs$0[v106];
+    xs$0[v106] = v107;
     continue L3;
   }
 }
@@ -172,17 +171,17 @@ function siftDown_I32(xs$0, xs$1, xs$2, low, root, high) {
       }
       p7 = v15;
     }
-    var v35 = p6 >>> 0;
-    var v36 = xs$1 >>> 0;
-    if (v35 >= v36) throw $t;
-    var v40 = xs$2 + p6 | 0;
-    if (p7 >>> 0 >= v36) throw $t;
-    var v46 = xs$2 + p7 | 0;
-    var v47 = xs$0[v40];
-    var v48 = xs$0[v46];
-    if (v47 < v48 ^ 1) break L0;
-    xs$0[v40] = v48;
-    xs$0[v46] = v47;
+    var v33 = p6 >>> 0;
+    var v34 = xs$1 >>> 0;
+    if (v33 >= v34) throw $t;
+    var v38 = xs$2 + p6 | 0;
+    if (p7 >>> 0 >= v34) throw $t;
+    var v42 = xs$2 + p7 | 0;
+    var v43 = xs$0[v38];
+    var v44 = xs$0[v42];
+    if (v43 < v44 ^ 1) break L0;
+    xs$0[v38] = v44;
+    xs$0[v42] = v43;
     p6 = p7;
     continue L0;
   }

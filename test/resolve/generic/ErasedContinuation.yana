@@ -1,0 +1,44 @@
+{-
+   A generic body whose `for` block reaches its class - K8, J219's "names requirement 0 of
+   runsAgree.cont".
+
+   `agree` is called at two instances, so the measured form would compile it once and read `least`
+   through the class environment. Its `for` over `items` is outlined into `agree.cont`, whose
+   argument zero is the loop's captures, and the class call inside it named a requirement of a
+   signature that states none - the verifier's internal error. `checkErasable` now declines the
+   erased form for a body whose continuation reads the environment, so `agree` is specialized per
+   instance. One instance never showed it, because a body specialized at one argument list is never
+   erased. `sized` is the same with a value at the open type inside the block.
+
+   `main` answers `least` summed over three items at each instance, and each size seen.
+-}
+
+class Codec(c):
+    fn least(codec: c) -> Int
+
+data A {k: Int}
+data B {k: Int, spare: Long}
+
+instance Codec(A):
+    fn least(codec: A) -> Int = codec.k
+
+instance Codec(B):
+    fn least(codec: B) -> Int = codec.k + 1
+
+let &total = 0
+
+fn (Codec(c)) agree(codec: c):
+    let scratches = [1, 2, 3]
+    for scratch in items(scratches):
+        total += codec.least() * scratch
+
+fn (Codec(c)) sized(codecs: [c]):
+    for codec in items(codecs):
+        total += codec.least()
+
+fn main() -> Int:
+    agree(A {k: 3})
+    agree(B {k: 2, spare: 0})
+    sized([A {k: 10}, A {k: 20}])
+    sized([B {k: 100, spare: 1}])
+    return total

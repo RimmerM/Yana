@@ -875,14 +875,13 @@ bb0(%0: guards.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
 
 bb1:
   %4: %%Guard address = field.addr .$slot inspect %0
-  %5: %Guard trivial = load inspect %4
-  %6: %Guard trivial = bitcast inspect %5
-  return consume %6
+  %5: %Guard trivial = bitcast inspect %4
+  return consume %5
 
 bb2:
-  %7: USize trivial = const 0
-  %8: %Guard trivial = bitcast inspect %7
-  return consume %8
+  %6: USize trivial = const 0
+  %7: %Guard trivial = bitcast inspect %6
+  return consume %7
 }
 
 fn guards$erased.heap($env: guards.Iter [unique call], $sent: I32, $cancel: Bool) -> %Guard {
@@ -892,14 +891,13 @@ bb0(%0: guards.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial)
 
 bb1:
   %4: %%Guard address = field.addr .$slot inspect %0
-  %5: %Guard trivial = load inspect %4
-  %6: %Guard trivial = bitcast inspect %5
-  return consume %6
+  %5: %Guard trivial = bitcast inspect %4
+  return consume %5
 
 bb2:
-  %7: USize trivial = const 0
-  %8: %Guard trivial = bitcast inspect %7
-  return consume %8
+  %6: USize trivial = const 0
+  %7: %Guard trivial = bitcast inspect %6
+  return consume %7
 }
 
 fn upTo$erased($env: upTo.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 {

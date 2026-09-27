@@ -1,0 +1,264 @@
+mut @trace = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = phi [b_0, 0], [b_3, 1]: I32
+    %v_6 = phi [b_0, 2147483647], [b_3, 1]: I32
+    je %v_5, b_7, b_8
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, %v_5], [b_11, 2147483647]: I32
+    %v_12 = phi [b_8, %v_6], [b_11, %v_13]: I32
+    call_complex one$drop, %v_10, %v_12
+    jmp b_14
+  }
+
+  b_8 {
+    je %v_5, b_9, b_3
+  }
+
+  b_3 {
+    %v_15 = loads @trace, 4: I32
+    %v_16 = imul %v_15, 10: I32
+    %v_17 = add %v_16, 1: I32
+    store @trace, %v_17, 4
+    %v_4 = add %v_2, 7: I32
+    jmp b_1
+  }
+
+  b_7 {
+    %v_18 = cmp_eq %v_6, 1: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_21 {
+    %v_22 = phi [b_20, %v_6], [b_23, 1], [b_19, 2147483647]: I32
+    %v_24 = cmp_eq %v_22, 1: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_14 {
+    %v_27 = phi [b_9, %v_2], [b_28, %v_29]: I32
+    %v_30 = phi [b_9, 0], [b_28, %v_31]: I32
+    %v_32 = cmp_ilt %v_30, 3: I32
+    je %v_32, b_28, b_33
+  }
+
+  b_33 {
+    call_complex counted$drop, 2147483647, 2147483647
+    %v_34 = loads @trace, 4: I32
+    %v_35 = add %v_34, %v_27: I32
+    ret %v_35
+  }
+
+  b_28 {
+    %v_36 = loads @trace, 4: I32
+    %v_37 = imul %v_36, 10: I32
+    %v_38 = add %v_37, 1: I32
+    store @trace, %v_38, 4
+    %v_39 = imul %v_30, 10: I32
+    %v_29 = add %v_27, %v_39: I32
+    %v_40 = loads @trace, 4: I32
+    %v_41 = imul %v_40, 10: I32
+    %v_42 = add %v_41, 2: I32
+    store @trace, %v_42, 4
+    %v_31 = add %v_30, 1: I32
+    jmp b_14
+  }
+
+  b_20 {
+    %v_43 = cmp_eq %v_6, 0: I32
+    je %v_43, b_23, b_21
+  }
+
+  b_23 {
+    %v_44 = loads @trace, 4: I32
+    %v_45 = imul %v_44, 10: I32
+    %v_46 = add %v_45, 1: I32
+    store @trace, %v_46, 4
+    jmp b_21
+  }
+
+  b_19 {
+    %v_47 = loads @trace, 4: I32
+    %v_48 = imul %v_47, 10: I32
+    %v_49 = add %v_48, 2: I32
+    store @trace, %v_49, 4
+    jmp b_21
+  }
+
+  b_11 {
+    %v_13 = phi [b_26, %v_22], [b_50, 2147483647], [b_25, 2147483647]: I32
+    jmp b_9
+  }
+
+  b_26 {
+    %v_51 = cmp_eq %v_22, 0: I32
+    je %v_51, b_50, b_11
+  }
+
+  b_50 {
+    jmp b_11
+  }
+
+  b_25 {
+    %v_52 = loads @trace, 4: I32
+    %v_53 = imul %v_52, 10: I32
+    %v_54 = add %v_53, 2: I32
+    store @trace, %v_54, 4
+    jmp b_11
+  }
+}
+
+one$drop<complex>(%v_0: I32, %v_1: I32) {
+  b_2 {
+    %v_3 = cmp_eq %v_0, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    ret 
+  }
+
+  b_5 {
+    %v_7 = cmp_eq %v_0, 0: I32
+    je %v_7, b_8, b_6
+  }
+
+  b_8 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_9 = cmp_eq %v_1, 1: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_12 {
+    %v_13 = phi [b_11, %v_1], [b_14, 1], [b_10, 2147483647]: I32
+    %v_15 = cmp_eq %v_13, 1: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_11 {
+    %v_18 = cmp_eq %v_1, 0: I32
+    je %v_18, b_14, b_12
+  }
+
+  b_14 {
+    %v_19 = loads @trace, 4: I32
+    %v_20 = imul %v_19, 10: I32
+    %v_21 = add %v_20, 1: I32
+    store @trace, %v_21, 4
+    jmp b_12
+  }
+
+  b_10 {
+    %v_22 = loads @trace, 4: I32
+    %v_23 = imul %v_22, 10: I32
+    %v_24 = add %v_23, 2: I32
+    store @trace, %v_24, 4
+    jmp b_12
+  }
+
+  b_25 {
+    jmp b_6
+  }
+
+  b_17 {
+    %v_26 = cmp_eq %v_13, 0: I32
+    je %v_26, b_27, b_25
+  }
+
+  b_27 {
+    jmp b_25
+  }
+
+  b_16 {
+    %v_28 = loads @trace, 4: I32
+    %v_29 = imul %v_28, 10: I32
+    %v_30 = add %v_29, 2: I32
+    store @trace, %v_30, 4
+    jmp b_25
+  }
+}
+
+counted$drop<complex>(%v_0: I32, %v_1: I32) {
+  b_2 {
+    %v_3 = cmp_eq %v_0, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    ret 
+  }
+
+  b_5 {
+    %v_7 = cmp_eq %v_0, 0: I32
+    je %v_7, b_8, b_6
+  }
+
+  b_8 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_9 = cmp_eq %v_1, 1: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_12 {
+    %v_13 = phi [b_11, %v_1], [b_14, 1], [b_10, 2147483647]: I32
+    %v_15 = cmp_eq %v_13, 1: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_11 {
+    %v_18 = cmp_eq %v_1, 0: I32
+    je %v_18, b_14, b_12
+  }
+
+  b_14 {
+    %v_19 = loads @trace, 4: I32
+    %v_20 = imul %v_19, 10: I32
+    %v_21 = add %v_20, 1: I32
+    store @trace, %v_21, 4
+    jmp b_12
+  }
+
+  b_10 {
+    %v_22 = loads @trace, 4: I32
+    %v_23 = imul %v_22, 10: I32
+    %v_24 = add %v_23, 2: I32
+    store @trace, %v_24, 4
+    jmp b_12
+  }
+
+  b_25 {
+    jmp b_6
+  }
+
+  b_17 {
+    %v_26 = cmp_eq %v_13, 0: I32
+    je %v_26, b_27, b_25
+  }
+
+  b_27 {
+    jmp b_25
+  }
+
+  b_16 {
+    %v_28 = loads @trace, 4: I32
+    %v_29 = imul %v_28, 10: I32
+    %v_30 = add %v_29, 2: I32
+    store @trace, %v_30, 4
+    jmp b_25
+  }
+}
+

@@ -339,11 +339,18 @@ static Members membersOf(Layout layout, mir::RecordType& record,
          * written in terms of, so zero is a pattern a `%T` legally holds. It reaches the row below
          * as a type whose own niche is empty.
          */
-        if(isReferenceValue(layout, held)) {
+        /*
+         * A loan in **view form** is not an address, though `isReferenceValue` says loan: it is the
+         * window record `manifestNative` just laid out, and its niche is that record's. The address
+         * niche it was given before made `Just(empty[0..0])` read back as `Nothing` - an empty
+         * array's window has a null base, which a raw `%a` may hold (J193, `ByteCursor.takeBytes`).
+         */
+        auto view = mir::viewRecordOf(*layout.context, *layout.program, held);
+        if(!view && isReferenceValue(layout, held)) {
             member.niche = layout.target.nonNullBorrows ? addressNiche(layout.target.pointerSize)
                                                         : Niche {};
         } else {
-            auto content = reprOf(layout, held.type);
+            auto content = reprOf(layout, view ? view : held.type);
             member.niche = content.niche;
 
             member.narrow = content.isNarrow() &&
@@ -361,6 +368,24 @@ static Members membersOf(Layout layout, mir::RecordType& record,
         }
 
         members.push(member);
+    }
+
+    /*
+     * An object's **slot** - field 1 of a record with a step - is at least two-aligned and has an
+     * address of its own.
+     *
+     * Every erased step answers where the item is as the slot's address (`iterSlotAddress`), and
+     * two rows of that channel are told from an item by bit zero: `&$failure | 1` for a failed
+     * `iter(T | E)` and a delegating level's tagged link. A one-byte item could land on an odd
+     * offset - an `Auto` layout places `[U8 *3]` before `U8` - and read as either row (the review of
+     * J218: a segfault over `-> U8` after a three-byte capture). Widening the alignment costs at most
+     * one byte of padding per object, where a second result word would have cost every step a
+     * register; a sentinel compared by identity has no way back to the failure's storage through an
+     * erased pair.
+     */
+    if(record.producerStep && members.size() > 1) {
+        members[1].align = max(members[1].align, 2u);
+        members[1].packable = false;
     }
 
     return members;
@@ -1083,6 +1108,15 @@ static void layoutRecord(Layout layout, mir::RecordType& record, Repr& into,
             into.align = arm.align;
             into.stride = alignTo(arm.size, arm.align);
             into.niche = arm.niche;
+
+            /*
+             * Except under `@layout(c)`, where the padding is the record's: C's `sizeof` is a
+             * multiple of the alignment, and a nested struct is placed at that size. The pin is a
+             * promise to match the C header byte for byte, so the size a kernel copies - J207's
+             * `msghdr`, 56 and not the 52 its last field ends at - and the offset of a field after
+             * a nested C record are both C's. K5.
+             */
+            if(record.pin == mir::TypeLayout::C) into.size = into.stride;
         }
     } else {
         /*

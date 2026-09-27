@@ -741,7 +741,13 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
      * shortcut: a statement body decides its result at each `return`, and inferring one from several
      * is a join over types this stage does not do anywhere else.
      */
-    auto open = !isConcreteType(decl(), lifted.result.type);
+    // A result in the enclosing generic body's own variables (C3) is as decided as a concrete one:
+    // it is one type in every specialization. What is open is an inference variable of a callee.
+    auto decided = [&](DeclPtr<Type> type) {
+        return isConcreteType(decl(), type) || (lifted.gen && variablesFrom(decl(), type, lifted.gen));
+    };
+
+    auto open = !decided(lifted.result.type);
     lambdaFrames[lambdaFrames.size() - 1].openResult = open;
     auto unit = !open && decl()[lifted.result.type]->kind == Type::Unit;
 
@@ -804,7 +810,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
         if(value && open) {
             auto answered = valueType(*value);
 
-            if(answered && isConcreteType(decl(), answered)) {
+            if(answered && decided(answered)) {
                 lifted.result.type = answered;
                 open = false;
 
@@ -1091,10 +1097,21 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto& shape = *(FunType*)decl()[hint];
 
     /*
-     * The shape whose environment would have to be somewhere this stage cannot put one, refused by
-     * name: a lambda in a **generic** body would want argument zero for a generic environment and
-     * for captures at once, which is the one thing that position cannot hold (see
-     * `Function::environment`).
+     * A lambda in a **generic** body is lifted *as a generic* - C3, and what was refused by name
+     * until then.
+     *
+     * Every call of a generic is specialized, so the lambda is too: the lifted function and its
+     * environment record both take the enclosing declaration's own context (`gen` is shared, the
+     * way a class member shares its class's), the record's fields are written in its variables, and
+     * a specialization of the enclosing body reaches `f.lambda(I32)` and `f.lambda.env(I32)` through
+     * the same substitution everything else in it is read under - `substituteType` instantiates the
+     * record, and `instantiateRecord` specializes the lifted function the instantiation names. So a
+     * lambda in a function specialized at two types is two closure types, each with its own code.
+     *
+     * What is still refused is an enclosing body compiled **once**: argument zero of a lifted lambda
+     * is its captures, and an erased body's lambda would want the generic environment there as well
+     * - the one slot cannot hold both (see `Function::environment`). A *written* `@generic` is
+     * refused here by name; a measured erasure is not chosen for such a body (`checkErasable`).
      *
      * A **nested** lambda was a second until J139. It is built where its captures are the enclosing
      * lambda's own bindings - which is every `a ?: b ?: c` chain, whose inner thunk is written
@@ -1105,9 +1122,13 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * a lambda written in a continuation is a lambda written in an ordinary block of an ordinary
      * body, and which frame its environment belongs to is the frame it is standing in.
      */
-    if(currentFunction && isGeneric(decl(), currentFunction->gen)) {
-        auto text = Tritium::format("%@ in a generic function", what);
-        unsupported(source, stringView(text));
+    auto generic = currentFunction && isGeneric(decl(), currentFunction->gen);
+
+    if(generic && currentFunction->form == GenForm::Erased) {
+        auto text = Tritium::format(
+            "%@ in a function compiled once (`@generic`) - its environment and the generic environment would both be argument zero; remove `@generic` so the function is specialized",
+            what);
+        context.diagnostics.error(StringView(text.text(), text.size()), source);
         return nullptr;
     }
 
@@ -1149,6 +1170,22 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto lifted = new (program.decl) Function(name, here());
     lifted->source = source;
     lifted->environment = environmentPointer;
+
+    /*
+     * The enclosing declaration's context, shared rather than copied - see the note above. Both
+     * halves take it: the function so that its parameters and body are read under the enclosing
+     * substitution, and the record so that a value of it in the generic body is the *declaration*,
+     * which `substituteType` turns into the instantiation a specialization holds.
+     *
+     * Specialized, and not a choice: argument zero is the environment. The enclosing body is held to
+     * the same form here rather than left to the measurement, which could otherwise pick erasure.
+     */
+    if(generic) {
+        lifted->gen = currentFunction->gen;
+        lifted->form = GenForm::Specialized;
+        if(currentFunction->form == GenForm::Auto) currentFunction->form = GenForm::Specialized;
+        if(environment) environment->gen = currentFunction->gen;
+    }
     if(raw) lifted->convention = shape.convention;
     lifted->result = shape.result;
     lifted->summary.bodyKnown = true;

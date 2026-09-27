@@ -3,93 +3,61 @@ fn main() -> one %r0
   var $1: %r0
   var $2: %r3
   var $3: %r2
+  var $4: %r1
+  var $5: %r0
+  var $6: %r0
+  var $7: %r1
+  var $8: %r0
+  var $9: %r0
   block0:
-    %8: %r4 = const "ab"
-    %13: %r4 = alias %8
+    %6: %r4 = const "ab"
+    %11: %r4 = alias %6
+    %12: %r4 = alias %11
+    %13: %r4 = alias %12
     %14: %r4 = alias %13
-    %15: %r4 = alias %14
-    %16: %r4 = alias %15
-    %17: %r0 = host host.field "length" host-range %16
-    %18: %r0 = const 0
-    %19: %r5 = binary.eq %17, %18
-    branch %19 -> block8 -> block7
-  block1:
-    %66: %r2 = alias %1
-    %67: %r0 = load property %66.Err: %r0
-    %68: %r0 = alias %67
-    %69: %r0 = const 0
-    %71: %r0 = alias %68
-    %72: %r0 = binary.sub %69, %71
-    %73: %r0 = coerce %72
-    jump -> block2(%73)
-  block2(%0: %r0):
+    %15: %r0 = host host.field "length" host-range %14
+    %16: %r0 = const 0
+    %17: %r5 = binary.eq %15, %16
+    branch %17 -> block3 -> block2
+  block1(%0: %r0):
     return %0
+  block2:
+    %18: %r0 = const 7
+    %19: %r1 = const 1
+    %20: %r0 = const 0
+    %21: %r2 = object %s0 %19, %20, %18
+    jump -> block4(%21)
   block3:
-    %74: %r2 = alias %1
-    %75: %r0 = load property %74.Ok: %r0
-    jump -> block2(%75)
+    %22: %r0 = const 1
+    %23: %r0 = alias %22
+    %24: %r1 = const 0
+    %25: %r0 = const 0
+    %26: %r2 = object %s0 %24, %23, %25
+    jump -> block4(%26)
   block4(%1: %r2):
-    %62: %r2 = alias %1
-    %63: %r1 = load property %62.$tag: %r1
-    %64: %r1 = const 1
-    %65: %r5 = binary.eq %63, %64
-    branch %65 -> block3 -> block1
+    %31: %r2 = alias %1
+    %32: %r1 = load property %31.$tag: %r1
+    %33: %r1 = const 1
+    %34: %r5 = binary.eq %32, %33
+    branch %34 -> block6 -> block5
   block5:
-    %51: %r3 = alias %3
-    %52: %r0 = load property %51.Proceed: %r0
-    %53: %r1 = const 1
-    %54: %r0 = const 0
-    %55: %r2 = object %s0 %53, %54, %52
-    jump -> block4(%55)
+    %35: %r2 = alias %1
+    %36: %r0 = load property %35.Err: %r0
+    %41: %r0 = alias %36
+    %42: %r0 = alias %41
+    %47: %r0 = alias %42
+    %48: %r0 = alias %47
+    %49: %r0 = const 0
+    %51: %r0 = alias %48
+    %52: %r0 = binary.sub %49, %51
+    %53: %r0 = coerce %52
+    jump -> block1(%53)
   block6:
-    %56: %r3 = alias %3
-    %57: %r0 = load property %56.Exit: %r0
-    %58: %r0 = alias %57
-    %59: %r1 = const 0
-    %60: %r0 = const 0
-    %61: %r2 = object %s0 %59, %58, %60
-    jump -> block4(%61)
-  block7:
-    %20: %r0 = const 7
-    %21: %r1 = const 1
-    %22: %r0 = const 0
-    %23: %r2 = object %s0 %21, %22, %20
-    jump -> block9(%23)
-  block8:
-    %24: %r0 = const 1
-    %25: %r0 = alias %24
-    %26: %r1 = const 0
-    %27: %r0 = const 0
-    %28: %r2 = object %s0 %26, %25, %27
-    jump -> block9(%28)
-  block9(%2: %r2):
-    %33: %r2 = alias %2
-    %34: %r1 = load property %33.$tag: %r1
-    %35: %r1 = const 1
-    %36: %r5 = binary.eq %34, %35
-    branch %36 -> block11 -> block10
-  block10:
-    %37: %r2 = alias %2
-    %38: %r0 = load property %37.Err: %r0
-    %39: %r1 = const 1
-    %40: %r0 = const 0
-    %41: %r3 = object %s1 %39, %40, %38
-    jump -> block12(%41)
-  block11:
-    %42: %r2 = alias %2
-    %43: %r0 = load property %42.Ok: %r0
-    %44: %r1 = const 0
-    %45: %r0 = const 0
-    %46: %r3 = object %s1 %44, %43, %45
-    jump -> block12(%46)
-  block12(%3: %r3):
-    %47: %r3 = alias %3
-    %48: %r1 = load property %47.$tag: %r1
-    %49: %r1 = const 1
-    %50: %r5 = binary.eq %48, %49
-    branch %50 -> block6 -> block5
+    %54: %r2 = alias %1
+    %55: %r0 = load property %54.Ok: %r0
+    jump -> block1(%55)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 10 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 48 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 6 folded 0
 
 shape %s0 object Result {$tag: %r1 tag, Err: %r0, Ok: %r0}
 shape %s1 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}

@@ -140,7 +140,11 @@ struct GlobalEffects {
     U32 anonymousContinuationRow = 0;
 
     // `Iterate`, whose members at a site type run that type's producer - see `iterateCallOf`.
-    DeclPtr<Class> iterateClass = nullptr;
+    // `Iterate` and `IterateFailing` - the two classes whose members step an object (C1b).
+    struct IterateClasses {
+        DeclPtr<Class> plain = nullptr;
+        DeclPtr<Class> failing = nullptr;
+    } iterateClass;
 
     void ensure();
     Maybe<U32> rowOf(DeclPtr<Function> function) const;
@@ -380,6 +384,55 @@ struct Analysis {
     }
     Loan* loanAt(LoanId id) { return loanAt(id.index); }
     SmallArray<NodeId, 2> boundCalls;
+
+    /*
+     * What each traversal holds while its region runs - the loans its `lens.call`'s arguments carry,
+     * a row per region in `regionHeld` and the regions that have one in `heldRegions`. Filled by
+     * `computeLoanExtents`, which keeps those loans live on every block the region encloses, and read
+     * by `computeLiveness`, which keeps their storage alive there too (J185).
+     */
+    BitMatrix regionHeld;
+    SmallArray<U32, 4> heldRegions;
+
+    /*
+     * The block whose terminator is each held region's `lens.call`, by region, and `kNoCall` for a
+     * region nothing holds. Where a `return` inside the region releases what the region held: on
+     * that call's leave path, after the callee's cleanup (K6, `walkBlock`).
+     */
+    static constexpr U32 kNoCall = ~U32(0);
+    SmallArray<U32, 8> regionCall;
+
+    // The storage region `r` holds, marked used in `live` - `computeLiveness`'s rule, and the drop
+    // walk's on a leave path.
+    void useHeld(U64* live, U32 r);
+
+    // The leave-path steps `walkBlock` found, merged into `out.drops` by `placeDrops`.
+    Array<DropStep> leaveDrops;
+    void mergeLeaveDrops();
+
+    /*
+     * Each held region's **leave path as a join** - the meet of the states every `return` inside
+     * the region reaches it with, and, for an enclosing region, of what each inner call's leave
+     * path left. By slot: the region's position in `heldRegions`. `leaveNode` is the first `return`
+     * that reached the slot, which is the node the release there reports against; null for a region
+     * no `return` leaves. Filled by `walkBlock` and released once per call by `releaseLeavePaths`.
+     */
+    Array<PathState> leaveState;
+    Array<Node*> leaveNode;
+    void joinLeave(U32 index, const PathState* state, Node& node);
+    void releaseLeavePaths(int mode);
+
+    /*
+     * The paths some strict descendant of which is taken or written on its own somewhere in the
+     * body - the only paths whose parts can be present while the whole is not. A `Maybe` path in
+     * this set is released member by member under the members' own flags rather than whole under
+     * its own (`walkBlock`). Computed once by `placeDrops`.
+     */
+    IndexSet splitBelow;
+
+    // Whether the discovery round flagged any path, so that the emission round's transitions walk
+    // subtrees for flags only in a body that has one - which is almost none of them.
+    bool anyFlagged = false;
 
     /*
      * The **previous pass** of a bound whose region runs any number of times (J124) - an `iter fn`'s
@@ -694,7 +747,8 @@ struct Analysis {
      * asking about the union again.
      */
     template<class F>
-    void forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f, bool copiedReferent = false);
+    void forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f,
+                              bool copiedReferent = false);
 
     // The same, flattened - the loans an operand may reach at all, whichever position holds them.
     // What the extent walk and move-path liveness want, since neither asks *which* part of a value
@@ -715,21 +769,36 @@ struct Analysis {
      *
      * It is a path like any other and is *not* released like any other, which is the one thing this
      * field records. The subject arrives owned and is dead by the end, so the ordinary rule would
-     * place a teardown for it, and the teardown of a `T` is this very function; and its members are
-     * not released either, because `doc/spec/ownership.md` has an authored answer *replace* the
-     * derived walk rather than run beside it.
+     * place a teardown for it, and the teardown of a `T` is this very function. Its members are
+     * released here when the body finishes its value (`subjectOwnsMembers`, K5), and otherwise not:
+     * an authored `Reclaim`'s and an iterator object's `$drop` release them themselves.
      *
-     * So the subtree is walked and nothing in it is dropped. What the walk is for is the rule the
-     * authored answer takes on by existing: **an authored `Drop` is answerable for its subject's
-     * linear members**. A member the body neither disposes of nor moves out would otherwise be
-     * released by nobody at all, silently - and for an `@explicitDrop` member that silence is
-     * exactly the implicit disposal the attribute was written to prevent.
+     * Where they are not, the subtree is walked and nothing in it is dropped. What the walk is for
+     * is the rule the authored answer takes on by existing: **an authored `Drop` is answerable for
+     * its subject's linear members**. A member the body neither disposes of nor moves out would
+     * otherwise be released by nobody at all, silently - and for an `@explicitDrop` member that
+     * silence is exactly the implicit disposal the attribute was written to prevent.
      *
      * This used to be "the subject has no path", which cost two things beyond the check: `->x` on a
      * field of it reported that the storage was not this function's, and a use after a partial move
      * inside a teardown was not followed at all.
      */
     MovePathId teardownSubject;
+
+    /*
+     * Whether this body **finishes** its subject - `ownsTeardownSubject`, K5.
+     *
+     * An authored `Drop` over a derived `Reclaim` owns the whole value: what it leaves unconsumed is
+     * torn down here, member by member at each member's own teardown, and nothing runs after the
+     * call. So the subject's members are ordinary owned paths - dropped where they die, and a
+     * linear one still refused - and only the subject itself is never dropped as a `T`, which would
+     * be this function again. A sum subject dying whole is the one step placed on the subject, and
+     * the conversion expands it into its members' drops (`Conversion::emitDrop`).
+     *
+     * False for an authored `Reclaim` and an iterator object's `$drop`, whose members the walk
+     * still visits for the linear check and releases nothing of.
+     */
+    bool subjectOwnsMembers = false;
 
     /*
      * Whether this path names storage the frame **lends** rather than owns - `lendsItsContents`.
@@ -1307,7 +1376,7 @@ struct Analysis {
      */
     void computeInitialization();
     void placeDrops();
-    void walkBlock(U32 index, PathState* state, int mode);
+    void walkBlock(U32 index, PathState* state, int mode, U32 leaving = kNoCall);
 };
 
 /*

@@ -69,320 +69,294 @@ fn main() -> one %r2
     store bits @7:1 of (var $1: %r11): %r10, %40
     %41: %r10 = const 1
     store bits @8:1 of (var $1: %r11): %r10, %41
-    %42: %r10 = load bits @0:1 of (var $1: %r11): %r10
-    %43: %r2 = const 1
-    %44: %r2 = const 0
-    %45: %r2 = select %42, %43, %44
-    %46: %r10 = load bits @4:1 of (var $1: %r11): %r10
-    %47: %r2 = const 20
-    %48: %r2 = const 0
-    %49: %r2 = select %46, %47, %48
-    %50: %r2 = binary.add %45, %49
-    %51: %r2 = coerce %50
-    %52: %r2 = const 300
-    %53: %r2 = binary.add %51, %52
-    %54: %r2 = coerce %53
-    %55: %r2 = const 10
+    %42: %r2 = const 3210
+    %43: %r2 = binary.add %22, %42
+    %44: %r2 = coerce %43
+    %45: %r12 = const 0
+    %46: %r19 = object %s8 %45
+    %49: %r12 = const 3
+    store property %46.$v: %r12, %49
+    jump -> block1
+  block1:
+    %50: %r10 = const 0
+    store bits @0:1 of (property %46.$v: %r12): %r10, %50
+    %51: %r10 = load bits @1:1 of (property %46.$v: %r12): %r10
+    %52: %r2 = const 2
+    %53: %r2 = const 0
+    %54: %r2 = select %51, %52, %53
+    %55: %r2 = const 1000
     %56: %r2 = binary.mul %54, %55
     %57: %r2 = coerce %56
-    %58: %r2 = binary.add %22, %57
+    %58: %r2 = binary.add %44, %57
     %59: %r2 = coerce %58
     %60: %r12 = const 0
     %61: %r19 = object %s8 %60
-    %64: %r12 = const 3
+    %64: %r12 = const 2
     store property %61.$v: %r12, %64
-    jump -> block1
-  block1:
-    %65: %r10 = const 0
+    %65: %r10 = const 1
     store bits @0:1 of (property %61.$v: %r12): %r10, %65
-    %66: %r10 = load bits @0:1 of (property %61.$v: %r12): %r10
-    %67: %r2 = const 1
-    %68: %r2 = const 0
-    %69: %r2 = select %66, %67, %68
-    %70: %r10 = load bits @1:1 of (property %61.$v: %r12): %r10
-    %71: %r2 = const 2
-    %72: %r2 = const 0
-    %73: %r2 = select %70, %71, %72
-    %74: %r2 = binary.add %69, %73
+    %66: %r2 = const 1
+    %67: %r10 = load bits @1:1 of (property %61.$v: %r12): %r10
+    %68: %r2 = const 2
+    %69: %r2 = const 0
+    %70: %r2 = select %67, %68, %69
+    %71: %r2 = binary.add %66, %70
+    %72: %r2 = coerce %71
+    %73: %r2 = const 10000
+    %74: %r2 = binary.mul %72, %73
     %75: %r2 = coerce %74
-    %76: %r2 = const 1000
-    %77: %r2 = binary.mul %75, %76
-    %78: %r2 = coerce %77
-    %79: %r2 = binary.add %59, %78
-    %80: %r2 = coerce %79
-    %81: %r12 = const 0
-    %82: %r19 = object %s8 %81
-    %85: %r12 = const 2
-    store property %82.$v: %r12, %85
-    %86: %r10 = const 1
-    store bits @0:1 of (property %82.$v: %r12): %r10, %86
-    %87: %r2 = const 1
-    %88: %r10 = load bits @1:1 of (property %82.$v: %r12): %r10
-    %89: %r2 = const 2
-    %90: %r2 = const 0
-    %91: %r2 = select %88, %89, %90
-    %92: %r2 = binary.add %87, %91
-    %93: %r2 = coerce %92
-    %94: %r2 = const 10000
-    %95: %r2 = binary.mul %93, %94
-    %96: %r2 = coerce %95
-    %97: %r2 = binary.add %80, %96
-    %98: %r2 = coerce %97
-    %105: %r6 = const 2
-    store var $10: %r6, %105
-    %108: %r10 = load bits @3:1 of (var $10: %r6): %r10
-    %109: %r10 = unary.not %108
-    store bits @3:1 of (var $10: %r6): %r10, %109
-    %111: %r7 = load bits @0:3 of (var $10: %r6): %r7
-    %112: %r5 = convert %111
-    %113: %r5 = const 1
-    %114: %r5 = binary.add %112, %113
-    %115: %r5 = coerce %114
-    %116: %r7 = convert %115
-    store bits @0:3 of (var $10: %r6): %r7, %116
-    %123: %r10 = load bits @3:1 of (var $10: %r6): %r10
-    %124: %r2 = const 1
-    %125: %r2 = const 0
-    %126: %r2 = select %123, %124, %125
-    %128: %r7 = load bits @0:3 of (var $10: %r6): %r7
-    %129: %r2 = convert %128
-    %130: %r2 = const 10
-    %131: %r2 = binary.mul %129, %130
-    %132: %r2 = coerce %131
-    %133: %r2 = binary.add %126, %132
-    %134: %r2 = coerce %133
-    %137: %r2 = const 800
-    %138: %r2 = binary.add %134, %137
-    %139: %r2 = coerce %138
-    %140: %r2 = binary.add %98, %139
-    %141: %r2 = coerce %140
-    %148: %r6 = const 1
-    store var $12: %r6, %148
+    %76: %r2 = binary.add %59, %75
+    %77: %r2 = coerce %76
+    %84: %r6 = const 2
+    store var $10: %r6, %84
+    %87: %r10 = load bits @3:1 of (var $10: %r6): %r10
+    %88: %r10 = unary.not %87
+    store bits @3:1 of (var $10: %r6): %r10, %88
+    %90: %r7 = load bits @0:3 of (var $10: %r6): %r7
+    %91: %r5 = convert %90
+    %92: %r5 = const 1
+    %93: %r5 = binary.add %91, %92
+    %94: %r5 = coerce %93
+    %95: %r7 = convert %94
+    store bits @0:3 of (var $10: %r6): %r7, %95
+    %101: %r2 = const 1
+    %102: %r2 = const 0
+    %103: %r2 = select %88, %101, %102
+    %104: %r2 = convert %95
+    %105: %r2 = const 10
+    %106: %r2 = binary.mul %104, %105
+    %107: %r2 = coerce %106
+    %108: %r2 = binary.add %103, %107
+    %109: %r2 = coerce %108
+    %112: %r2 = const 800
+    %113: %r2 = binary.add %109, %112
+    %114: %r2 = coerce %113
+    %115: %r2 = binary.add %77, %114
+    %116: %r2 = coerce %115
+    %123: %r6 = const 1
+    store var $12: %r6, %123
+    %126: %r10 = const 1
+    store bits @3:1 of (var $12: %r6): %r10, %126
+    %127: %r2 = const 1
+    %129: %r7 = load bits @0:3 of (var $12: %r6): %r7
+    %130: %r2 = convert %129
+    %131: %r2 = const 10
+    %132: %r2 = binary.mul %130, %131
+    %133: %r2 = coerce %132
+    %134: %r2 = binary.add %127, %133
+    %135: %r2 = coerce %134
+    %140: %r2 = const 200
+    %141: %r2 = binary.add %135, %140
+    %142: %r2 = coerce %141
+    %143: %r2 = binary.add %116, %142
+    %144: %r2 = coerce %143
+    %150: %r15 = const 3
+    store var $4: %r15, %150
     %151: %r10 = const 1
-    store bits @3:1 of (var $12: %r6): %r10, %151
-    %152: %r2 = const 1
-    %154: %r7 = load bits @0:3 of (var $12: %r6): %r7
-    %155: %r2 = convert %154
-    %156: %r2 = const 10
-    %157: %r2 = binary.mul %155, %156
-    %158: %r2 = coerce %157
-    %159: %r2 = binary.add %152, %158
-    %160: %r2 = coerce %159
-    %165: %r2 = const 200
-    %166: %r2 = binary.add %160, %165
-    %167: %r2 = coerce %166
-    %168: %r2 = binary.add %141, %167
-    %169: %r2 = coerce %168
-    %175: %r15 = const 3
-    store var $4: %r15, %175
-    %176: %r10 = const 1
-    store bits @5:1 of (var $4: %r15): %r10, %176
-    %177: %r10 = const 1
-    store bits @6:1 of (var $4: %r15): %r10, %177
-    %178: %r10 = const 0
-    store bits @6:1 of (var $4: %r15): %r10, %178
-    %179: %r10 = load bits @7:1 of (var $4: %r15): %r10
-    %180: %r10 = unary.not %179
-    store bits @7:1 of (var $4: %r15): %r10, %180
-    %181: %r14 = load bits @0:5 of (var $4: %r15): %r14
-    %182: %r5 = convert %181
-    %183: %r5 = const 4
-    %184: %r5 = binary.add %182, %183
-    %185: %r5 = coerce %184
-    %186: %r14 = convert %185
-    store bits @0:5 of (var $4: %r15): %r14, %186
-    %187: %r12 = load bits @5:2 of (var $4: %r15): %r12
-    %188: %r12 = alias %187
-    %189: %r10 = load bits @0:1 of (value %188: %r12): %r10
-    %190: %r2 = const 1
-    %191: %r2 = const 0
-    %192: %r2 = select %189, %190, %191
-    %193: %r10 = load bits @1:1 of (value %188: %r12): %r10
-    %194: %r2 = const 2
-    %195: %r2 = const 0
-    %196: %r2 = select %193, %194, %195
-    %197: %r2 = binary.add %192, %196
-    %198: %r2 = coerce %197
-    %199: %r10 = load bits @7:1 of (var $4: %r15): %r10
-    %200: %r2 = const 10
-    %201: %r2 = const 0
-    %202: %r2 = select %199, %200, %201
-    %203: %r2 = binary.add %198, %202
-    %204: %r2 = coerce %203
-    %205: %r2 = convert %186
-    %206: %r2 = const 100
-    %207: %r2 = binary.mul %205, %206
-    %208: %r2 = coerce %207
-    %209: %r2 = binary.add %204, %208
-    %210: %r2 = coerce %209
-    %211: %r2 = const 7
-    %212: %r2 = binary.mul %210, %211
-    %213: %r2 = coerce %212
-    %214: %r2 = binary.add %169, %213
-    %215: %r2 = coerce %214
-    %216: %r12 = const 0
-    %217: %r19 = object %s8 %216
-    %223: %r12 = const 0
-    store property %217.$v: %r12, %223
-    %224: %r10 = const 1
-    %225: %r0 = const "$v"
-    %226: %r20 = const 2
-    %227: %r21 = materialize %r22 %217, %225, %226
-    %228: %r3 = gen.table
-    call put %228, %227, %224
-    %231: %r2 = const 3
-    %232: %r6 = const 5
-    %233: %r13 = object %s4 %231, %232
-    %234: %r13 = alias %233
-    %235: %r10 = const 1
-    %236: %r0 = const "$p0"
-    %237: %r20 = const 8
-    %238: %r21 = materialize %r22 %234, %236, %237
-    %239: %r3 = gen.table
-    call put %239, %238, %235
-    %240: %r12 = load property %217.$v: %r12
-    %241: %r12 = alias %240
-    %242: %r10 = load bits @0:1 of (value %241: %r12): %r10
-    %243: %r2 = const 1
-    %244: %r2 = const 0
-    %245: %r2 = select %242, %243, %244
-    %246: %r10 = load bits @1:1 of (value %241: %r12): %r10
-    %247: %r2 = const 2
-    %248: %r2 = const 0
-    %249: %r2 = select %246, %247, %248
-    %250: %r2 = binary.add %245, %249
-    %251: %r2 = coerce %250
-    %252: %r2 = const 10
-    %253: %r2 = binary.mul %251, %252
-    %254: %r2 = coerce %253
-    %255: %r13 = alias %233
-    %256: %r10 = load bits @3:1 of (property %255.$p0: %r6): %r10
-    %257: %r2 = const 1
-    %258: %r2 = const 0
-    %259: %r2 = select %256, %257, %258
-    %260: %r2 = binary.add %254, %259
-    %261: %r2 = coerce %260
-    %262: %r13 = alias %233
-    %263: %r7 = load bits @0:3 of (property %262.$p0: %r6): %r7
-    %264: %r2 = convert %263
-    %265: %r2 = const 100
-    %266: %r2 = binary.mul %264, %265
-    %267: %r2 = coerce %266
-    %268: %r2 = binary.add %261, %267
-    %269: %r2 = coerce %268
-    %270: %r13 = alias %233
-    %271: %r2 = load property %270.count: %r2
-    %272: %r2 = const 1000
-    %273: %r2 = binary.mul %271, %272
-    %274: %r2 = coerce %273
-    %275: %r2 = binary.add %269, %274
-    %276: %r2 = coerce %275
-    %277: %r2 = const 3
-    %278: %r2 = binary.mul %276, %277
-    %279: %r2 = coerce %278
-    %280: %r2 = binary.add %215, %279
-    %281: %r2 = coerce %280
-    %284: %r12 = const 1
-    store var $6: %r12, %284
-    %285: %r10 = load bits @0:1 of (var $6: %r12): %r10
-    %286: %r10 = load bits @1:1 of (var $6: %r12): %r10
-    store bits @0:1 of (var $6: %r12): %r10, %286
-    store bits @1:1 of (var $6: %r12): %r10, %285
-    %287: %r10 = const 0
-    %288: %r10 = load bits @1:1 of (var $6: %r12): %r10
-    store bits @1:1 of (var $6: %r12): %r10, %287
-    %292: %r11 = const 451
-    store var $7: %r11, %292
-    %293: %r6 = load bits @0:4 of (var $7: %r11): %r6
-    %294: %r6 = load bits @4:4 of (var $7: %r11): %r6
-    store bits @0:4 of (var $7: %r11): %r6, %294
-    store bits @4:4 of (var $7: %r11): %r6, %293
-    %295: %r10 = load bits @0:1 of (var $6: %r12): %r10
-    %296: %r2 = const 1
-    %297: %r2 = const 0
-    %298: %r2 = select %295, %296, %297
-    %299: %r10 = load bits @1:1 of (var $6: %r12): %r10
-    %300: %r2 = const 2
-    %301: %r2 = const 0
-    %302: %r2 = select %299, %300, %301
-    %303: %r2 = binary.add %298, %302
+    store bits @5:1 of (var $4: %r15): %r10, %151
+    %152: %r10 = const 1
+    store bits @6:1 of (var $4: %r15): %r10, %152
+    %153: %r10 = const 0
+    store bits @6:1 of (var $4: %r15): %r10, %153
+    %154: %r10 = load bits @7:1 of (var $4: %r15): %r10
+    %155: %r10 = unary.not %154
+    store bits @7:1 of (var $4: %r15): %r10, %155
+    %156: %r14 = load bits @0:5 of (var $4: %r15): %r14
+    %157: %r5 = convert %156
+    %158: %r5 = const 4
+    %159: %r5 = binary.add %157, %158
+    %160: %r5 = coerce %159
+    %161: %r14 = convert %160
+    store bits @0:5 of (var $4: %r15): %r14, %161
+    %162: %r12 = load bits @5:2 of (var $4: %r15): %r12
+    %163: %r12 = alias %162
+    %164: %r10 = load bits @0:1 of (value %163: %r12): %r10
+    %165: %r2 = const 1
+    %166: %r2 = const 0
+    %167: %r2 = select %164, %165, %166
+    %168: %r10 = load bits @1:1 of (value %163: %r12): %r10
+    %169: %r2 = const 2
+    %170: %r2 = const 0
+    %171: %r2 = select %168, %169, %170
+    %172: %r2 = binary.add %167, %171
+    %173: %r2 = coerce %172
+    %174: %r2 = const 10
+    %175: %r2 = const 0
+    %176: %r2 = select %155, %174, %175
+    %177: %r2 = binary.add %173, %176
+    %178: %r2 = coerce %177
+    %179: %r2 = convert %161
+    %180: %r2 = const 100
+    %181: %r2 = binary.mul %179, %180
+    %182: %r2 = coerce %181
+    %183: %r2 = binary.add %178, %182
+    %184: %r2 = coerce %183
+    %185: %r2 = const 7
+    %186: %r2 = binary.mul %184, %185
+    %187: %r2 = coerce %186
+    %188: %r2 = binary.add %144, %187
+    %189: %r2 = coerce %188
+    %190: %r12 = const 0
+    %191: %r19 = object %s8 %190
+    %197: %r12 = const 0
+    store property %191.$v: %r12, %197
+    %198: %r10 = const 1
+    %199: %r0 = const "$v"
+    %200: %r20 = const 2
+    %201: %r21 = materialize %r22 %191, %199, %200
+    %202: %r3 = gen.table
+    call put %202, %201, %198
+    %205: %r2 = const 3
+    %206: %r6 = const 5
+    %207: %r13 = object %s4 %205, %206
+    %208: %r13 = alias %207
+    %209: %r10 = const 1
+    %210: %r0 = const "$p0"
+    %211: %r20 = const 8
+    %212: %r21 = materialize %r22 %208, %210, %211
+    %213: %r3 = gen.table
+    call put %213, %212, %209
+    %214: %r12 = load property %191.$v: %r12
+    %215: %r12 = alias %214
+    %216: %r10 = load bits @0:1 of (value %215: %r12): %r10
+    %217: %r2 = const 1
+    %218: %r2 = const 0
+    %219: %r2 = select %216, %217, %218
+    %220: %r10 = load bits @1:1 of (value %215: %r12): %r10
+    %221: %r2 = const 2
+    %222: %r2 = const 0
+    %223: %r2 = select %220, %221, %222
+    %224: %r2 = binary.add %219, %223
+    %225: %r2 = coerce %224
+    %226: %r2 = const 10
+    %227: %r2 = binary.mul %225, %226
+    %228: %r2 = coerce %227
+    %229: %r13 = alias %207
+    %230: %r10 = load bits @3:1 of (property %229.$p0: %r6): %r10
+    %231: %r2 = const 1
+    %232: %r2 = const 0
+    %233: %r2 = select %230, %231, %232
+    %234: %r2 = binary.add %228, %233
+    %235: %r2 = coerce %234
+    %236: %r13 = alias %207
+    %237: %r7 = load bits @0:3 of (property %236.$p0: %r6): %r7
+    %238: %r2 = convert %237
+    %239: %r2 = const 100
+    %240: %r2 = binary.mul %238, %239
+    %241: %r2 = coerce %240
+    %242: %r2 = binary.add %235, %241
+    %243: %r2 = coerce %242
+    %244: %r13 = alias %207
+    %245: %r2 = load property %244.count: %r2
+    %246: %r2 = const 1000
+    %247: %r2 = binary.mul %245, %246
+    %248: %r2 = coerce %247
+    %249: %r2 = binary.add %243, %248
+    %250: %r2 = coerce %249
+    %251: %r2 = const 3
+    %252: %r2 = binary.mul %250, %251
+    %253: %r2 = coerce %252
+    %254: %r2 = binary.add %189, %253
+    %255: %r2 = coerce %254
+    %258: %r12 = const 1
+    store var $6: %r12, %258
+    %259: %r10 = load bits @0:1 of (var $6: %r12): %r10
+    %260: %r10 = load bits @1:1 of (var $6: %r12): %r10
+    store bits @0:1 of (var $6: %r12): %r10, %260
+    store bits @1:1 of (var $6: %r12): %r10, %259
+    %261: %r10 = const 0
+    %262: %r10 = load bits @1:1 of (var $6: %r12): %r10
+    store bits @1:1 of (var $6: %r12): %r10, %261
+    %266: %r11 = const 451
+    store var $7: %r11, %266
+    %267: %r6 = load bits @0:4 of (var $7: %r11): %r6
+    %268: %r6 = load bits @4:4 of (var $7: %r11): %r6
+    store bits @0:4 of (var $7: %r11): %r6, %268
+    store bits @4:4 of (var $7: %r11): %r6, %267
+    %269: %r10 = load bits @0:1 of (var $6: %r12): %r10
+    %270: %r2 = const 1
+    %271: %r2 = const 0
+    %272: %r2 = select %269, %270, %271
+    %273: %r10 = load bits @1:1 of (var $6: %r12): %r10
+    %274: %r2 = const 2
+    %275: %r2 = const 0
+    %276: %r2 = select %273, %274, %275
+    %277: %r2 = binary.add %272, %276
+    %278: %r2 = coerce %277
+    %279: %r2 = const 4
+    %280: %r2 = const 0
+    %281: %r2 = select %262, %279, %280
+    %282: %r2 = binary.add %278, %281
+    %283: %r2 = coerce %282
+    %284: %r2 = convert %268
+    %285: %r2 = const 100
+    %286: %r2 = binary.mul %284, %285
+    %287: %r2 = coerce %286
+    %288: %r2 = convert %267
+    %289: %r2 = const 10
+    %290: %r2 = binary.mul %288, %289
+    %291: %r2 = coerce %290
+    %292: %r2 = binary.add %287, %291
+    %293: %r2 = coerce %292
+    %294: %r10 = load bits @8:1 of (var $7: %r11): %r10
+    %295: %r2 = const 1
+    %296: %r2 = const 0
+    %297: %r2 = select %294, %295, %296
+    %298: %r2 = binary.add %293, %297
+    %299: %r2 = coerce %298
+    %300: %r2 = const 10
+    %301: %r2 = binary.mul %299, %300
+    %302: %r2 = coerce %301
+    %303: %r2 = binary.add %283, %302
     %304: %r2 = coerce %303
-    %305: %r2 = const 4
-    %306: %r2 = const 0
-    %307: %r2 = select %288, %305, %306
-    %308: %r2 = binary.add %304, %307
-    %309: %r2 = coerce %308
-    %310: %r6 = load bits @0:4 of (var $7: %r11): %r6
-    %311: %r2 = convert %310
-    %312: %r2 = const 100
-    %313: %r2 = binary.mul %311, %312
-    %314: %r2 = coerce %313
-    %315: %r2 = convert %293
-    %316: %r2 = const 10
-    %317: %r2 = binary.mul %315, %316
-    %318: %r2 = coerce %317
-    %319: %r2 = binary.add %314, %318
-    %320: %r2 = coerce %319
-    %321: %r10 = load bits @8:1 of (var $7: %r11): %r10
-    %322: %r2 = const 1
-    %323: %r2 = const 0
-    %324: %r2 = select %321, %322, %323
-    %325: %r2 = binary.add %320, %324
-    %326: %r2 = coerce %325
-    %327: %r2 = const 10
-    %328: %r2 = binary.mul %326, %327
-    %329: %r2 = coerce %328
-    %330: %r2 = binary.add %309, %329
-    %331: %r2 = coerce %330
-    %332: %r2 = binary.add %281, %331
-    %333: %r2 = coerce %332
-    %338: %r18 = const 4.2850009664E10
-    store var $8: %r18, %338
-    %339: %r10 = load bits @36:1 of (var $8: %r18): %r10
-    %340: %r10 = unary.not %339
-    store bits @36:1 of (var $8: %r18): %r10, %340
-    %341: %r16 = load bits @20:12 of (var $8: %r18): %r16
-    %342: %r5 = convert %341
-    %343: %r5 = const 95
-    %344: %r5 = binary.add %342, %343
-    %345: %r5 = coerce %344
-    %346: %r16 = convert %345
-    store bits @20:12 of (var $8: %r18): %r16, %346
-    %347: %r17 = load bits @0:20 of (var $8: %r18): %r17
-    %348: %r5 = convert %347
-    %349: %r5 = const 48575
-    %350: %r5 = binary.add %348, %349
-    %351: %r5 = coerce %350
-    %352: %r17 = convert %351
-    store bits @0:20 of (var $8: %r18): %r17, %352
-    %353: %r6 = load bits @32:4 of (var $8: %r18): %r6
-    %354: %r2 = convert %353
-    %355: %r10 = load bits @36:1 of (var $8: %r18): %r10
-    %356: %r2 = const 16
-    %357: %r2 = const 0
-    %358: %r2 = select %355, %356, %357
-    %359: %r2 = binary.add %354, %358
-    %360: %r2 = coerce %359
-    %361: %r2 = convert %346
-    %362: %r2 = const 32
-    %363: %r2 = binary.mul %361, %362
-    %364: %r2 = coerce %363
-    %365: %r2 = binary.add %360, %364
-    %366: %r2 = coerce %365
-    %367: %r2 = convert %352
-    %368: %r2 = const 1000000
-    %369: %r2 = binary.sub %367, %368
-    %370: %r2 = coerce %369
-    %371: %r2 = const 1000
-    %372: %r2 = binary.mul %370, %371
-    %373: %r2 = coerce %372
-    %374: %r2 = binary.add %366, %373
-    %375: %r2 = coerce %374
-    %376: %r2 = binary.add %333, %375
-    %377: %r2 = coerce %376
-    return %377
+    %305: %r2 = binary.add %255, %304
+    %306: %r2 = coerce %305
+    %311: %r18 = const 4.2850009664E10
+    store var $8: %r18, %311
+    %312: %r10 = load bits @36:1 of (var $8: %r18): %r10
+    %313: %r10 = unary.not %312
+    store bits @36:1 of (var $8: %r18): %r10, %313
+    %314: %r16 = load bits @20:12 of (var $8: %r18): %r16
+    %315: %r5 = convert %314
+    %316: %r5 = const 95
+    %317: %r5 = binary.add %315, %316
+    %318: %r5 = coerce %317
+    %319: %r16 = convert %318
+    store bits @20:12 of (var $8: %r18): %r16, %319
+    %320: %r17 = load bits @0:20 of (var $8: %r18): %r17
+    %321: %r5 = convert %320
+    %322: %r5 = const 48575
+    %323: %r5 = binary.add %321, %322
+    %324: %r5 = coerce %323
+    %325: %r17 = convert %324
+    store bits @0:20 of (var $8: %r18): %r17, %325
+    %326: %r6 = load bits @32:4 of (var $8: %r18): %r6
+    %327: %r2 = convert %326
+    %328: %r2 = const 16
+    %329: %r2 = const 0
+    %330: %r2 = select %313, %328, %329
+    %331: %r2 = binary.add %327, %330
+    %332: %r2 = coerce %331
+    %333: %r2 = convert %319
+    %334: %r2 = const 32
+    %335: %r2 = binary.mul %333, %334
+    %336: %r2 = coerce %335
+    %337: %r2 = binary.add %332, %336
+    %338: %r2 = coerce %337
+    %339: %r2 = convert %325
+    %340: %r2 = const 1000000
+    %341: %r2 = binary.sub %339, %340
+    %342: %r2 = coerce %341
+    %343: %r2 = const 1000
+    %344: %r2 = binary.mul %342, %343
+    %345: %r2 = coerce %344
+    %346: %r2 = binary.add %338, %345
+    %347: %r2 = coerce %346
+    %348: %r2 = binary.add %306, %347
+    %349: %r2 = coerce %348
+    return %349
 
-optimizer clones 0 aliased 0 forwarded 0 removed 78 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 7 folded 6
+optimizer clones 0 aliased 0 forwarded 0 removed 76 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 7 folded 6
 
 shape %s0 ref {$o: %r0 owner, $k: %r0 key}
 shape %s1 object Header {version: %r6, flags: %r7, length: %r8}

@@ -1,0 +1,1343 @@
+module ResolveTest
+
+data Holder(a) {run: () -> a} drop derived reclaim derived
+
+data Task {entry: () -> I32} drop derived reclaim derived
+
+data Box(a) {value: a} drop derived reclaim derived
+
+data scaleSum.lambda.env(a) {total: &0'a, k: 1'a} shape8
+
+data describeAll.lambda.env(a) {}
+
+data nested.lambda.env(a) {}
+
+data nested.lambda.lambda.env(a) {v: 0'a} shape2
+
+data adder.lambda.env(a) {by: a} drop derived reclaim derived
+
+data hold.lambda.env(a) {value: a} drop derived reclaim derived
+
+data task.lambda.env(a) {entry: (a) -> I32, context: a} drop derived reclaim derived
+
+data twiceScaled.lambda.env(a) {k: I32}
+
+data Box(a).show.lambda.env(a) {}
+
+data doubled.lambda.env(a) {f: 0'(a) -> a} shape2
+
+data bracketed.lambda.env(a, $r) {f: 0'(a) -> String} shape2
+
+data lazyInGeneric.thunk.env(a) {}
+
+data callsUserAnd.thunk.env(a) {y: Bool}
+
+data main.lambda.env {}
+
+data Holder(String) {run: () -> String} of Holder drop derived reclaim derived
+
+data Holder(I32) {run: () -> I32} of Holder drop derived reclaim derived
+
+data main.lambda'2.env {}
+
+data main.lambda'3.env {}
+
+data Box(String) {value: String} of Box reclaim derived
+
+data Box(I32) {value: I32} of Box
+
+data main.lambda'4.env {}
+
+data main.lambda'5.env {}
+
+data scaleSum.lambda.env(I32) {total: &0'I32, k: 1'I32} of scaleSum.lambda.env shape8
+
+data scaleSum.lambda.env(F64) {total: &0'F64, k: 1'F64} of scaleSum.lambda.env shape8
+
+data describeAll.lambda.env(I32) {} of describeAll.lambda.env
+
+data describeAll.lambda.env(String) {} of describeAll.lambda.env
+
+data nested.lambda.env(I32) {} of nested.lambda.env
+
+data nested.lambda.env(F64) {} of nested.lambda.env
+
+data adder.lambda.env(I32) {by: I32} of adder.lambda.env
+
+data adder.lambda.env(F64) {by: F64} of adder.lambda.env
+
+data hold.lambda.env(String) {value: String} of hold.lambda.env reclaim derived
+
+data hold.lambda.env(I32) {value: I32} of hold.lambda.env
+
+data task.lambda.env(I32) {entry: (I32) -> I32, context: I32} of task.lambda.env drop derived reclaim derived
+
+data task.lambda.env(String) {entry: (String) -> I32, context: String} of task.lambda.env drop derived reclaim derived
+
+data twiceScaled.lambda.env(I32) {k: I32} of twiceScaled.lambda.env
+
+data Box(a).show.lambda.env(I32) {} of Box(a).show.lambda.env
+
+data Box(a).show.lambda.env(String) {} of Box(a).show.lambda.env
+
+data doubled.lambda.env(I32) {f: 0'(I32) -> I32} of doubled.lambda.env shape2
+
+data bracketed.lambda.env(I32, I32) {f: 0'(I32) -> String} of bracketed.lambda.env shape2
+
+data lazyInGeneric.thunk.env(I32) {} of lazyInGeneric.thunk.env
+
+data lazyInGeneric.thunk.env(String) {} of lazyInGeneric.thunk.env
+
+data callsUserAnd.thunk.env(Bool) {y: Bool} of callsUserAnd.thunk.env
+
+data nested.lambda.lambda.env(I32) {v: 0'I32} of nested.lambda.lambda.env shape2
+
+data nested.lambda.lambda.env(F64) {v: 0'F64} of nested.lambda.lambda.env shape2
+
+class Scaled(a): scaled, twiceScaled
+
+instance Scaled(I32): I32.scaled, Scaled.twiceScaled
+
+instance (Show(a)) Show(Box(a)): Box(a).show, Show.showBound
+
+let string'188: [CodeUnit *0] = ""
+
+let string'189: [CodeUnit *1] = "<"
+
+let string'190: [CodeUnit *1] = ">"
+
+let string'191: [CodeUnit *4] = "Box("
+
+let string'192: [CodeUnit *1] = ")"
+
+let string'193: [CodeUnit *1] = "["
+
+let string'194: [CodeUnit *1] = "]"
+
+let string'195: [CodeUnit *6] = "<1><2>"
+
+let string'196: [CodeUnit *1] = "x"
+
+let string'197: [CodeUnit *1] = "y"
+
+let string'198: [CodeUnit *6] = "<x><y>"
+
+let string'199: [CodeUnit *4] = "held"
+
+let string'200: [CodeUnit *4] = "held"
+
+let string'201: [CodeUnit *4] = "four"
+
+let string'202: [CodeUnit *1] = "s"
+
+let string'203: [CodeUnit *1] = " "
+
+let string'204: [CodeUnit *13] = "Box(5) Box(s)"
+
+let string'205: [CodeUnit *1] = "a"
+
+let string'206: [CodeUnit *1] = "b"
+
+fn scaled(x: a [shared call], k: I32 [shared call]) -> a = <no body>
+
+fn twiceScaled(x: a [shared call], k: I32 [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Scaled(a)
+  local twiceScaled.lambda.env: twiceScaled.lambda.env
+  local local3: (a) -> a [owned here shape10 .0=shared call]
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = read copy.trivial (k)
+  %2: twiceScaled.lambda.env = aggregate.twiceScaled.lambda.env take %1
+  write.init borrow.unique (twiceScaled.lambda.env) take %2
+  %4: twiceScaled.lambda.env [shared call] = read borrow.shared (twiceScaled.lambda.env) loan1
+  %5: (a) -> a [owned here shape10 .0=shared call] = fun.value twiceScaled.lambda inspect %4 roots.0{1}
+  write.init borrow.unique (local3) take %5
+  %7: (a) -> a [shared call shape10 .0=shared call] = read borrow.shared (local3) loan2 roots.0{1}
+  %8: a = call mapOne(a, a) borrow.shared %0 borrow.shared %7
+  return take %8
+}
+
+fn mapOne(x: a [shared call], f: (a) -> b [shared call]) -> b {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+bb0:
+  %0: (a) -> b [shared call] = read borrow.shared (f) loan0
+  %1: a [shared call] = read borrow.shared (x) loan1
+  %2: b = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn applyTwice(x: a [shared call], f: (a) -> a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  local local2: a
+
+bb0:
+  %0: (a) -> a [shared call] = read borrow.shared (f) loan0
+  %1: (a) -> a [shared call] = read borrow.shared (f) loan1
+  %2: a [shared call] = read borrow.shared (x) loan2
+  %3: a = call inspect %1 borrow.shared %2
+  write.init borrow.unique (local2) take %3
+  %5: a [shared call] = read borrow.shared (local2) loan3
+  %6: a = call inspect %0 borrow.shared %5
+  drop (local2)
+  return take %6
+}
+
+fn scaleSum(xs: Array(a) [shared call view], k: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local & total: a
+  local bump: scaleSum.lambda.env
+  local x: a [shared slot 0]
+
+bb0:
+  %0: I64 = const 0
+  %1: a = call fromInt(a) borrow.shared %0
+  write.init borrow.unique (total) take %1
+  %3: a [unique slot 0] = read borrow.unique (total) loan0
+  %4: a [shared slot 1] = read borrow.shared (k) loan1
+  %5: scaleSum.lambda.env = aggregate.scaleSum.lambda.env borrow.unique %3 borrow.shared %4 roots.0{0} roots.1{1}
+  write.init borrow.unique (bump) take %5
+  %7: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan2
+  lens.call items(Array(a), a) borrow.shared %7 -> bb2
+
+bb1:
+  %15: a = read take (total)
+  return take %15
+
+bb2(%8: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %8
+  %11: scaleSum.lambda.env [shared call] = read borrow.shared (bump) loan3 roots.0{0} roots.1{1}
+  %12: a [shared slot 0] = read borrow.shared (x) loan4 roots{2}
+  %13: {} = call borrow.shared %11 borrow.shared %12
+  jump -> bb1
+}
+
+fn describeAll(xs: Array(a) [shared call view]) -> String {
+  form specialized
+  slot #0 type a
+  slot #1 class Show(a)
+  local & out: String
+  local x: a [shared slot 0]
+  local local3: (a) -> String [owned here shape9 .0=unique call]
+
+bb0:
+  %0: String = const String {units: Array {run: Run {items: &string'188, capacity: 0, ownsHeap: 0}, length: 0}}
+  write.init borrow.unique (out) take %0
+  %2: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan0
+  lens.call items(Array(a), a) borrow.shared %2 -> bb2
+
+bb1:
+  %15: String = read take (out)
+  return take %15
+
+bb2(%3: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: String = read take (out)
+  %7: a [shared slot 0] = read borrow.shared (x) loan1 roots{0}
+  %8: (a) -> String [owned here shape9 .0=unique call] = fun.value describeAll.lambda
+  write.init borrow.unique (local3) take %8
+  %10: (a) -> String [shared call shape9 .0=unique call] = read borrow.shared (local3) loan2
+  %11: String = call mapOne(a, String) borrow.shared %7 borrow.shared %10
+  %12: String = call ++(String) take %6 take %11
+  write.reinit borrow.unique (out) take %12
+  jump -> bb1
+}
+
+fn nested(x: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local local1: (a) -> a [owned here shape9 .0=unique call]
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: (a) -> a [owned here shape9 .0=unique call] = fun.value nested.lambda
+  write.init borrow.unique (local1) take %1
+  %3: (a) -> a [shared call shape9 .0=unique call] = read borrow.shared (local1) loan1
+  %4: a = call applyTwice(a) borrow.shared %0 borrow.shared %3
+  return take %4
+}
+
+fn adder(by: a) -> (a) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local adder.lambda.env: adder.lambda.env
+
+bb0:
+  %0: a = read take (by)
+  %1: adder.lambda.env = aggregate.adder.lambda.env take %0
+  write.init borrow.unique (adder.lambda.env) take %1
+  %3: adder.lambda.env = read take (adder.lambda.env)
+  %4: (a) -> a = fun.value adder.lambda take %3
+  return take %4
+}
+
+fn hold(value: a) -> Holder(a) {
+  form specialized
+  slot #0 type a
+  slot #1 class Copy(a)
+  local hold.lambda.env: hold.lambda.env
+
+bb0:
+  %0: a = read take (value)
+  %1: hold.lambda.env = aggregate.hold.lambda.env take %0
+  write.init borrow.unique (hold.lambda.env) take %1
+  %3: hold.lambda.env = read take (hold.lambda.env)
+  %4: () -> a = fun.value hold.lambda take %3
+  %5: Holder(a) = aggregate.Holder take %4
+  return take %5
+}
+
+fn task(context: a, entry: (a) -> I32) -> Task {
+  form specialized
+  slot #0 type a
+  local task.lambda.env: task.lambda.env
+
+bb0:
+  %0: (a) -> I32 = read take (entry)
+  %1: a = read take (context)
+  %2: task.lambda.env = aggregate.task.lambda.env take %0 take %1
+  write.init borrow.unique (task.lambda.env) take %2
+  %4: task.lambda.env = read take (task.lambda.env)
+  %5: () -> I32 = fun.value task.lambda take %4
+  %6: Task = aggregate.Task take %5
+  return take %6
+}
+
+fn I32.scaled(x: I32 [shared call], k: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (k)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn Box(a).show(b: Box(a) [shared call], to: String [unique call]) -> {} {
+  form specialized
+  slot #0 type a
+  slot #1 class Show(a)
+  local wrap: Box(a).show.lambda.env
+
+bb0:
+  %0: Box(a).show.lambda.env = aggregate.Box(a).show.lambda.env
+  write.init borrow.unique (wrap) take %0
+  %2: String = read take (to)
+  %3: Box(a).show.lambda.env = read copy.trivial (wrap)
+  %4: a [shared call] = read borrow.shared (b.value) loan0
+  %5: String = call borrow.shared %3 borrow.shared %4
+  %6: String = call ++(String) take %2 take %5
+  write.reinit borrow.unique (to) take %6
+  return
+}
+
+lens fn doubled(xs: Array(a) [shared call view], f: (a) -> a [shared call], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & $yielded: I32
+  local x: a [shared slot 0]
+  local g: doubled.lambda.env
+  local local6: a
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan0
+  lens.call items(Array(a), a) borrow.shared %2 -> bb2
+
+bb1:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb2(%3: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: (a) -> a [shared slot 0] = read borrow.shared (f) loan1
+  %7: doubled.lambda.env = aggregate.doubled.lambda.env borrow.shared %6 roots.0{1}
+  write.init borrow.unique (g) take %7
+  %9: doubled.lambda.env = read copy.trivial (g) roots.0{1}
+  %10: a [shared slot 0] = read borrow.shared (x) loan2 roots{0}
+  %11: a = call borrow.shared %9 borrow.shared %10
+  write.init borrow.unique (local6) take %11
+  %13: a [shared call] = read borrow.shared (local6) loan3
+  %14: (a) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %15: I32 = call inspect %14 borrow.shared %13
+  drop (local6)
+  %16: I32 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  write.assign borrow.unique ($yielded) take %15
+  branch inspect %17 -> bb3 -> bb4
+
+bb3 handover(a [shared slot 0]) many:
+  jump -> bb1
+
+bb4 handover(a [shared slot 0]) many:
+  break -> bb1
+}
+
+lens fn bracketed(x: a [shared call], f: (a) -> String [shared call], seen: I32 [unique call], $body: (a) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type a
+  slot #1 type $r
+  local $yielded: $r
+  local render: bracketed.lambda.env
+  local local6: String
+  local local7: String
+
+bb0:
+  %0: (a) -> String [shared slot 0] = read borrow.shared (f) loan0
+  %1: bracketed.lambda.env = aggregate.bracketed.lambda.env borrow.shared %0 roots.0{0}
+  write.init borrow.unique (render) take %1
+  %3: I32 [unique call] = read borrow.unique (seen) loan1
+  %4: bracketed.lambda.env = read copy.trivial (render) roots.0{0}
+  %5: a [shared call] = read borrow.shared (x) loan2
+  %6: String = call borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (local6) take %6
+  %8: String [shared slot 0] = read borrow.shared (local6) loan3
+  %9: String [shared slot 0 view] = call.derivation view(String) borrow.shared %8 roots{3}
+  %10: Size = call length(String) borrow.shared %9
+  drop (local6)
+  %11: I32 = convert inspect %10
+  %12: {} = call +=(I32) borrow.unique %3 borrow.shared %11
+  %13: a [shared call] = read borrow.shared (x) loan4
+  %14: (a) -> $r [shared call] = read borrow.shared ($body) loan5
+  %15: $r = call inspect %14 borrow.shared %13
+  write.init borrow.unique ($yielded) take %15
+  %17: I32 [unique call] = read borrow.unique (seen) loan6
+  %18: bracketed.lambda.env = read copy.trivial (render) roots.0{0}
+  %19: a [shared call] = read borrow.shared (x) loan7
+  %20: String = call borrow.shared %18 borrow.shared %19
+  write.init borrow.unique (local7) take %20
+  %22: String [shared slot 0] = read borrow.shared (local7) loan8
+  %23: String [shared slot 0 view] = call.derivation view(String) borrow.shared %22 roots{8}
+  %24: Size = call length(String) borrow.shared %23
+  drop (local7)
+  %25: I32 = convert inspect %24
+  %26: {} = call +=(I32) borrow.unique %17 borrow.shared %25
+  %27: $r = read take ($yielded)
+  return take %27
+}
+
+fn once(flag: Bool [shared call], @lazy value: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %2: () -> I32 [shared call] = read borrow.shared (value) loan0
+  %3: I32 = call inspect %2
+  jump -> bb2(take %3)
+}
+
+fn lazyInGeneric(x: a [shared call], y: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Eq(a)
+  local local2: () -> I32 [owned here shape9 .0=unique call]
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a [shared call] = read borrow.shared (y) loan1
+  %2: Bool = call ==(a) borrow.shared %0 borrow.shared %1
+  %3: () -> I32 [owned here shape9 .0=unique call] = fun.value lazyInGeneric.thunk
+  write.init borrow.unique (local2) take %3
+  %5: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local2) loan2
+  %6: I32 = call once borrow.shared %2 borrow.shared %5
+  return take %6
+}
+
+fn userAnd(lhs: a [shared call], @lazy rhs: () -> b [shared call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+  slot #2 class Truth(a)
+  slot #3 class Truth(b)
+  local local2: b
+
+bb0:
+  %0: a [shared call] = read borrow.shared (lhs) loan0
+  %1: Bool = call truthy(a) borrow.shared %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %8: Bool = const False
+  jump -> bb2(take %8)
+
+bb2(%9: Bool):
+  return take %9
+
+bb3:
+  %3: () -> b [shared call] = read borrow.shared (rhs) loan1
+  %4: b = call inspect %3
+  write.init borrow.unique (local2) take %4
+  %6: b [shared call] = read borrow.shared (local2) loan2
+  %7: Bool = call truthy(b) borrow.shared %6
+  drop (local2)
+  jump -> bb2(take %7)
+}
+
+fn callsUserAnd(x: a [shared call], y: Bool [shared call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 class Truth(a)
+  local callsUserAnd.thunk.env: callsUserAnd.thunk.env
+  local local3: () -> Bool [owned here shape10 .0=shared call]
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: Bool = read copy.trivial (y)
+  %2: callsUserAnd.thunk.env = aggregate.callsUserAnd.thunk.env take %1
+  write.init borrow.unique (callsUserAnd.thunk.env) take %2
+  %4: callsUserAnd.thunk.env [shared call] = read borrow.shared (callsUserAnd.thunk.env) loan1
+  %5: () -> Bool [owned here shape10 .0=shared call] = fun.value callsUserAnd.thunk inspect %4 roots.0{1}
+  write.init borrow.unique (local3) take %5
+  %7: () -> Bool [shared call shape10 .0=shared call] = read borrow.shared (local3) loan2 roots.0{1}
+  %8: Bool = call userAnd(a, Bool) borrow.shared %0 borrow.shared %7
+  return take %8
+}
+
+fn main() -> I32 {
+  local & score: I32
+  local point: main.lambda.env
+  local & local2: Array(I32) object3
+  local local3: Array(I32) object3
+  local & local4: Array(F64) object7
+  local local5: Array(F64) object7
+  local & local6: Array(I32) object11
+  local local7: Array(I32) object11
+  local local8: String
+  local local9: String
+  local & local10: Array(String) object18
+  local local11: Array(String) object18
+  local local12: String
+  local local13: String
+  local inc: (I32) -> I32
+  local half: (F64) -> F64
+  local text: Holder(String)
+  local number: Holder(I32)
+  local local18: String
+  local local19: String
+  local first: Task
+  local second: Task
+  local boxed: Box(String)
+  local local23: Box(I32)
+  local & local24: String object44
+  local local25: String
+  local local26: String object44
+  local local27: String
+  local & sum: I32
+  local & local29: Array(I32) object51
+  local local30: Array(I32) object51
+  local local31: (I32) -> I32 [owned here shape9 .0=unique call]
+  local v: I32 [shared call]
+  local & seen: I32
+  local local34: (I32) -> String [owned here shape9 .0=unique call]
+  local r: I32 [shared call]
+  local local36: String
+  local local37: String
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: main.lambda.env = aggregate.main.lambda.env
+  write.init borrow.unique (point) take %2
+  %4: I32 [unique call] = read borrow.unique (score) loan0
+  %5: main.lambda.env = read copy.trivial (point)
+  %6: I32 = const 1
+  %7: I32 = const 2
+  %8: I32 = const 3
+  %9: %I32 = run.slots I32 *3
+  %10: Size = bitcast inspect %9
+  %11: Size = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  %13: {} = call checkCondition borrow.shared %12
+  %14: @bits(30) U32 = const 3
+  %15: @bits(2) U32 = const 1
+  %16: Run(I32) = aggregate.Run take %9 take %14 take %15
+  %17: @bits(30) U32 = const 3
+  %18: Array(I32) = aggregate.Array take %16 take %17
+  write.init borrow.unique (local2) take %18
+  %20: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %6
+  %22: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %7
+  %24: Size = const 2
+  write.init borrow.unique ([%%9][2]) take %8
+  %26: Array(I32) = read take (local2)
+  write.init borrow.unique (local3) take %26
+  %28: Array(I32) [shared slot 0] = read borrow.shared (local3) loan1
+  %29: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %28 roots{1}
+  %30: I32 = const 2
+  %31: I32 = call scaleSum(I32) borrow.shared %29 borrow.shared %30
+  drop (local3)
+  %32: I32 = const 12
+  %33: Bool = eq inspect %31 inspect %32
+  %34: I32 = call borrow.shared %5 borrow.shared %33
+  %35: {} = call +=(I32) borrow.unique %4 borrow.shared %34
+  %36: I32 [unique call] = read borrow.unique (score) loan2
+  %37: main.lambda.env = read copy.trivial (point)
+  %38: F64 = const 1.5
+  %39: F64 = const 2.5
+  %40: %F64 = run.slots F64 *2
+  %41: Size = bitcast inspect %40
+  %42: Size = const 0
+  %43: Bool = eq inspect %41 inspect %42
+  %44: {} = call checkCondition borrow.shared %43
+  %45: @bits(30) U32 = const 2
+  %46: @bits(2) U32 = const 1
+  %47: Run(F64) = aggregate.Run take %40 take %45 take %46
+  %48: @bits(30) U32 = const 2
+  %49: Array(F64) = aggregate.Array take %47 take %48
+  write.init borrow.unique (local4) take %49
+  %51: Size = const 0
+  write.init borrow.unique ([%%40][0]) take %38
+  %53: Size = const 1
+  write.init borrow.unique ([%%40][1]) take %39
+  %55: Array(F64) = read take (local4)
+  write.init borrow.unique (local5) take %55
+  %57: Array(F64) [shared slot 0] = read borrow.shared (local5) loan3
+  %58: Array(F64) [shared slot 0 view] = call.derivation elements(Array(F64), F64) borrow.shared %57 roots{3}
+  %59: F64 = const 2
+  %60: F64 = call scaleSum(F64) borrow.shared %58 borrow.shared %59
+  drop (local5)
+  %61: F64 = const 8
+  %62: Bool = eq inspect %60 inspect %61
+  %63: I32 = call borrow.shared %37 borrow.shared %62
+  %64: {} = call +=(I32) borrow.unique %36 borrow.shared %63
+  %65: I32 [unique call] = read borrow.unique (score) loan4
+  %66: main.lambda.env = read copy.trivial (point)
+  %67: I32 = const 1
+  %68: I32 = const 2
+  %69: %I32 = run.slots I32 *2
+  %70: Size = bitcast inspect %69
+  %71: Size = const 0
+  %72: Bool = eq inspect %70 inspect %71
+  %73: {} = call checkCondition borrow.shared %72
+  %74: @bits(30) U32 = const 2
+  %75: @bits(2) U32 = const 1
+  %76: Run(I32) = aggregate.Run take %69 take %74 take %75
+  %77: @bits(30) U32 = const 2
+  %78: Array(I32) = aggregate.Array take %76 take %77
+  write.init borrow.unique (local6) take %78
+  %80: Size = const 0
+  write.init borrow.unique ([%%69][0]) take %67
+  %82: Size = const 1
+  write.init borrow.unique ([%%69][1]) take %68
+  %84: Array(I32) = read take (local6)
+  write.init borrow.unique (local7) take %84
+  %86: Array(I32) [shared slot 0] = read borrow.shared (local7) loan5
+  %87: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %86 roots{5}
+  %88: String = call describeAll(I32) borrow.shared %87
+  drop (local7)
+  write.init borrow.unique (local8) take %88
+  %90: String [shared slot 0] = read borrow.shared (local8) loan6
+  %91: String [shared slot 0 view] = call.derivation view(String) borrow.shared %90 roots{6}
+  %92: String = const String {units: Array {run: Run {items: &string'195, capacity: 6, ownsHeap: 0}, length: 6}}
+  write.init borrow.unique (local9) take %92
+  %94: String [shared slot 0] = read borrow.shared (local9) loan7
+  %95: String [shared slot 0 view] = call.derivation view(String) borrow.shared %94 roots{7}
+  %96: Bool = call ==(String) borrow.shared %91 borrow.shared %95
+  drop (local8)
+  drop (local9)
+  %97: I32 = call borrow.shared %66 borrow.shared %96
+  %98: {} = call +=(I32) borrow.unique %65 borrow.shared %97
+  %99: I32 [unique call] = read borrow.unique (score) loan8
+  %100: main.lambda.env = read copy.trivial (point)
+  %101: String = const String {units: Array {run: Run {items: &string'196, capacity: 1, ownsHeap: 0}, length: 1}}
+  %102: String = const String {units: Array {run: Run {items: &string'197, capacity: 1, ownsHeap: 0}, length: 1}}
+  %103: %String = run.slots String *2
+  %104: Size = bitcast inspect %103
+  %105: Size = const 0
+  %106: Bool = eq inspect %104 inspect %105
+  %107: {} = call checkCondition borrow.shared %106
+  %108: @bits(30) U32 = const 2
+  %109: @bits(2) U32 = const 1
+  %110: Run(String) = aggregate.Run take %103 take %108 take %109
+  %111: @bits(30) U32 = const 2
+  %112: Array(String) = aggregate.Array take %110 take %111
+  write.init borrow.unique (local10) take %112
+  %114: Size = const 0
+  write.init borrow.unique ([%%103][0]) take %101
+  %116: Size = const 1
+  write.init borrow.unique ([%%103][1]) take %102
+  %118: Array(String) = read take (local10)
+  write.init borrow.unique (local11) take %118
+  %120: Array(String) [shared slot 0] = read borrow.shared (local11) loan9
+  %121: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %120 roots{9}
+  %122: String = call describeAll(String) borrow.shared %121
+  drop (local11)
+  write.init borrow.unique (local12) take %122
+  %124: String [shared slot 0] = read borrow.shared (local12) loan10
+  %125: String [shared slot 0 view] = call.derivation view(String) borrow.shared %124 roots{10}
+  %126: String = const String {units: Array {run: Run {items: &string'198, capacity: 6, ownsHeap: 0}, length: 6}}
+  write.init borrow.unique (local13) take %126
+  %128: String [shared slot 0] = read borrow.shared (local13) loan11
+  %129: String [shared slot 0 view] = call.derivation view(String) borrow.shared %128 roots{11}
+  %130: Bool = call ==(String) borrow.shared %125 borrow.shared %129
+  drop (local12)
+  drop (local13)
+  %131: I32 = call borrow.shared %100 borrow.shared %130
+  %132: {} = call +=(I32) borrow.unique %99 borrow.shared %131
+  %133: I32 [unique call] = read borrow.unique (score) loan12
+  %134: main.lambda.env = read copy.trivial (point)
+  %135: I32 = const 1
+  %136: I32 = call nested(I32) borrow.shared %135
+  %137: I32 = const 9
+  %138: Bool = eq inspect %136 inspect %137
+  %139: I32 = call borrow.shared %134 borrow.shared %138
+  %140: {} = call +=(I32) borrow.unique %133 borrow.shared %139
+  %141: I32 [unique call] = read borrow.unique (score) loan13
+  %142: main.lambda.env = read copy.trivial (point)
+  %143: F64 = const 0.5
+  %144: F64 = call nested(F64) borrow.shared %143
+  %145: F64 = const 4.5
+  %146: Bool = eq inspect %144 inspect %145
+  %147: I32 = call borrow.shared %142 borrow.shared %146
+  %148: {} = call +=(I32) borrow.unique %141 borrow.shared %147
+  %149: I32 = const 3
+  %150: (I32) -> I32 = call adder(I32) take %149
+  write.init borrow.unique (inc) take %150
+  %152: F64 = const 0.5
+  %153: (F64) -> F64 = call adder(F64) take %152
+  write.init borrow.unique (half) take %153
+  %155: I32 [unique call] = read borrow.unique (score) loan14
+  %156: main.lambda.env = read copy.trivial (point)
+  %157: (I32) -> I32 [shared call] = read borrow.shared (inc) loan15
+  %158: I32 = const 4
+  %159: I32 = call inspect %157 borrow.shared %158
+  drop (inc)
+  %160: I32 = const 7
+  %161: Bool = eq inspect %159 inspect %160
+  %162: I32 = call borrow.shared %156 borrow.shared %161
+  %163: {} = call +=(I32) borrow.unique %155 borrow.shared %162
+  %164: I32 [unique call] = read borrow.unique (score) loan16
+  %165: main.lambda.env = read copy.trivial (point)
+  %166: (F64) -> F64 [shared call] = read borrow.shared (half) loan17
+  %167: F64 = const 1
+  %168: F64 = call inspect %166 borrow.shared %167
+  drop (half)
+  %169: F64 = const 1.5
+  %170: Bool = eq inspect %168 inspect %169
+  %171: I32 = call borrow.shared %165 borrow.shared %170
+  %172: {} = call +=(I32) borrow.unique %164 borrow.shared %171
+  %173: String = const String {units: Array {run: Run {items: &string'199, capacity: 4, ownsHeap: 0}, length: 4}}
+  %174: Holder(String) = call hold(String) take %173
+  write.init borrow.unique (text) take %174
+  %176: I32 = const 42
+  %177: Holder(I32) = call hold(I32) take %176
+  write.init borrow.unique (number) take %177
+  %179: I32 [unique call] = read borrow.unique (score) loan18
+  %180: main.lambda.env = read copy.trivial (point)
+  %181: () -> String [shared call] = read borrow.shared (text.run) loan19
+  %182: String = call inspect %181
+  drop (text)
+  write.init borrow.unique (local18) take %182
+  %184: String [shared slot 0] = read borrow.shared (local18) loan20
+  %185: String [shared slot 0 view] = call.derivation view(String) borrow.shared %184 roots{20}
+  %186: String = const String {units: Array {run: Run {items: &string'200, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local19) take %186
+  %188: String [shared slot 0] = read borrow.shared (local19) loan21
+  %189: String [shared slot 0 view] = call.derivation view(String) borrow.shared %188 roots{21}
+  %190: Bool = call ==(String) borrow.shared %185 borrow.shared %189
+  drop (local18)
+  drop (local19)
+  %191: I32 = call borrow.shared %180 borrow.shared %190
+  %192: {} = call +=(I32) borrow.unique %179 borrow.shared %191
+  %193: I32 [unique call] = read borrow.unique (score) loan22
+  %194: main.lambda.env = read copy.trivial (point)
+  %195: () -> I32 [shared call] = read borrow.shared (number.run) loan23
+  %196: I32 = call inspect %195
+  drop (number)
+  %197: I32 = const 42
+  %198: Bool = eq inspect %196 inspect %197
+  %199: I32 = call borrow.shared %194 borrow.shared %198
+  %200: {} = call +=(I32) borrow.unique %193 borrow.shared %199
+  %201: I32 = const 40
+  %202: (I32) -> I32 [owned here shape9 .0=unique call] = fun.value main.lambda'2
+  %203: Task = call task(I32) take %201 take %202
+  write.init borrow.unique (first) take %203
+  %205: String = const String {units: Array {run: Run {items: &string'201, capacity: 4, ownsHeap: 0}, length: 4}}
+  %206: (String) -> I32 [owned here shape9 .0=unique call] = fun.value main.lambda'3
+  %207: Task = call task(String) take %205 take %206
+  write.init borrow.unique (second) take %207
+  %209: I32 [unique call] = read borrow.unique (score) loan24
+  %210: main.lambda.env = read copy.trivial (point)
+  %211: () -> I32 [shared call] = read borrow.shared (first.entry) loan25
+  %212: I32 = call inspect %211
+  drop (first)
+  %213: I32 = const 42
+  %214: Bool = eq inspect %212 inspect %213
+  %215: I32 = call borrow.shared %210 borrow.shared %214
+  %216: {} = call +=(I32) borrow.unique %209 borrow.shared %215
+  %217: I32 [unique call] = read borrow.unique (score) loan26
+  %218: main.lambda.env = read copy.trivial (point)
+  %219: () -> I32 [shared call] = read borrow.shared (second.entry) loan27
+  %220: I32 = call inspect %219
+  drop (second)
+  %221: I32 = const 4
+  %222: Bool = eq inspect %220 inspect %221
+  %223: I32 = call borrow.shared %218 borrow.shared %222
+  %224: {} = call +=(I32) borrow.unique %217 borrow.shared %223
+  %225: I32 [unique call] = read borrow.unique (score) loan28
+  %226: main.lambda.env = read copy.trivial (point)
+  %227: I32 = const 2
+  %228: I32 = const 3
+  %229: I32 = call twiceScaled(I32) borrow.shared %228 borrow.shared %227
+  %230: I32 = const 12
+  %231: Bool = eq inspect %229 inspect %230
+  %232: I32 = call borrow.shared %226 borrow.shared %231
+  %233: {} = call +=(I32) borrow.unique %225 borrow.shared %232
+  %234: String = const String {units: Array {run: Run {items: &string'202, capacity: 1, ownsHeap: 0}, length: 1}}
+  %235: Box(String) = aggregate.Box take %234
+  write.init borrow.unique (boxed) take %235
+  %237: I32 [unique call] = read borrow.unique (score) loan29
+  %238: main.lambda.env = read copy.trivial (point)
+  %239: I32 = const 5
+  %240: Box(I32) = aggregate.Box take %239
+  write.init borrow.unique (local23) take %240
+  %242: Size = const 1
+  %243: Box(I32) = read copy.trivial (local23)
+  %244: Maybe(Size) = call showBound(Box(I32)) borrow.shared %243
+  %245: Size = call formatBound borrow.shared %244
+  %246: Size = add inspect %242 inspect %245
+  %247: Box(String) [shared call] = read borrow.shared (boxed) loan30
+  %248: Maybe(Size) = call showBound(Box(String)) borrow.shared %247
+  %249: Size = call formatBound borrow.shared %248
+  %250: Size = add inspect %246 inspect %249
+  %251: String = call String.ofCapacity borrow.shared %250
+  write.init borrow.unique (local24) take %251
+  %253: Box(I32) = read copy.trivial (local23)
+  %254: String [unique call] = read borrow.unique (local24) loan31
+  %255: {} = call show(Box(I32)) borrow.shared %253 borrow.unique %254
+  %256: String [unique call] = read borrow.unique (local24) loan32
+  %257: String = const String {units: Array {run: Run {items: &string'203, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local25) take %257
+  %259: String [shared slot 0] = read borrow.shared (local25) loan33
+  %260: String [shared slot 0 view] = call.derivation view(String) borrow.shared %259 roots{33}
+  %261: {} = call String.push borrow.unique %256 borrow.shared %260
+  drop (local25)
+  %262: Box(String) [shared call] = read borrow.shared (boxed) loan34
+  %263: String [unique call] = read borrow.unique (local24) loan35
+  %264: {} = call show(Box(String)) borrow.shared %262 borrow.unique %263
+  drop (boxed)
+  %265: String = read take (local24)
+  write.init borrow.unique (local26) take %265
+  %267: String [shared slot 0] = read borrow.shared (local26) loan36
+  %268: String [shared slot 0 view] = call.derivation view(String) borrow.shared %267 roots{36}
+  %269: String = const String {units: Array {run: Run {items: &string'204, capacity: 13, ownsHeap: 0}, length: 13}}
+  write.init borrow.unique (local27) take %269
+  %271: String [shared slot 0] = read borrow.shared (local27) loan37
+  %272: String [shared slot 0 view] = call.derivation view(String) borrow.shared %271 roots{37}
+  %273: Bool = call ==(String) borrow.shared %268 borrow.shared %272
+  drop (local26)
+  drop (local27)
+  %274: I32 = call borrow.shared %238 borrow.shared %273
+  %275: {} = call +=(I32) borrow.unique %237 borrow.shared %274
+  %276: I32 = const 0
+  write.init borrow.unique (sum) take %276
+  %278: I32 = const 1
+  %279: I32 = const 2
+  %280: %I32 = run.slots I32 *2
+  %281: Size = bitcast inspect %280
+  %282: Size = const 0
+  %283: Bool = eq inspect %281 inspect %282
+  %284: {} = call checkCondition borrow.shared %283
+  %285: @bits(30) U32 = const 2
+  %286: @bits(2) U32 = const 1
+  %287: Run(I32) = aggregate.Run take %280 take %285 take %286
+  %288: @bits(30) U32 = const 2
+  %289: Array(I32) = aggregate.Array take %287 take %288
+  write.init borrow.unique (local29) take %289
+  %291: Size = const 0
+  write.init borrow.unique ([%%280][0]) take %278
+  %293: Size = const 1
+  write.init borrow.unique ([%%280][1]) take %279
+  %295: Array(I32) = read take (local29)
+  write.init borrow.unique (local30) take %295
+  %297: Array(I32) [shared slot 0] = read borrow.shared (local30) loan38
+  %298: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %297 roots{38}
+  %299: (I32) -> I32 [owned here shape9 .0=unique call] = fun.value main.lambda'4
+  write.init borrow.unique (local31) take %299
+  %301: (I32) -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local31) loan39
+  lens.call doubled(I32) borrow.shared %298 borrow.shared %301 -> bb2
+
+bb1:
+  drop (local30)
+  %309: I32 [unique call] = read borrow.unique (score) loan41
+  %310: main.lambda.env = read copy.trivial (point)
+  %311: I32 = read copy.trivial (sum)
+  %312: I32 = const 7
+  %313: Bool = eq inspect %311 inspect %312
+  %314: I32 = call borrow.shared %310 borrow.shared %313
+  %315: {} = call +=(I32) borrow.unique %309 borrow.shared %314
+  %316: I32 = const 0
+  write.init borrow.unique (seen) take %316
+  %318: I32 [unique call] = read borrow.unique (seen) loan42
+  %319: I32 = const 7
+  %320: (I32) -> String [owned here shape9 .0=unique call] = fun.value main.lambda'5
+  write.init borrow.unique (local34) take %320
+  %322: (I32) -> String [shared call shape9 .0=unique call] = read borrow.shared (local34) loan43
+  lens.call bracketed(I32, I32) borrow.shared %319 borrow.shared %322 borrow.unique %318 -> bb4
+
+bb2(%302: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %302
+  %305: I32 [unique call] = read borrow.unique (sum) loan40
+  %306: I32 = read copy.trivial (v)
+  %307: {} = call +=(I32) borrow.unique %305 borrow.shared %306
+  jump -> bb1
+
+bb3:
+  %334: I32 [unique call] = read borrow.unique (score) loan45
+  %335: main.lambda.env = read copy.trivial (point)
+  %336: I32 = read copy.trivial (seen)
+  %337: I32 = const 6
+  %338: Bool = eq inspect %336 inspect %337
+  %339: I32 = call borrow.shared %335 borrow.shared %338
+  %340: {} = call +=(I32) borrow.unique %334 borrow.shared %339
+  %341: I32 [unique call] = read borrow.unique (score) loan46
+  %342: main.lambda.env = read copy.trivial (point)
+  %343: I32 = const 1
+  %344: I32 = const 1
+  %345: I32 = call lazyInGeneric(I32) borrow.shared %343 borrow.shared %344
+  %346: I32 = const 1
+  %347: Bool = eq inspect %345 inspect %346
+  %348: I32 = call borrow.shared %342 borrow.shared %347
+  %349: {} = call +=(I32) borrow.unique %341 borrow.shared %348
+  %350: I32 [unique call] = read borrow.unique (score) loan47
+  %351: main.lambda.env = read copy.trivial (point)
+  %352: String = const String {units: Array {run: Run {items: &string'205, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local36) take %352
+  %354: String [shared slot 0] = read borrow.shared (local36) loan48
+  %355: String [shared slot 0 view] = call.derivation view(String) borrow.shared %354 roots{48}
+  %356: String = const String {units: Array {run: Run {items: &string'206, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local37) take %356
+  %358: String [shared slot 0] = read borrow.shared (local37) loan49
+  %359: String [shared slot 0 view] = call.derivation view(String) borrow.shared %358 roots{49}
+  %360: I32 = call lazyInGeneric(String) borrow.shared %355 borrow.shared %359
+  drop (local36)
+  drop (local37)
+  %361: I32 = const 0
+  %362: Bool = eq inspect %360 inspect %361
+  %363: I32 = call borrow.shared %351 borrow.shared %362
+  %364: {} = call +=(I32) borrow.unique %350 borrow.shared %363
+  %365: I32 [unique call] = read borrow.unique (score) loan50
+  %366: main.lambda.env = read copy.trivial (point)
+  %367: Bool = const True
+  %368: Bool = const True
+  %369: Bool = call callsUserAnd(Bool) borrow.shared %367 borrow.shared %368
+  %370: I32 = call borrow.shared %366 borrow.shared %369
+  %371: {} = call +=(I32) borrow.unique %365 borrow.shared %370
+  %372: I32 [unique call] = read borrow.unique (score) loan51
+  %373: main.lambda.env = read copy.trivial (point)
+  %374: Bool = const False
+  %375: Bool = const True
+  %376: Bool = call callsUserAnd(Bool) borrow.shared %374 borrow.shared %375
+  %377: Bool = not inspect %376
+  %378: I32 = call borrow.shared %373 borrow.shared %377
+  %379: {} = call +=(I32) borrow.unique %372 borrow.shared %378
+  %380: I32 = read copy.trivial (score)
+  return take %380
+
+bb4(%323: I32 [shared call]) handover(I32 [shared call]) -> bb3:
+  write.init borrow.unique (r) borrow.shared %323
+  %326: I32 [unique call] = read borrow.unique (score) loan44
+  %327: main.lambda.env = read copy.trivial (point)
+  %328: I32 = read copy.trivial (r)
+  %329: I32 = const 7
+  %330: Bool = eq inspect %328 inspect %329
+  %331: I32 = call borrow.shared %327 borrow.shared %330
+  %332: {} = call +=(I32) borrow.unique %326 borrow.shared %331
+  jump -> bb3
+}
+
+fn scaleSum.lambda(scaleSum.lambda.env: scaleSum.lambda.env [shared call], v: a [shared call]) -> {} {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local local2: a
+
+bb0:
+  %0: a [unique slot 0] = read borrow.unique (scaleSum.lambda.env.total) loan0
+  %1: a [shared call] = read borrow.shared (v) loan1
+  %2: a [shared slot 1] = read borrow.shared (scaleSum.lambda.env.k) loan2
+  %3: a = call *(a) borrow.shared %1 borrow.shared %2
+  write.init borrow.unique (local2) take %3
+  %5: a [shared call] = read borrow.shared (local2) loan3
+  %6: {} = call +=(a) borrow.unique %0 borrow.shared %5
+  drop (local2)
+  return
+}
+
+fn describeAll.lambda(describeAll.lambda.env: describeAll.lambda.env [unique call], v: a [shared call]) -> String {
+  form specialized
+  slot #0 type a
+  slot #1 class Show(a)
+  local & local2: String
+  local local3: String
+  local local4: String
+
+bb0:
+  %0: Size = const 2
+  %1: a [shared call] = read borrow.shared (v) loan0
+  %2: Maybe(Size) = call showBound(a) borrow.shared %1
+  %3: Size = call formatBound borrow.shared %2
+  %4: Size = add inspect %0 inspect %3
+  %5: String = call String.ofCapacity borrow.shared %4
+  write.init borrow.unique (local2) take %5
+  %7: String [unique call] = read borrow.unique (local2) loan1
+  %8: String = const String {units: Array {run: Run {items: &string'189, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local3) take %8
+  %10: String [shared slot 0] = read borrow.shared (local3) loan2
+  %11: String [shared slot 0 view] = call.derivation view(String) borrow.shared %10 roots{2}
+  %12: {} = call String.push borrow.unique %7 borrow.shared %11
+  drop (local3)
+  %13: a [shared call] = read borrow.shared (v) loan3
+  %14: String [unique call] = read borrow.unique (local2) loan4
+  %15: {} = call show(a) borrow.shared %13 borrow.unique %14
+  %16: String [unique call] = read borrow.unique (local2) loan5
+  %17: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local4) take %17
+  %19: String [shared slot 0] = read borrow.shared (local4) loan6
+  %20: String [shared slot 0 view] = call.derivation view(String) borrow.shared %19 roots{6}
+  %21: {} = call String.push borrow.unique %16 borrow.shared %20
+  drop (local4)
+  %22: String = read take (local2)
+  return take %22
+}
+
+fn nested.lambda(nested.lambda.env: nested.lambda.env [unique call], v: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local nested.lambda.lambda.env: nested.lambda.lambda.env
+  local local3: (a) -> a [owned here shape10 .0=shared call]
+
+bb0:
+  %0: a [shared call] = read borrow.shared (v) loan0
+  %1: a [shared slot 0] = read borrow.shared (v) loan1
+  %2: nested.lambda.lambda.env = aggregate.nested.lambda.lambda.env borrow.shared %1 roots.0{1}
+  write.init borrow.unique (nested.lambda.lambda.env) take %2
+  %4: nested.lambda.lambda.env [shared call] = read borrow.shared (nested.lambda.lambda.env) loan2 roots.0{1}
+  %5: (a) -> a [owned here shape10 .0=shared call] = fun.value nested.lambda.lambda inspect %4 roots.0{1, 2}
+  write.init borrow.unique (local3) take %5
+  %7: (a) -> a [shared call shape10 .0=shared call] = read borrow.shared (local3) loan3 roots.0{1, 2}
+  %8: a = call applyTwice(a) borrow.shared %0 borrow.shared %7
+  return take %8
+}
+
+fn nested.lambda.lambda(nested.lambda.lambda.env: nested.lambda.lambda.env [unique call], w: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (w) loan0
+  %1: a [shared slot 0] = read borrow.shared (nested.lambda.lambda.env.v) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn adder.lambda(adder.lambda.env: adder.lambda.env [unique call], v: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (v) loan0
+  %1: a [shared call] = read borrow.shared (adder.lambda.env.by) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn hold.lambda(hold.lambda.env: hold.lambda.env [unique call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Copy(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (hold.lambda.env.value) loan0
+  %1: a = call copy(a) borrow.shared %0
+  return take %1
+}
+
+fn task.lambda(task.lambda.env: task.lambda.env [unique call]) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: (a) -> I32 [shared call] = read borrow.shared (task.lambda.env.entry) loan0
+  %1: a [shared call] = read borrow.shared (task.lambda.env.context) loan1
+  %2: I32 = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn twiceScaled.lambda(twiceScaled.lambda.env: twiceScaled.lambda.env [unique call], v: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Scaled(a)
+  local local2: a
+
+bb0:
+  %0: a [shared call] = read borrow.shared (v) loan0
+  %1: I32 = read copy.trivial (twiceScaled.lambda.env.k)
+  %2: a = call scaled(a) borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (local2) take %2
+  %4: a [shared call] = read borrow.shared (local2) loan1
+  %5: I32 = read copy.trivial (twiceScaled.lambda.env.k)
+  %6: a = call scaled(a) borrow.shared %4 borrow.shared %5
+  drop (local2)
+  return take %6
+}
+
+fn Box(a).show.lambda(Box(a).show.lambda.env: Box(a).show.lambda.env [shared call], v: a [shared call]) -> String {
+  form specialized
+  slot #0 type a
+  slot #1 class Show(a)
+  local & local2: String
+  local local3: String
+  local local4: String
+
+bb0:
+  %0: Size = const 5
+  %1: a [shared call] = read borrow.shared (v) loan0
+  %2: Maybe(Size) = call showBound(a) borrow.shared %1
+  %3: Size = call formatBound borrow.shared %2
+  %4: Size = add inspect %0 inspect %3
+  %5: String = call String.ofCapacity borrow.shared %4
+  write.init borrow.unique (local2) take %5
+  %7: String [unique call] = read borrow.unique (local2) loan1
+  %8: String = const String {units: Array {run: Run {items: &string'191, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local3) take %8
+  %10: String [shared slot 0] = read borrow.shared (local3) loan2
+  %11: String [shared slot 0 view] = call.derivation view(String) borrow.shared %10 roots{2}
+  %12: {} = call String.push borrow.unique %7 borrow.shared %11
+  drop (local3)
+  %13: a [shared call] = read borrow.shared (v) loan3
+  %14: String [unique call] = read borrow.unique (local2) loan4
+  %15: {} = call show(a) borrow.shared %13 borrow.unique %14
+  %16: String [unique call] = read borrow.unique (local2) loan5
+  %17: String = const String {units: Array {run: Run {items: &string'192, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local4) take %17
+  %19: String [shared slot 0] = read borrow.shared (local4) loan6
+  %20: String [shared slot 0 view] = call.derivation view(String) borrow.shared %19 roots{6}
+  %21: {} = call String.push borrow.unique %16 borrow.shared %20
+  drop (local4)
+  %22: String = read take (local2)
+  return take %22
+}
+
+fn doubled.lambda(doubled.lambda.env: doubled.lambda.env [shared call], v: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  local local2: a
+
+bb0:
+  %0: (a) -> a [shared slot 0] = read borrow.shared (doubled.lambda.env.f) loan0
+  %1: (a) -> a [shared slot 0] = read borrow.shared (doubled.lambda.env.f) loan1
+  %2: a [shared call] = read borrow.shared (v) loan2
+  %3: a = call inspect %1 borrow.shared %2
+  write.init borrow.unique (local2) take %3
+  %5: a [shared call] = read borrow.shared (local2) loan3
+  %6: a = call inspect %0 borrow.shared %5
+  drop (local2)
+  return take %6
+}
+
+fn bracketed.lambda(bracketed.lambda.env: bracketed.lambda.env [shared call], v: a [shared call]) -> String {
+  form specialized
+  slot #0 type a
+  slot #1 type $r
+bb0:
+  %0: (a) -> String [shared slot 0] = read borrow.shared (bracketed.lambda.env.f) loan0
+  %1: a [shared call] = read borrow.shared (v) loan1
+  %2: String = call inspect %0 borrow.shared %1
+  %3: String = const String {units: Array {run: Run {items: &string'193, capacity: 1, ownsHeap: 0}, length: 1}}
+  %4: String = call ++(String) take %3 take %2
+  %5: String = const String {units: Array {run: Run {items: &string'194, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: String = call ++(String) take %4 take %5
+  return take %6
+}
+
+fn lazyInGeneric.thunk(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env [unique call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Eq(a)
+bb0:
+  %0: I32 = const 1
+  return take %0
+}
+
+fn callsUserAnd.thunk(callsUserAnd.thunk.env: callsUserAnd.thunk.env [unique call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 class Truth(a)
+bb0:
+  %0: Bool = read copy.trivial (callsUserAnd.thunk.env.y)
+  return take %0
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [shared call], ok: Bool [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (ok)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main.lambda'3(main.lambda'3.env: main.lambda'3.env [unique call], s: String [shared call view]) -> I32 {
+bb0:
+  %0: String [shared call view] = read borrow.shared (s) loan0
+  %1: Size = call length(String) borrow.shared %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn main.lambda'4(main.lambda'4.env: main.lambda'4.env [unique call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main.lambda'5(main.lambda'5.env: main.lambda'5.env [unique call], n: I32 [shared call]) -> String {
+  local & local2: String
+
+bb0:
+  %0: Size = const 0
+  %1: I32 = read copy.trivial (n)
+  %2: Maybe(Size) = call showBound(I32) borrow.shared %1
+  %3: Size = call formatBound borrow.shared %2
+  %4: Size = add inspect %0 inspect %3
+  %5: String = call String.ofCapacity borrow.shared %4
+  write.init borrow.unique (local2) take %5
+  %7: I32 = read copy.trivial (n)
+  %8: String [unique call] = read borrow.unique (local2) loan0
+  %9: {} = call show(I32) borrow.shared %7 borrow.unique %8
+  %10: String = read take (local2)
+  return take %10
+}
+
+fn scaleSum(I32)(xs: Array(I32) [shared call view], k: I32 [shared call]) -> I32 = <scaleSum at I32>
+
+fn scaleSum(F64)(xs: Array(F64) [shared call view], k: F64 [shared call]) -> F64 = <scaleSum at F64>
+
+fn describeAll(I32)(xs: Array(I32) [shared call view]) -> String = <describeAll at I32>
+
+fn describeAll(String)(xs: Array(String) [shared call view]) -> String = <describeAll at String>
+
+fn nested(I32)(x: I32 [shared call]) -> I32 = <nested at I32>
+
+fn nested(F64)(x: F64 [shared call]) -> F64 = <nested at F64>
+
+fn adder(I32)(by: I32) -> (I32) -> I32 = <adder at I32>
+
+fn adder(F64)(by: F64) -> (F64) -> F64 = <adder at F64>
+
+fn hold(String)(value: String) -> Holder(String) = <hold at String>
+
+fn hold(I32)(value: I32) -> Holder(I32) = <hold at I32>
+
+fn task(I32)(context: I32, entry: (I32) -> I32) -> Task = <task at I32>
+
+fn task(String)(context: String, entry: (String) -> I32) -> Task = <task at String>
+
+fn twiceScaled(I32)(x: I32 [shared call], k: I32 [shared call]) -> I32 = <twiceScaled at I32>
+
+fn Box(a).show(I32)(b: Box(I32) [shared call], to: String [unique call]) -> {} = <Box(a).show at I32>
+
+fn Box(a).show(String)(b: Box(String) [shared call], to: String [unique call]) -> {} = <Box(a).show at String>
+
+lens fn doubled(I32)(xs: Array(I32) [shared call view], f: (I32) -> I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <doubled at I32>
+
+lens fn bracketed(I32, I32)(x: I32 [shared call], f: (I32) -> String [shared call], seen: I32 [unique call], $body: (I32) -> I32 [shared call]) -> I32 = <bracketed at I32, I32>
+
+fn lazyInGeneric(I32)(x: I32 [shared call], y: I32 [shared call]) -> I32 = <lazyInGeneric at I32>
+
+fn lazyInGeneric(String)(x: String [shared call view], y: String [shared call view]) -> I32 = <lazyInGeneric at String>
+
+fn callsUserAnd(Bool)(x: Bool [shared call], y: Bool [shared call]) -> Bool = <callsUserAnd at Bool>
+
+fn scaleSum.lambda(I32)(scaleSum.lambda.env: scaleSum.lambda.env(I32) [shared call], v: I32 [shared call]) -> {} = <scaleSum.lambda at I32>
+
+fn scaleSum.lambda(F64)(scaleSum.lambda.env: scaleSum.lambda.env(F64) [shared call], v: F64 [shared call]) -> {} = <scaleSum.lambda at F64>
+
+fn describeAll.lambda(I32)(describeAll.lambda.env: describeAll.lambda.env(I32) [unique call], v: I32 [shared call]) -> String = <describeAll.lambda at I32>
+
+fn mapOne(I32, String)(x: I32 [shared call], f: (I32) -> String [shared call]) -> String = <mapOne at I32, String>
+
+fn describeAll.lambda(String)(describeAll.lambda.env: describeAll.lambda.env(String) [unique call], v: String [shared call view]) -> String = <describeAll.lambda at String>
+
+fn mapOne(String, String)(x: String [shared call view], f: (String) -> String [shared call]) -> String = <mapOne at String, String>
+
+fn nested.lambda(I32)(nested.lambda.env: nested.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 = <nested.lambda at I32>
+
+fn applyTwice(I32)(x: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 = <applyTwice at I32>
+
+fn nested.lambda(F64)(nested.lambda.env: nested.lambda.env(F64) [unique call], v: F64 [shared call]) -> F64 = <nested.lambda at F64>
+
+fn applyTwice(F64)(x: F64 [shared call], f: (F64) -> F64 [shared call]) -> F64 = <applyTwice at F64>
+
+fn adder.lambda(I32)(adder.lambda.env: adder.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 = <adder.lambda at I32>
+
+fn adder.lambda(F64)(adder.lambda.env: adder.lambda.env(F64) [unique call], v: F64 [shared call]) -> F64 = <adder.lambda at F64>
+
+fn hold.lambda(String)(hold.lambda.env: hold.lambda.env(String) [unique call]) -> String = <hold.lambda at String>
+
+fn hold.lambda(I32)(hold.lambda.env: hold.lambda.env(I32) [unique call]) -> I32 = <hold.lambda at I32>
+
+fn task.lambda(I32)(task.lambda.env: task.lambda.env(I32) [unique call]) -> I32 = <task.lambda at I32>
+
+fn task.lambda(String)(task.lambda.env: task.lambda.env(String) [unique call]) -> I32 = <task.lambda at String>
+
+fn twiceScaled.lambda(I32)(twiceScaled.lambda.env: twiceScaled.lambda.env(I32) [unique call], v: I32 [shared call]) -> I32 = <twiceScaled.lambda at I32>
+
+fn mapOne(I32, I32)(x: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 = <mapOne at I32, I32>
+
+fn Box(a).show.lambda(I32)(Box(a).show.lambda.env: Box(a).show.lambda.env(I32) [shared call], v: I32 [shared call]) -> String = <Box(a).show.lambda at I32>
+
+fn Box(a).show.lambda(String)(Box(a).show.lambda.env: Box(a).show.lambda.env(String) [shared call], v: String [shared call view]) -> String = <Box(a).show.lambda at String>
+
+fn doubled.lambda(I32)(doubled.lambda.env: doubled.lambda.env(I32) [shared call], v: I32 [shared call]) -> I32 = <doubled.lambda at I32>
+
+fn bracketed.lambda(I32, I32)(bracketed.lambda.env: bracketed.lambda.env(I32, I32) [shared call], v: I32 [shared call]) -> String = <bracketed.lambda at I32, I32>
+
+fn lazyInGeneric.thunk(I32)(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env(I32) [unique call]) -> I32 = <lazyInGeneric.thunk at I32>
+
+fn lazyInGeneric.thunk(String)(lazyInGeneric.thunk.env: lazyInGeneric.thunk.env(String) [unique call]) -> I32 = <lazyInGeneric.thunk at String>
+
+fn callsUserAnd.thunk(Bool)(callsUserAnd.thunk.env: callsUserAnd.thunk.env(Bool) [unique call]) -> Bool = <callsUserAnd.thunk at Bool>
+
+fn userAnd(Bool, Bool)(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool = <userAnd at Bool, Bool>
+
+fn nested.lambda.lambda(I32)(nested.lambda.lambda.env: nested.lambda.lambda.env(I32) [unique call], w: I32 [shared call]) -> I32 = <nested.lambda.lambda at I32>
+
+fn nested.lambda.lambda(F64)(nested.lambda.lambda.env: nested.lambda.lambda.env(F64) [unique call], w: F64 [shared call]) -> F64 = <nested.lambda.lambda at F64>
+
+entry main

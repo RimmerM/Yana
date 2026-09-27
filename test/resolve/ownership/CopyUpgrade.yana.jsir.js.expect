@@ -5,12 +5,10 @@ function main() {
   var p2 = 0;
   var p1 = 0;
   while (p1 < 3) {
-    if (p1 >>> 0 >= 3) throw $t;
-    var v27 = v8[p1 | 0];
-    if (v27 > p2) p2 = v27;
+    var v22 = v8[p1];
+    if (v22 > p2) p2 = v22;
     p1 = p1 + 1 | 0;
   }
   return 19 + p2 | 0;
 }
-var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -1,0 +1,40 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn widen'2(p: Point [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  write.assign borrow.unique (p.x) take %2
+  return
+}
+
+fn main() -> I32 {
+  local n: I32
+  local m: I64
+  local & p: Point
+
+bb0:
+  %0: I32 = const 5
+  write.init borrow.unique (n) take %0
+  %2: I32 = const 5
+  %3: I64 = convert inspect %2
+  write.init borrow.unique (m) take %3
+  %5: I32 = const 1
+  %6: I32 = const 2
+  %7: Point = aggregate.Point take %5 take %6
+  write.init borrow.unique (p) take %7
+  %9: Point [unique call] = read borrow.unique (p) loan0
+  %10: {} = call widen'2 borrow.unique %9
+  %11: I64 = read copy.trivial (m)
+  %12: I32 = convert inspect %11
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (p.x)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+entry main

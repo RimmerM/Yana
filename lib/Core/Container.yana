@@ -452,21 +452,27 @@ instance (n: Int) Chunked([a *n], a):
    The one bounds test all twelve share - `at` names a *window* of `width` bytes rather than one
    element, so `checkIndexInBounds`' single compare is not the question being asked here.
 
-   Written as the mistake, which is what `checkCondition` takes, and read in the unsigned domain for
+   Written as the mistake, so the branch is predicted the way it goes, and read in the unsigned domain for
    `checkIndexInBounds`' reason: a negative `at` is above every length there is when the bits are
    read that way, so one compare covers both ends. The `length < width` test in front of it is what
    keeps `length - width` from underflowing into a bound that admits everything - `||` is lazy, so
    the subtraction happens only where it has an answer.
 
-   It costs nothing where the caller's index is provable: `opt_check` removes a check whose condition
-   is known, which is every read at a literal offset into a block whose length the loop above already
-   established. Where it is not provable it is one compare and a predicted-not-taken branch, which is
-   what a subscript costs, and these exist to be used where a subscript would otherwise be.
+   It costs nothing where the caller's index is provable, and that is `opt/bounds.cpp` (J189)
+   rather than the `opt_check` this comment used to name, which went with the old stage in J173:
+   under a dominating `length(b) >= C` - `if length(b) < C then return ...`, or `!= C` - both
+   compares at a literal offset are decided and the branch goes. It branches to `checkFailed`
+   itself, as `Index.get` does, rather than calling `checkCondition`: the SSA inliner left that call
+   standing in every reader, so on JavaScript, which never reaches the lowering's inliner, each read
+   paid a call, and the test was in a body the caller's arm could not answer. `@inline` rather than
+   `@inline(always)`, because the graft made every JavaScript reader's body too large for the
+   inliner to copy (J189 measured it). Where the index is not provable it is one compare and a
+   predicted-not-taken branch, which is what a subscript costs, and these exist to be used where a
+   subscript would otherwise be.
 -}
-fn checkWordInBounds(from: [U8], at: Size, width: Size):
+@inline fn checkWordInBounds(from: [U8], at: Size, width: Size):
     let count = length(from)
-    checkCondition(count < width || (bitcast(at) :: USize) > (bitcast(count - width) :: USize))
-    return
+    if count < width || (bitcast(at) :: USize) > (bitcast(count - width) :: USize) then checkFailed()
 
 @platform(native) pub fn readBigU16(from: [U8], at: Size) -> U16:
     checkWordInBounds(from, at, 2)

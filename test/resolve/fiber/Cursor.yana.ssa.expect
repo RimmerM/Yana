@@ -1,10 +1,10 @@
 module ResolveTest
 
-let string'145: [CodeUnit *1] = "w"
+let string'191: [CodeUnit *1] = "w"
 
-let string'146: [CodeUnit *0] = ""
+let string'192: [CodeUnit *0] = ""
 
-let string'147: [CodeUnit *1] = "."
+let string'193: [CodeUnit *1] = "."
 
 fn squares(self: %Cursor(Size) [shared call]) -> {} {
 bb0(%0: %Cursor(Size) trivial):
@@ -176,7 +176,7 @@ bb4(%7: I32 trivial, %8: I32 trivial):
   %32: String owned = call String.ofCapacity borrow %31
   store inspect %14 consume %32
   %33: String [unique call] guaranteed from{%14} = load inspect %14
-  %34: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %34: String owned = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %15 consume %34
   %35: String [shared slot 0] guaranteed from{%15} = load inspect %15
   jump -> bb6
@@ -306,7 +306,7 @@ bb5:
   store inspect %16 consume %57
   %58: (%Cursor(String)) -> {} [shared call shape8 .0=unique call] guaranteed from{%16} = load inspect %16
   %59: Bool trivial = call Cursor.open(String) borrow %55 borrow %56 borrow %58
-  %60: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 0, ownsHeap: 0}, length: 0}}
+  %60: String owned = const String {units: Array {run: Run {items: &string'192, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %17 consume %60
   jump -> bb19
 
@@ -454,7 +454,7 @@ bb25(%124: String [shared slot 0 view] guaranteed from{%18}):
   %136: String owned = call String.copy borrow %124
   drop Maybe(String) inspect %18
   %137: String owned = call String.++ consume %122 consume %136
-  %138: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
+  %138: String owned = const String {units: Array {run: Run {items: &string'193, capacity: 1, ownsHeap: 0}, length: 1}}
   %139: String owned = call String.++ consume %137 consume %138
   store inspect %17 consume %139
   jump -> bb19

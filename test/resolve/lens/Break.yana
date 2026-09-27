@@ -1,0 +1,149 @@
+{-
+   Leaving a lens call's block by `break` and `continue` - the loop-shaped rows of the exit signal.
+
+   A `break` or `continue` written in a continuation for a loop *outside* the lens call leaves the
+   call on the way: whatever the lens has after its `yield` runs once, and then control is at the
+   loop's exit or its next pass. Nested lenses unwind innermost first. That is what `return` already
+   does (Exit.yana), and it is built the same way: in MIR the exit is one edge from the region's
+   block to the loop's, and the conversion makes it a row of the exit signal named after the block
+   it reaches, which every lens between returns after its cleanup and every call site between passes
+   outwards until the scope holding the loop jumps.
+
+   Every event appends a digit to `trace`, so the order of the cleanups against the body is what
+   each case checks: a lens's entry and cleanup (1 and 2, or 3 and 4, or 5 and 6 for the skipping
+   one), a pass's body (8), the code below the lens call (0), a skip or an iterator's trailing
+   statement (7) and the code after the loop (9). `main` answers the cases that did not match, as
+   bits, so the golden is 0 and it is the same on both targets and with either optimizer off.
+-}
+
+let &trace = 0 :: Long
+let &failures = 0
+
+fn note(digit: Long):
+    trace = trace * 10 + digit
+
+fn expect(case: Int, want: Long):
+    if trace != want then failures += case
+    trace = 0
+
+lens fn around():
+    note(1)
+    yield {}
+    note(2)
+
+lens fn handing(x: Int) -> Int:
+    note(3)
+    yield x * 2
+    note(4)
+
+-- A skipping lens: a negative number never reaches the block.
+lens fn nonNegative(x: Int) -> (Int | Int):
+    if x < 0 then return x
+    note(5)
+    yield x
+    note(6)
+
+iter fn upTo(n: Int) -> Int:
+    for i in 0..n:
+        yield i
+    note(7)
+
+-- `break` out of a block-form lens inside a `while`.
+fn whileBreak():
+    let &i = 0
+    while i < 10:
+        around():
+            if i == 2:
+                break
+            note(8)
+        i += 1
+    note(9)
+
+-- `continue` out of a block-form lens: the rest of the pass below the call is skipped, and the
+-- cleanup is not.
+fn whileContinue():
+    let &i = 0
+    while i < 4:
+        i += 1
+        around():
+            if i == 2 then continue
+            note(8)
+        note(0)
+    note(9)
+
+-- Through two lenses at once, an `in:` one inside a block-form one, out of a counted `for` whose
+-- edges carry its bound: the inner cleanup runs first.
+fn nested():
+    for i in 1..4:
+        around():
+            let v = handing(i) in:
+                if v == 2 then continue
+                if v == 6 then break
+                note(8)
+        note(0)
+    note(9)
+
+-- A skipping lens, whose block may not run at all - the alternative is the third way out.
+fn skipping():
+    for x in -1..3:
+        let v = nonNegative(x) | else -> note(7) in:
+            if v == 1 then continue
+            if v == 2 then break
+            note(8)
+        note(0)
+    note(9)
+
+-- The loop is a `for` over an `iter fn`, so the loop's own exits are rows too: `continue` asks the
+-- iterator for its next element after the lens's cleanup, and `break` stops it - its trailing
+-- statement runs on that path as on every other.
+fn overIterator():
+    for x in upTo(5):
+        around():
+            if x == 1 then continue
+            if x == 3 then break
+            note(8)
+        note(0)
+    note(9)
+
+-- `return` and `break` out of one block, so the call site tests for both rows.
+fn mixed(limit: Int) -> Int:
+    let &i = 0
+    while True:
+        around():
+            if i == limit then return i * 10
+            if i == 3 then break
+        i += 1
+    return i
+
+-- A lens region inside an `iter fn`'s own loop: the producer's `continue` and `break` leave the
+-- lens. Run as a continuation; built as an object it is refused (`Reject.BreakObject.yana`).
+iter fn guarded(n: Int) -> Int:
+    for i in 0..n:
+        handing(i):
+            if i == 1 then continue
+            if i == 3 then break
+            yield i
+    note(7)
+
+fn continuation():
+    for x in guarded(5):
+        note(8)
+
+fn main() -> Int:
+    whileBreak()
+    expect(1, 182182129)
+    whileContinue()
+    expect(2, 182012182018209)
+    nested()
+    expect(4, 134213842013429)
+    skipping()
+    expect(8, 70586056569)
+    overIterator()
+    expect(16, 18201218201279)
+    if mixed(1) != 10 then failures += 32
+    expect(64, 1212)
+    if mixed(7) != 3 then failures += 128
+    expect(256, 12121212)
+    continuation()
+    expect(512, 38434384347)
+    return failures

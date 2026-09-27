@@ -1,64 +1,21 @@
 fn main() -> one %r0
-  var $0: %r2
-  var $1: %r2
   block0:
-    %6: %r0 = const 39
-    %7: %r0 = const 5
+    %6: %r0 = const 51
+    %7: %r0 = const 6
     %8: %r2 = alias %7
     %9: %r0 = const 0
-    store var $0: %r2, %8
-    %10: %r2 = load var $0: %r2
-    %11: %r2 = const null
-    %12: %r7 = binary.eq %10, %11
-    %13: %r1 = const 1
-    %14: %r1 = const 0
-    %15: %r1 = select %12, %14, %13
-    %16: %r1 = const 1
-    %17: %r3 = binary.eq %15, %16
-    branch %17 -> block2 -> block1
-  block1:
-    jump -> block3(%9)
-  block2:
-    %19: %r0 = load var $0: %r0
-    jump -> block3(%19)
-  block3(%0: %r0):
-    %20: %r0 = binary.add %6, %0
-    %21: %r0 = coerce %20
-    %22: %r2 = const null
-    %23: %r0 = const 7
-    store var $1: %r2, %22
-    %24: %r2 = load var $1: %r2
-    %25: %r2 = const null
-    %26: %r7 = binary.eq %24, %25
-    %27: %r1 = const 1
-    %28: %r1 = const 0
-    %29: %r1 = select %26, %28, %27
-    %30: %r1 = const 1
-    %31: %r3 = binary.eq %29, %30
-    branch %31 -> block5 -> block4
-  block4:
-    jump -> block6(%23)
-  block5:
-    %33: %r0 = load var $1: %r0
-    jump -> block6(%33)
-  block6(%1: %r0):
-    %34: %r0 = binary.add %21, %1
-    %35: %r0 = coerce %34
-    %36: %r0 = const 6
-    %37: %r2 = alias %36
-    %38: %r0 = const 0
-    %39: %r0 = call orElseKept(I32) %37, %38
-    %40: %r0 = binary.add %35, %39
-    %41: %r0 = coerce %40
-    %42: %r4 = const null
-    %43: %r3 = const 1
-    %44: %r3 = call orElseKept(Bool) %42, %43
-    %45: %r0 = const 9
-    %46: %r0 = const 0
-    %47: %r0 = select %44, %45, %46
-    %48: %r0 = binary.add %41, %47
-    %49: %r0 = coerce %48
-    return %49
+    %10: %r0 = call orElseKept(I32) %8, %9
+    %11: %r0 = binary.add %6, %10
+    %12: %r0 = coerce %11
+    %13: %r4 = const null
+    %14: %r3 = const 1
+    %15: %r3 = call orElseKept(Bool) %13, %14
+    %16: %r0 = const 9
+    %17: %r0 = const 0
+    %18: %r0 = select %15, %16, %17
+    %19: %r0 = binary.add %12, %18
+    %20: %r0 = coerce %19
+    return %20
 
 fn orElseKept(I32)(one %r2, one %r0) -> one %r0
   var $0: %r2

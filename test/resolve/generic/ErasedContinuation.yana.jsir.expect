@@ -1,0 +1,175 @@
+fn main() -> one %r0
+  var $0: %r3
+  var $1: %r7
+  var $2: %r8
+  var $3: %r8
+  block0:
+    %4: %r0 = const 3
+    %5: %r0 = alias %4
+    %6: %r0 = const 1
+    %7: %r0 = const 2
+    %8: %r0 = const 3
+    %9: %r1 = host host.array %6, %7, %8
+    %10: %r2 = const 3
+    %12: %r0 = const 3
+    %17: %r0 = const 0
+    %18: %r0 = const 1
+    jump -> block2(%17)
+  block1:
+    %11: %r8 = object %s2 %9, %10
+    %21: %r8 = alias %11
+    call Array(a).reclaim(I32) %21
+    %25: %r0 = const 1
+    %26: %r0 = const 2
+    %27: %r0 = const 3
+    %28: %r1 = host host.array %25, %26, %27
+    %29: %r2 = const 3
+    %31: %r0 = const 3
+    %36: %r0 = const 0
+    %37: %r0 = const 1
+    jump -> block5(%36)
+  block2(%0: %r0):
+    %20: %r12 = binary.lt %0, %12
+    branch %20 -> block3 -> block1
+  block3:
+    %113: %r1 = alias %9
+    %114: %r0 = alias %0
+    %115: %r0 = coerce %114
+    %116: %r0 = load element %113[%115]: %r0
+    %117: %r0 = binary.mul %5, %116
+    %118: %r0 = coerce %117
+    %119: %r0 = load global total: %r0
+    %120: %r0 = binary.add %119, %118
+    %121: %r0 = coerce %120
+    store global total: %r0, %121
+    %122: %r0 = binary.add %0, %18
+    %123: %r0 = coerce %122
+    jump -> block2(%123)
+  block4:
+    %30: %r8 = object %s2 %28, %29
+    %41: %r8 = alias %30
+    call Array(a).reclaim(I32) %41
+    %42: %r0 = const 10
+    %43: %r0 = alias %42
+    %44: %r0 = const 20
+    %45: %r0 = alias %44
+    %46: %r1 = host host.array %43, %45
+    %47: %r2 = const 2
+    %49: %r0 = const 2
+    %54: %r0 = const 0
+    %55: %r0 = const 1
+    jump -> block8(%54)
+  block5(%1: %r0):
+    %40: %r12 = binary.lt %1, %31
+    branch %40 -> block6 -> block4
+  block6:
+    %99: %r1 = alias %28
+    %100: %r0 = alias %1
+    %101: %r0 = coerce %100
+    %104: %r0 = const 3
+    %105: %r0 = load element %99[%101]: %r0
+    %106: %r0 = binary.mul %104, %105
+    %107: %r0 = coerce %106
+    %108: %r0 = load global total: %r0
+    %109: %r0 = binary.add %108, %107
+    %110: %r0 = coerce %109
+    store global total: %r0, %110
+    %111: %r0 = binary.add %1, %37
+    %112: %r0 = coerce %111
+    jump -> block5(%112)
+  block7:
+    %48: %r3 = object %s0 %46, %47
+    %58: %r3 = alias %48
+    call Array(a).reclaim(A) %58
+    %59: %r0 = const 100
+    %60: %r5 = const 1n
+    %61: %r6 = object %s1 %59, %60
+    %62: %r7 = host host.array %61
+    %65: %r0 = const 1
+    %70: %r0 = const 0
+    %71: %r0 = const 1
+    %72: %r0 = const 1
+    jump -> block11(%70)
+  block8(%2: %r0):
+    %57: %r12 = binary.lt %2, %49
+    branch %57 -> block9 -> block7
+  block9:
+    %89: %r1 = alias %46
+    %90: %r0 = alias %2
+    %91: %r0 = coerce %90
+    %92: %r0 = load element %89[%91]: %r0
+    %93: %r0 = alias %92
+    %94: %r0 = load global total: %r0
+    %95: %r0 = binary.add %94, %93
+    %96: %r0 = coerce %95
+    store global total: %r0, %96
+    %97: %r0 = binary.add %2, %55
+    %98: %r0 = coerce %97
+    jump -> block8(%98)
+  block10:
+    %64: %r7 = alias %62
+    %75: %r7 = alias %64
+    call Array(a).reclaim(B) %75
+    %76: %r0 = load global total: %r0
+    return %76
+  block11(%3: %r0):
+    %74: %r12 = binary.lt %3, %65
+    branch %74 -> block12 -> block10
+  block12:
+    %77: %r7 = alias %62
+    %78: %r0 = alias %3
+    %79: %r0 = coerce %78
+    %80: %r6 = load element %77[%79]: %r6
+    %81: %r0 = load property %80.k: %r0
+    %82: %r0 = binary.add %81, %72
+    %83: %r0 = coerce %82
+    %84: %r0 = load global total: %r0
+    %85: %r0 = binary.add %84, %83
+    %86: %r0 = coerce %85
+    store global total: %r0, %86
+    %87: %r0 = binary.add %3, %71
+    %88: %r0 = coerce %87
+    jump -> block11(%88)
+
+fn Array(a).reclaim(A)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    return
+
+fn Array(a).reclaim(B)(one %r7) -> omitted
+  var $0: %r7
+  block0(%0: %r7):
+    return
+
+fn Array(a).reclaim(I32)(one %r8) -> omitted
+  var $0: %r8
+  block0(%0: %r8):
+    return
+
+optimizer clones 0 aliased 0 forwarded 1 removed 42 adopted 0 sunk 3 numbered 5 decided 0 unboxed 0 updated 0 split 0 promoted 4 folded 2
+
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object B {k: %r0, spare: %r5}
+shape %s2 object Array {items: %r1, length: %r2}
+shape %s3 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s4 cell {$v: %r0 box}
+shape %s5 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s6 object ArrayView {items: %r7, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = bigint signed
+rep %r6 = object %s1
+rep %r7 = array Array of %r6
+rep %r8 = object %s2
+rep %r9 = object %s3
+rep %r10 = parts (%r1, %r0, %r0) as %r9
+rep %r11 = object %s4
+rep %r12 = number bool
+rep %r13 = object %s5
+rep %r14 = parts (%r1, %r0, %r0) as %r13
+rep %r15 = object %s6
+rep %r16 = parts (%r7, %r0, %r0) as %r15

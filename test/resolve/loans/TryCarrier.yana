@@ -1,0 +1,102 @@
+{-
+   `?` on a carrier whose payload is a borrow - P1 of Implementation-Streams.md, J184.
+
+   `Result(Fail, '[U8])` and `Maybe(s'[U8])` qualify a type argument, so they are laid out apart from
+   `Result(Fail, [U8])` and cannot be handed to `Try.toOutcome`, which was compiled for the owning
+   layout. `resolve_try.cpp`'s `resolveQualifiedTry` reads the payload straight out of the operand
+   instead, so `h` carries the loan `take` published on `b` - until its last use, which is why
+   `twice` may write `b.at` after it (`Reject.TryCarrier.yana` is the write while it is live). The
+   other constructor still goes through the instance for its reason.
+
+   `slice` is the other end: a qualified *result*, whose exit is rebuilt in its own layout carrying
+   only the error. Until J184 the unqualified carrier `fromExit` built was returned as it was, which
+   native happened to read back and the JavaScript verifier refused.
+
+   `Win` is a borrow-holding record, whose origins its own schema names, and `widened` is the
+   one-step `Widen` of the reason, which a qualified operand leaves where it was.
+-}
+
+data Fail = Short | Bad
+
+data Buf {bytes: [U8], at: Size}
+
+fn buf(->bytes: [U8]) -> Buf = Buf {bytes: bytes, at: 0}
+
+fn take(&self: Buf, count: Size) -> Result(Fail, '[U8]):
+    if length(self.bytes) - self.at < count then return Err(Short)
+    let start = self.at
+    self.at += count
+    return Ok(self.bytes[start..start + count])
+
+fn peek(self: s'Buf) -> Maybe(s'[U8]):
+    if self.at >= length(self.bytes) then return Nothing
+    return Just(self.bytes[self.at..self.at + 1])
+
+fn header(&b: Buf) -> Result(Fail, U8):
+    let h = b.take(2)?
+    return Ok(h[0] + h[1])
+
+fn first(b: Buf) -> Maybe(U8):
+    let p = b.peek()?
+    return Just(p[0])
+
+-- Mutating `b` after `h`'s last use is accepted: the loan `take` published ends there.
+fn twice(&b: Buf) -> Result(Fail, U8):
+    let h = b.take(1)?
+    let x = h[0]
+    b.at = 0
+    let again = b.take(1)?
+    return Ok(x + again[0])
+
+-- A qualified result: the exit is rebuilt into its own layout, carrying only the error.
+fn count(n: I32) -> Result(Fail, Size) = if n > 0 then Ok(n :: Size) else Err(Bad)
+
+fn slice(&b: Buf, n: I32) -> Result(Fail, '[U8]):
+    let size = count(n)?
+    let got = b.take(size)?
+    return Ok(got)
+
+-- A borrow-holding record, whose origins the type's own schema names.
+data Win {space: &'[U8], used: Size}
+
+fn open(&self: Buf) -> Result(Fail, Win):
+    if length(self.bytes) < 2 then return Err(Short)
+    return Ok(Win {space: self.bytes[0..2], used: 0})
+
+fn opened(&b: Buf) -> Result(Fail, U8):
+    let w = b.open()?
+    w.space[0] = 9
+    return Ok(w.space[0] + w.space[1])
+
+-- The reason still takes one `Widen` step.
+data Wide = Narrow(Fail) | Other
+
+instance Widen(Fail, Wide):
+    fn widen(->from: Fail) -> Wide = Narrow(from)
+
+fn widened(&b: Buf) -> Result(Wide, U8):
+    let h = b.take(3)?
+    return Ok(h[2])
+
+fn code(r: Result(Fail, U8)) -> I32 = match r:
+    Ok(v) -> v :: I32
+    Err(Short) -> 1000
+    Err(Bad) -> 2000
+
+fn main() -> I32:
+    let &total = 0 :: I32
+    let &b = buf([1, 2, 3])
+    total += code(header(b))                        -- 3
+    total += code(header(b))                        -- short
+    let &c = buf([4, 5])
+    total += code(twice(c))                         -- 8
+    let &d = buf([6, 7, 8])
+    if slice(d, 2) is Ok(v) && length(v) == 2 then total += (v[1] :: I32) * 10   -- 70
+    if slice(d, 0) is Err(Bad) then total += 20000
+    if first(buf([3])) is Just(v) then total += (v :: I32)
+    if first(buf([])) is Nothing then total += 100
+    let &e = buf([1, 2])
+    total += code(opened(e))                        -- 11
+    total += (e.bytes[0] :: I32)                    -- 9, written through the window
+    if widened(e) is Err(Narrow(Short)) then total += 400000
+    return total

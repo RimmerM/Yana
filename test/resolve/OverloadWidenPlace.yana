@@ -1,0 +1,23 @@
+{-
+   A plain function beside a class member, disagreeing about whether a position is **written
+   through** - R2 #5, `agreedShape` and `selectOverload` in `resolve_overload.cpp`.
+
+   `fn widen(&p: Point)` beside Core's `Widen.widen(->from: a)`: the set has to decide how to read
+   `n` before choosing, and J204 took the plain function's answer - R5's winner where it fits. It
+   does not fit an `I32`, and asking for a writable place anyway refused `widen(n) :: I64` on an
+   immutable `n` before selection ever saw the types. A local at such a position is now resolved as
+   a place, the candidate chosen by what it holds, and the place read under the winner's request:
+   `Widen.widen` copies `n`, and the plain function writes `p` through.
+-}
+
+data Point {x: I32, y: I32}
+
+fn widen(&p: Point):
+    p.x = p.x * 2
+
+fn main() -> I32:
+    let n = 5 :: I32
+    let m = widen(n) :: I64
+    let &p = Point {x: 1, y: 2}
+    widen(p)
+    return truncate(m) * 10 + p.x

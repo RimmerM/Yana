@@ -1,146 +1,108 @@
-fn ticketValue(one %r1) -> one %r2
-  var $0: %r0
-  block0(%0: %r1):
-    %2: %r0 = load property %0.$tag: %r0
-    %3: %r0 = const 7
-    %4: %r5 = binary.eq %2, %3
-    branch %4 -> block4 -> block1
-  block1:
-    %5: %r0 = alias %2
-    %6: %r0 = const 8
-    %7: %r5 = binary.eq %5, %6
-    branch %7 -> block5 -> block2
-  block2:
-    %8: %r2 = const 30
-    jump -> block3(%8)
-  block3(%1: %r2):
-    return %1
-  block4:
-    %16: %r2 = const 10
-    jump -> block3(%16)
-  block5:
-    %9: %r0 = load property %0.Issued: %r0
-    %10: %r2 = const 20
-    %12: %r0 = alias %9
-    %13: %r2 = map %12 [0 => 0, 1 => 1, else 2]
-    %14: %r2 = binary.add %10, %13
-    %15: %r2 = coerce %14
-    jump -> block3(%15)
-
-fn maybeSlot(one %r4) -> one %r2
-  var $0: %r3
+fn maybeSlot(one %r2) -> one %r3
+  var $0: %r1
   var $1: %r0
-  block0(%0: %r4):
+  block0(%0: %r2):
     %3: %r0 = load property %0.$tag: %r0
     %4: %r0 = const 0
-    %5: %r5 = binary.eq %3, %4
+    %5: %r4 = binary.eq %3, %4
     branch %5 -> block3 -> block1
   block1:
-    %6: %r3 = load property %0.Just: %r3
-    %7: %r3 = alias %6
-    %8: %r2 = const 2000
-    %9: %r3 = alias %7
-    %10: %r3 = alias %9
-    %11: %r3 = const null
-    %12: %r6 = binary.eq %10, %11
+    %6: %r1 = load property %0.Just: %r1
+    %7: %r1 = alias %6
+    %8: %r3 = const 2000
+    %9: %r1 = alias %7
+    %10: %r1 = alias %9
+    %11: %r1 = const null
+    %12: %r5 = binary.eq %10, %11
     %13: %r0 = const 6
     %14: %r0 = const 5
     %15: %r0 = select %12, %14, %13
     %16: %r0 = const 5
-    %17: %r5 = binary.eq %15, %16
+    %17: %r4 = binary.eq %15, %16
     branch %17 -> block5 -> block4
-  block2(%1: %r2):
+  block2(%1: %r3):
     return %1
   block3:
-    %25: %r2 = const 1000
+    %25: %r3 = const 1000
     jump -> block2(%25)
   block4:
     %18: %r0 = alias %10
     %20: %r0 = alias %18
-    %21: %r2 = map %20 [0 => 2, 1 => 3, else 4]
+    %21: %r3 = map %20 [0 => 2, 1 => 3, else 4]
     jump -> block6(%21)
   block5:
-    %22: %r2 = const 1
+    %22: %r3 = const 1
     jump -> block6(%22)
-  block6(%2: %r2):
-    %23: %r2 = binary.add %8, %2
-    %24: %r2 = coerce %23
+  block6(%2: %r3):
+    %23: %r3 = binary.add %8, %2
+    %24: %r3 = coerce %23
     jump -> block2(%24)
 
-fn main() -> one %r2
+fn main() -> one %r3
   var $0: %r0
   var $1: %r0
+  var $2: %r0
   block0:
-    %0: %r2 = const 1
+    %0: %r3 = const 1
     %1: %r0 = const 2
     %4: %r0 = alias %1
-    %5: %r2 = map %4 [0 => 2, 1 => 3, else 4]
-    %6: %r2 = const 10
-    %7: %r2 = binary.mul %5, %6
-    %8: %r2 = coerce %7
-    %9: %r2 = binary.add %0, %8
-    %10: %r2 = coerce %9
-    %11: %r0 = const 7
-    %12: %r0 = const 0
-    %13: %r1 = object %s0 %11, %12
-    %14: %r2 = call ticketValue %13
-    %15: %r0 = const 1
-    %16: %r0 = const 8
-    %17: %r1 = object %s0 %16, %15
-    %18: %r2 = call ticketValue %17
-    %19: %r2 = binary.add %14, %18
-    %20: %r2 = coerce %19
-    %21: %r0 = const 40
-    %22: %r0 = const 0
-    %23: %r1 = object %s0 %21, %22
-    %24: %r2 = call ticketValue %23
-    %25: %r2 = binary.add %20, %24
-    %26: %r2 = coerce %25
-    %27: %r0 = const 2
-    %30: %r0 = alias %27
-    %31: %r2 = map %30 [0 => 0, 1 => 1, else 2]
-    %32: %r2 = const 300
-    %33: %r2 = binary.add %31, %32
-    %34: %r2 = coerce %33
-    %35: %r0 = const 0
-    %36: %r3 = const null
-    %37: %r4 = object %s1 %35, %36
-    %38: %r2 = call maybeSlot %37
-    %39: %r0 = const 0
-    %40: %r3 = alias %39
-    %41: %r0 = const 1
-    %42: %r4 = object %s1 %41, %40
-    %43: %r2 = call maybeSlot %42
-    %44: %r2 = binary.add %38, %43
-    %45: %r2 = coerce %44
-    %46: %r2 = const 10
-    %47: %r2 = binary.mul %26, %46
-    %48: %r2 = coerce %47
-    %49: %r2 = binary.add %10, %48
-    %50: %r2 = coerce %49
-    %51: %r2 = const 100
-    %52: %r2 = binary.mul %34, %51
-    %53: %r2 = coerce %52
-    %54: %r2 = binary.add %50, %53
-    %55: %r2 = coerce %54
-    %56: %r2 = const 1000
-    %57: %r2 = binary.mul %45, %56
-    %58: %r2 = coerce %57
-    %59: %r2 = binary.add %55, %58
-    %60: %r2 = coerce %59
-    return %60
+    %5: %r3 = map %4 [0 => 2, 1 => 3, else 4]
+    %6: %r3 = const 10
+    %7: %r3 = binary.mul %5, %6
+    %8: %r3 = coerce %7
+    %9: %r3 = binary.add %0, %8
+    %10: %r3 = coerce %9
+    %11: %r0 = const 1
+    %15: %r0 = alias %11
+    %16: %r3 = map %15 [0 => 0, 1 => 1, else 2]
+    %17: %r3 = const 60
+    %18: %r3 = binary.add %16, %17
+    %19: %r3 = coerce %18
+    %20: %r0 = const 2
+    %23: %r0 = alias %20
+    %24: %r3 = map %23 [0 => 0, 1 => 1, else 2]
+    %25: %r3 = const 300
+    %26: %r3 = binary.add %24, %25
+    %27: %r3 = coerce %26
+    %28: %r0 = const 0
+    %29: %r1 = const null
+    %30: %r2 = object %s0 %28, %29
+    %31: %r3 = call maybeSlot %30
+    %32: %r0 = const 0
+    %33: %r1 = alias %32
+    %34: %r0 = const 1
+    %35: %r2 = object %s0 %34, %33
+    %36: %r3 = call maybeSlot %35
+    %37: %r3 = binary.add %31, %36
+    %38: %r3 = coerce %37
+    %39: %r3 = const 10
+    %40: %r3 = binary.mul %19, %39
+    %41: %r3 = coerce %40
+    %42: %r3 = binary.add %10, %41
+    %43: %r3 = coerce %42
+    %44: %r3 = const 100
+    %45: %r3 = binary.mul %27, %44
+    %46: %r3 = coerce %45
+    %47: %r3 = binary.add %43, %46
+    %48: %r3 = coerce %47
+    %49: %r3 = const 1000
+    %50: %r3 = binary.mul %38, %49
+    %51: %r3 = coerce %50
+    %52: %r3 = binary.add %48, %51
+    %53: %r3 = coerce %52
+    return %53
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 5 folded 0
+optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5 folded 0
 
-shape %s0 object Ticket {$tag: %r0 tag, Issued: %r0}
-shape %s1 object Maybe {$tag: %r0 tag, Just: %r3}
+shape %s0 object Maybe {$tag: %r0 tag, Just: %r1}
+shape %s1 object Ticket {$tag: %r0 tag, Issued: %r0}
 
 rep %r0 = number unsigned 8
-rep %r1 = object %s0
-rep %r2 = number signed 32
-rep %r3 = nullable of %r0
-rep %r4 = object %s1
-rep %r5 = number bool
-rep %r6 = boolean
+rep %r1 = nullable of %r0
+rep %r2 = object %s0
+rep %r3 = number signed 32
+rep %r4 = number bool
+rep %r5 = boolean
+rep %r6 = object %s1
 rep %r7 = number signed 8
 rep %r8 = nullable of %r0

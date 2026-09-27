@@ -15,65 +15,37 @@ main<complex>(): I32 {
     store @log, 0, 4
     store @dropped, 0, 4
     store @log, 1, 4
-    %v_1 = loads @log, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @log, %v_2, 4
+    store @log, 2, 4
+    store @log, 3, 4
+    store @log, 4, 4
+    store @log, 5, 4
+    store @log, 6, 4
+    store @log, 16, 4
+    store @log, 26, 4
+    call_complex Token.drop
+    call_complex Token.drop
+    %v_1 = alloca 8, 4: Ptr
+    call_complex Token.drop
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 1
+    call_complex teardown(Maybe(Token)), %v_2
+    store %v_1, 1, 1
+    call_complex teardown(Outcome(Token, {})), %v_1
     %v_3 = loads @log, 4: I32
     %v_4 = add %v_3, 1: I32
     store @log, %v_4, 4
-    %v_5 = loads @log, 4: I32
-    %v_6 = add %v_5, 1: I32
+    %v_5 = add %v_3, 2: I32
+    store @log, %v_5, 4
+    %v_6 = add %v_3, 3: I32
     store @log, %v_6, 4
-    %v_7 = loads @log, 4: I32
-    %v_8 = add %v_7, 1: I32
-    store @log, %v_8, 4
-    %v_9 = loads @log, 4: I32
-    %v_10 = add %v_9, 1: I32
-    store @log, %v_10, 4
-    %v_11 = loads @log, 4: I32
-    %v_12 = add %v_11, 10: I32
-    store @log, %v_12, 4
-    %v_13 = loads @log, 4: I32
-    %v_14 = add %v_13, 10: I32
-    store @log, %v_14, 4
-    call_complex Token.drop
-    call_complex Token.drop
-    %v_15 = add 1, 2: I32
-    %v_16 = alloca 8, 4: Ptr
-    call_complex Token.drop
-    %v_17 = alloca 8, 4: Ptr
-    store %v_17, 0, 1
-    call_complex teardown(Maybe(Token)), %v_17
-    store %v_16, 1, 1
-    %v_18 = add %v_16, 4: Ptr
-    store %v_18, 0, 4
-    call_complex teardown(Outcome(Token, {})), %v_16
-    %v_19 = loads @log, 4: I32
-    %v_20 = add %v_19, 1: I32
-    store @log, %v_20, 4
-    %v_21 = loads @log, 4: I32
-    %v_22 = add %v_21, 1: I32
-    store @log, %v_22, 4
-    %v_23 = loads @log, 4: I32
-    %v_24 = add %v_23, 1: I32
-    store @log, %v_24, 4
-    %v_25 = loads @log, 4: I32
-    %v_26 = add %v_25, 1: I32
-    store @log, %v_26, 4
-    %v_27 = add 7, 46: I32
-    %v_28 = add %v_27, 0: I32
-    %v_29 = add %v_28, 104: I32
-    %v_30 = add %v_29, 4294967295: I32
-    %v_31 = add %v_30, %v_15: I32
-    %v_32 = add %v_31, 0: I32
-    %v_33 = add %v_32, 6: I32
-    %v_34 = loads @dropped, 4: I32
-    %v_35 = imul %v_34, 1000: I32
-    %v_36 = add %v_33, %v_35: I32
-    %v_37 = loads @log, 4: I32
-    %v_38 = imul %v_37, 100000: I32
-    %v_39 = add %v_36, %v_38: I32
-    ret %v_39
+    %v_7 = add %v_3, 4: I32
+    store @log, %v_7, 4
+    %v_8 = loads @dropped, 4: I32
+    %v_9 = imul %v_8, 1000: I32
+    %v_10 = add 165, %v_9: I32
+    %v_11 = imul %v_7, 100000: I32
+    %v_12 = add %v_10, %v_11: I32
+    ret %v_12
   }
 }
 

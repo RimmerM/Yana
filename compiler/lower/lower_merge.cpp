@@ -71,6 +71,19 @@ static bool sameExitOperand(LowerBase base, LowerBlock* left, LowerBlock* right,
     auto y = base[b]->inst();
     if(x->kind != y->kind) return false;
 
+    /*
+     * And the survivor's copy has to be **readable from the other's predecessors**, which the two
+     * cases above get for free and this one does not: `a` is what the merged block reads, and it
+     * was defined above `left` alone. The entry dominates everything, and a block holding both
+     * dominates both copies. Anything else is a phi's job (`carriableByPhi`) or no merge.
+     *
+     * It used to be assumed, on the reading that a constant is always built in the entry. That
+     * stopped holding in J192: a threaded join's `Err(Short)` is built in the predecessor that
+     * stores it, so two copies of `?`'s failure exit read two `0`s from two arms, and the merge
+     * kept one arm's `0` for both - `DateStyle.readWith`, and a lower-IR dominance report.
+     */
+    if(x->block != y->block && base[x->block]->index != 0) return false;
+
     switch(x->kind) {
         case LowerInst::Imm:
             return ((LowerImm*)x)->i == ((LowerImm*)y)->i;

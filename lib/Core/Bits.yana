@@ -547,11 +547,11 @@ pub class Magnitude(a -> w):
 -- to the *signed* type of the answer's width, so the negation happens where the magnitude fits.
 -- `I32`, `I64` and `Size` write their own for the reason the ladder gives: a type does not widen
 -- into itself, so the type that is already as wide as its answer has no rung to ask for.
-fn (Widen(a, Int)) narrowMagnitude(value: a) -> U32:
+fn (TrivialCopy(a), Widen(a, Int)) narrowMagnitude(value: a) -> U32:
     let wide = widen(value) :: Int
     return if wide < 0 then 0 - (bitcast(wide) :: U32) else bitcast(wide) :: U32
 
-fn (Widen(a, Int)) narrowIsNegative(value: a) -> Bool = (widen(value) :: Int) < 0
+fn (TrivialCopy(a), Widen(a, Int)) narrowIsNegative(value: a) -> Bool = (widen(value) :: Int) < 0
 
 {-
    And *one* body for the reverse, which every instance below is a call to.

@@ -1250,25 +1250,34 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
 }
 
 /*
- * What one qualified occurrence's **surviving bytes** still owe - see `checkQualifiedShapes`, where
- * the rule is.
+ * Whether one qualified occurrence's **surviving bytes** owe something no field-by-field teardown
+ * can pay - see `checkQualifiedShapes`, where the rule is.
  *
- * Three sources, and the first two are why this is not a fold over the surviving fields alone. An
- * **authored** teardown takes the whole value, so it would run over the borrowed position however
- * few fields are left; and a type that is not a record has no fields for a shape to name, so a shape
- * over one is a shape the walk cannot subtract from. What is left is the ordinary case: a field the
- * shape did not remove, which owes exactly what it owes.
+ * **What survives is released member by member, and that is P15's decision (J187).** Until then any
+ * residue was refused: a derived teardown is generated per *type*, so `Result(String, '[U8])` would
+ * have run `Result`'s walk over a view it does not own, and the only safe answer was to admit
+ * nothing that owed anything - which refused the error of every `take` that answers a view. The
+ * alternative was a **teardown per shape**, a second derived function keyed on `(type, shape)` in
+ * every tier that builds one (the native walk, the descriptor, the JavaScript release, the
+ * optimizer's expansion); rejected because each of those would need to learn shapes to serve one
+ * position that the SSA conversion can already reach. So `ownershipOfOccurrence` folds the
+ * survivors (`residueOwnership`), and where such a value dies `convert.cpp`'s `emitResidueDrop`
+ * tests the tag and drops each surviving owned member at its own type - ordinary drops that every
+ * tier already understands.
  *
- * **A declared `Copy` is not one of the three, and that division is the rule rather than an
- * omission.** A teardown is something the compiler inserts, so an occurrence that would owe a
- * partial one has no site to blame and has to be refused where it is written. A duplication is
- * something a use site *asks for*: the bytes of a qualified value duplicate correctly - that is
- * what the field walk below establishes - and what an authored `copy` would duplicate instead is
- * the storage behind the borrow, at the logical type, because a borrow handed to a bare variable
- * binds what it points at. So it is refused at the call that asks, by `checkCarriedOrigins`, which
- * is one rule covering every position such a value can reach rather than a second reading of this
- * one. Counting it here cost `Map.find`, `findMut` and `pairs` for a `Copy(Entry(k, v))` nothing on
- * those paths ever calls.
+ * Two things that cannot be released that way are still refused. An **authored** teardown takes
+ * the whole value, so it would run over the borrowed position however few fields are left - and a
+ * type that is not a record has no fields for a shape to name. And a **boxed** survivor: its drop
+ * releases the box's contents, and the box itself is handed back by the owning type's walk, which is
+ * the walk this avoids.
+ *
+ * **A declared `Copy` is not counted, and that division is the rule rather than an omission.** A
+ * teardown is something the compiler inserts, so an occurrence that would owe one it cannot build
+ * has no site to blame and has to be refused where it is written. A duplication is something a use
+ * site *asks for*: what an authored `copy` would duplicate is the storage behind the borrow, at the
+ * logical type, because a borrow handed to a bare variable binds what it points at. So it is refused
+ * at the call that asks, by `checkCarriedOrigins`, which is one rule covering every position such a
+ * value can reach rather than a second reading of this one.
  */
 static bool residualObligation(Context& context, Program& program,
                                const Occurrence& occurrence) {
@@ -1286,9 +1295,7 @@ static bool residualObligation(Context& context, Program& program,
 
     for(auto field: record.fields.contents(decl)) {
         if(fieldPosition(decl, occurrence.shape, field.index)) continue;
-
-        auto ownership = ownershipOf(decl, field.occurrence.type);
-        if(ownsField(field) && (ownership.needsTeardown() || !ownership.trivialCopy)) return true;
+        if(field.boxed && ownsField(field)) return true;
     }
 
     return false;
@@ -1302,7 +1309,7 @@ static bool checkQualifiedOccurrence(Context& context, Program& program,
     if(!residualObligation(context, program, occurrence)) return true;
 
     context.diagnostics.error(
-        "a qualified type argument may only be written where nothing is left to release or duplicate, and %@ still owes one - qualify the whole value instead"_v,
+        "a qualified type argument may only be written where what is left can be released member by member, and %@ has a teardown of its own or a boxed member - qualify the whole value instead"_v,
         source, typeText(context, decl, occurrence.type));
     return false;
 }

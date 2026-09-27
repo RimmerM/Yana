@@ -102,18 +102,19 @@ function writeShortest(value, to$0, to$1) {
     }
     p5 = 17;
   }
-  var v26 = (value.exponent + p5 | 0) - 1 | 0;
+  var v21 = value.exponent;
+  var v26 = (v21 + p5 | 0) - 1 | 0;
   if (v26 < 0) {
     var v30 = -v26 | 0;
     if (v30 <= 7) {
-      var v85 = to$0[to$1] + String.fromCharCode(48);
-      to$0[to$1] = v85;
-      var v92 = to$0[to$1] + String.fromCharCode(46);
-      to$0[to$1] = v92;
+      var v83 = to$0[to$1] + String.fromCharCode(48);
+      to$0[to$1] = v83;
+      var v90 = to$0[to$1] + String.fromCharCode(46);
+      to$0[to$1] = v90;
       p3 = v30 - 1 | 0;
       while (p3 > 0) {
-        var v106 = to$0[to$1] + String.fromCharCode(48);
-        to$0[to$1] = v106;
+        var v104 = to$0[to$1] + String.fromCharCode(48);
+        to$0[to$1] = v104;
         p3 = p3 - 1 | 0;
       }
       pushDecimalDigits(value.digits, p5, p5, to$0, to$1);
@@ -121,22 +122,21 @@ function writeShortest(value, to$0, to$1) {
     }
   }
   if (v26 >= 0 & v26 <= 7) {
-    var v58 = value.exponent;
     B4: {
-      if (v58 >= 0) {
+      if (v21 >= 0) {
         pushDecimalDigits(value.digits, p5, p5, to$0, to$1);
         p4 = value.exponent;
         L5: for (;;) {
           if (p4 > 0) {
-            var v76 = to$0[to$1] + String.fromCharCode(48);
-            to$0[to$1] = v76;
+            var v74 = to$0[to$1] + String.fromCharCode(48);
+            to$0[to$1] = v74;
             p4 = p4 - 1 | 0;
             continue L5;
           }
           break B4;
         }
       } else {
-        pushDecimalDigits(value.digits, p5, p5 + v58 | 0, to$0, to$1);
+        pushDecimalDigits(value.digits, p5, p5 + v21 | 0, to$0, to$1);
       }
     }
     return;
@@ -246,4 +246,4 @@ function Maybe_a_show_I32(value, to$0, to$1) {
 function $rem(a, b) {
   return b ? a % b : a;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

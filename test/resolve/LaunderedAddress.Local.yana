@@ -149,7 +149,7 @@ fn send(handle: I32, value: I64, other: I64):
 
 fn main() -> I32:
     let &ends = [0, 0] :: [I32 *2]
-    if makePipe(bitcast(addressOf(ends)) :: %Int) < 0 then return 1
+    if makePipe(bitcast(addressOf(ends)) :: %Int, 0) < 0 then return 1
 
     reader = ends[0]
     if syscall2(33, bitcast(widen(reader) :: Size) :: USize, 1000) != 1000 then return 1

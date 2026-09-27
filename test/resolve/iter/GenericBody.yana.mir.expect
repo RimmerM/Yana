@@ -1,0 +1,884 @@
+module ResolveTest
+
+data Tag {id: I32, name: String} drop authored reclaim derived
+
+data repeat(a).Iter(a) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : I32, : I32} drop authored
+
+data repeat(a)'2.Iter(a) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : I32, : I32} drop authored
+
+data repeat(a)'3.Iter(a, b) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : I32, : I32} drop authored
+
+data repeat(b).Iter(a, b) {$index: I32, $slot: I32, keep: b, to: I32, : I32, : I32, : I32} drop authored
+
+data labelled(a).Iter(a) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : String, : String, : I32, : I32, $failure: Outcome(I32, String)} drop authored
+
+data labelled(a)'2.Iter(a) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : String, : String, : I32, : I32, $failure: Outcome(I32, String)} drop authored
+
+data repeat(a)'4.Iter(a) {$index: I32, $slot: I32, keep: a, to: I32, : I32, : I32, : I32} drop authored
+
+data repeat(I32).Iter {$index: I32, $slot: I32, keep: I32, to: I32, : I32, : I32, : I32}
+
+data repeat(Tag).Iter {$index: I32, $slot: I32, keep: Tag, to: I32, : I32, : I32, : I32} drop authored
+
+data repeat(F32).Iter {$index: I32, $slot: I32, keep: F32, to: I32, : I32, : I32, : I32}
+
+data repeat(String).Iter {$index: I32, $slot: I32, keep: String, to: I32, : I32, : I32, : I32} drop authored
+
+data labelled(I32).Iter {$index: I32, $slot: I32, keep: I32, to: I32, : I32, : String, : String, : I32, : I32, $failure: Outcome(I32, String)} drop authored
+
+data labelled(Tag).Iter {$index: I32, $slot: I32, keep: Tag, to: I32, : I32, : String, : String, : I32, : I32, $failure: Outcome(I32, String)} drop authored
+
+data labelled(String).Iter {$index: I32, $slot: I32, keep: String, to: I32, : I32, : String, : String, : I32, : I32, $failure: Outcome(I32, String)} drop authored
+
+instance Drop(Tag): Tag.drop
+
+instance Drop(repeat(a).Iter): repeat(a)$drop
+
+instance Iterate(repeat(a).Iter, I32, {}): repeat(a)$next, repeat(a)$resume
+
+instance Drop(repeat(a)'2.Iter): repeat(a)'2$drop
+
+instance Iterate(repeat(a)'2.Iter, I32, {}): repeat(a)'2$next, repeat(a)'2$resume
+
+instance Drop(repeat(a)'3.Iter): repeat(a)'3$drop
+
+instance Iterate(repeat(a)'3.Iter, I32, {}): repeat(a)'3$next, repeat(a)'3$resume
+
+instance Drop(repeat(b).Iter): repeat(b)$drop
+
+instance Iterate(repeat(b).Iter, I32, {}): repeat(b)$next, repeat(b)$resume
+
+instance Drop(labelled(a).Iter): labelled(a)$drop
+
+instance IterateFailing(labelled(a).Iter, I32, String, {}): labelled(a)$next, labelled(a)$resume
+
+instance Drop(labelled(a)'2.Iter): labelled(a)'2$drop
+
+instance IterateFailing(labelled(a)'2.Iter, I32, String, {}): labelled(a)'2$next, labelled(a)'2$resume
+
+instance Drop(repeat(a)'4.Iter): repeat(a)'4$drop
+
+instance Iterate(repeat(a)'4.Iter, I32, {}): repeat(a)'4$next, repeat(a)'4$resume
+
+instance Iterate(repeat(I32).Iter, I32, {}): repeat(I32)$next, repeat(I32)$resume
+
+instance Drop(repeat(Tag).Iter): repeat(Tag)$drop
+
+instance Iterate(repeat(Tag).Iter, I32, {}): repeat(Tag)$next, repeat(Tag)$resume
+
+instance Iterate(repeat(F32).Iter, I32, {}): repeat(F32)$next, repeat(F32)$resume
+
+instance Drop(repeat(String).Iter): repeat(String)$drop
+
+instance Iterate(repeat(String).Iter, I32, {}): repeat(String)$next, repeat(String)$resume
+
+instance Drop(labelled(I32).Iter): labelled(I32)$drop
+
+instance IterateFailing(labelled(I32).Iter, I32, String, {}): labelled(I32)$next, labelled(I32)$resume
+
+instance Drop(labelled(Tag).Iter): labelled(Tag)$drop
+
+instance IterateFailing(labelled(Tag).Iter, I32, String, {}): labelled(Tag)$next, labelled(Tag)$resume
+
+instance Drop(labelled(String).Iter): labelled(String)$drop
+
+instance IterateFailing(labelled(String).Iter, I32, String, {}): labelled(String)$next, labelled(String)$resume
+
+let & drops: I32 = 0
+
+let & failures: I32 = 0
+
+let string'188: [CodeUnit *5] = "long "
+
+let string'189: [CodeUnit *4] = "tag "
+
+let string'190: [CodeUnit *1] = "s"
+
+let string'191: [CodeUnit *1] = "w"
+
+fn Tag.drop(value: Tag) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global drops) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  drop (value.name)
+  return
+}
+
+lens fn repeat(keep: a, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  drop (keep)
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (to)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %29: I32 = read copy.trivial (local4)
+  %30: I32 = add inspect %29 inspect %8
+  write.assign borrow.unique (local4) take %30
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %33: I32 = read copy.trivial ($yielded)
+  return take %33
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %22: I32 = call inspect %21 borrow.shared %20
+  %23: I32 = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  write.assign borrow.unique ($yielded) take %22
+  branch inspect %24 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+}
+
+lens fn labelled(keep: a, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, String) {
+  form specialized
+  slot #0 type a
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+  local & local6: String
+  local local7: String
+
+bb0:
+  drop (keep)
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (to)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %29: I32 = read copy.trivial (local4)
+  %30: I32 = add inspect %29 inspect %8
+  write.assign borrow.unique (local4) take %30
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %33: I32 = read copy.trivial (to)
+  %34: I32 = const 2
+  %35: Bool = gt inspect %33 inspect %34
+  branch inspect %35 -> bb9 -> bb7
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %22: I32 = call inspect %21 borrow.shared %20
+  %23: I32 = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  write.assign borrow.unique ($yielded) take %22
+  branch inspect %24 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %57: I32 = read copy.trivial ($yielded)
+  %58: Outcome(I32, String) = aggregate.Proceed take %57
+  return take %58
+
+bb9:
+  %37: Size = const 5
+  %38: I32 = read copy.trivial (to)
+  %39: Maybe(Size) = call showBound(I32) borrow.shared %38
+  %40: Size = call formatBound borrow.shared %39
+  %41: Size = add inspect %37 inspect %40
+  %42: String = call String.ofCapacity borrow.shared %41
+  write.init borrow.unique (local6) take %42
+  %44: String [unique call] = read borrow.unique (local6) loan1
+  %45: String = const String {units: Array {run: Run {items: &string'188, capacity: 5, ownsHeap: 0}, length: 5}}
+  write.init borrow.unique (local7) take %45
+  %47: String [shared slot 0] = read borrow.shared (local7) loan2
+  %48: String [shared slot 0 view] = call.derivation view(String) borrow.shared %47 roots{2}
+  %49: {} = call String.push borrow.unique %44 borrow.shared %48
+  drop (local7)
+  %50: I32 = read copy.trivial (to)
+  %51: String [unique call] = read borrow.unique (local6) loan3
+  %52: {} = call show(I32) borrow.shared %50 borrow.unique %51
+  %53: String = read take (local6)
+  %54: Outcome(I32, String) = aggregate.Exit take %53
+  return take %54
+}
+
+fn expect(case: I32 [shared call], got: I32 [shared call], want: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (got)
+  %1: I32 = read copy.trivial (want)
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  return
+
+bb3:
+  %4: I32 [unique call] = read borrow.unique (global failures) loan0
+  %5: I32 = read copy.trivial (case)
+  %6: {} = call +=(I32) borrow.unique %4 borrow.shared %5
+  jump -> bb2
+}
+
+fn whole(x: a, n: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & it: repeat(a).Iter
+  local & sum: I32
+  local v: I32
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = read copy.trivial (n)
+  %2: repeat(a).Iter = call repeat(a)$new take %0 take %1
+  write.init borrow.unique (it) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (sum) take %4
+  jump -> bb1
+
+bb1:
+  %7: repeat(a).Iter [unique call] = read borrow.unique (it) loan0
+  %8: I32 = const 0
+  %9: Bool = const False
+  %10: Bool = call repeat(a)$step borrow.unique %7 take %8 take %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %18: I32 = read copy.trivial (sum)
+  return take %18
+
+bb3:
+  %12: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %12
+  %14: I32 [unique call] = read borrow.unique (sum) loan1
+  %15: I32 = read copy.trivial (v)
+  %16: {} = call +=(I32) borrow.unique %14 borrow.shared %15
+  jump -> bb1
+}
+
+fn first(x: a, n: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & it: repeat(a)'2.Iter
+  local local3: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local v: I32
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = read copy.trivial (n)
+  %2: repeat(a)'2.Iter = call repeat(a)'2$new take %0 take %1
+  write.init borrow.unique (it) take %2
+  %4: repeat(a)'2.Iter [unique slot 0] = read borrow.unique (it) loan0
+  %5: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(repeat(a)'2.Iter, I32, {}) borrow.unique %4 roots.0{0}
+  write.init borrow.unique (local3) take %5
+  %7: U8 = read copy.trivial (local3.#)
+  %8: U8 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  drop (it)
+  jump -> bb2
+
+bb2:
+  %18: I32 = const -1
+  return take %18
+
+bb3:
+  %11: I32 = read copy.trivial (local3.Just)
+  drop (it)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (v)
+  %14: I32 = const 10
+  %15: I32 = add inspect %13 inspect %14
+  return take %15
+}
+
+fn zipped(x: a, y: b, n: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+  local & left: repeat(a)'3.Iter
+  local & right: repeat(b).Iter
+  local & sum: I32
+  local local6: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local l: I32
+  local local8: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local r: I32
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = read copy.trivial (n)
+  %2: repeat(a)'3.Iter = call repeat(a)'3$new take %0 take %1
+  write.init borrow.unique (left) take %2
+  %4: b = read take (y)
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  %8: repeat(b).Iter = call repeat(b)$new take %4 take %7
+  write.init borrow.unique (right) take %8
+  %10: I32 = const 0
+  write.init borrow.unique (sum) take %10
+  jump -> bb1
+
+bb1:
+  %13: Bool = const True
+  branch inspect %13 -> bb3 -> bb2
+
+bb2:
+  drop (left)
+  drop (right)
+  %43: I32 = read copy.trivial (sum)
+  return take %43
+
+bb3:
+  %15: repeat(a)'3.Iter [unique slot 0] = read borrow.unique (left) loan0
+  %16: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(repeat(a)'3.Iter, I32, {}) borrow.unique %15 roots.0{0}
+  write.init borrow.unique (local6) take %16
+  %18: U8 = read copy.trivial (local6.#)
+  %19: U8 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb5 -> bb4
+
+bb4:
+  drop (left)
+  drop (right)
+  %22: I32 = read copy.trivial (sum)
+  return take %22
+
+bb5:
+  %24: I32 = read copy.trivial (local6.Just)
+  write.init borrow.unique (l) take %24
+  %26: repeat(b).Iter [unique slot 0] = read borrow.unique (right) loan1
+  %27: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(repeat(b).Iter, I32, {}) borrow.unique %26 roots.0{1}
+  write.init borrow.unique (local8) take %27
+  %29: U8 = read copy.trivial (local8.#)
+  %30: U8 = const 1
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb7 -> bb6
+
+bb6:
+  drop (left)
+  drop (right)
+  %33: I32 = read copy.trivial (sum)
+  return take %33
+
+bb7:
+  %35: I32 = read copy.trivial (local8.Just)
+  write.init borrow.unique (r) take %35
+  %37: I32 [unique call] = read borrow.unique (sum) loan2
+  %38: I32 = read copy.trivial (l)
+  %39: I32 = read copy.trivial (r)
+  %40: I32 = mul inspect %38 inspect %39
+  %41: {} = call +=(I32) borrow.unique %37 borrow.shared %40
+  jump -> bb1
+}
+
+fn drain(it: c [unique call]) -> I32 {
+  form specialized
+  slot #0 type c
+  slot #1 class IterateFailing(c, I32, String, {})
+  local & sum: I32
+  local local2: IterStep(String, I32) [owned here shape2 .0=shared slot 0] object1
+  local v: I32
+  local e: String object1
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  jump -> bb1
+
+bb1:
+  %3: Bool = const True
+  branch inspect %3 -> bb3 -> bb2
+
+bb2:
+  %35: I32 = read copy.trivial (sum)
+  return take %35
+
+bb3:
+  %5: c [unique slot 0] = read borrow.unique (it) loan0
+  %6: IterStep(String, I32) [owned here shape2 .0=shared slot 0] = call next'2(c, I32, String, {}) borrow.unique %5 roots.0{0}
+  write.init borrow.unique (local2) take %6
+  %8: U8 = read copy.trivial (local2.#)
+  %9: U8 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb7 -> bb4
+
+bb4:
+  %17: U8 = read copy.trivial (local2.#)
+  %18: U8 = const 1
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb8 -> bb5
+
+bb5:
+  %23: String = read take (local2.Failed)
+  write.init borrow.unique (e) take %23
+  %25: I32 = read copy.trivial (sum)
+  %26: I32 = neg inspect %25
+  %27: String [shared call] = read borrow.shared (e) loan2
+  %28: String [shared slot 0 view] = call.derivation view(String) borrow.shared %27 roots{2}
+  %29: Size = call length(String) borrow.shared %28
+  drop (e)
+  %30: I32 = convert inspect %29
+  %31: I32 = sub inspect %26 inspect %30
+  return take %31
+
+bb6:
+  jump -> bb1
+
+bb7:
+  %12: I32 = read copy.trivial (local2.Yield)
+  drop (local2)
+  write.init borrow.unique (v) take %12
+  %14: I32 [unique call] = read borrow.unique (sum) loan1
+  %15: I32 = read copy.trivial (v)
+  %16: {} = call +=(I32) borrow.unique %14 borrow.shared %15
+  jump -> bb6
+
+bb8:
+  drop (local2)
+  %21: I32 = read copy.trivial (sum)
+  return take %21
+}
+
+fn handed(x: a, n: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & it: labelled(a).Iter
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = read copy.trivial (n)
+  %2: labelled(a).Iter = call labelled(a)$new take %0 take %1
+  write.init borrow.unique (it) take %2
+  %4: labelled(a).Iter [unique call] = read borrow.unique (it) loan0
+  %5: I32 = call drain(labelled(a).Iter) borrow.unique %4
+  drop (it)
+  return take %5
+}
+
+fn looped(x: a, n: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & it: labelled(a)'2.Iter
+  local & sum: I32
+  local v: I32
+  local e: String
+  flag (it) = gone
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = read copy.trivial (n)
+  %2: labelled(a)'2.Iter = call labelled(a)'2$new take %0 take %1
+  write.init borrow.unique (it) take %2
+  flag (it) = held
+  %4: I32 = const 0
+  write.init borrow.unique (sum) take %4
+  jump -> bb1
+
+bb1:
+  %7: labelled(a)'2.Iter [unique call] = read borrow.unique (it) loan0
+  %8: I32 = const 0
+  %9: Bool = const False
+  %10: Bool = call labelled(a)'2$step borrow.unique %7 take %8 take %9
+  branch inspect %10 -> bb4 -> bb3
+
+bb2:
+  drop.maybe (it)
+  %33: I32 = read copy.trivial (sum)
+  flag (it) = gone
+  return take %33
+
+bb3:
+  %18: I32 = read copy.trivial (it.$index)
+  %19: I32 = const 2147483646
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb5 -> bb2
+
+bb4:
+  %12: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %12
+  %14: I32 [unique call] = read borrow.unique (sum) loan1
+  %15: I32 = read copy.trivial (v)
+  %16: {} = call +=(I32) borrow.unique %14 borrow.shared %15
+  jump -> bb1
+
+bb5:
+  %22: labelled(a)'2.Iter [unique call] = read borrow.unique (it) loan2
+  %23: String = call labelled(a)'2$failure borrow.unique %22
+  drop (it)
+  write.init borrow.unique (e) take %23
+  flag (it) = gone
+  %25: I32 = const 100
+  %26: String [shared call] = read borrow.shared (e) loan3
+  %27: String [shared slot 0 view] = call.derivation view(String) borrow.shared %26 roots{3}
+  %28: Size = call length(String) borrow.shared %27
+  drop (e)
+  %29: I32 = convert inspect %28
+  %30: I32 = add inspect %25 inspect %29
+  write.assign borrow.unique (sum) take %30
+  jump -> bb2
+}
+
+fn idle(x: a) -> I32 {
+  form specialized
+  slot #0 type a
+  local & it: repeat(a)'4.Iter
+
+bb0:
+  %0: a = read take (x)
+  %1: I32 = const 3
+  %2: repeat(a)'4.Iter = call repeat(a)'4$new take %0 take %1
+  write.init borrow.unique (it) take %2
+  drop (it)
+  %4: I32 = const 7
+  return take %4
+}
+
+fn tag(id: I32 [shared call]) -> Tag {
+  local & local1: String
+  local local2: String
+
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: Size = const 4
+  %2: I32 = read copy.trivial (id)
+  %3: Maybe(Size) = call showBound(I32) borrow.shared %2
+  %4: Size = call formatBound borrow.shared %3
+  %5: Size = add inspect %1 inspect %4
+  %6: String = call String.ofCapacity borrow.shared %5
+  write.init borrow.unique (local1) take %6
+  %8: String [unique call] = read borrow.unique (local1) loan0
+  %9: String = const String {units: Array {run: Run {items: &string'189, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local2) take %9
+  %11: String [shared slot 0] = read borrow.shared (local2) loan1
+  %12: String [shared slot 0 view] = call.derivation view(String) borrow.shared %11 roots{1}
+  %13: {} = call String.push borrow.unique %8 borrow.shared %12
+  drop (local2)
+  %14: I32 = read copy.trivial (id)
+  %15: String [unique call] = read borrow.unique (local1) loan2
+  %16: {} = call show(I32) borrow.shared %14 borrow.unique %15
+  %17: String = read take (local1)
+  %18: Tag = aggregate.Tag take %0 take %17
+  return take %18
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 4
+  %2: I32 = const 1
+  %3: I32 = call whole(I32) take %2 borrow.shared %1
+  %4: I32 = const 6
+  %5: {} = call expect borrow.shared %0 borrow.shared %3 borrow.shared %4
+  %6: I32 = const 2
+  %7: I32 = const 1
+  %8: Tag = call tag borrow.shared %7
+  %9: I32 = const 4
+  %10: I32 = call whole(Tag) take %8 borrow.shared %9
+  %11: I32 = const 6
+  %12: {} = call expect borrow.shared %6 borrow.shared %10 borrow.shared %11
+  %13: I32 = const 4
+  %14: I32 = const 3
+  %15: F32 = const 2.5
+  %16: I32 = call first(F32) take %15 borrow.shared %14
+  %17: I32 = const 10
+  %18: {} = call expect borrow.shared %13 borrow.shared %16 borrow.shared %17
+  %19: I32 = const 8
+  %20: I32 = const 2
+  %21: Tag = call tag borrow.shared %20
+  %22: I32 = const 3
+  %23: I32 = call first(Tag) take %21 borrow.shared %22
+  %24: I32 = const 10
+  %25: {} = call expect borrow.shared %19 borrow.shared %23 borrow.shared %24
+  %26: I32 = const 16
+  %27: I32 = const 3
+  %28: Tag = call tag borrow.shared %27
+  %29: I32 = const 0
+  %30: I32 = call first(Tag) take %28 borrow.shared %29
+  %31: I32 = const -1
+  %32: {} = call expect borrow.shared %26 borrow.shared %30 borrow.shared %31
+  %33: I32 = const 32
+  %34: I32 = const 4
+  %35: Tag = call tag borrow.shared %34
+  %36: I32 = const 3
+  %37: I32 = const 3
+  %38: I32 = call zipped(I32, Tag) take %37 take %35 borrow.shared %36
+  %39: I32 = const 5
+  %40: {} = call expect borrow.shared %33 borrow.shared %38 borrow.shared %39
+  %41: I32 = const 64
+  %42: I32 = const 5
+  %43: Tag = call tag borrow.shared %42
+  %44: I32 = const 2
+  %45: String = const String {units: Array {run: Run {items: &string'190, capacity: 1, ownsHeap: 0}, length: 1}}
+  %46: I32 = call zipped(Tag, String) take %43 take %45 borrow.shared %44
+  %47: I32 = const 1
+  %48: {} = call expect borrow.shared %41 borrow.shared %46 borrow.shared %47
+  %49: I32 = const 128
+  %50: I32 = const 2
+  %51: I32 = const 1
+  %52: I32 = call handed(I32) take %51 borrow.shared %50
+  %53: I32 = const 1
+  %54: {} = call expect borrow.shared %49 borrow.shared %52 borrow.shared %53
+  %55: I32 = const 256
+  %56: I32 = const 6
+  %57: Tag = call tag borrow.shared %56
+  %58: I32 = const 4
+  %59: I32 = call handed(Tag) take %57 borrow.shared %58
+  %60: I32 = const -12
+  %61: {} = call expect borrow.shared %55 borrow.shared %59 borrow.shared %60
+  %62: I32 = const 512
+  %63: I32 = const 3
+  %64: String = const String {units: Array {run: Run {items: &string'191, capacity: 1, ownsHeap: 0}, length: 1}}
+  %65: I32 = call looped(String) take %64 borrow.shared %63
+  %66: I32 = const 106
+  %67: {} = call expect borrow.shared %62 borrow.shared %65 borrow.shared %66
+  %68: I32 = const 1024
+  %69: I32 = const 7
+  %70: Tag = call tag borrow.shared %69
+  %71: I32 = const 2
+  %72: I32 = call looped(Tag) take %70 borrow.shared %71
+  %73: I32 = const 1
+  %74: {} = call expect borrow.shared %68 borrow.shared %72 borrow.shared %73
+  %75: I32 = const 2048
+  %76: I32 = const 8
+  %77: Tag = call tag borrow.shared %76
+  %78: I32 = call idle(Tag) take %77
+  %79: I32 = const 7
+  %80: {} = call expect borrow.shared %75 borrow.shared %78 borrow.shared %79
+  %81: I32 = const 4096
+  %82: I32 = read copy.trivial (global drops)
+  %83: I32 = const 8
+  %84: {} = call expect borrow.shared %81 borrow.shared %82 borrow.shared %83
+  %85: I32 = read copy.trivial (global failures)
+  return take %85
+}
+
+fn repeat(a)$new(keep: a, to: I32) -> repeat(a).Iter = <no body>
+
+fn repeat(a)$step($self: repeat(a).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(a)$drop($self: repeat(a).Iter) -> {} = <no body>
+
+fn repeat(a)$next($self: repeat(a).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)$resume($self: repeat(a).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'2$new(keep: a, to: I32) -> repeat(a)'2.Iter = <no body>
+
+fn repeat(a)'2$step($self: repeat(a)'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(a)'2$drop($self: repeat(a)'2.Iter) -> {} = <no body>
+
+fn repeat(a)'2$next($self: repeat(a)'2.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'2$resume($self: repeat(a)'2.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'3$new(keep: a, to: I32) -> repeat(a)'3.Iter = <no body>
+
+fn repeat(a)'3$step($self: repeat(a)'3.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(a)'3$drop($self: repeat(a)'3.Iter) -> {} = <no body>
+
+fn repeat(a)'3$next($self: repeat(a)'3.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'3$resume($self: repeat(a)'3.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(b)$new(keep: b, to: I32) -> repeat(b).Iter = <no body>
+
+fn repeat(b)$step($self: repeat(b).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(b)$drop($self: repeat(b).Iter) -> {} = <no body>
+
+fn repeat(b)$next($self: repeat(b).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(b)$resume($self: repeat(b).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(a)$new(keep: a, to: I32) -> labelled(a).Iter = <no body>
+
+fn labelled(a)$step($self: labelled(a).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn labelled(a)$drop($self: labelled(a).Iter) -> {} = <no body>
+
+fn labelled(a)$failure($self: labelled(a).Iter [unique call]) -> String = <no body>
+
+fn labelled(a)$next($self: labelled(a).Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(a)$resume($self: labelled(a).Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(a)'2$new(keep: a, to: I32) -> labelled(a)'2.Iter = <no body>
+
+fn labelled(a)'2$step($self: labelled(a)'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn labelled(a)'2$drop($self: labelled(a)'2.Iter) -> {} = <no body>
+
+fn labelled(a)'2$failure($self: labelled(a)'2.Iter [unique call]) -> String = <no body>
+
+fn labelled(a)'2$next($self: labelled(a)'2.Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(a)'2$resume($self: labelled(a)'2.Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'4$new(keep: a, to: I32) -> repeat(a)'4.Iter = <no body>
+
+fn repeat(a)'4$step($self: repeat(a)'4.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(a)'4$drop($self: repeat(a)'4.Iter) -> {} = <no body>
+
+fn repeat(a)'4$next($self: repeat(a)'4.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(a)'4$resume($self: repeat(a)'4.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+lens fn repeat(I32)(keep: I32, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <repeat at I32>
+
+fn repeat(I32)$new(keep: I32, to: I32) -> repeat(I32).Iter = <no body>
+
+fn repeat(I32)$step($self: repeat(I32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(I32)$next($self: repeat(I32).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(I32)$resume($self: repeat(I32).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn whole(I32)(x: I32, n: I32 [shared call]) -> I32 = <whole at I32>
+
+lens fn repeat(Tag)(keep: Tag, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <repeat at Tag>
+
+fn repeat(Tag)$new(keep: Tag, to: I32) -> repeat(Tag).Iter = <no body>
+
+fn repeat(Tag)$step($self: repeat(Tag).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(Tag)$drop($self: repeat(Tag).Iter) -> {} = <no body>
+
+fn repeat(Tag)$next($self: repeat(Tag).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(Tag)$resume($self: repeat(Tag).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn whole(Tag)(x: Tag, n: I32 [shared call]) -> I32 = <whole at Tag>
+
+lens fn repeat(F32)(keep: F32, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <repeat at F32>
+
+fn repeat(F32)$new(keep: F32, to: I32) -> repeat(F32).Iter = <no body>
+
+fn repeat(F32)$step($self: repeat(F32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(F32)$next($self: repeat(F32).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(F32)$resume($self: repeat(F32).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn first(F32)(x: F32, n: I32 [shared call]) -> I32 = <first at F32>
+
+fn first(Tag)(x: Tag, n: I32 [shared call]) -> I32 = <first at Tag>
+
+fn zipped(I32, Tag)(x: I32, y: Tag, n: I32 [shared call]) -> I32 = <zipped at I32, Tag>
+
+lens fn repeat(String)(keep: String, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <repeat at String>
+
+fn repeat(String)$new(keep: String, to: I32) -> repeat(String).Iter = <no body>
+
+fn repeat(String)$step($self: repeat(String).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn repeat(String)$drop($self: repeat(String).Iter) -> {} = <no body>
+
+fn repeat(String)$next($self: repeat(String).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn repeat(String)$resume($self: repeat(String).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn zipped(Tag, String)(x: Tag, y: String, n: I32 [shared call]) -> I32 = <zipped at Tag, String>
+
+lens fn labelled(I32)(keep: I32, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, String) = <labelled at I32>
+
+fn labelled(I32)$new(keep: I32, to: I32) -> labelled(I32).Iter = <no body>
+
+fn labelled(I32)$step($self: labelled(I32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn labelled(I32)$drop($self: labelled(I32).Iter) -> {} = <no body>
+
+fn labelled(I32)$failure($self: labelled(I32).Iter [unique call]) -> String = <no body>
+
+fn labelled(I32)$next($self: labelled(I32).Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(I32)$resume($self: labelled(I32).Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn handed(I32)(x: I32, n: I32 [shared call]) -> I32 = <handed at I32>
+
+lens fn labelled(Tag)(keep: Tag, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, String) = <labelled at Tag>
+
+fn labelled(Tag)$new(keep: Tag, to: I32) -> labelled(Tag).Iter = <no body>
+
+fn labelled(Tag)$step($self: labelled(Tag).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn labelled(Tag)$drop($self: labelled(Tag).Iter) -> {} = <no body>
+
+fn labelled(Tag)$failure($self: labelled(Tag).Iter [unique call]) -> String = <no body>
+
+fn labelled(Tag)$next($self: labelled(Tag).Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(Tag)$resume($self: labelled(Tag).Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn handed(Tag)(x: Tag, n: I32 [shared call]) -> I32 = <handed at Tag>
+
+lens fn labelled(String)(keep: String, to: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, String) = <labelled at String>
+
+fn labelled(String)$new(keep: String, to: I32) -> labelled(String).Iter = <no body>
+
+fn labelled(String)$step($self: labelled(String).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn labelled(String)$drop($self: labelled(String).Iter) -> {} = <no body>
+
+fn labelled(String)$failure($self: labelled(String).Iter [unique call]) -> String = <no body>
+
+fn labelled(String)$next($self: labelled(String).Iter [unique slot 0]) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn labelled(String)$resume($self: labelled(String).Iter [unique slot 0], $v: {}) -> IterStep(String, I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn looped(String)(x: String, n: I32 [shared call]) -> I32 = <looped at String>
+
+fn looped(Tag)(x: Tag, n: I32 [shared call]) -> I32 = <looped at Tag>
+
+fn idle(Tag)(x: Tag) -> I32 = <idle at Tag>
+
+fn drain(labelled(I32).Iter(I32))(it: labelled(I32).Iter [unique call]) -> I32 = <drain at labelled(I32).Iter>
+
+fn drain(labelled(Tag).Iter(Tag))(it: labelled(Tag).Iter [unique call]) -> I32 = <drain at labelled(Tag).Iter>
+
+entry main

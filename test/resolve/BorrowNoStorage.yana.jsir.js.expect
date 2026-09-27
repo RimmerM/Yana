@@ -5,13 +5,12 @@ function eachOf(xs$0, xs$1, xs$2, $body) {
   var p4 = 0;
   L0: for (;;) {
     if (p4 < xs$1) {
-      if (p4 >>> 0 >= xs$1 >>> 0) throw $t;
-      var v21 = $body.$c($body.$e, xs$0[xs$2 + p4 | 0]);
-      if (v21 === 0) {
+      var v18 = $body.$c($body.$e, xs$0[xs$2 + p4 | 0]);
+      if (v18 === 0) {
         p4 = p4 + 1 | 0;
         continue L0;
       }
-      p5 = v21;
+      p5 = v18;
       break L0;
     }
     p5 = 0;
@@ -25,10 +24,10 @@ function main() {
   var v11 = { $v: 0 };
   var v21 = eachOf(v4, 4, 0, { $c: countIn_cont, $e: { wanted: { $o: { $v: "bob" }, $k: "$v" }, total: { $o: v11, $k: "$v" } } });
   var v22 = v11.$v;
-  var v31 = v4[2];
-  var v37 = { $v: 0 };
-  var v47 = eachOf(v4, 4, 0, { $c: countIn_cont, $e: { wanted: { $o: { $v: v31 }, $k: "$v" }, total: { $o: v37, $k: "$v" } } });
-  return Math.imul(v22, 10) + v37.$v | 0;
+  var v30 = v4[2];
+  var v36 = { $v: 0 };
+  var v46 = eachOf(v4, 4, 0, { $c: countIn_cont, $e: { wanted: { $o: { $v: v30 }, $k: "$v" }, total: { $o: v36, $k: "$v" } } });
+  return Math.imul(v22, 10) + v36.$v | 0;
 }
 
 function countIn_cont(countIn_cont_env, $handed) {
@@ -37,5 +36,4 @@ function countIn_cont(countIn_cont_env, $handed) {
   if ($handed === v2.$o[v2.$k]) v3.$o[v3.$k] = v3.$o[v3.$k] + 1 | 0;
   return 0;
 }
-var $t = "yana: a runtime check failed";
-main();
+(globalThis.process ?? {}).exitCode = main();

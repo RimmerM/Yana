@@ -19,58 +19,56 @@ function main() {
   var p4 = 0;
   while (p4 < 4) {
     if (p4 >>> 0 >= 4) throw $t;
-    var v271 = Math.imul(v21[p4 | 0], 2);
-    var v273 = v30.length;
-    var v275 = v273 + 1;
-    if (v275 > v30.items.length) growJsArray_I32(v30, v275);
-    v30.items[v273] = v271;
-    v30.length = v275 & 1073741823;
+    var v248 = Math.imul(v21[p4 | 0], 2);
+    var v250 = v30.length;
+    var v252 = v250 + 1;
+    if (v252 > v30.items.length) growJsArray_I32(v30, v252);
+    v30.items[v250] = v248;
+    v30.length = v252 & 1073741823;
     p4 = p4 + 1 | 0;
   }
   var p0 = 0;
   var p9 = 0;
   while (p0 < 4) {
-    if (p0 >>> 0 >= 4) throw $t;
-    var v256 = v21[p0 | 0];
-    if (v256 > 2) p9 = p9 + v256 | 0;
+    var v233 = v21[p0];
+    if (v233 > 2) p9 = p9 + v233 | 0;
     p0 = p0 + 1 | 0;
   }
   var p5 = 0;
   var p11 = 0;
   while (p5 < 4) {
     if (p5 >>> 0 >= 4) throw $t;
-    var v242 = v21[p5 | 0];
-    if (isBig(v242)) p11 = p11 + double(v242) | 0;
+    var v225 = v21[p5 | 0];
+    if (isBig(v225)) p11 = p11 + double(v225) | 0;
     p5 = p5 + 1 | 0;
   }
-  var v90 = v30.items;
-  var v95 = v30.length;
-  if (0 >= v95) throw $t;
-  var v98 = v90[0];
-  if (1 >= v95) throw $t;
-  var v109 = v98 + v90[1] | 0;
-  if (2 >= v95) throw $t;
-  var v120 = v109 + v90[2] | 0;
-  if (3 >= v95) throw $t;
-  var v135 = ((v120 + v90[3] | 0) + p9 | 0) + p11 | 0;
-  var v142 = new Int32Array([1, 2, 3, 4]);
+  var v91 = v30.items;
+  var v96 = v30.length;
+  if (0 >= v96) throw $t;
+  var v100 = v91[0];
+  if (1 >= v96) throw $t;
+  var v108 = v100 + v91[1] | 0;
+  if (2 >= v96) throw $t;
+  var v116 = v108 + v91[2] | 0;
+  if (3 >= v96) throw $t;
+  var v128 = ((v116 + v91[3] | 0) + p9 | 0) + p11 | 0;
+  var v135 = new Int32Array([1, 2, 3, 4]);
   var p2 = 0;
   var p10 = 0;
   while (p2 < 4) {
-    if (p2 >>> 0 >= 4) throw $t;
-    var v229 = v142[p2 | 0];
-    if (v229 <= 3) p10 = p10 + v229 | 0;
+    var v212 = v135[p2];
+    if (v212 <= 3) p10 = p10 + v212 | 0;
     p2 = p2 + 1 | 0;
   }
-  var v153 = v135 + p10 | 0;
+  var v147 = v128 + p10 | 0;
   var s8 = 0;
   var p7 = 0;
   L8: for (;;) {
     if (p7 < 4) {
       if (p7 >>> 0 >= 4) throw $t;
-      var v177 = Math.imul(v21[p7 | 0], 2);
-      if (v177 > 4) {
-        s8 = v177;
+      var v171 = Math.imul(v21[p7 | 0], 2);
+      if (v171 > 4) {
+        s8 = v171;
         p8 = 1;
         break L8;
       }
@@ -80,16 +78,15 @@ function main() {
     p8 = 0;
     break L8;
   }
-  var v188 = v153 + (p8 === 1 ? s8 : 0) | 0;
-  var v196 = new Int32Array([1, 2, 3]);
+  var v182 = v147 + (p8 === 1 ? s8 : 0) | 0;
+  var v190 = new Int32Array([1, 2, 3]);
   var p12 = 0;
   var p13 = 0;
   while (p12 < 3) {
-    if (p12 >>> 0 >= 3) throw $t;
-    p13 = (p13 + v196[p12 | 0] | 0) + 1 | 0;
+    p13 = (p13 + v190[p12] | 0) + 1 | 0;
     p12 = p12 + 1 | 0;
   }
-  return v188 + p13 | 0;
+  return v182 + p13 | 0;
 }
 
 function remove_I32(self, index) {
@@ -118,4 +115,4 @@ function $grow(a, n) {
   b.set(a);
   return b;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

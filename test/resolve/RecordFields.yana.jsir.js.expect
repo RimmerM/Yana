@@ -89,8 +89,12 @@ function updates(start) {
 function retested(k, c) {
   var s0 = c ? { x: k, y: 2 } : null;
   var p3 = !(s0 === null) ? s0.x + s0.y : 0;
-  s0 = c ^ 1 ? { x: k + 1, y: 2 } : null;
-  if (!(s0 === null)) p3 = p3 * 10 + s0.x;
+  var v32 = c ^ 1;
+  var v34 = k + 1;
+  if (v32) {
+    s0 = { x: v34, y: 2 };
+    p3 = p3 * 10 + s0.x;
+  }
   return p3;
 }
 
@@ -114,4 +118,4 @@ function captured_lambda(captured_lambda_env, d) {
   var v2 = captured_lambda_env.p;
   return v2.x + v2.y + d;
 }
-main();
+(globalThis.process ?? {}).exitCode = main();

@@ -123,8 +123,8 @@ fn main() -> one %r0
     %78: %r6 = binary.ne %76, %77
     branch %78 -> block4 -> block3
   block2:
-    %284: %r0 = const -1
-    return %284
+    %236: %r0 = const -1
+    return %236
   block3:
     %85: %r0 = const 3
     %86: %r3 = call counted %85
@@ -162,8 +162,8 @@ fn main() -> one %r0
     %114: %r6 = binary.ne %112, %113
     branch %114 -> block6 -> block5
   block4:
-    %283: %r0 = const -2
-    return %283
+    %235: %r0 = const -2
+    return %235
   block5:
     %118: %r0 = const 3
     %119: %r3 = call counted %118
@@ -172,168 +172,112 @@ fn main() -> one %r0
     %122: %r0 = const 5
     %123: %r3 = call counted %122
     %124: %r5 = host host.array %119, %121, %123
-    %129: %r0 = const 0
-    jump -> block9
-  block6:
-    %282: %r0 = const -3
-    return %282
-  block7:
-    %225: %r0 = const 3
-    %226: %r3 = call counted %225
-    %227: %r0 = const 8
-    %228: %r3 = call counted %227
-    %229: %r5 = host host.array %226, %228
-    %233: %r0 = const 6
-    %234: %r3 = call counted %233
-    %236: %r0 = const 0
-    jump -> block21
-  block8:
-    %281: %r0 = const -4
-    return %281
-  block9:
-    jump -> block10
-  block10:
-    %139: %r5 = alias %124
-    %141: %r0 = const 1
-    %133: %r5 = alias %124
-    %142: %r3 = load element %133[%129]: %r3
-    %143: %r3 = alias %142
-    %144: %r3 = load element %139[%141]: %r3
-    store element %133[%129]: %r3, %144
-    store element %139[%141]: %r3, %143
-    jump -> block11
-  block11:
-    %150: %r5 = alias %124
-    %152: %r0 = const 2
-    %153: %r0 = const 2
-    %154: %r3 = call counted %153
-    %155: %r3 = load element %150[%152]: %r3
-    store element %150[%152]: %r3, %154
-    %157: %r0 = const 0
-    jump -> block12
-  block12:
-    %161: %r5 = alias %124
-    %162: %r3 = load element %161[%157]: %r3
-    %163: %r1 = load property %162.items: %r1
-    %164: %r3 = alias %162
-    %165: %r2 = load property %164.length: %r2
-    %166: %r0 = convert %165
-    %168: %r0 = convert %166
-    %169: %r0 = const 1000
-    %170: %r0 = binary.mul %168, %169
-    %171: %r0 = coerce %170
-    jump -> block13
-  block13:
-    %177: %r5 = alias %124
-    %179: %r0 = const 1
-    %180: %r3 = load element %177[%179]: %r3
-    %181: %r1 = load property %180.items: %r1
-    %182: %r3 = alias %180
-    %183: %r2 = load property %182.length: %r2
-    %184: %r0 = convert %183
-    %186: %r0 = convert %184
-    %187: %r0 = const 100
-    %188: %r0 = binary.mul %186, %187
-    %189: %r0 = coerce %188
-    %190: %r0 = binary.add %171, %189
-    %191: %r0 = coerce %190
-    %192: %r3 = alias %155
-    %193: %r1 = load property %192.items: %r1
-    %194: %r3 = alias %155
-    %195: %r2 = load property %194.length: %r2
-    %196: %r0 = convert %195
-    %198: %r0 = convert %196
-    %199: %r3 = alias %155
-    call Array(a).reclaim(I32) %199
-    %200: %r0 = const 10
-    %201: %r0 = binary.mul %198, %200
-    %202: %r0 = coerce %201
-    %203: %r0 = binary.add %191, %202
-    %204: %r0 = coerce %203
-    jump -> block14
-  block14:
-    %210: %r5 = alias %124
-    %212: %r0 = const 2
-    %213: %r3 = load element %210[%212]: %r3
-    %214: %r1 = load property %213.items: %r1
-    %215: %r3 = alias %213
-    %216: %r2 = load property %215.length: %r2
-    %217: %r0 = convert %216
-    %219: %r0 = convert %217
     %126: %r5 = alias %124
-    %220: %r5 = alias %126
-    call Array(a).reclaim(Array(I32)) %220
-    %221: %r0 = binary.add %204, %219
-    %222: %r0 = coerce %221
-    %223: %r0 = const 8352
-    %224: %r6 = binary.ne %222, %223
-    branch %224 -> block8 -> block7
-  block15:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block16:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block17:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block18:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block19:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block20:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block21:
-    %240: %r5 = alias %229
-    %241: %r3 = load element %240[%236]: %r3
-    call Array(a).reclaim(I32) %241
-    store element %240[%236]: %r3, %234
-    %243: %r0 = const 0
-    jump -> block22
-  block22:
-    %247: %r5 = alias %229
-    %248: %r3 = load element %247[%243]: %r3
-    %249: %r1 = load property %248.items: %r1
-    %250: %r3 = alias %248
-    %251: %r2 = load property %250.length: %r2
-    %252: %r0 = convert %251
-    %254: %r0 = convert %252
-    %255: %r0 = const 10
-    %256: %r0 = binary.mul %254, %255
-    %257: %r0 = coerce %256
-    jump -> block23
-  block23:
-    %263: %r5 = alias %229
-    %265: %r0 = const 1
-    %266: %r3 = load element %263[%265]: %r3
-    %267: %r1 = load property %266.items: %r1
-    %268: %r3 = alias %266
-    %269: %r2 = load property %268.length: %r2
-    %270: %r0 = convert %269
-    %272: %r0 = convert %270
-    %231: %r5 = alias %229
-    %273: %r5 = alias %231
-    call Array(a).reclaim(Array(I32)) %273
-    %274: %r0 = binary.add %257, %272
-    %275: %r0 = coerce %274
-    %276: %r0 = const 68
-    %277: %r6 = binary.ne %275, %276
-    %278: %r0 = const -5
-    %279: %r0 = const 1
-    %280: %r0 = select %277, %278, %279
-    return %280
-  block24:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block25:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block26:
-    host host.throw "yana: a runtime check failed"
-    unreachable
+    %129: %r5 = alias %124
+    %130: %r0 = const 0
+    %132: %r0 = const 1
+    %133: %r3 = load element %129[%130]: %r3
+    %134: %r3 = alias %133
+    %135: %r3 = load element %129[%132]: %r3
+    store element %129[%130]: %r3, %135
+    store element %129[%132]: %r3, %134
+    %137: %r0 = const 2
+    %138: %r0 = const 2
+    %139: %r3 = call counted %138
+    %140: %r3 = load element %129[%137]: %r3
+    store element %129[%137]: %r3, %139
+    %142: %r3 = load element %129[%130]: %r3
+    %143: %r1 = load property %142.items: %r1
+    %144: %r3 = alias %142
+    %145: %r2 = load property %144.length: %r2
+    %146: %r0 = convert %145
+    %148: %r0 = convert %146
+    %149: %r0 = const 1000
+    %150: %r0 = binary.mul %148, %149
+    %151: %r0 = coerce %150
+    %153: %r3 = load element %129[%132]: %r3
+    %154: %r1 = load property %153.items: %r1
+    %155: %r3 = alias %153
+    %156: %r2 = load property %155.length: %r2
+    %157: %r0 = convert %156
+    %159: %r0 = convert %157
+    %160: %r0 = const 100
+    %161: %r0 = binary.mul %159, %160
+    %162: %r0 = coerce %161
+    %163: %r0 = binary.add %151, %162
+    %164: %r0 = coerce %163
+    %165: %r3 = alias %140
+    %166: %r1 = load property %165.items: %r1
+    %167: %r3 = alias %140
+    %168: %r2 = load property %167.length: %r2
+    %169: %r0 = convert %168
+    %171: %r0 = convert %169
+    %172: %r3 = alias %140
+    call Array(a).reclaim(I32) %172
+    %173: %r0 = const 10
+    %174: %r0 = binary.mul %171, %173
+    %175: %r0 = coerce %174
+    %176: %r0 = binary.add %164, %175
+    %177: %r0 = coerce %176
+    %179: %r3 = load element %129[%137]: %r3
+    %180: %r1 = load property %179.items: %r1
+    %181: %r3 = alias %179
+    %182: %r2 = load property %181.length: %r2
+    %183: %r0 = convert %182
+    %185: %r0 = convert %183
+    %186: %r5 = alias %126
+    call Array(a).reclaim(Array(I32)) %186
+    %187: %r0 = binary.add %177, %185
+    %188: %r0 = coerce %187
+    %189: %r0 = const 8352
+    %190: %r6 = binary.ne %188, %189
+    branch %190 -> block8 -> block7
+  block6:
+    %234: %r0 = const -3
+    return %234
+  block7:
+    %191: %r0 = const 3
+    %192: %r3 = call counted %191
+    %193: %r0 = const 8
+    %194: %r3 = call counted %193
+    %195: %r5 = host host.array %192, %194
+    %197: %r5 = alias %195
+    %198: %r0 = const 6
+    %199: %r3 = call counted %198
+    %202: %r5 = alias %195
+    %203: %r0 = const 0
+    %204: %r3 = load element %202[%203]: %r3
+    call Array(a).reclaim(I32) %204
+    store element %202[%203]: %r3, %199
+    %206: %r3 = load element %202[%203]: %r3
+    %207: %r1 = load property %206.items: %r1
+    %208: %r3 = alias %206
+    %209: %r2 = load property %208.length: %r2
+    %210: %r0 = convert %209
+    %212: %r0 = convert %210
+    %213: %r0 = const 10
+    %214: %r0 = binary.mul %212, %213
+    %215: %r0 = coerce %214
+    %217: %r0 = const 1
+    %218: %r3 = load element %202[%217]: %r3
+    %219: %r1 = load property %218.items: %r1
+    %220: %r3 = alias %218
+    %221: %r2 = load property %220.length: %r2
+    %222: %r0 = convert %221
+    %224: %r0 = convert %222
+    %225: %r5 = alias %197
+    call Array(a).reclaim(Array(I32)) %225
+    %226: %r0 = binary.add %215, %224
+    %227: %r0 = coerce %226
+    %228: %r0 = const 68
+    %229: %r6 = binary.ne %227, %228
+    %230: %r0 = const -5
+    %231: %r0 = const 1
+    %232: %r0 = select %229, %230, %231
+    return %232
+  block8:
+    %233: %r0 = const -4
+    return %233
 
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
@@ -382,7 +326,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 116 adopted 1 sunk 0 numbered 7 decided 10 unboxed 0 updated 0 split 1 promoted 17 folded 37
+optimizer clones 0 aliased 0 forwarded 0 removed 79 adopted 1 sunk 0 numbered 7 decided 1 unboxed 0 updated 0 split 1 promoted 17 folded 0
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Pair {left: %r3, right: %r3}
